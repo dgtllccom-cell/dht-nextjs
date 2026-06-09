@@ -345,6 +345,7 @@ export function PurchaseOrderWizard() {
   const [countries, setCountries] = useState([]);
   const [mainBranches, setMainBranches] = useState([]);
   const [cityBranches, setCityBranches] = useState([]);
+  const [dbAccounts, setDbAccounts] = useState(MOCK_ACCOUNTS);
 
   // Fetch session & countries on load
   useEffect(() => {
@@ -376,8 +377,26 @@ export function PurchaseOrderWizard() {
         console.error("Failed to load countries:", err);
       }
     }
+    async function initAccounts() {
+      try {
+        const response = await fetch("/api/erp/accounting/accounts?limit=500");
+        const res = await response.json();
+        if (!cancelled && res?.data?.accounts) {
+          const mapped = res.data.accounts.map(acc => ({
+            accountCode: acc.code || acc.account_number,
+            accountName: acc.name,
+            cityBranchName: acc.branch_code || "",
+            ledgerCurrency: acc.currency || "USD"
+          }));
+          setDbAccounts(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to load accounts:", err);
+      }
+    }
     initSession();
     initCountries();
+    initAccounts();
     return () => {
       cancelled = true;
     };
@@ -1879,9 +1898,9 @@ export function PurchaseOrderWizard() {
                           </div>
                           <div className="max-h-48 overflow-y-auto space-y-0.5">
                             {(() => {
-                              const filtered = MOCK_ACCOUNTS.filter(acc =>
-                                acc.accountCode.toLowerCase().includes(purchaseSearch.toLowerCase()) ||
-                                acc.accountName.toLowerCase().includes(purchaseSearch.toLowerCase())
+                              const filtered = dbAccounts.filter(acc =>
+                                acc.accountCode?.toLowerCase().includes(purchaseSearch.toLowerCase()) ||
+                                acc.accountName?.toLowerCase().includes(purchaseSearch.toLowerCase())
                               );
                               if (filtered.length === 0) {
                                 return (
@@ -1976,9 +1995,9 @@ export function PurchaseOrderWizard() {
                           </div>
                           <div className="max-h-48 overflow-y-auto space-y-0.5">
                             {(() => {
-                              const filtered = MOCK_ACCOUNTS.filter(acc =>
-                                acc.accountCode.toLowerCase().includes(salesSearch.toLowerCase()) ||
-                                acc.accountName.toLowerCase().includes(salesSearch.toLowerCase())
+                              const filtered = dbAccounts.filter(acc =>
+                                acc.accountCode?.toLowerCase().includes(salesSearch.toLowerCase()) ||
+                                acc.accountName?.toLowerCase().includes(salesSearch.toLowerCase())
                               );
                               if (filtered.length === 0) {
                                 return (

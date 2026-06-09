@@ -396,9 +396,13 @@ export function CompanyIncorporationForm({
       localStorage.setItem("incorporated_companies", JSON.stringify(updated));
       setMessage(`Updated company "${companyName}" successfully.`);
       
-      setTimeout(() => {
-        router.push("/dashboard/settings/company" as Route);
-      }, 1000);
+      if (mode === "standalone") {
+        setTimeout(() => {
+          router.push("/dashboard/settings/company" as Route);
+        }, 1000);
+      } else {
+        onSave?.(updated.find(c => c.id === initialCompanyId) as CompanyIncorporationData);
+      }
     } else {
       // Creation mode: add new
       const newCompany: CompanyIncorporationData & { id: string } = {
@@ -427,9 +431,11 @@ export function CompanyIncorporationForm({
       onSave?.(newCompany);
       setMessage(`Saved company "${newCompany.companyName}" successfully.`);
       
-      setTimeout(() => {
-        router.push("/dashboard/settings/company" as Route);
-      }, 1000);
+      if (mode === "standalone") {
+        setTimeout(() => {
+          router.push("/dashboard/settings/company" as Route);
+        }, 1000);
+      }
     }
   }
 

@@ -733,37 +733,7 @@ export function PurchaseOrderManagementDashboard() {
         </div>
       </section>
       {selected ? <PurchaseOrderDetailViewer selected={selected} containers={containers} loadedContainers={loadedContainers} isBranchAdmin={isBranchAdmin} isCountryAdmin={isCountryAdmin} /> : null}
-      <div className="grid gap-6 xl:grid-cols-2">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2"><Boxes className="h-5 w-5 text-blue-500" />Inventory Stock Balances Integration</h2>
-          <p className="mt-1 text-xs text-slate-500">Derived balances and current loading pipeline of goods.</p>
-          <div className="mt-4 grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
-            <MiniInventory label="Booking Stock" value={String(filtered.filter((r) => stockStage(r) === "Booking Stock").length)} icon={<ClipboardList className="h-4 w-4" />} />
-            <MiniInventory label="Confirmed Stock" value={String(filtered.filter((r) => stockStage(r) === "Confirmed Stock").length)} icon={<CheckCircle2 className="h-4 w-4" />} />
-            <MiniInventory label="In Transit" value={String(totals.inTransit)} icon={<Ship className="h-4 w-4" />} />
-            <MiniInventory label="Warehouse Stock" value={String(filtered.filter((r) => inventoryStatus(r) === "Stock Available").length)} icon={<Landmark className="h-4 w-4" />} />
-            <MiniInventory label="Import Stock" value={String(filtered.length)} icon={<PackageCheck className="h-4 w-4" />} />
-            <MiniInventory label="Export Stock" value="0" icon={<Boxes className="h-4 w-4" />} />
-            <MiniInventory label="Delivered Stock" value={String(filtered.filter((r) => shipmentStatus(r) === "Completed").length)} icon={<CheckCircle2 className="h-4 w-4" />} />
-          </div>
-        </section>
-        {!isBranchAdmin && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2"><TrendingUp className="h-5 w-5 text-indigo-500" />Administrative Branch Registry Analysis</h2>
-            <p className="mt-1 text-xs text-slate-500">Summary of purchase orders aggregated by active branch boundaries.</p>
-            <div className="mt-4 space-y-3">
-              {branchSummary.map((row) => (
-                <div key={`${row.country}-${row.branch}`} className="rounded-xl border border-slate-150 p-3.5 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 hover:bg-slate-50 transition">
-                  <div className="flex items-center justify-between gap-4">
-                    <div><p className="text-sm font-bold text-slate-800 dark:text-slate-200">{row.branch}</p><p className="text-xs text-slate-500">{row.country} · {row.orders} orders logged</p></div>
-                    <div className="text-right text-sm"><p className="font-extrabold text-blue-600 dark:text-blue-400">{money(row.amount)}</p><p className="text-xs text-slate-500">{row.containers} containers allocated</p></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
+
     </div>
   );
 }

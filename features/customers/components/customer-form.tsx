@@ -35,10 +35,14 @@ type CustomerRow = {
 
 export function CustomerForm({
   lang,
-  initialCustomerId
+  initialCustomerId,
+  mode = "standalone",
+  onSave
 }: {
   lang: SupportedLanguage;
   initialCustomerId?: string;
+  mode?: "standalone" | "embedded";
+  onSave?: (customerId: string) => void;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -242,16 +246,24 @@ export function CustomerForm({
         // Edit mode
         await apiPatch(`/api/erp/customers/${initialCustomerId}`, payload);
         setMessage("Customer details updated successfully.");
-        setTimeout(() => {
-          router.push(`/dashboard/settings/customers/view?customerId=${initialCustomerId}` as Route);
-        }, 1000);
+        if (mode === "standalone") {
+          setTimeout(() => {
+            router.push(`/dashboard/settings/customers/view?customerId=${initialCustomerId}` as Route);
+          }, 1000);
+        } else {
+          onSave?.(initialCustomerId);
+        }
       } else {
         // Creation mode
         const res = await apiPost<{ customerId: string }>("/api/erp/customers", payload);
         setMessage("Customer profile incorporated successfully.");
-        setTimeout(() => {
-          router.push(`/dashboard/settings/customers/view?customerId=${res.customerId}` as Route);
-        }, 1000);
+        if (mode === "standalone") {
+          setTimeout(() => {
+            router.push(`/dashboard/settings/customers/view?customerId=${res.customerId}` as Route);
+          }, 1000);
+        } else {
+          onSave?.(res.customerId);
+        }
       }
     } catch (e: any) {
       setMessage(e.message || "Save operation failed.");

@@ -25,8 +25,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { listCountries, type LocationCountry } from "@/features/locations/location-api";
 import { apiPost } from "@/lib/api/client";
-import { CustomerForm } from "@/features/customers/components/customer-form";
-import { CompanyIncorporationForm } from "@/features/companies/components/company-incorporation-form";
 
 type BranchType = "Main" | "City";
 
@@ -345,14 +343,6 @@ export function NewAccountSetup() {
   const [reportRows, setReportRows] = useState<AccountGeneralReportRow[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
 
-  // Wizard States
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-  const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null);
-
-  // Unified Search State
-  const [globalSearch, setGlobalSearch] = useState("");
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
   const [filterAccountNo, setFilterAccountNo] = useState("");
   const [filterAccountName, setFilterAccountName] = useState("");
   const [filterCountry, setFilterCountry] = useState("all");
@@ -472,16 +462,6 @@ export function NewAccountSetup() {
       return true;
     });
   }, [reportRows, appliedAccountNo, appliedAccountName, appliedCountry, appliedBranch, appliedAccountType, appliedSubType]);
-
-  const globalSearchResults = useMemo(() => {
-    if (!globalSearch.trim()) return [];
-    const query = globalSearch.toLowerCase();
-    return reportRows.filter((r) => 
-      (r.accountName && r.accountName.toLowerCase().includes(query)) ||
-      (r.accountCode && r.accountCode.toLowerCase().includes(query)) ||
-      (r.journalCode && r.journalCode.toLowerCase().includes(query))
-    ).slice(0, 5);
-  }, [reportRows, globalSearch]);
 
   const selectedCountry = useMemo(
     () => countries.find((item) => item.id === country) ?? null,
@@ -658,11 +638,9 @@ export function NewAccountSetup() {
         ...current
       ]);
       setAccountCode(response.accountNumber);
-      setMessage(`Saved account ${response.accountNumber}. Proceeding to owner details...`);
+      setMessage(`Saved account ${response.accountNumber}. Ledger linked automatically.`);
       void fetchReport();
-      setTimeout(() => {
-        setCurrentStep(2);
-      }, 1000);
+      router.push(`/dashboard/accounts?accountId=${response.accountId}&created=1`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Account save failed.");
     } finally {
@@ -675,50 +653,15 @@ export function NewAccountSetup() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Template</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">New Account Wizard</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">New Account</h1>
           <p className="text-sm text-muted-foreground">
-            Complete the 3-step wizard to setup Account, Owner, and Company details.
+            Branch select karein, account details enter karein, report live update hogi.
           </p>
         </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="relative w-72">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search Account by Name/No..."
-              className="pl-8 bg-white"
-              value={globalSearch}
-              onChange={(e) => {
-                setGlobalSearch(e.target.value);
-                setIsDropdownOpen(true);
-              }}
-              onFocus={() => setIsDropdownOpen(true)}
-              onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
-            />
-            {isDropdownOpen && globalSearch && globalSearchResults.length > 0 && (
-              <div className="absolute top-full mt-1 w-full rounded-md border bg-white shadow-lg z-50 overflow-hidden">
-                {globalSearchResults.map((acc) => (
-                  <div
-                    key={acc.accountId}
-                    className="p-3 hover:bg-slate-50 cursor-pointer border-b last:border-b-0"
-                    onClick={() => {
-                      router.push(`/dashboard/accounts?accountId=${acc.accountId}`);
-                    }}
-                  >
-                    <p className="font-semibold text-sm">{acc.accountName}</p>
-                    <p className="text-xs text-muted-foreground">{acc.accountCode} • {acc.branchName}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          {currentStep === 1 && <StatusBadge ready={readyToSave} saved={saved} />}
-        </div>
+        <StatusBadge ready={readyToSave} saved={saved} />
       </div>
 
-      {currentStep === 1 && (
-        <>
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
         <section className="rounded-lg border bg-card">
           <div className="border-b px-5 py-4">
             <div className="flex items-center gap-2">
@@ -1329,42 +1272,6 @@ export function NewAccountSetup() {
           </table>
         </div>
       </div>
-    </>
-  )}
-
-  {currentStep === 2 && (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Step 2 - Owner Details</h2>
-        <Button variant="outline" onClick={() => setCurrentStep(1)}>Back to Step 1</Button>
-      </div>
-      <div className="p-1 rounded-xl border bg-slate-50/50">
-        <CustomerForm 
-          lang="en" 
-          mode="embedded"
-          onSave={(customerId) => {
-            setCreatedCustomerId(customerId);
-            setCurrentStep(3);
-          }}
-        />
-      </div>
     </div>
-  )}
-
-  {currentStep === 3 && (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Step 3 - Company Details</h2>
-        <Button variant="outline" onClick={() => setCurrentStep(2)}>Back to Step 2</Button>
-      </div>
-      <div className="p-1 rounded-xl border bg-slate-50/50">
-        <CompanyIncorporationForm 
-          mode="embedded" 
-          onSave={() => {
-            router.push("/dashboard/accounts");
-          }} 
-        />
-      </div>
-    </div>
-  )}
-</div>
+  );
+}
