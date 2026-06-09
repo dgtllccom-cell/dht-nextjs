@@ -349,6 +349,16 @@ export function NewAccountSetup() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null);
 
+  // ── Master Record Linking State ──────────────────────────────────────────
+  const [linkedMasterId, setLinkedMasterId] = useState<string | null>(null);
+  const [linkedMasterName, setLinkedMasterName] = useState("");
+  const [masterSearch, setMasterSearch] = useState("");
+  const [masterResults, setMasterResults] = useState<{ id: string; name: string }[]>([]);
+  const [masterSearchOpen, setMasterSearchOpen] = useState(false);
+  const [masterSearchLoading, setMasterSearchLoading] = useState(false);
+  const [showMasterModal, setShowMasterModal] = useState(false);
+  const [masterModalType, setMasterModalType] = useState<"customer" | "company" | null>(null);
+
   // Unified Search State
   const [globalSearch, setGlobalSearch] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -366,6 +376,45 @@ export function NewAccountSetup() {
   const [appliedBranch, setAppliedBranch] = useState("all");
   const [appliedAccountType, setAppliedAccountType] = useState("all");
   const [appliedSubType, setAppliedSubType] = useState("all");
+
+  // ── Fetch master records for search ─────────────────────────────────────
+  useEffect(() => {
+    if (!accountTitle || accountTitle === "Employee") {
+      setLinkedMasterId(null);
+      setLinkedMasterName("");
+      setMasterSearch("");
+      setMasterResults([]);
+      return;
+    }
+
+    const query = masterSearch.trim();
+    if (!query) {
+      setMasterResults([]);
+      return;
+    }
+
+    const endpoint =
+      accountTitle === "Customer"
+        ? `/api/erp/customers?limit=20&search=${encodeURIComponent(query)}`
+        : `/api/erp/companies?limit=20&search=${encodeURIComponent(query)}`;
+
+    let cancelled = false;
+    setMasterSearchLoading(true);
+    fetch(endpoint)
+      .then((r) => r.json())
+      .then((json) => {
+        if (cancelled) return;
+        const rows: { id: string; name: string }[] =
+          accountTitle === "Customer"
+            ? (json.customers ?? []).map((c: any) => ({ id: c.id, name: c.customer_name }))
+            : (json.companies ?? []).map((c: any) => ({ id: c.id, name: c.company_name ?? c.companyName }));
+        setMasterResults(rows);
+      })
+      .catch(() => { if (!cancelled) setMasterResults([]); })
+      .finally(() => { if (!cancelled) setMasterSearchLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [masterSearch, accountTitle]);
 
   async function fetchReport() {
     setReportLoading(true);
@@ -913,6 +962,117 @@ export function NewAccountSetup() {
                 </div>
               </div>
 
+              {/* ── Link to Master Record ──────────────────────────────────── */}
+              {(accountTitle === "Customer" || accountTitle === "Bank") && (
+                <div className="mt-5 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <UserRound className="h-4 w-4 text-primary" aria-hidden />
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      Link to {accountTitle === "Customer" ? "Customer" : "Bank"} Record
+                    </h3>
+                    {linkedMasterId && (
+                      <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                        <CheckCircle2 className="h-3 w-3" /> Linked
+                      </span>
+                    )}
+                  </div>
+
+                  {linkedMasterId ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-white px-4 py-2.5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-slate-900 truncate">{linkedMasterName}</p>
+                        <p className="text-[10px] text-slate-500 font-mono">{linkedMasterId}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setLinkedMasterId(null); setLinkedMasterName(""); setMasterSearch(""); }}
+                        className="h-7 text-xs text-slate-600 border-slate-200 px-2.5 shrink-0"
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                        <Input
+                          id="masterSearch"
+                          value={masterSearch}
+                          onChange={(e) => { setMasterSearch(e.target.value); setMasterSearchOpen(true); }}
+                          onFocus={() => setMasterSearchOpen(true)}
+                          onBlur={() => setTimeout(() => setMasterSearchOpen(false), 200)}
+                          placeholder={`Search existing ${accountTitle === "Customer" ? "customer" : "bank"} by name...`}
+                          className="pl-8 bg-white"
+                        />
+                        {masterSearchLoading && (
+                          <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 animate-pulse">Searching...</span>
+                        )}
+                      </div>
+
+                      {masterSearchOpen && masterSearch && (
+                        <div className="rounded-lg border bg-white shadow-lg overflow-hidden">
+                          {masterResults.length > 0 ? (
+                            <>
+                              {masterResults.map((r) => (
+                                <button
+                                  key={r.id}
+                                  type="button"
+                                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 border-b last:border-b-0 flex items-center gap-2"
+                                  onClick={() => {
+                                    setLinkedMasterId(r.id);
+                                    setLinkedMasterName(r.name);
+                                    setMasterSearchOpen(false);
+                                    if (!accountName) setAccountName(r.name);
+                                  }}
+                                >
+                                  <UserRound className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                  <span className="font-semibold text-slate-900 truncate">{r.name}</span>
+                                </button>
+                              ))}
+                              <div className="border-t px-3 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() => { setMasterModalType(accountTitle === "Customer" ? "customer" : "company"); setShowMasterModal(true); }}
+                                  className="w-full flex items-center gap-2 text-xs font-semibold text-primary hover:text-primary/80 py-1"
+                                >
+                                  <span className="text-base leading-none">+</span>
+                                  New {accountTitle === "Customer" ? "Customer" : "Bank"} — Add to Master
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="p-4 space-y-3">
+                              <p className="text-xs text-slate-500">No {accountTitle === "Customer" ? "customer" : "bank"} found matching <b>&ldquo;{masterSearch}&rdquo;</b>.</p>
+                              <button
+                                type="button"
+                                onClick={() => { setMasterModalType(accountTitle === "Customer" ? "customer" : "company"); setShowMasterModal(true); }}
+                                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
+                              >
+                                <span className="text-sm leading-none">+</span>
+                                {accountTitle === "Customer" ? "New Customer" : "New Bank"} — Open Master Form
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {!masterSearch && (
+                        <button
+                          type="button"
+                          onClick={() => { setMasterModalType(accountTitle === "Customer" ? "customer" : "company"); setShowMasterModal(true); }}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                        >
+                          <span className="text-sm">+</span> Add New {accountTitle === "Customer" ? "Customer" : "Bank"} to Master Forms
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-muted-foreground">
                   Save account to Account Master. Ledger aur identity numbers automatically link ho jayenge.
@@ -1392,7 +1552,7 @@ export function NewAccountSetup() {
                       <td className="px-3 py-2 text-center">
                         <button
                           type="button"
-                          onClick={() => router.push(`/dashboard/accounts?accountId=${row.accountId}`)}
+                          onClick={() => router.push(`/dashboard/accounts/view?accountId=${row.accountId}`)}
                           className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
                         >
                           View
@@ -1451,5 +1611,67 @@ export function NewAccountSetup() {
     </div>
   )}
 </div>
+
+  {/* ── Master Record Modal ─────────────────────────────────────────────── */}
+  {showMasterModal && masterModalType && (
+    <div className="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/60 p-4 overflow-y-auto">
+      <div className="my-8 w-full max-w-3xl rounded-2xl border bg-white shadow-2xl">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between border-b bg-slate-50 px-6 py-4 rounded-t-2xl">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Master Forms</p>
+            <h2 className="text-base font-bold text-slate-900">
+              {masterModalType === "customer" ? "New Customer — Customer Master" : "New Company — Company Master"}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMasterModal(false)}
+            className="rounded-full p-2 hover:bg-slate-200 transition-colors"
+            aria-label="Close modal"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6 max-h-[70vh] overflow-y-auto">
+          {masterModalType === "customer" ? (
+            <CustomerForm
+              lang="en"
+              mode="embedded"
+              onSave={(customerId) => {
+                // Auto-select newly created customer
+                setLinkedMasterId(customerId);
+                // Refetch to get the name
+                fetch(`/api/erp/customers/${customerId}`)
+                  .then((r) => r.json())
+                  .then((json) => {
+                    const name = json.customer?.customer_name ?? json.customer_name ?? "New Customer";
+                    setLinkedMasterName(name);
+                    if (!accountName) setAccountName(name);
+                  })
+                  .catch(() => setLinkedMasterName("New Customer"));
+                setShowMasterModal(false);
+              }}
+            />
+          ) : (
+            <CompanyIncorporationForm
+              mode="embedded"
+              onSave={(data) => {
+                const companyId = (data as any).id ?? "";
+                setLinkedMasterId(companyId);
+                setLinkedMasterName(data.companyName ?? "New Company");
+                if (!accountName) setAccountName(data.companyName ?? "");
+                setShowMasterModal(false);
+              }}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )}
   );
 }

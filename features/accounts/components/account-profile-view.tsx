@@ -196,32 +196,132 @@ export function AccountProfileView({
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between gap-3">
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Print-only styles */}
+      <style>{`
+        @media print { .no-print { display: none !important; } }
+      `}</style>
+
+      {/* ── Header ────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Button asChild variant="outline" size="icon">
+          <Button asChild variant="outline" size="icon" className="no-print shrink-0">
             <Link href="/dashboard/accounts">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Account View Profile</h1>
-            <p className="text-xs text-muted-foreground">
-              Complete account, branch, audit, and financial profile for {selectedRow.accountName}
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Accounts</p>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">Account View Profile</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {selectedRow.accountName} &mdash; {selectedRow.accountCode}
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-1.5" /> Print
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-2 no-print">
+          <Button type="button" variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5">
+            <Printer className="h-4 w-4" /> Print
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => router.push(`/dashboard/accounts/setup?accountId=${selectedRow.accountId}`)}>
+          <Button
+            type="button" variant="outline" size="sm"
+            onClick={() => {
+              const t = document.title;
+              document.title = `Account_${selectedRow.accountCode}_${selectedRow.accountName}`;
+              window.print();
+              document.title = t;
+            }}
+            className="gap-1.5"
+          >
+            <Download className="h-4 w-4" /> PDF
+          </Button>
+          <Button
+            type="button" variant="outline" size="sm"
+            onClick={() => {
+              const sub = encodeURIComponent(`Account: ${selectedRow.accountName} (${selectedRow.accountCode})`);
+              const body = encodeURIComponent(
+                `Account Number: ${selectedRow.accountCode}\nName: ${selectedRow.accountName}\n` +
+                `Journal: ${selectedRow.journalCode}\nType: ${selectedRow.accountCategory}\n` +
+                `Branch: ${selectedRow.branchName}\nCountry: ${selectedRow.countryName}\n` +
+                `Balance: ${fmtNumber(selectedRow.currentBalance)} ${selectedRow.currency}\n\n` +
+                `View: ${window.location.href}`
+              );
+              window.open(`mailto:?subject=${sub}&body=${body}`);
+            }}
+            className="gap-1.5"
+          >
+            <Mail className="h-4 w-4" /> Email
+          </Button>
+          <Button
+            type="button" size="sm"
+            onClick={() => {
+              const text = encodeURIComponent(
+                `*Account Profile*\n*Name:* ${selectedRow.accountName}\n*Account #:* ${selectedRow.accountCode}\n` +
+                `*Journal:* ${selectedRow.journalCode}\n*Type:* ${selectedRow.accountCategory}\n` +
+                `*Branch:* ${selectedRow.branchName} (${selectedRow.branchCode})\n` +
+                `*Country:* ${selectedRow.countryName} | ${selectedRow.currency}\n` +
+                `*Balance:* ${fmtNumber(selectedRow.currentBalance)}\n*Status:* ${selectedRow.status}\n\n` +
+                `View: ${window.location.href}`
+              );
+              window.open(`https://wa.me/?text=${text}`, "_blank");
+            }}
+            className="gap-1.5 bg-[#25D366] hover:bg-[#20b558] text-white border-0"
+          >
+            <Phone className="h-4 w-4" /> WhatsApp
+          </Button>
+          <Button
+            type="button" variant="outline" size="sm"
+            onClick={() => router.push(`/dashboard/accounts/setup?accountId=${selectedRow.accountId}`)}
+          >
             Edit Account
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* ── Premium Account Header Card ────────────────────────────────── */}
+      <div className="rounded-xl border bg-gradient-to-r from-[#0f172a] to-[#1e3a5f] px-6 py-5 text-white shadow-lg">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-1">Account Master Record</p>
+            <h2 className="text-2xl font-extrabold tracking-tight">{selectedRow.accountName}</h2>
+            <p className="mt-1 text-sm font-mono font-semibold text-white/80">
+              {selectedRow.journalCode} / {selectedRow.accountCode}
+            </p>
+          </div>
+          <div className="text-right space-y-1">
+            <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+              (selectedRow.status ?? "").toLowerCase() === "active"
+                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                : "bg-red-500/20 text-red-300 border border-red-500/30"
+            }`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              {selectedRow.status || "Active"}
+            </div>
+            <p className="text-[10px] text-white/50 font-mono">{selectedRow.accountCategory} — {selectedRow.subType}</p>
+            <p className="text-[10px] text-white/50">{selectedRow.currency} · {selectedRow.countryName}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-white/10">
+          {[
+            { label: "Opening", value: fmtNumber(selectedRow.openingBalance) },
+            { label: "Total Debit", value: fmtNumber(selectedRow.debitTotal) },
+            { label: "Total Credit", value: fmtNumber(selectedRow.creditTotal) },
+            { label: "Net Balance", value: fmtNumber(selectedRow.currentBalance), highlight: true },
+          ].map((item) => (
+            <div key={item.label}>
+              <p className="text-[10px] text-white/50 uppercase tracking-wider font-semibold">{item.label}</p>
+              <p className={`text-lg font-extrabold font-mono mt-0.5 ${
+                item.highlight
+                  ? selectedRow.currentBalance < 0 ? "text-red-300" : "text-emerald-300"
+                  : "text-white"
+              }`}>{item.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+
         {/* Left column */}
         <div className="space-y-6">
           <Card className="rounded-lg">
