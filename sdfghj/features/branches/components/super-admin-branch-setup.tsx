@@ -1,0 +1,902 @@
+﻿"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  Building2,
+  CheckCircle2,
+  ClipboardList,
+  MapPin,
+  Pencil,
+  Plus,
+  Save,
+  Trash2
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CompanyPicker } from "@/features/companies/components/company-picker";
+import { BranchOwnerPicker } from "@/features/branches/components/branch-owner-picker";
+import { BranchLiveReportPanel } from "@/features/branches/components/branch-live-report-panel";
+import { BranchReportActionsMenu } from "@/features/branches/components/branch-report-actions-menu";
+import { downloadCsv } from "@/features/branches/components/branch-report-export";
+import {
+  LocationHierarchySelect,
+  type LocationHierarchyMeta,
+  type LocationHierarchyValue
+} from "@/features/locations/components/location-hierarchy-select";
+import { apiGet } from "@/lib/api/client";
+import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
+
+type ContactRow = { id: string; type: string; value: string };
+type SavedBranch = {
+  id: string;
+  branchCode: string;
+  country: string;
+  city: string;
+  company: string;
+  owner: string;
+  savedAt: string;
+};
+
+type DbSuperAdminBranchRow = {
+  id: string;
+  name: string;
+  code: string;
+  company_id: string;
+  currency: string | null;
+  country_id: string | null;
+  state_province_id: string | null;
+  city_id: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  owner_name: string | null;
+  contacts: unknown;
+  documents: unknown;
+  created_at: string;
+  companies?: { name: string } | null;
+  countries?: { name: string } | null;
+  states_provinces?: { name: string } | null;
+  cities?: { name: string } | null;
+};
+
+type CompanyDetailRow = {
+  id: string;
+  name: string;
+  legal_name: string | null;
+  base_currency: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type OwnerCustomerRow = {
+  id: string;
+  customer_name: string;
+  company_name: string | null;
+  contact_person: string | null;
+  mobile: string | null;
+  whatsapp: string | null;
+  email: string | null;
+  address: string | null;
+};
+
+type OwnerProfileRow = {
+  userId: string;
+  userCode: string;
+  fullName: string;
+  countryName: string;
+  branchName: string;
+  branchType: string;
+  role: string;
+  permissions: string[];
+};
+
+type OwnerPreview = {
+  source: "customer" | "profile";
+  code: string;
+  name: string;
+  companyName: string;
+  contactPerson: string;
+  mobile: string;
+  whatsapp: string;
+  email: string;
+  address: string;
+  country: string;
+  branch: string;
+  role: string;
+};
+
+const initialContactTypes = ["Mobile Number", "Phone Number", "WhatsApp Number", "Email Address"];
+const currencies = [["USD", "US Dollar (USD)"]] as const;
+
+function selectClass() {
+  return "flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+}
+
+function pillClassName() {
+  return "inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs text-slate-700 dark:text-slate-200";
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactCode(value: string, prefix: string) {
+  const clean = value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return clean ? `${prefix}-${clean.slice(0, 8)}` : `${prefix}-`;
+}
+
+function TextArea({
+  value,
+  onChange,
+  placeholder
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <textarea
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="min-h-24 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    />
+  );
+}
+
+function Modal({
+  title,
+  children,
+  onClose,
+  wide = false
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+  wide?: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4">
+      <div
+        className={
+          wide
+            ? "max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg border bg-background shadow-2xl"
+            : "w-full max-w-lg rounded-lg border bg-background shadow-2xl"
+        }
+      >
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="font-semibold text-foreground">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-2 py-1 text-sm font-semibold text-muted-foreground hover:bg-muted"
+          >
+            Close
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ReportRow({ label, value }: { label: string; value: string }) {
+  const blank = !value || value === "-";
+
+  return (
+    <div className="grid grid-cols-[130px_1fr] gap-3 border-b border-dashed py-2 text-sm last:border-b-0">
+      <span className="text-xs font-semibold uppercase text-muted-foreground">{label}</span>
+      <span className={blank ? "font-semibold text-muted-foreground" : "font-semibold text-foreground"}>
+        {value || "-"}
+      </span>
+    </div>
+  );
+}
+
+function ChecklistItem({ done, label }: { done: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <CheckCircle2 className={done ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-slate-300"} aria-hidden />
+      <span className={done ? "font-medium text-foreground" : "text-muted-foreground"}>{label}</span>
+    </div>
+  );
+}
+
+function buildMailtoHref(subject: string, rows: Array<{ label: string; value: string }>) {
+  const body = rows.map((row) => `${row.label}: ${row.value || "-"}`).join("\n");
+  const params = new URLSearchParams({ subject, body });
+  return `mailto:?${params.toString()}`;
+}
+
+function ChipList({
+  empty,
+  rows,
+  onRemove
+}: {
+  empty: string;
+  rows: Array<{ id: string; type: string; value: string }>;
+  onRemove: (id: string) => void;
+}) {
+  if (!rows.length) {
+    return <p className="rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">{empty}</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div key={row.id} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+          <div>
+            <p className="text-xs font-semibold uppercase text-muted-foreground">{row.type}</p>
+            <p className="text-sm font-semibold text-foreground">{row.value}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onRemove(row.id)}
+            className="rounded-md p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+            aria-label="Remove row"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SuperAdminBranchSetup() {
+  const [contactTypes, setContactTypes] = useState(initialContactTypes);
+
+  const [location, setLocation] = useState<LocationHierarchyValue>({
+    countryId: "",
+    stateProvinceId: "",
+    cityId: ""
+  });
+  const [locationMeta, setLocationMeta] = useState<LocationHierarchyMeta>({
+    country: null,
+    state: null,
+    city: null,
+    area: null
+  });
+  const [currency, setCurrency] = useState("USD");
+  const [address, setAddress] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [companyDetails, setCompanyDetails] = useState<CompanyDetailRow | null>(null);
+  const [owner, setOwner] = useState("");
+  const [ownerPreview, setOwnerPreview] = useState<OwnerPreview | null>(null);
+
+  const [contactType, setContactType] = useState(initialContactTypes[0]);
+  const [contactValue, setContactValue] = useState("");
+  const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [savedBranches, setSavedBranches] = useState<SavedBranch[]>([]);
+  const [savedBranchRows, setSavedBranchRows] = useState<DbSuperAdminBranchRow[]>([]);
+  const [editingBranchId, setEditingBranchId] = useState("");
+  const [loadingSaved, setLoadingSaved] = useState(false);
+  const [savedSearch, setSavedSearch] = useState("");
+
+  const [modal, setModal] = useState<null | "contactType" | "report">(null);
+  const [newType, setNewType] = useState("");
+  const [message, setMessage] = useState("");
+
+  const countryName = locationMeta.country?.name ?? "";
+  const stateName = locationMeta.state?.name ?? "";
+  const cityName = locationMeta.city?.name ?? "";
+  const zip = locationMeta.city?.zip_code ?? "";
+
+  const branchCode = "SUPER-HQ-001";
+  const contactsText = contacts.length ? contacts.map((row) => `${row.type}: ${row.value}`).join(", ") : "No Contacts";
+  const companyName = companyDetails?.name ?? "";
+  const companyCode = companyDetails?.id ? compactCode(companyDetails.id, "CMP") : "-";
+  const readyToSave = Boolean(countryName && stateName && cityName && branchCode && currency && companyName && owner && address);
+
+  const reportRows = useMemo(
+    () => [
+      { label: "Branch Code", value: branchCode || "-" },
+      { label: "Branch Type", value: "Super Admin Branch" },
+      { label: "Country", value: countryName || "-" },
+      { label: "Country Code", value: locationMeta.country?.iso2 || locationMeta.country?.iso3 || "-" },
+      { label: "State / Province", value: stateName || "-" },
+      { label: "State Code", value: locationMeta.state?.code || "-" },
+      { label: "City", value: cityName || "-" },
+      { label: "City Code", value: locationMeta.city?.code || "-" },
+      { label: "Zip / Postal Code", value: zip || "-" },
+      { label: "Company Name", value: companyName || "-" },
+      { label: "Company Code", value: companyCode || "-" },
+      { label: "Company Owner", value: ownerPreview?.name || owner || "-" },
+      { label: "Owner Details", value: ownerPreview ? `${ownerPreview.source.toUpperCase()} Â· ${ownerPreview.code}` : owner || "-" },
+      { label: "Branch Name", value: "Super Admin Branch" },
+      { label: "Currency", value: currency || "USD" },
+      { label: "Address", value: address || "-" },
+      { label: "Contacts", value: contactsText }
+    ],
+    [address, branchCode, cityName, companyCode, companyName, contactsText, countryName, currency, locationMeta.city?.code, locationMeta.country?.iso2, locationMeta.country?.iso3, locationMeta.state?.code, owner, ownerPreview, stateName, zip]
+  );
+
+  const filteredSavedBranches = useMemo(() => {
+    const q = savedSearch.trim().toLowerCase();
+    if (!q) return savedBranches;
+    return savedBranches.filter((entry) => {
+      const haystack = [entry.branchCode, entry.country, entry.city, entry.company, entry.owner]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [savedBranches, savedSearch]);
+
+  function openReport(autoPrint: boolean) {
+    openA4ReportWindow({
+      title: "Super Admin Branch Report",
+      subtitle: "Store Entry Preview (A4)",
+      rows: reportRows,
+      autoPrint
+    });
+  }
+
+  function printReport() {
+    openReport(true);
+  }
+
+  function viewReport() {
+    openReport(false);
+  }
+
+  function editReport() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const firstField = document.querySelector("form input, form select, form textarea") as HTMLElement | null;
+    firstField?.focus?.();
+  }
+
+  function resetForm() {
+    setEditingBranchId("");
+    setLocation({ countryId: "", stateProvinceId: "", cityId: "" });
+    setLocationMeta({ country: null, state: null, city: null, area: null });
+    setCurrency("USD");
+    setAddress("");
+    setCompanyId("");
+    setCompanyDetails(null);
+    setOwner("");
+    setOwnerPreview(null);
+    setContacts([]);
+    setMessage("");
+  }
+
+  function normalizeContacts(value: unknown): ContactRow[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((row, index) => {
+        const item = row as { id?: string; type?: string; value?: string };
+        const type = String(item.type ?? "").trim();
+        const contactValue = String(item.value ?? "").trim();
+        if (!type || !contactValue) return null;
+        return { id: item.id || `${type}-${contactValue}-${index}`, type, value: contactValue };
+      })
+      .filter((row): row is ContactRow => Boolean(row));
+  }
+
+  function beginEditBranch(row: DbSuperAdminBranchRow) {
+    setEditingBranchId(row.id);
+    setLocation({
+      countryId: row.country_id ?? "",
+      stateProvinceId: row.state_province_id ?? "",
+      cityId: row.city_id ?? ""
+    });
+    setLocationMeta({ country: null, state: null, city: null, area: null });
+    setCurrency(row.currency || "USD");
+    setAddress(row.address || "");
+    setCompanyId(row.company_id || "");
+    setOwner(row.owner_name || "");
+    setContacts(normalizeContacts(row.contacts));
+    setMessage(`Editing: ${row.code}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function emailReport() {
+    if (typeof window === "undefined") return;
+    window.location.href = buildMailtoHref("Super Admin Branch Report", reportRows);
+  }
+
+  function exportReportCsv() {
+    const rows = [["Field", "Value"], ...reportRows.map((row) => [row.label, row.value])];
+    downloadCsv(`super-admin-branch_${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  }
+
+  async function loadSavedBranches() {
+    setLoadingSaved(true);
+    try {
+      const res = await fetch("/api/branch-management/super-admin-branches", { cache: "no-store" });
+      const json = (await res.json().catch(() => ({}))) as { superAdminBranches?: DbSuperAdminBranchRow[] };
+      const list = Array.isArray(json.superAdminBranches) ? json.superAdminBranches : [];
+
+      const mapped: SavedBranch[] = list.map((row) => ({
+        id: row.id,
+        branchCode: row.code,
+        country: row.countries?.name ?? "-",
+        city: row.cities?.name ?? "-",
+        company: row.companies?.name ?? companyName,
+        owner: row.owner_name ?? "-",
+        savedAt: new Date(row.created_at).toLocaleString()
+      }));
+
+      setSavedBranchRows(list);
+      setSavedBranches(mapped);
+    } catch {
+      // Keep silent; this is a side panel convenience list.
+    } finally {
+      setLoadingSaved(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      if (!companyId) {
+        setCompanyDetails(null);
+        return;
+      }
+      try {
+        const res = await apiGet<{ company: CompanyDetailRow }>(`/api/erp/companies/${encodeURIComponent(companyId)}`);
+        if (!cancelled) setCompanyDetails(res.company ?? null);
+      } catch {
+        if (!cancelled) setCompanyDetails(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const q = owner.trim();
+    if (!q) {
+      setOwnerPreview(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const [customersRes, usersRes] = await Promise.all([
+          apiGet<{ customers: OwnerCustomerRow[] }>(`/api/erp/customers?q=${encodeURIComponent(q)}&limit=10`),
+          apiGet<{ rows: OwnerProfileRow[] }>(`/api/erp/users/journal-report?q=${encodeURIComponent(q)}&limit=10`)
+        ]);
+
+        if (cancelled) return;
+
+        const normalized = normalizeSearch(q);
+        const customer =
+          customersRes.customers?.find((row) =>
+            [
+              row.customer_name,
+              row.company_name,
+              row.contact_person,
+              row.mobile,
+              row.whatsapp,
+              row.email
+            ]
+              .filter(Boolean)
+              .some((value) => normalizeSearch(String(value)) === normalized || normalizeSearch(String(value)).includes(normalized))
+          ) ?? customersRes.customers?.[0] ?? null;
+
+        if (customer) {
+          setOwnerPreview({
+            source: "customer",
+            code: compactCode(customer.id, "CUST"),
+            name: customer.customer_name,
+            companyName: customer.company_name ?? "-",
+            contactPerson: customer.contact_person ?? "-",
+            mobile: customer.mobile ?? "-",
+            whatsapp: customer.whatsapp ?? "-",
+            email: customer.email ?? "-",
+            address: customer.address ?? "-",
+            country: countryName || "-",
+            branch: "Customer Management",
+            role: "Customer / Owner"
+          });
+          return;
+        }
+
+        const profile =
+          usersRes.rows?.find((row) => {
+            const haystack = normalizeSearch([row.userCode, row.fullName, row.countryName, row.branchName, row.role].filter(Boolean).join(" "));
+            return haystack.includes(normalized);
+          }) ?? usersRes.rows?.[0] ?? null;
+
+        if (profile) {
+          setOwnerPreview({
+            source: "profile",
+            code: profile.userCode || compactCode(profile.userId, "USR"),
+            name: profile.fullName,
+            companyName: companyName || "-",
+            contactPerson: profile.fullName,
+            mobile: "-",
+            whatsapp: "-",
+            email: "-",
+            address: "-",
+            country: profile.countryName || countryName || "-",
+            branch: profile.branchName || "-",
+            role: profile.role
+          });
+          return;
+        }
+
+        setOwnerPreview(null);
+      } catch {
+        if (!cancelled) setOwnerPreview(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyName, countryName, owner]);
+
+  function addType(kind: "contact") {
+    const name = newType.trim();
+    if (!name) return;
+
+    setContactTypes((current) => [...current, name]);
+    setContactType(name);
+
+    setNewType("");
+    setModal(null);
+  }
+
+  function addContact() {
+    const value = contactValue.trim();
+    if (!value) return;
+
+    setContacts((current) => [
+      ...current,
+      { id: `${contactType}-${value}-${Date.now()}`, type: contactType, value }
+    ]);
+    setContactValue("");
+  }
+
+  async function saveBranch() {
+    if (!readyToSave) {
+      setMessage("Complete country, state, city, company, owner, currency, and address first.");
+      return;
+    }
+
+    setMessage("");
+    try {
+      const contactsPayload = contacts
+        .map((row) => ({ type: row.type.trim(), value: row.value.trim() }))
+        .filter((row) => row.type && row.value);
+
+      const branchName = companyName ? `${companyName} Super Admin Branch` : "Super Admin Branch";
+
+      const res = await fetch("/api/branch-management/super-admin-branches", {
+        method: editingBranchId ? "PUT" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: editingBranchId || undefined,
+          companyId,
+          name: branchName,
+          code: branchCode,
+          countryId: location.countryId || undefined,
+          stateProvinceId: location.stateProvinceId || undefined,
+          cityId: location.cityId || undefined,
+          currencyCode: currency || undefined,
+          address: address.trim() || undefined,
+          ownerName: owner.trim() || undefined,
+          contacts: contactsPayload.length ? contactsPayload : undefined
+        })
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const errorMessage =
+          (typeof json?.error === "string" && json.error) ||
+          (typeof json?.error?.message === "string" && json.error.message) ||
+          "Failed to save Super Admin Branch.";
+        setMessage(errorMessage);
+        return;
+      }
+
+      setMessage(`${editingBranchId ? "Updated" : "Saved"}: ${branchCode}`);
+      setEditingBranchId("");
+      await loadSavedBranches();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to save Super Admin Branch.");
+    }
+  }
+
+  useEffect(() => {
+    loadSavedBranches().catch(() => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">New Entry</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Super Admin Branch</h1>
+          <p className="text-sm text-muted-foreground">
+            Create the root (Head Office) branch. Country Main Branch and City Branch records will be created under this hierarchy.
+          </p>
+        </div>
+        <span className={pillClassName()}>
+          <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden />
+          <b>Status:</b> <span>{readyToSave ? "Ready" : "Draft"}</span>
+        </span>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <Card className="border-slate-200/80 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" aria-hidden />
+              <CardTitle>Super Admin Branch Setup</CardTitle>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Branch Type</Label>
+                <Input value="Super Admin Branch" readOnly className="bg-muted/50 font-semibold" />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="currencySelect">Currency</Label>
+                <select id="currencySelect" value={currency} onChange={(event) => setCurrency(event.target.value)} className={selectClass()}>
+                  {currencies.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Branch Code</Label>
+                <Input value={branchCode} readOnly placeholder="Auto" className="bg-muted/50 font-mono font-semibold" />
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t pt-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-primary" aria-hidden />
+                  <div>
+                    <h2 className="font-semibold">Location</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Select Country, State, City from Settings / Location.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <LocationHierarchySelect
+                value={location}
+                onChange={(next, meta) => {
+                  setLocation(next);
+                  setLocationMeta(meta);
+                  setMessage("");
+                }}
+              />
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Zip Code</Label>
+                  <Input value={zip} readOnly className="bg-muted/50 font-semibold" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Full Address</Label>
+                <TextArea value={address} onChange={setAddress} placeholder="Enter full branch address" />
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t pt-5">
+              <h2 className="font-semibold">Company & Owner</h2>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <CompanyPicker
+                    label="Company Name"
+                    value={companyId}
+                    onValueChange={setCompanyId}
+                    placeholder="Search company"
+                    createButtonPlacement="below"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <BranchOwnerPicker value={owner} onValueChange={setOwner} placeholder="Search owner" createButtonPlacement="below" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t pt-5">
+              <h2 className="font-semibold">Contacts Detail</h2>
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                <div className="space-y-2">
+                  <Label>Contact Type</Label>
+                  <select
+                    value={contactType}
+                    onChange={(event) => (event.target.value === "__new__" ? setModal("contactType") : setContactType(event.target.value))}
+                    className={selectClass()}
+                  >
+                    {contactTypes.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                    <option value="__new__">+ New</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Value</Label>
+                  <Input value={contactValue} onChange={(event) => setContactValue(event.target.value)} placeholder="Enter value" />
+                </div>
+                <Button type="button" onClick={addContact} className="rounded-lg">
+                  <Plus className="h-4 w-4" aria-hidden />
+                </Button>
+              </div>
+              <ChipList empty="No contacts added yet." rows={contacts} onRemove={(id) => setContacts((rows) => rows.filter((row) => row.id !== id))} />
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-3 border-t pt-5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  resetForm();
+                }}
+                className="rounded-lg"
+              >
+                Reset
+              </Button>
+              <Button type="button" onClick={saveBranch} className="rounded-lg">
+                <Save className="h-4 w-4" aria-hidden />
+                {editingBranchId ? "Update" : "Save"}
+              </Button>
+            </div>
+
+            {message ? (
+              <div
+                className={
+                  message.startsWith("Saved") || message.startsWith("Updated")
+                    ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800"
+                    : "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800"
+                }
+              >
+                {message}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4 lg:sticky lg:top-4">
+          <BranchLiveReportPanel
+            title="Store Entry (Live Preview)"
+            status={readyToSave ? "Ready" : "Draft"}
+            summary={[
+              { label: "Branch", value: branchCode || "-" },
+              { label: "Country", value: locationMeta.country?.iso2 || countryName || "-" },
+              { label: "State", value: locationMeta.state?.code || stateName || "-" },
+              { label: "City", value: locationMeta.city?.code || cityName || "-" }
+            ]}
+            actions={
+              <BranchReportActionsMenu
+                ariaLabel="Super Admin branch actions"
+                disabled={!readyToSave}
+                onView={viewReport}
+                onEdit={editReport}
+                onPrint={printReport}
+                onPdf={() => openReport(true)}
+                onEmail={emailReport}
+                onExcel={exportReportCsv}
+              />
+            }
+            steps={[
+              {
+                title: "Step 1 - Company & Owner",
+                rows: [
+                  { label: "Company Name", value: companyName || "-" },
+                  { label: "Company Code", value: companyCode || "-" },
+                  { label: "Legal Name", value: companyDetails?.legal_name || "-" },
+                  { label: "Base Currency", value: companyDetails?.base_currency || currency || "USD" },
+                  { label: "Owner", value: ownerPreview?.name || owner || "-" },
+                  { label: "Owner Code", value: ownerPreview?.code || "-" },
+                  { label: "Source", value: ownerPreview ? ownerPreview.source : "-" },
+                  { label: "Role / Branch", value: ownerPreview ? [ownerPreview.role, ownerPreview.branch].filter(Boolean).join(" Â· ") : "-" }
+                ]
+              },
+              {
+                title: "Step 2 - Location",
+                rows: [
+                  { label: "Country", value: countryName || "-" },
+                  { label: "Country Code", value: locationMeta.country?.iso2 || locationMeta.country?.iso3 || "-" },
+                  { label: "State", value: stateName || "-" },
+                  { label: "State Code", value: locationMeta.state?.code || "-" },
+                  { label: "City", value: cityName || "-" },
+                  { label: "City Code", value: locationMeta.city?.code || "-" },
+                  { label: "Branch Name", value: companyName ? `${companyName} Super Admin Branch` : "Super Admin Branch" },
+                  { label: "Branch Code", value: branchCode || "-" },
+                  { label: "Zip Code", value: zip || "-" }
+                ]
+              },
+              {
+                title: "Step 3 - Contact & Address",
+                rows: [
+                  { label: "Currency", value: currency || "USD" },
+                  { label: "Address", value: address || "-" },
+                  { label: "Contacts", value: contactsText }
+                ]
+              }
+            ]}
+            footer={
+              <details className="rounded-lg border bg-background p-3">
+                <summary className="cursor-pointer text-sm font-semibold text-foreground">Saved Super Admin Branches</summary>
+                <div className="mt-3 space-y-2">
+                  <Input
+                    value={savedSearch}
+                    onChange={(event) => setSavedSearch(event.target.value)}
+                    placeholder="Search saved branch"
+                    className="h-9"
+                  />
+                  {loadingSaved ? (
+                    <p className="text-sm text-muted-foreground">Loading saved branches...</p>
+                  ) : filteredSavedBranches.length ? (
+                    filteredSavedBranches.map((entry) => {
+                      const row = savedBranchRows.find((item) => item.id === entry.id);
+                      return (
+                        <div key={entry.id} className="flex items-center justify-between gap-3 rounded-lg border p-2 text-sm">
+                          <div>
+                            <p className="font-semibold">{entry.branchCode}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {entry.company} · {entry.country} · {entry.city}
+                            </p>
+                          </div>
+                          <Button type="button" size="sm" variant="outline" disabled={!row} onClick={() => row && beginEditBranch(row)}>
+                            <Pencil className="h-3.5 w-3.5" aria-hidden />
+                            Edit
+                          </Button>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No saved branches found.</p>
+                  )}
+                </div>
+              </details>
+            }
+          />
+        </div>
+      </div>
+
+      {modal === "contactType" ? (
+        <Modal title="Add Contact Type" onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <Input value={newType} onChange={(event) => setNewType(event.target.value)} placeholder="Type name" />
+            <Button type="button" onClick={() => addType("contact")}>Save Type</Button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {modal === "report" ? (
+        <Modal title="Super Admin Branch Report" onClose={() => setModal(null)}>
+          <div>
+            {reportRows.map((row) => (
+              <ReportRow key={row.label} label={row.label} value={row.value} />
+            ))}
+          </div>
+        </Modal>
+      ) : null}
+    </div>
+  );
+}
+

@@ -1,0 +1,50 @@
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "DGT Accounts",
+  description: "Business accounting and trading management system"
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          // Runs before React hydrates to avoid theme/lang flash.
+          // We keep this small and dependency-free (no next-themes).
+          dangerouslySetInnerHTML={{
+            __html: `
+(() => {
+  try {
+    const allowed = new Set(['purple','blue','green','gold','cyan']);
+    const storedColor = localStorage.getItem('erp_color');
+    const color = (storedColor && allowed.has(storedColor)) ? storedColor : 'purple';
+    document.documentElement.classList.remove('theme-purple','theme-blue','theme-green','theme-gold','theme-cyan');
+    document.documentElement.classList.add('theme-' + color);
+  } catch {}
+  try {
+    const storedTheme = localStorage.getItem('erp_theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = storedTheme || (prefersDark ? 'dark' : 'light');
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  } catch {}
+  try {
+    const rtl = new Set(['ar','ur','fa','ps']);
+    const storedLang = localStorage.getItem('erp_lang');
+    const lang = storedLang || 'en';
+    document.documentElement.lang = lang;
+    document.documentElement.dir = rtl.has(lang) ? 'rtl' : 'ltr';
+  } catch {}
+})();
+            `.trim()
+          }}
+        />
+      </head>
+      <body className={inter.className}>{children}</body>
+    </html>
+  );
+}

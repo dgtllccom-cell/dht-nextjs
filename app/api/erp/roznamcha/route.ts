@@ -1,0 +1,549 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextRequest } from "next/server";
+import { apiCreated, apiOk, handleApiError } from "@/lib/api/response";
+import { roznamchaPostingSchema } from "@/lib/api/erp-validation";
+import { authorizeApiScope, getScopeFromSearchParams } from "@/lib/api/scope-middleware";
+import { requireErpSession } from "@/lib/auth/session";
+import { roznamchaService } from "@/lib/services/roznamcha-service";
+import { createApiSupabaseClient } from "@/lib/api/supabase";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+
+function toNumber(value: unknown) {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isLedgerScopeCompatible(roznamchaType: string, ledgerScope: string | null | undefined) {
+  if (!ledgerScope) return false;
+  if (roznamchaType === "super_admin") return ledgerScope === "super_admin";
+  if (roznamchaType === "country") return ledgerScope === "country";
+  // A branch cash entry can be posted against a main branch ledger or a city branch ledger.
+  // Older records may use `branch`/`country_branch`; the current Account Master
+  // creates main-branch accounts with `main_branch` and city accounts with `city_branch`.
+  return ["branch", "country_branch", "main_branch", "city_branch"].includes(ledgerScope);
+}
+
+async function resolveProfileActor(admin: any, userId: string | null | undefined) {
+  if (!userId) return null;
+  const { data, error } = await admin.from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.id ?? null;
+}
+
+function cleanSerialPrefix(value: unknown, fallback: string) {
+  const raw = String(value ?? "").trim().toUpperCase();
+  const cleaned = raw.replace(/[^A-Z0-9]/g, "");
+  return (cleaned || fallback).slice(0, 12);
+}
+
+async function nextTransactionSerial(admin: any, scopeType: "global" | "country" | "branch", scopeKey: string, prefix: string) {
+  const { data, error } = await admin.rpc("next_transaction_serial", {
+    p_scope_type: scopeType,
+    p_scope_key: scopeKey,
+    p_prefix: prefix
+  });
+  if (error) throw new Error(error.message);
+  return String(data);
+}
+
+async function resolveUsdAmount(admin: any, input: {
+  countryId: string | null | undefined;
+  currency: string;
+  amount: number;
+  rate: number;
+  entryDate: string;
+  isDebit: boolean;
+}) {
+  const amount = toNumber(input.amount);
+  if (!amount) return { usdRate: 1, usdAmount: 0 };
+
+  const currency = String(input.currency || "USD").toUpperCase();
+  let countryCurrency: string | null = null;
+  if (input.countryId) {
+    const { data, error } = await admin
+      .from("countries")
+      .select("currency_code")
+      .eq("id", input.countryId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    countryCurrency = data?.currency_code ? String(data.currency_code).toUpperCase() : null;
+  }
+
+  // If the currency is USD itself, the rate to USD is 1
+  if (currency === "USD") {
+    return { usdRate: 1, usdAmount: Math.round(amount * 10000) / 10000 };
+  }
+
+  // Fetch the Super Admin daily USD rates for this country and entryDate.
+  // Daily USD rates are stored as: how many units of local currency (PKR) equals 1 USD.
+  // credit_rate is for money paid (credit), debit_rate is for money received (debit).
+  let usdRate = 1;
+  if (input.countryId) {
+    // 1. Try to find the rate on the specific entry date
+    const { data: row, error: rowError } = await admin
+      .from("daily_usd_rates")
+      .select("buying_rate, selling_rate, credit_rate, debit_rate")
+      .eq("country_id", input.countryId)
+      .eq("rate_date", input.entryDate)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (!rowError && row) {
+      if (input.isDebit) {
+        usdRate = toNumber(row.debit_rate || row.buying_rate || row.selling_rate || 1);
+      } else {
+        usdRate = toNumber(row.credit_rate || row.selling_rate || row.buying_rate || 1);
+      }
+    } else {
+      // 2. Try to find the latest rate as fallback
+      const { data: latestRow, error: latestError } = await admin
+        .from("daily_usd_rates")
+        .select("buying_rate, selling_rate, credit_rate, debit_rate")
+        .eq("country_id", input.countryId)
+        .is("deleted_at", null)
+        .order("rate_date", { ascending: false })
+        .order("updated_at", { ascending: false })
+        .limit(1);
+
+      if (!latestError && Array.isArray(latestRow) && latestRow[0]) {
+        const row = latestRow[0];
+        if (input.isDebit) {
+          usdRate = toNumber(row.debit_rate || row.buying_rate || row.selling_rate || 1);
+        } else {
+          usdRate = toNumber(row.credit_rate || row.selling_rate || row.buying_rate || 1);
+        }
+      }
+    }
+  }
+
+  if (usdRate <= 0) usdRate = 1;
+
+  // If the currency is local currency (e.g. PKR), the conversion is: local_amount / usd_rate
+  if (!countryCurrency || currency === countryCurrency) {
+    return {
+      usdRate,
+      usdAmount: Math.round((amount / usdRate) * 10000) / 10000
+    };
+  }
+
+  // If it's a third currency (e.g. AED), the amount is in AED.
+  // The line's input rate converts AED to local currency (PKR) by multiplying: PKR = AED * input.rate
+  // Then we convert the local PKR to USD by dividing by the USD rate: USD = PKR / usd_rate
+  const localAmount = amount * (input.rate || 1);
+  return {
+    usdRate,
+    usdAmount: Math.round((localAmount / usdRate) * 10000) / 10000
+  };
+}
+
+async function generateTransactionSerials(admin: any, body: ReturnType<typeof roznamchaPostingSchema.parse>) {
+  const superAdminSerialNumber = await nextTransactionSerial(admin, "global", "global", "SA");
+
+  let countryPrefix = "CNT";
+  if (body.countryId) {
+    const { data: country, error } = await admin
+      .from("countries")
+      .select("iso2, iso3, name")
+      .eq("id", body.countryId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    countryPrefix = cleanSerialPrefix(country?.iso2 || country?.iso3 || country?.name, "CNT");
+  }
+
+  let branchPrefix = "BR";
+  const branchId = body.cityBranchId ?? body.countryBranchId ?? null;
+  if (branchId) {
+    const table = body.cityBranchId ? "city_branches" : "country_branches";
+    const { data: branch, error } = await admin.from(table).select("code, name").eq("id", branchId).maybeSingle();
+    if (error) throw new Error(error.message);
+    branchPrefix = cleanSerialPrefix(branch?.code || branch?.name, "BR");
+  }
+
+  return {
+    superAdminSerialNumber,
+    countryTransactionSerialNumber: body.countryId
+      ? await nextTransactionSerial(admin, "country", body.countryId, countryPrefix)
+      : null,
+    branchTransactionSerialNumber: branchId
+      ? await nextTransactionSerial(admin, "branch", branchId, branchPrefix)
+      : null
+  };
+}
+
+function createOperationalPostingPlan(body: ReturnType<typeof roznamchaPostingSchema.parse>) {
+  const debitTotal = body.lines.reduce((sum, line) => sum + toNumber(line.debit), 0);
+  const creditTotal = body.lines.reduce((sum, line) => sum + toNumber(line.credit), 0);
+  const baseDebitTotal = body.lines.reduce((sum, line) => sum + toNumber(line.debit) * (toNumber(line.exchangeRate) || 1), 0);
+  const baseCreditTotal = body.lines.reduce((sum, line) => sum + toNumber(line.credit) * (toNumber(line.exchangeRate) || 1), 0);
+  return {
+    type: body.type,
+    countryId: body.countryId,
+    countryBranchId: body.countryBranchId,
+    cityBranchId: body.cityBranchId,
+    entryDate: body.entryDate,
+    journalNo: body.journalNo,
+    voucherNo: body.voucherNo,
+    narration: body.narration,
+    referenceNo: body.referenceNo,
+    lines: body.lines,
+    ledgerPosting: {
+      countryId: body.countryId,
+      countryBranchId: body.countryBranchId,
+      cityBranchId: body.cityBranchId,
+      entryDate: body.entryDate,
+      lines: body.lines,
+      debitTotal,
+      creditTotal,
+      baseDebitTotal,
+      baseCreditTotal
+    }
+  };
+}
+
+async function postRoznamchaWithErpSession(input: {
+  sessionUserId: string;
+  body: ReturnType<typeof roznamchaPostingSchema.parse>;
+}) {
+  const admin = createSupabaseAdminClient() as any;
+  const actorId = await resolveProfileActor(admin, input.sessionUserId);
+  const body = input.body;
+  const transactionSerials = await generateTransactionSerials(admin, body);
+
+  const { data: entry, error: entryError } = await admin
+    .from("roznamcha_entries")
+    .insert({
+      type: body.type,
+      country_id: body.countryId ?? null,
+      country_branch_id: body.countryBranchId ?? null,
+      city_branch_id: body.cityBranchId ?? null,
+      journal_no: body.journalNo,
+      voucher_no: body.voucherNo,
+      entry_date: body.entryDate,
+      payment_method_id: body.paymentMethodId ?? null,
+      reference_no: body.referenceNo ?? null,
+      narration: body.narration ?? null,
+      status: "posted",
+      created_by: actorId,
+      super_admin_serial_number: transactionSerials.superAdminSerialNumber,
+      country_transaction_serial_number: transactionSerials.countryTransactionSerialNumber,
+      branch_transaction_serial_number: transactionSerials.branchTransactionSerialNumber,
+      posted_at: new Date().toISOString()
+    })
+    .select("id")
+    .single();
+
+  if (entryError) throw new Error(entryError.message);
+  const entryId = entry.id as string;
+
+  for (const line of body.lines) {
+    const ledgerId = line.ledgerId;
+    if (!ledgerId) throw new Error("ledgerId is required for posting");
+
+    const { data: ledger, error: ledgerError } = await admin
+      .from("ledgers")
+      .select("id, scope, country_id, country_branch_id, city_branch_id, enterprise_account_id, is_active")
+      .eq("id", ledgerId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (ledgerError) throw new Error(ledgerError.message);
+    if (!ledger?.id || ledger.is_active === false) throw new Error("Ledger was not found or inactive");
+
+    const debit = toNumber(line.debit);
+    const credit = toNumber(line.credit);
+    const usdRate = toNumber(line.exchangeRate) || 1;
+    const enterpriseAccountId = line.enterpriseAccountId ?? ledger.enterprise_account_id ?? null;
+
+    if (!isLedgerScopeCompatible(body.type, ledger.scope)) {
+      throw new Error("Ledger belongs to a different financial scope");
+    }
+    if (body.countryId && ledger.country_id && ledger.country_id !== body.countryId) {
+      throw new Error("Ledger belongs to a different country");
+    }
+    if (body.countryBranchId && ledger.country_branch_id && ledger.country_branch_id !== body.countryBranchId) {
+      throw new Error("Ledger belongs to a different branch");
+    }
+    if (body.cityBranchId && ledger.city_branch_id && ledger.city_branch_id !== body.cityBranchId) {
+      throw new Error("Ledger belongs to a different city branch");
+    }
+
+    const { data: currentLedger, error: currentLedgerError } = await admin
+      .from("ledgers")
+      .select("debit_total, credit_total, current_balance")
+      .eq("id", ledgerId)
+      .single();
+    if (currentLedgerError) throw new Error(currentLedgerError.message);
+
+    const { error: updateLedgerError } = await admin
+      .from("ledgers")
+      .update({
+        debit_total: toNumber(currentLedger.debit_total) + debit,
+        credit_total: toNumber(currentLedger.credit_total) + credit,
+        current_balance: toNumber(currentLedger.current_balance) + debit - credit,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", ledgerId);
+    if (updateLedgerError) throw new Error(updateLedgerError.message);
+
+    let accountIdentity: {
+      account_number: string | null;
+      manual_reference_number: string | null;
+      customer_number: string | null;
+      country_serial_number: string | null;
+      branch_serial_number: string | null;
+      current_balance: number | null;
+    } | null = null;
+
+    if (enterpriseAccountId) {
+      const { data: account, error: accountError } = await admin
+        .from("enterprise_accounts")
+        .select("account_number, manual_reference_number, customer_number, country_serial_number, branch_serial_number, current_balance")
+        .eq("id", enterpriseAccountId)
+        .single();
+      if (accountError) throw new Error(accountError.message);
+      accountIdentity = account;
+    }
+
+    const traceability = {
+      account_number: line.accountNumber ?? accountIdentity?.account_number ?? null,
+      manual_reference_number: line.manualReferenceNumber ?? accountIdentity?.manual_reference_number ?? null,
+      customer_number: line.customerNumber ?? accountIdentity?.customer_number ?? null,
+      country_serial_number: line.countrySerialNumber ?? accountIdentity?.country_serial_number ?? null,
+      branch_serial_number: line.branchSerialNumber ?? accountIdentity?.branch_serial_number ?? null
+    };
+
+    const conversion = await resolveUsdAmount(admin, {
+      countryId: body.countryId,
+      currency: line.currency,
+      amount: debit + credit,
+      rate: usdRate,
+      entryDate: body.entryDate,
+      isDebit: debit > 0
+    });
+
+    const { error: lineError } = await admin.from("roznamcha_lines").insert({
+      roznamcha_entry_id: entryId,
+      payment_entry_type: line.paymentEntryType,
+      account_id: line.accountId ?? null,
+      enterprise_account_id: enterpriseAccountId,
+      ledger_id: ledgerId,
+      description: line.description ?? null,
+      debit,
+      credit,
+      currency: line.currency,
+      usd_rate: conversion.usdRate,
+      usd_amount: conversion.usdAmount,
+      super_admin_serial_number: transactionSerials.superAdminSerialNumber,
+      country_transaction_serial_number: transactionSerials.countryTransactionSerialNumber,
+      branch_transaction_serial_number: transactionSerials.branchTransactionSerialNumber,
+      ...traceability
+    });
+
+    if (lineError) throw new Error(lineError.message);
+
+    if (enterpriseAccountId && accountIdentity) {
+      const nextBalance = toNumber(accountIdentity.current_balance) + debit - credit;
+      const { error: accountUpdateError } = await admin
+        .from("enterprise_accounts")
+        .update({ current_balance: nextBalance, updated_at: new Date().toISOString() })
+        .eq("id", enterpriseAccountId);
+      if (accountUpdateError) throw new Error(accountUpdateError.message);
+
+      await admin.from("enterprise_account_history").insert({
+        enterprise_account_id: enterpriseAccountId,
+        account_number: traceability.account_number,
+        event_type: "roznamcha_posted",
+        created_by: actorId,
+        debit_total: debit,
+        credit_total: credit,
+        current_balance: nextBalance,
+        last_transaction_at: new Date().toISOString(),
+        details: {
+          roznamchaEntryId: entryId,
+          voucherNo: body.voucherNo,
+          journalNo: body.journalNo,
+          referenceNo: body.referenceNo ?? null,
+          narration: body.narration ?? null,
+          paymentEntryType: line.paymentEntryType,
+          ledgerId,
+          manualReferenceNumber: traceability.manual_reference_number,
+          customerNumber: traceability.customer_number,
+          countrySerialNumber: traceability.country_serial_number,
+          branchSerialNumber: traceability.branch_serial_number,
+          superAdminSerialNumber: transactionSerials.superAdminSerialNumber,
+          countryTransactionSerialNumber: transactionSerials.countryTransactionSerialNumber,
+          branchTransactionSerialNumber: transactionSerials.branchTransactionSerialNumber,
+          currency: line.currency,
+          exchangeRate: conversion.usdRate,
+          paymentDetails: body.paymentDetails ?? null
+        }
+      });
+    }
+
+    const { data: balance, error: balanceError } = await admin
+      .from("ledger_balances")
+      .select("id, debit_total, credit_total, closing_balance")
+      .eq("ledger_id", ledgerId)
+      .eq("balance_date", body.entryDate)
+      .maybeSingle();
+    if (balanceError) throw new Error(balanceError.message);
+
+    if (balance?.id) {
+      const { error: balanceUpdateError } = await admin
+        .from("ledger_balances")
+        .update({
+          debit_total: toNumber(balance.debit_total) + debit,
+          credit_total: toNumber(balance.credit_total) + credit,
+          closing_balance: toNumber(balance.closing_balance) + debit - credit,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", balance.id);
+      if (balanceUpdateError) throw new Error(balanceUpdateError.message);
+    } else {
+      const { error: balanceInsertError } = await admin.from("ledger_balances").insert({
+        ledger_id: ledgerId,
+        balance_date: body.entryDate,
+        opening_balance: 0,
+        debit_total: debit,
+        credit_total: credit,
+        closing_balance: debit - credit
+      });
+      if (balanceInsertError) throw new Error(balanceInsertError.message);
+    }
+  }
+
+  return { entryId, transactionSerials };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await requireErpSession();
+    const scope = getScopeFromSearchParams(request);
+    const requestedLimit = Number(request.nextUrl.searchParams.get("limit") ?? "100");
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 500) : 100;
+    const search = request.nextUrl.searchParams.get("search")?.trim();
+
+    authorizeApiScope(session, {
+      resource: "roznamcha",
+      action: "read",
+      ...scope
+    });
+
+    const supabase = await createApiSupabaseClient();
+    let query = supabase
+      .from("roznamcha_entries")
+      .select(
+        // Disambiguate profiles embedding (created_by vs approved_by) by pinning to the FK.
+        // We keep the `profiles` key in the response for backward compatibility with the UI types.
+        "id, type, country_id, countries(name,currency_code), country_branch_id, country_branches(name,code), city_branch_id, city_branches(name,code), journal_no, voucher_no, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, entry_date, payment_method_id, reference_no, narration, status, created_by, profiles!roznamcha_entries_created_by_fkey(full_name), approved_by, approved_at, posted_at, created_at, updated_at"
+      )
+      .is("deleted_at", null)
+      .order("entry_date", { ascending: false });
+
+    // Enforce scope isolation:
+    // - Super Admin can see all (unless query scopes are provided).
+    // - Non-super users are always constrained to their assigned scope if the caller doesn't specify it.
+    // This prevents accidental "read all" access when scope params are omitted.
+    if (scope.countryId) {
+      query = query.eq("country_id", scope.countryId);
+    } else if (!session.isSuperAdmin) {
+      query = query.in(
+        "country_id",
+        session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]
+      );
+    }
+
+    if (scope.countryBranchId) {
+      query = query.eq("country_branch_id", scope.countryBranchId);
+    } else if (!session.isSuperAdmin && session.countryBranchIds.length) {
+      query = query.in("country_branch_id", session.countryBranchIds);
+    }
+
+    if (scope.cityBranchId) {
+      query = query.eq("city_branch_id", scope.cityBranchId);
+    } else if (!session.isSuperAdmin && session.cityBranchIds.length) {
+      query = query.in("city_branch_id", session.cityBranchIds);
+    }
+
+    if (search) {
+      const safeSearch = search.replace(/[%,]/g, "");
+      query = (query as any).or(
+        [
+          `journal_no.ilike.%${safeSearch}%`,
+          `voucher_no.ilike.%${safeSearch}%`,
+          `reference_no.ilike.%${safeSearch}%`,
+          `super_admin_serial_number.ilike.%${safeSearch}%`,
+          `country_transaction_serial_number.ilike.%${safeSearch}%`,
+          `branch_transaction_serial_number.ilike.%${safeSearch}%`
+        ].join(",")
+      );
+    }
+
+    const { data, error } = await query.limit(limit);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return apiOk({
+      entries: data ?? [],
+      limit
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await requireErpSession();
+    const body = roznamchaPostingSchema.parse(await request.json());
+
+    authorizeApiScope(session, {
+      resource: "roznamcha",
+      action: body.mode === "post" ? "post" : "create",
+      countryId: body.countryId,
+      countryBranchId: body.countryBranchId,
+      cityBranchId: body.cityBranchId
+    });
+
+    let postingPlan;
+    try {
+      postingPlan = roznamchaService.createPostingPlan({
+        type: body.type,
+        countryId: body.countryId,
+        countryBranchId: body.countryBranchId,
+        cityBranchId: body.cityBranchId,
+        entryDate: body.entryDate,
+        journalNo: body.journalNo,
+        voucherNo: body.voucherNo,
+        narration: body.narration,
+        referenceNo: body.referenceNo,
+        lines: body.lines
+      });
+    } catch (error) {
+      if (body.lines.length !== 1) throw error;
+      postingPlan = createOperationalPostingPlan(body);
+    }
+
+    if (body.mode === "validate") {
+      return apiOk({
+        mode: body.mode,
+        balanced: body.lines.length > 1,
+        postingPlan
+      });
+    }
+
+    const result = await postRoznamchaWithErpSession({ sessionUserId: session.userId, body });
+
+    return apiCreated({
+      mode: body.mode,
+      balanced: body.lines.length > 1,
+      entryId: result.entryId,
+      ...result.transactionSerials,
+      postingPlan
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
