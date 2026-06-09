@@ -123,3 +123,22 @@
     display: none !important;
   }
 }
+
+/* Hide Google Translate UI Elements */
+.skiptranslate iframe,
+.goog-te-banner-frame {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+#goog-gt-tt {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}

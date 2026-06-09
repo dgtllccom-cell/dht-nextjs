@@ -60,6 +60,14 @@ export function PreferencesControls() {
     localStorage.setItem("erp_lang", next);
     // also store a normal cookie so Server Components can read it after refresh
     document.cookie = `erp_lang=${encodeURIComponent(next)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    // Set googtrans cookie for Google Translate widget
+    if (next === "en") {
+      document.cookie = `googtrans=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
+      document.cookie = `googtrans=; Path=/; Domain=${window.location.hostname}; Expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
+    } else {
+      document.cookie = `googtrans=/en/${next}; Path=/;`;
+      document.cookie = `googtrans=/en/${next}; Path=/; Domain=${window.location.hostname};`;
+    }
     setLanguage(next);
     // Reload once so server-rendered labels pick up the new language.
     window.location.reload();
