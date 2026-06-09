@@ -1557,19 +1557,7 @@ export function NewAccountSetup() {
                         >
                           View
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={15} className="text-center py-8 text-slate-400">
-                    No accounts found matching search filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+            </table>
         </div>
       </div>
     </>
@@ -1582,8 +1570,8 @@ export function NewAccountSetup() {
         <Button variant="outline" onClick={() => setCurrentStep(1)}>Back to Step 1</Button>
       </div>
       <div className="p-1 rounded-xl border bg-slate-50/50">
-        <CustomerForm 
-          lang="en" 
+        <CustomerForm
+          lang="en"
           mode="embedded"
           onSave={(customerId) => {
             setCreatedCustomerId(customerId);
@@ -1601,22 +1589,20 @@ export function NewAccountSetup() {
         <Button variant="outline" onClick={() => setCurrentStep(2)}>Back to Step 2</Button>
       </div>
       <div className="p-1 rounded-xl border bg-slate-50/50">
-        <CompanyIncorporationForm 
-          mode="embedded" 
+        <CompanyIncorporationForm
+          mode="embedded"
           onSave={() => {
             router.push("/dashboard/accounts");
-          }} 
+          }}
         />
       </div>
     </div>
   )}
-</div>
 
   {/* ── Master Record Modal ─────────────────────────────────────────────── */}
   {showMasterModal && masterModalType && (
     <div className="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/60 p-4 overflow-y-auto">
       <div className="my-8 w-full max-w-3xl rounded-2xl border bg-white shadow-2xl">
-        {/* Modal Header */}
         <div className="flex items-center justify-between border-b bg-slate-50 px-6 py-4 rounded-t-2xl">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Master Forms</p>
@@ -1635,17 +1621,13 @@ export function NewAccountSetup() {
             </svg>
           </button>
         </div>
-
-        {/* Modal Body */}
         <div className="p-6 max-h-[70vh] overflow-y-auto">
           {masterModalType === "customer" ? (
             <CustomerForm
               lang="en"
               mode="embedded"
               onSave={(customerId) => {
-                // Auto-select newly created customer
                 setLinkedMasterId(customerId);
-                // Refetch to get the name
                 fetch(`/api/erp/customers/${customerId}`)
                   .then((r) => r.json())
                   .then((json) => {
@@ -1673,5 +1655,24 @@ export function NewAccountSetup() {
       </div>
     </div>
   )}
+</div>
+  );
+}
+orm
+              mode="embedded"
+              onSave={(data) => {
+                const companyId = (data as any).id ?? "";
+                setLinkedMasterId(companyId);
+                setLinkedMasterName(data.companyName ?? "New Company");
+                if (!accountName) setAccountName(data.companyName ?? "");
+                setShowMasterModal(false);
+              }}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )}
+</div>
   );
 }
