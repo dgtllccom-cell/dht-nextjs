@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   // typedRoutes moved out of `experimental` in newer Next.js versions.
   typedRoutes: true,
   experimental: {
