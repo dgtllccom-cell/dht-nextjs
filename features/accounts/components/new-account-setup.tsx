@@ -473,6 +473,22 @@ export function NewAccountSetup() {
     });
   }, [reportRows, appliedAccountNo, appliedAccountName, appliedCountry, appliedBranch, appliedAccountType, appliedSubType]);
 
+  // ── Summary counts derived from full reportRows (unfiltered) ──────────────
+  const summaryStats = useMemo(() => {
+    const total = reportRows.length;
+    const customers = reportRows.filter((r) =>
+      (r.accountCategory ?? "").toLowerCase().includes("customer")
+    ).length;
+    const banks = reportRows.filter((r) =>
+      (r.accountCategory ?? "").toLowerCase().includes("bank")
+    ).length;
+    const companies = reportRows.filter((r) =>
+      (r.accountCategory ?? "").toLowerCase().includes("company") ||
+      (r.subType ?? "").toLowerCase().includes("company")
+    ).length;
+    return { total, customers, banks, companies };
+  }, [reportRows]);
+
   const globalSearchResults = useMemo(() => {
     if (!globalSearch.trim()) return [];
     const query = globalSearch.toLowerCase();
@@ -1081,11 +1097,78 @@ export function NewAccountSetup() {
         </aside>
       </div>
 
-      {/* Account Setup Report (View) Table */}
-      <div className="rounded-lg border bg-card shadow-sm overflow-hidden mt-6">
+      {/* ── Accounts Summary Report ─────────────────────────────────────── */}
+      <div className="mt-6 mb-3">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Dashboard</p>
+            <h2 className="text-base font-bold text-slate-900 leading-tight">Accounts Summary Report</h2>
+          </div>
+          <span className="text-[10px] text-slate-400 font-medium">
+            As of {new Date().toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Total Accounts */}
+          <div className="relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm group hover:shadow-md transition-shadow">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#0284c7]/5 to-transparent pointer-events-none" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0284c7] mb-1">Total Accounts</p>
+            <p className="text-3xl font-extrabold text-slate-900 tabular-nums">
+              {reportLoading ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-slate-200" /> : summaryStats.total}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500">All registered accounts</p>
+            <div className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-[#0284c7]/10 flex items-center justify-center">
+              <Hash className="h-4 w-4 text-[#0284c7]" />
+            </div>
+          </div>
+
+          {/* Customers */}
+          <div className="relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm group hover:shadow-md transition-shadow">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-1">Customers</p>
+            <p className="text-3xl font-extrabold text-slate-900 tabular-nums">
+              {reportLoading ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-slate-200" /> : summaryStats.customers}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500">Customer accounts</p>
+            <div className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center">
+              <UserRound className="h-4 w-4 text-emerald-600" />
+            </div>
+          </div>
+
+          {/* Companies */}
+          <div className="relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm group hover:shadow-md transition-shadow">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent pointer-events-none" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-violet-600 mb-1">Companies</p>
+            <p className="text-3xl font-extrabold text-slate-900 tabular-nums">
+              {reportLoading ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-slate-200" /> : summaryStats.companies}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500">Company accounts</p>
+            <div className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-violet-100 flex items-center justify-center">
+              <Building2 className="h-4 w-4 text-violet-600" />
+            </div>
+          </div>
+
+          {/* Banks */}
+          <div className="relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm group hover:shadow-md transition-shadow">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent pointer-events-none" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 mb-1">Banks</p>
+            <p className="text-3xl font-extrabold text-slate-900 tabular-nums">
+              {reportLoading ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-slate-200" /> : summaryStats.banks}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500">Bank accounts</p>
+            <div className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
+              <Landmark className="h-4 w-4 text-amber-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Account Setup Report Table */}
+      <div className="rounded-lg border bg-card shadow-sm overflow-hidden mt-3">
         {/* Title Bar */}
         <div className="bg-[#0284c7] px-4 py-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white">Account Setup Report (View)</h2>
+          <h2 className="text-sm font-semibold text-white">Account Setup Report</h2>
           <span className="text-xs text-white/90">
             Generated: {new Date().toISOString().slice(0, 10)}
           </span>
@@ -1368,3 +1451,5 @@ export function NewAccountSetup() {
     </div>
   )}
 </div>
+  );
+}
