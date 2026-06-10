@@ -247,7 +247,8 @@ export async function PATCH(request: NextRequest) {
       role: z.string().trim().max(64).optional(),
       countryId: uuidSchema.nullable().optional(),
       countryBranchId: uuidSchema.nullable().optional(),
-      cityBranchId: uuidSchema.nullable().optional()
+      cityBranchId: uuidSchema.nullable().optional(),
+      permissions: z.array(z.string()).optional()
     }).parse(await request.json());
 
     // Authorization check:
@@ -267,7 +268,7 @@ export async function PATCH(request: NextRequest) {
     // Fetch the target user's current assignment to check their current country scope
     const { data: targetAssignment } = await admin
       .from("user_role_assignments")
-      .select("country_id, role")
+      .select("country_id, role, country_branch_id, city_branch_id")
       .eq("user_id", body.userId)
       .is("deleted_at", null)
       .maybeSingle();
@@ -340,6 +341,39 @@ export async function PATCH(request: NextRequest) {
 
         if (assignmentError) throw new Error(assignmentError.message);
       }
+    }
+
+    // 4. Update user_permission_sets if permissions are provided
+    if (body.permissions !== undefined) {
+      const requestedPermissions = normalizePermissions(body.permissions);
+      const targetRole = (body.role || targetAssignment?.role || "city_branch_admin") as EnterpriseRole;
+      const defaultRolePermissions = [...new Set(enterpriseRolePermissions[targetRole] ?? [])];
+      const requestedOrDefault = requestedPermissions.length ? requestedPermissions : defaultRolePermissions;
+
+      const scopePermissionLimit = session.isSuperAdmin
+        ? null
+        : await loadScopePermissionLimit(admin, {
+            countryBranchId: body.countryBranchId !== undefined ? body.countryBranchId : (targetAssignment?.country_branch_id ?? null),
+            cityBranchId: body.cityBranchId !== undefined ? body.cityBranchId : (targetAssignment?.city_branch_id ?? null)
+          });
+      const creatorLimit = session.isSuperAdmin ? ["*:*"] : session.permissions;
+      const parentLimit = scopePermissionLimit ?? creatorLimit;
+      const issuedPermissions = session.isSuperAdmin
+        ? requestedOrDefault
+        : constrainPermissions(constrainPermissions(requestedOrDefault, creatorLimit), parentLimit);
+
+      const { error: permError } = await admin
+        .from("user_permission_sets")
+        .upsert(
+          {
+            user_id: body.userId,
+            permissions: issuedPermissions,
+            source: requestedPermissions.length ? "manual" : "role_default",
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: "user_id" }
+        );
+      if (permError) throw new Error(permError.message);
     }
 
     await auditApiAction(request, {

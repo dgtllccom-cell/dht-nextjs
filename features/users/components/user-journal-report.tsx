@@ -369,11 +369,7 @@ export function UserJournalReport() {
 
   // Trigger edit user setup
   const triggerEdit = (row: UserJournalRow) => {
-    setEditUser(row);
-    setEditFullName(row.fullName);
-    setEditPassword("");
-    setEditIsActive(row.status === "active");
-    setActiveActionUserId(null);
+    router.push(`/dashboard/new-entry/users/registration?userId=${row.userId}`);
   };
 
   // Save general edits

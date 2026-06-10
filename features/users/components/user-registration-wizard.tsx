@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
   ChevronLeft,
@@ -10,7 +10,10 @@ import {
   ShieldCheck,
   Upload,
   UserPlus,
-  MapPin
+  MapPin,
+  ClipboardList,
+  Search,
+  Building2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,6 +101,9 @@ function reportRow(label: string, value: string, tone: "muted" | "primary" = "mu
 
 export function UserRegistrationWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlUserId = searchParams.get("userId");
+
   const [banner, setBanner] = useState<Banner>(null);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<WizardStep>(1);
@@ -134,6 +140,78 @@ export function UserRegistrationWizard() {
     const defaults = enterpriseRolePermissions["city_branch_admin"] ?? [];
     return [...new Set(defaults.map((p) => p.trim()).filter(Boolean))];
   });
+
+  // Edit list states
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [selectedReportUserId, setSelectedReportUserId] = useState("current");
+  const [sidebarFilter, setSidebarFilter] = useState("");
+  const [editUserId, setEditUserId] = useState<string | null>(null);
+  const [isResettingBranch, setIsResettingBranch] = useState(true);
+  const [shouldDefaultPermissions, setShouldDefaultPermissions] = useState(true);
+
+  async function fetchUsers() {
+    setUsersLoading(true);
+    try {
+      const res = await fetch("/api/erp/users/journal-report?limit=500").then((r) => r.json());
+      if (res && res.rows && Array.isArray(res.rows)) {
+        setUsersList(res.rows);
+      }
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    } finally {
+      setUsersLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const loadUserForEditing = (row: any) => {
+    setBanner(null);
+    setCreatedResult(null);
+    setIsResettingBranch(false);
+    setShouldDefaultPermissions(false);
+
+    setEditUserId(row.userId);
+    setFullName(row.fullName);
+    setGender("Male");
+    setUserCode(row.userCode);
+    setRole(row.role);
+    setCountryId(row.countryId || "");
+
+    const isMain = row.branchType === "Main Branch" || row.role === "main_branch_admin";
+    const isCity = row.branchType === "City Branch" && row.role !== "main_branch_admin";
+
+    if (isMain) {
+      setBranchType("main");
+      setCountryBranchId(row.branchId || "");
+      setCityBranchId("");
+    } else if (isCity) {
+      setBranchType("city");
+      setCityBranchId(row.branchId || "");
+    } else {
+      setBranchType("");
+      setCountryBranchId("");
+      setCityBranchId("");
+    }
+
+    setPassword("");
+    setConfirmPassword("");
+    setSelectedPermissions(row.permissions || []);
+    setStep(1);
+    setSelectedReportUserId(row.userId);
+  };
+
+  useEffect(() => {
+    if (urlUserId && usersList.length > 0 && !editUserId) {
+      const match = usersList.find((u) => u.userId === urlUserId);
+      if (match) {
+        loadUserForEditing(match);
+      }
+    }
+  }, [urlUserId, usersList, editUserId]);
 
   const countryOptions = useMemo(() => countries.map(toCountryOption), [countries]);
   const branchTypeSelectOptions = useMemo(
@@ -213,12 +291,16 @@ export function UserRegistrationWizard() {
     // When country changes, reset the branch selections.
     setBanner(null);
     setCreatedResult(null);
-    setBranchType("");
-    setCountryBranchId("");
-    setCityBranchId("");
-    setMainBranches([]);
-    setCityBranches([]);
-    setCities([]);
+    if (isResettingBranch) {
+      setBranchType("");
+      setCountryBranchId("");
+      setCityBranchId("");
+      setMainBranches([]);
+      setCityBranches([]);
+      setCities([]);
+    } else {
+      setIsResettingBranch(true);
+    }
 
     if (!countryId) return;
 
@@ -248,8 +330,12 @@ export function UserRegistrationWizard() {
   useEffect(() => {
     // Default permissions for role.
     setCreatedResult(null);
-    const defaults = enterpriseRolePermissions[role] ?? [];
-    setSelectedPermissions([...new Set(defaults.map((p) => p.trim()).filter(Boolean))]);
+    if (shouldDefaultPermissions) {
+      const defaults = enterpriseRolePermissions[role] ?? [];
+      setSelectedPermissions([...new Set(defaults.map((p) => p.trim()).filter(Boolean))]);
+    } else {
+      setShouldDefaultPermissions(true);
+    }
 
     // Scope requirements:
     if (role === "super_admin") {
@@ -342,7 +428,14 @@ export function UserRegistrationWizard() {
       return;
     }
 
-    if (!password || password.length < 8) {
+    const isEdit = Boolean(editUserId);
+
+    if (!isEdit && (!password || password.length < 8)) {
+      setBanner({ tone: "err", text: "Password must be at least 8 characters." });
+      return;
+    }
+
+    if (password && password.length < 8) {
       setBanner({ tone: "err", text: "Password must be at least 8 characters." });
       return;
     }
@@ -387,24 +480,44 @@ export function UserRegistrationWizard() {
 
     setSaving(true);
     try {
-      const res = await apiPost<{ userId: string; userCode: string }>("/api/erp/users", {
+      const payload: any = {
         role,
         fullName: fullName.trim(),
-        email,
-        password,
-        preferredLanguage,
         userCode: issuedCode,
         countryId: resolvedCountryId,
         countryBranchId: resolvedCountryBranchId,
         cityBranchId: resolvedCityBranchId,
         permissions: selectedPermissions
-      });
+      };
 
-      setBanner({ tone: "ok", text: "User created successfully." });
+      let res;
+      if (isEdit) {
+        payload.userId = editUserId;
+        if (password) {
+          payload.password = password;
+        }
+
+        const fetchRes = await fetch("/api/erp/users", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const json = await fetchRes.json();
+        if (!fetchRes.ok) throw new Error(json?.error?.message || json?.error || "Failed to update user.");
+        res = { userId: editUserId, userCode: issuedCode };
+      } else {
+        payload.email = email;
+        payload.password = password;
+        payload.preferredLanguage = preferredLanguage;
+        res = await apiPost<{ userId: string; userCode: string }>("/api/erp/users", payload);
+      }
+
+      setBanner({ tone: "ok", text: isEdit ? "User updated successfully." : "User created successfully." });
       localStorage.setItem("user_journal_dirty", new Date().toISOString());
       setCreatedResult({ userId: res.userId, userCode: res.userCode, createdAt: new Date().toISOString() });
+      fetchUsers();
     } catch (e: any) {
-      setBanner({ tone: "err", text: e?.message || "User creation failed." });
+      setBanner({ tone: "err", text: e?.message || "User operation failed." });
     } finally {
       setSaving(false);
     }
@@ -434,421 +547,563 @@ export function UserRegistrationWizard() {
     [cityBranches]
   );
 
+  const filteredSidebarUsers = useMemo(() => {
+    return usersList.filter((u) => {
+      const q = sidebarFilter.toLowerCase().trim();
+      if (!q) return true;
+      return (
+        (u.userCode ?? "").toLowerCase().includes(q) ||
+        (u.fullName ?? "").toLowerCase().includes(q) ||
+        (u.role ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [usersList, sidebarFilter]);
+
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">New Entry / User Entry</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">User Registration</h1>
-            <p className="text-sm text-muted-foreground">Create ERP users with scope, role, and permission assignment.</p>
+    <div className="space-y-6">
+      {/* ── Page Header ──────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">User Registration & Setup</h1>
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200">
+              {editUserId ? "Edit Mode" : "New User"}
+            </span>
           </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Create, scope, and assign permissions for ERP users.
+          </p>
         </div>
-
-        {banner ? (
-          <div
-            className={
-              banner.tone === "ok"
-                ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900"
-                : "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
-            }
-          >
-            {banner.text}
-          </div>
-        ) : null}
-
-        {createdResult ? (
-          <Card className="border-emerald-200 bg-emerald-50 shadow-sm">
-            <CardContent className="space-y-2 p-4">
-              <div className="text-sm font-semibold text-emerald-900">Registration Confirmation</div>
-              <div className="grid gap-1 text-sm text-emerald-900">
-                <div>
-                  <b>User ID:</b> {createdResult.userCode}
-                </div>
-                <div>
-                  <b>Role:</b> {roleOptions.find((r) => r.value === role)?.label ?? role}
-                </div>
-                <div>
-                  <b>Scope:</b> {selectedCountry?.name ?? "-"} {branchCode ? ` / ${branchCode}` : ""} {cityName ? ` / ${cityName}` : ""}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    setCreatedResult(null);
-                    setStep(1);
-                    setGender("");
-                    setFullName("");
-                    setAccountRegNo(makeAutoRegNo());
-                    setCountryId("");
-                    setBranchType("");
-                    setCountryBranchId("");
-                    setCityBranchId("");
-                    setUserCode("");
-                    setPassword("");
-                    setConfirmPassword("");
-                    setProfileFile(null);
-                    setPreviewImageUrl("");
-                  }}
-                >
-                  Create Another User
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => router.push("/dashboard/new-entry/users/journal-report")}
-                >
-                  View User Journal Report
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <div className="grid gap-3 md:grid-cols-3">
-          {steps.map((s) => {
-            const active = s.number === step;
-            const done = s.number < step;
-            return (
-              <button
-                key={s.number}
-                type="button"
-                onClick={() => setStep(s.number)}
-                className={
-                  "rounded-xl border px-4 py-3 text-left transition " +
-                  (active ? "border-primary/40 bg-primary/5" : done ? "border-emerald-500/30 bg-emerald-500/5" : "border-slate-200 bg-card")
-                }
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <span
-                    className={
-                      "inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold " +
-                      (done ? "bg-emerald-500 text-white" : active ? "bg-primary text-white" : "bg-slate-200 text-slate-600")
-                    }
-                  >
-                    {done ? <Check className="h-4 w-4" aria-hidden /> : s.number}
-                  </span>
-                  <span className="text-xs text-muted-foreground">Step {s.number}</span>
-                </div>
-                <div className={"flex items-center gap-2 text-sm font-semibold " + (active ? "text-primary" : done ? "text-emerald-700" : "text-slate-700")}>
-                  {s.icon}
-                  {s.label}
-                </div>
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/new-entry/users/journal-report")} className="h-9">
+            <ClipboardList className="mr-1.5 h-4 w-4 text-slate-500" /> User Journal Report
+          </Button>
         </div>
-
-        <Card className="border-slate-200/80 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">{steps.find((s) => s.number === step)?.label}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {step === 1 ? (
-              <div className="space-y-5">
-                <div className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">
-                  <UserPlus className="h-4 w-4" aria-hidden />
-                  Personal Information
-                </div>
-
-                <div className="flex items-center gap-4 rounded-xl border bg-muted/10 p-4">
-                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border bg-background">
-                    {previewImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={previewImageUrl} alt="Profile preview" className="h-full w-full object-cover" />
-                    ) : (
-                      <Upload className="h-6 w-6 text-muted-foreground" aria-hidden />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="mb-1 text-sm font-semibold">Profile Picture</div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] ?? null;
-                        setProfileFile(file);
-                        if (!file) {
-                          setPreviewImageUrl("");
-                          return;
-                        }
-                        setPreviewImageUrl(URL.createObjectURL(file));
-                      }}
-                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    />
-                    <div className="mt-1 text-xs text-muted-foreground">Preview shows after upload. (Storage upload will be wired next.)</div>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Gender *</Label>
-                    <select
-                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value)}
-                    >
-                      <option value="">Select</option>
-                      {genderOptions.map((g) => (
-                        <option key={g} value={g}>
-                          {g}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Full Name *</Label>
-                    <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Account Registration Number (Auto)</Label>
-                    <Input value={accountRegNo} readOnly className="bg-muted/40 font-semibold" />
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {step === 2 ? (
-              <div className="space-y-5">
-                <div className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">
-                  <MapPin className="h-4 w-4" aria-hidden />
-                  Country / Branch / Role Flow
-                </div>
-
-                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-primary">
-                  Flow: Country select → Branch Type → Branch Name → Branch Code auto-fill → City auto-fill → Role select.
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <SearchSelect
-                    label={loadingCountries ? "Country (Loading...)" : "Country *"}
-                    value={countryId}
-                    placeholder="Select country"
-                    options={countryOptions}
-                    disabled={loadingCountries || role === "super_admin"}
-                    onValueChange={setCountryId}
-                  />
-
-                  <SearchSelect
-                    label="Branch Type *"
-                    value={branchType}
-                    placeholder="Select branch type"
-                    options={branchTypeSelectOptions}
-                    disabled={role === "super_admin" || role === "country_admin" || role === "country_user"}
-                    onValueChange={(v) => {
-                      setBranchType(v as any);
-                      setCountryBranchId("");
-                      setCityBranchId("");
-                    }}
-                  />
-
-                  {branchType === "main" ? (
-                    <SearchSelect
-                      label="Branch Name *"
-                      value={countryBranchId}
-                      placeholder="Select main branch"
-                      options={mainBranchOptions}
-                      disabled={role === "super_admin" || role === "country_admin" || role === "country_user" || !countryId}
-                      onValueChange={setCountryBranchId}
-                    />
-                  ) : branchType === "city" ? (
-                    <SearchSelect
-                      label="Branch Name *"
-                      value={cityBranchId}
-                      placeholder="Select city branch"
-                      options={cityBranchOptions}
-                      disabled={role === "super_admin" || role === "country_admin" || role === "country_user" || !countryId}
-                      onValueChange={setCityBranchId}
-                    />
-                  ) : (
-                    <div className="rounded-lg border bg-muted/10 p-3 text-sm text-muted-foreground md:col-span-1">
-                      Select Branch Type first.
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label>Branch Code (Auto)</Label>
-                    <Input value={branchCode} readOnly className="bg-muted/40 font-semibold" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>City (Auto)</Label>
-                    <Input value={cityName} readOnly className="bg-muted/40 font-semibold" />
-                  </div>
-
-                  <SearchSelect
-                    label="Role *"
-                    value={role}
-                    placeholder="Select role"
-                    options={roleSelectOptions}
-                    onValueChange={(v) => setRole(v as EnterpriseRole)}
-                  />
-                </div>
-
-                <div className="rounded-lg border bg-muted/10 p-3 text-xs text-muted-foreground">
-                  Role scope rules: Super Admin = global. Country Admin/User = country only. Main Branch Admin = main branch scope. Branch roles = city/main scope.
-                </div>
-              </div>
-            ) : null}
-
-            {step === 3 ? (
-              <div className="space-y-5">
-                <div className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">
-                  <ShieldCheck className="h-4 w-4" aria-hidden />
-                  User Security & Permissions
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>User ID *</Label>
-                    <div className="flex gap-2">
-                      <Input value={userCode} onChange={(e) => setUserCode(e.target.value)} placeholder="Auto generated user ID" />
-                      <Button type="button" variant="outline" size="icon" aria-label="Regenerate" onClick={generateUserCode}>
-                        <RefreshCcw className="h-4 w-4" aria-hidden />
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">User can login with this User ID (user_code) or with the internal email.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Password *</Label>
-                    <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Confirm Password *</Label>
-                    <Input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm Password" type="password" />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
-                  <div className="rounded-xl border bg-muted/10 p-3">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Permission Groups</div>
-                    <Input
-                      className="h-9 text-xs"
-                      value={permQuery}
-                      onChange={(e) => setPermQuery(e.target.value)}
-                      placeholder="Search permissions..."
-                    />
-                    <div className="mt-3 max-h-[320px] overflow-y-auto rounded-lg border bg-background">
-                      {filteredGroups.map(([group, perms]) => {
-                        const active = group === activePermGroup;
-                        const count = perms.filter((p) => selectedPermissions.includes(p)).length;
-                        return (
-                          <button
-                            key={group}
-                            type="button"
-                            onClick={() => setActivePermGroup(group)}
-                            className={
-                              "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted " +
-                              (active ? "bg-muted font-semibold" : "")
-                            }
-                          >
-                            <span className="truncate">{group}</span>
-                            <span className="text-xs text-muted-foreground">{count}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border bg-muted/10 p-3">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Permissions</div>
-                    <div className="max-h-[380px] overflow-y-auto rounded-lg border bg-background p-2">
-                      {activeGroupPermissions.length ? (
-                        <div className="space-y-2">
-                          {activeGroupPermissions.map((perm) => {
-                            const checked = selectedPermissions.includes(perm);
-                            return (
-                              <label key={perm} className="flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2 hover:bg-muted">
-                                <input
-                                  type="checkbox"
-                                  className="mt-1 h-4 w-4 accent-primary"
-                                  checked={checked}
-                                  onChange={() => togglePermission(perm)}
-                                />
-                                <div className="text-sm">
-                                  <div className="font-semibold text-slate-800">{perm}</div>
-                                  <div className="text-xs text-muted-foreground">Tick/Untick to grant or revoke.</div>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="p-3 text-sm text-muted-foreground">No permissions in this group.</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" onClick={prev} disabled={step === 1 || saving}>
-                  <ChevronLeft className="h-4 w-4" aria-hidden />
-                  Back
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {step < 3 ? (
-                  <Button type="button" onClick={next} disabled={!canGoNext() || saving}>
-                    Next <ChevronRight className="h-4 w-4" aria-hidden />
-                  </Button>
-                ) : (
-                  <Button type="button" onClick={finish} disabled={saving}>
-                    {saving ? "Saving..." : "Finish Registration"}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-      <div className="space-y-4 xl:sticky xl:top-4">
-        <Card className="border-slate-200/80 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Live Report</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">Updates automatically while typing / selecting.</p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {reportRow("Name", fullName, "primary")}
-            {reportRow("Country", selectedCountry?.name ?? "-")}
-            {reportRow("Branch Type", branchType ? (branchType === "main" ? "Main Branch" : "City Branch") : "-")}
-            {reportRow("Branch Name", branchType === "main" ? selectedMainBranch?.name ?? "-" : selectedCityBranch?.name ?? "-")}
-            {reportRow("Branch Code", branchCode || "-")}
-            {reportRow("City", cityName || "-")}
-            <div className="my-2 border-t border-dashed" />
-            {reportRow("User ID", userCode || "-")}
-            {reportRow("Role", roleOptions.find((r) => r.value === role)?.label ?? role)}
+      {/* ── Steps Indicator Bar ────────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-slate-500">
+        {steps.map((s) => {
+          const active = s.number === step;
+          const completed = step > s.number;
+          return (
+            <button
+              key={s.number}
+              type="button"
+              onClick={() => {
+                if (s.number === 1 || (s.number > 1 && fullName.trim().length >= 2 && gender)) {
+                  setStep(s.number);
+                }
+              }}
+              className={`flex items-center gap-2 border rounded-lg p-2.5 text-left transition-all ${
+                active
+                  ? "border-primary bg-primary/5 text-primary font-bold shadow-sm"
+                  : completed
+                  ? "border-emerald-200 bg-emerald-50/50 text-emerald-700 font-bold"
+                  : "border-slate-100 bg-slate-50/50 text-slate-400"
+              }`}
+            >
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                active
+                  ? "bg-primary text-white"
+                  : completed
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-200 text-slate-500"
+              }`}>
+                {completed ? "✓" : s.number}
+              </span>
+              <span className="truncate">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
-            <div className="space-y-2 pt-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Selected Permissions</div>
-              <div className="max-h-[180px] overflow-y-auto rounded-lg border bg-muted/10 p-2">
-                {selectedPermissions.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedPermissions.slice(0, 24).map((p) => (
-                      <span key={p} className="rounded bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
-                        {p}
-                      </span>
+      {/* ── Left Column Form + Right Column Preview/List ──────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Side: Step View */}
+        <section className="lg:col-span-5 rounded-lg border bg-card p-5 space-y-6">
+          {/* Header Banner */}
+          {banner ? (
+            <div
+              className={
+                banner.tone === "ok"
+                  ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-800"
+                  : "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800"
+              }
+            >
+              {banner.text}
+            </div>
+          ) : null}
+
+          {/* Edit status indicator & cancel edit button */}
+          {editUserId && (
+            <div className="flex justify-between items-center bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+              <span>Currently editing user <b>{userCode}</b>.</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-amber-950 font-bold hover:bg-amber-100"
+                onClick={() => {
+                  setEditUserId(null);
+                  setFullName("");
+                  setUserCode("");
+                  setCountryId("");
+                  setBranchType("");
+                  setCountryBranchId("");
+                  setCityBranchId("");
+                  setSelectedPermissions([]);
+                  setPassword("");
+                  setConfirmPassword("");
+                  setBanner(null);
+                  setSelectedReportUserId("current");
+                }}
+              >
+                Cancel Edit
+              </Button>
+            </div>
+          )}
+
+          {/* Confirmation Message */}
+          {createdResult ? (
+            <Card className="border-emerald-200 bg-emerald-50 shadow-sm">
+              <CardContent className="space-y-2 p-4">
+                <div className="text-sm font-semibold text-emerald-900">Operation Successful</div>
+                <div className="grid gap-1 text-sm text-emerald-900">
+                  <div><b>User ID:</b> {createdResult.userCode}</div>
+                  <div><b>Role:</b> {roleOptions.find((r) => r.value === role)?.label ?? role}</div>
+                  <div><b>Scope:</b> {selectedCountry?.name ?? "-"} {branchCode ? ` / ${branchCode}` : ""} {cityName ? ` / ${cityName}` : ""}</div>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setCreatedResult(null);
+                      setEditUserId(null);
+                      setStep(1);
+                      setGender("");
+                      setFullName("");
+                      setAccountRegNo(makeAutoRegNo());
+                      setCountryId("");
+                      setBranchType("");
+                      setCountryBranchId("");
+                      setCityBranchId("");
+                      setUserCode("");
+                      setPassword("");
+                      setConfirmPassword("");
+                      setProfileFile(null);
+                      setPreviewImageUrl("");
+                      setSelectedReportUserId("current");
+                    }}
+                  >
+                    Register New User
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => router.push("/dashboard/new-entry/users/journal-report")}
+                  >
+                    View Journal Report
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {/* Step 1: Personal Info */}
+          {step === 1 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <UserPlus className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-slate-900">Step 1: Personal Information</h2>
+              </div>
+
+              <div className="flex items-center gap-4 rounded-xl border bg-muted/10 p-4">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border bg-background">
+                  {previewImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={previewImageUrl} alt="Profile preview" className="h-full w-full object-cover" />
+                  ) : (
+                    <Upload className="h-6 w-6 text-muted-foreground" aria-hidden />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="mb-1 text-sm font-semibold">Profile Picture</div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setProfileFile(file);
+                      if (!file) {
+                        setPreviewImageUrl("");
+                        return;
+                      }
+                      setPreviewImageUrl(URL.createObjectURL(file));
+                    }}
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  />
+                  <div className="mt-1 text-xs text-muted-foreground">Upload profile picture (optional)</div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Gender *</Label>
+                  <select
+                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                  >
+                    <option value="">Select</option>
+                    {genderOptions.map((g) => (
+                      <option key={g} value={g}>{g}</option>
                     ))}
-                    {selectedPermissions.length > 24 ? (
-                      <span className="rounded bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                        +{selectedPermissions.length - 24} more
-                      </span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="text-xs font-semibold text-rose-700">None Selected</div>
-                )}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Full Name *</Label>
+                  <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Account Registration Number (Auto)</Label>
+                  <Input value={accountRegNo} readOnly className="bg-muted/40 font-semibold" />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4 border-t">
+                <Button type="button" onClick={() => { if (fullName.trim().length >= 2 && gender) { setStep(2); } else { setBanner({ tone: "err", text: "Please fill required (*) fields." }); } }} className="bg-primary text-white">
+                  Next Step
+                </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          )}
+
+          {/* Step 2: Scope Flow */}
+          {step === 2 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <MapPin className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-slate-900">Step 2: Country / Branch / Role</h2>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <SearchSelect
+                  label={loadingCountries ? "Country (Loading...)" : "Country *"}
+                  value={countryId}
+                  placeholder="Select country"
+                  options={countryOptions}
+                  disabled={loadingCountries || role === "super_admin"}
+                  onValueChange={setCountryId}
+                />
+
+                <SearchSelect
+                  label="Branch Type *"
+                  value={branchType}
+                  placeholder="Select branch type"
+                  options={branchTypeSelectOptions}
+                  disabled={role === "super_admin" || role === "country_admin" || role === "country_user"}
+                  onValueChange={(v) => {
+                    setBranchType(v as any);
+                    setCountryBranchId("");
+                    setCityBranchId("");
+                  }}
+                />
+
+                {branchType === "main" ? (
+                  <SearchSelect
+                    label="Branch Name *"
+                    value={countryBranchId}
+                    placeholder="Select main branch"
+                    options={mainBranchOptions}
+                    disabled={role === "super_admin" || role === "country_admin" || role === "country_user" || !countryId}
+                    onValueChange={setCountryBranchId}
+                  />
+                ) : branchType === "city" ? (
+                  <SearchSelect
+                    label="Branch Name *"
+                    value={cityBranchId}
+                    placeholder="Select city branch"
+                    options={cityBranchOptions}
+                    disabled={role === "super_admin" || role === "country_admin" || role === "country_user" || !countryId}
+                    onValueChange={setCityBranchId}
+                  />
+                ) : (
+                  <div className="rounded-lg border bg-muted/10 p-3 text-sm text-muted-foreground md:col-span-1">
+                    Select Branch Type first.
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Branch Code (Auto)</Label>
+                  <Input value={branchCode} readOnly className="bg-muted/40 font-semibold" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>City (Auto)</Label>
+                  <Input value={cityName} readOnly className="bg-muted/40 font-semibold" />
+                </div>
+
+                <SearchSelect
+                  label="Role *"
+                  value={role}
+                  placeholder="Select role"
+                  options={roleSelectOptions}
+                  onValueChange={(v) => setRole(v as EnterpriseRole)}
+                />
+              </div>
+
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+                <Button type="button" onClick={() => { if (canGoNext()) { setStep(3); } else { setBanner({ tone: "err", text: "Please complete required (*) fields." }); } }} className="bg-primary text-white">
+                  Next Step
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Permissions & Finish */}
+          {step === 3 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-slate-900">Step 3: Security & Permissions</h2>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>User ID *</Label>
+                  <div className="flex gap-2">
+                    <Input value={userCode} onChange={(e) => setUserCode(e.target.value)} placeholder="User login ID" />
+                    <Button type="button" variant="outline" size="icon" aria-label="Regenerate" onClick={generateUserCode}>
+                      <RefreshCcw className="h-4 w-4" aria-hidden />
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>{editUserId ? "Password (leave blank to keep current)" : "Password *"}</Label>
+                  <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>{editUserId ? "Confirm Password" : "Confirm Password *"}</Label>
+                  <Input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm Password" type="password" />
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[200px_1fr]">
+                {/* Perm groups */}
+                <div className="rounded-xl border bg-muted/10 p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Groups</div>
+                  <Input className="h-8 text-xs mb-2" value={permQuery} onChange={(e) => setPermQuery(e.target.value)} placeholder="Filter..." />
+                  <div className="max-h-[200px] overflow-y-auto rounded-lg border bg-background text-xs">
+                    {filteredGroups.map(([group, perms]) => {
+                      const active = group === activePermGroup;
+                      const count = perms.filter((p) => selectedPermissions.includes(p)).length;
+                      return (
+                        <button
+                          key={group}
+                          type="button"
+                          onClick={() => setActivePermGroup(group)}
+                          className={`flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left hover:bg-muted ${active ? "bg-muted font-bold" : ""}`}
+                        >
+                          <span className="truncate">{group}</span>
+                          <span className="text-[10px] text-muted-foreground">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Permissions items */}
+                <div className="rounded-xl border bg-muted/10 p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Granted Permissions</div>
+                  <div className="max-h-[250px] overflow-y-auto rounded-lg border bg-background p-2">
+                    {activeGroupPermissions.length ? (
+                      <div className="space-y-1">
+                        {activeGroupPermissions.map((perm) => {
+                          const checked = selectedPermissions.includes(perm);
+                          return (
+                            <label key={perm} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs">
+                              <input
+                                type="checkbox"
+                                className="h-3.5 w-3.5 rounded text-primary"
+                                checked={checked}
+                                onChange={() => togglePermission(perm)}
+                              />
+                              <span className="font-semibold text-slate-700 truncate">{perm}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-3 text-xs text-slate-400">No permissions in this group.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
+                <Button type="button" onClick={finish} disabled={saving} className="bg-primary text-white">
+                  {saving ? "Saving..." : editUserId ? "Save Changes" : "Register User"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Right Side: Live User Setup List / Report */}
+        <aside className="lg:col-span-7 h-fit rounded-lg border bg-card lg:sticky lg:top-24">
+          <div className="border-b px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-primary" aria-hidden />
+                <h2 className="font-semibold">Live User Setup Report</h2>
+              </div>
+              <Button variant="outline" size="sm" className="h-7 text-[10px] font-bold" onClick={fetchUsers}>
+                Refresh
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Select and configure users setup live.</p>
+          </div>
+
+          <div className="space-y-4 p-5">
+            <div className="grid gap-4 md:grid-cols-2 text-xs">
+              {/* Select User Dropdown */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-slate-500 font-bold uppercase">Select User for Preview</Label>
+                <select
+                  className="flex h-9 w-full rounded-md border bg-white px-3 text-xs shadow-sm focus:outline-none"
+                  value={selectedReportUserId}
+                  onChange={(e) => {
+                    setSelectedReportUserId(e.target.value);
+                    if (e.target.value !== "current") {
+                      const match = usersList.find((u) => u.userId === e.target.value);
+                      if (match) loadUserForEditing(match);
+                    }
+                  }}
+                >
+                  <option value="current">{editUserId ? `Current Editing (${userCode})` : "Current Registration Draft"}</option>
+                  {usersList.slice(0, 15).map((u) => (
+                    <option key={u.userId} value={u.userId}>
+                      {u.userCode} - {u.fullName} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Progress */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-slate-500 font-bold uppercase">Setup Progress</Label>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] font-semibold">
+                  <div>1. Info: <span className={fullName ? "text-emerald-600" : "text-slate-400"}>{fullName ? "Done" : "Pending"}</span></div>
+                  <div>2. Scope: <span className={countryId ? "text-emerald-600" : "text-slate-400"}>{countryId ? "Done" : "Pending"}</span></div>
+                  <div className="col-span-2">3. Permissions: <span className={selectedPermissions.length ? "text-emerald-600" : "text-slate-400"}>{selectedPermissions.length ? `${selectedPermissions.length} assigned` : "Pending"}</span></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Dynamic Summary Preview Card */}
+            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-xs space-y-3 border-t">
+              {selectedReportUserId === "current" ? (
+                <>
+                  <h4 className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">{editUserId ? "Currently Editing User Details" : "Registration Draft Preview"}</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 font-semibold text-slate-700">
+                    <div><b>Name:</b> <span className="text-slate-600">{fullName || "-"}</span></div>
+                    <div><b>User ID:</b> <span className="text-slate-600">{userCode || "-"}</span></div>
+                    <div><b>Role:</b> <span className="text-slate-600">{role || "-"}</span></div>
+                    <div><b>Country:</b> <span className="text-slate-600">{selectedCountry?.name || "Global"}</span></div>
+                    <div><b>Branch Code:</b> <span className="text-slate-600">{branchCode || "-"}</span></div>
+                    <div><b>City:</b> <span className="text-slate-600">{cityName || "-"}</span></div>
+                  </div>
+                  <div className="border-t pt-2 mt-2">
+                    <span className="text-[10px] text-slate-500 font-bold">Permissions: </span>
+                    <span className="text-slate-600 font-mono text-[10px]">{selectedPermissions.slice(0, 10).join(", ")} {selectedPermissions.length > 10 ? `+${selectedPermissions.length - 10} more` : ""}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h4 className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">Saved User Details</h4>
+                  {(() => {
+                    const row = usersList.find((u) => u.userId === selectedReportUserId);
+                    if (!row) return <div className="text-slate-400">No user selected.</div>;
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 font-semibold text-slate-700">
+                        <div><b>Name:</b> <span className="text-slate-600">{row.fullName}</span></div>
+                        <div><b>User ID:</b> <span className="text-slate-600">{row.userCode}</span></div>
+                        <div><b>Role:</b> <span className="text-slate-600">{row.role}</span></div>
+                        <div><b>Country:</b> <span className="text-slate-600">{row.countryName}</span></div>
+                        <div><b>Branch Type:</b> <span className="text-slate-600">{row.branchType}</span></div>
+                        <div><b>Branch Name:</b> <span className="text-slate-600">{row.branchName}</span></div>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+
+            {/* Users list setup table */}
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Saved Users Setup Directory</h3>
+                <div className="relative w-44">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    placeholder="Search directory..."
+                    value={sidebarFilter}
+                    onChange={(e) => setSidebarFilter(e.target.value)}
+                    className="h-8 pl-8 text-xs bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border bg-white shadow-sm">
+                <table className="w-full text-left border-collapse text-[10px]">
+                  <thead>
+                    <tr className="bg-slate-50 border-b text-slate-500 uppercase tracking-wider text-[9px]">
+                      <th className="px-2.5 py-2 font-bold border-r">User ID</th>
+                      <th className="px-2.5 py-2 font-bold border-r">Full Name</th>
+                      <th className="px-2.5 py-2 font-bold border-r">Role</th>
+                      <th className="px-2.5 py-2 font-bold border-r text-center">Status</th>
+                      <th className="px-2.5 py-2 font-bold text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usersLoading ? (
+                      <tr><td colSpan={5} className="text-center py-4 text-slate-400">Loading users...</td></tr>
+                    ) : filteredSidebarUsers.length > 0 ? (
+                      filteredSidebarUsers.slice(0, 10).map((u) => (
+                        <tr key={u.userId} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors">
+                          <td className="px-2.5 py-1.5 border-r font-mono text-[9px] text-blue-600 font-semibold">{u.userCode}</td>
+                          <td className="px-2.5 py-1.5 border-r font-medium text-slate-800 max-w-[120px] truncate">{u.fullName}</td>
+                          <td className="px-2.5 py-1.5 border-r text-slate-500 truncate">{u.role}</td>
+                          <td className="px-2.5 py-1.5 border-r text-center">
+                            <span className={`px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold ${u.status === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-slate-50 text-slate-400 border border-slate-200"}`}>
+                              {u.status}
+                            </span>
+                          </td>
+                          <td className="px-2.5 py-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => loadUserForEditing(u)}
+                              className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={5} className="text-center py-4 text-slate-400">No users found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );
