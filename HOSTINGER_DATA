@@ -1,3 +1,7 @@
 ssh root@72.60.209.121
 
-G
+cd /var/www/dgt-nextjs
+git pull origin main
+npm install
+npm run build
+pm2 restart dgt-nextjs
