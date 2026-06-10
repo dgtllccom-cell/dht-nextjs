@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Globe2, Moon, Sun } from "lucide-react";
+import { Globe2, Moon, Sun, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supportedLanguages, type SupportedLanguage, rtlLanguages } from "@/lib/i18n/languages";
+import { useRouter } from "next/navigation";
 
 function getInitialTheme(): "light" | "dark" {
   if (typeof document === "undefined") return "light";
@@ -17,9 +18,11 @@ function getInitialLanguage(): SupportedLanguage {
 }
 
 export function PreferencesControls() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [language, setLanguage] = useState<SupportedLanguage>("en");
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const languageOptions = useMemo(() => supportedLanguages, []);
 
@@ -73,6 +76,18 @@ export function PreferencesControls() {
     window.location.reload();
   }
 
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    try {
+      await fetch("/api/erp/auth/logout", { method: "POST" });
+      router.push("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout failed:", error);
+      setIsLoggingOut(false);
+    }
+  }
+
   return (
     <div className="flex items-center gap-2">
       <div className="hidden items-center gap-2 rounded-md border bg-background px-2 py-1 text-xs sm:flex">
@@ -116,6 +131,18 @@ export function PreferencesControls() {
           <Globe2 className="h-4 w-4" aria-hidden />
         </Button>
       </div>
+
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={handleLogout}
+        disabled={isLoggingOut}
+        aria-label="Log out"
+        title="Log out"
+        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+      >
+        <LogOut className="h-4 w-4" aria-hidden />
+      </Button>
     </div>
   );
 }

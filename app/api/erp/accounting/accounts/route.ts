@@ -305,6 +305,22 @@ export async function POST(request: NextRequest) {
       manualReferenceNumber: body.manualReferenceNumber?.trim() || null
     });
     const actorId = isUuid(session.userId) ? session.userId : null;
+    
+    if (!actorId) {
+      throw new Error("A valid logged-in user ID is required to create an account.");
+    }
+
+    // Verify the actorId exists in the profiles table
+    const { data: userProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", actorId)
+      .maybeSingle();
+
+    if (profileError || !userProfile) {
+      throw new Error("The user ID does not exist in the referenced users table. Account creation requires a valid user reference.");
+    }
+
     const manualReferenceNumber = body.manualReferenceNumber?.trim() || null;
 
     const { data: createdAccount, error } = await (supabase as any)

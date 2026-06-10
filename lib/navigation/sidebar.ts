@@ -151,6 +151,12 @@ export const sidebarTree: SidebarNode[] = [
         roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
       },
       {
+        key: "accounts-setup-report",
+        labelKey: "nav.account_setup_report",
+        href: "/dashboard/accounts/setup-report" as Route,
+        roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
+      },
+      {
         key: "accounts-new",
         labelKey: "nav.new_account",
         href: "/dashboard/accounts/setup" as Route,
@@ -314,7 +320,7 @@ export const sidebarTree: SidebarNode[] = [
           },
           {
             key: "purchase-order-master",
-            labelKey: "nav.purchase_order",
+            labelKey: "nav.purchase_transfer_payment",
             href: "/dashboard/purchase/purchase-order" as Route
           },
           {

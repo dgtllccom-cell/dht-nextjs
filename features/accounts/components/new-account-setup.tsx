@@ -899,186 +899,9 @@ export function NewAccountSetup() {
               </div>
             </aside>
           </div>
-
-          {/* ── Accounts Summary Cards ──────────────────────────────────── */}
-          <div className="mt-6 mb-3">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Dashboard</p>
-                <h2 className="text-base font-bold text-slate-900 leading-tight">Accounts Summary Report</h2>
-              </div>
-              <span className="text-[10px] text-slate-400 font-medium">
-                As of {new Date().toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { label: "Total Accounts", count: summaryStats.total, color: "#0284c7", Icon: Hash },
-                { label: "Customers", count: summaryStats.customers, color: "#059669", Icon: UserRound },
-                { label: "Companies", count: summaryStats.companies, color: "#7c3aed", Icon: Building2 },
-                { label: "Banks", count: summaryStats.banks, color: "#d97706", Icon: Landmark },
-              ].map(({ label, count, color, Icon }) => (
-                <div key={label} className="relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(135deg, ${color}08, transparent)` }} />
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color }}>{label}</p>
-                  <p className="text-3xl font-extrabold text-slate-900 tabular-nums">
-                    {reportLoading ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-slate-200" /> : count}
-                  </p>
-                  <div className="absolute bottom-3 right-3 h-8 w-8 rounded-full flex items-center justify-center" style={{ background: `${color}18` }}>
-                    <Icon className="h-4 w-4" style={{ color }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Account Setup Report Table ──────────────────────────────── */}
-          <div className="rounded-lg border bg-card shadow-sm overflow-hidden mt-3">
-            <div className="bg-[#0284c7] px-4 py-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">Account Setup Report</h2>
-              <span className="text-xs text-white/90">Generated: {new Date().toISOString().slice(0, 10)}</span>
-            </div>
-            <div className="bg-[#f8fafc] border-b p-3 flex flex-wrap items-end gap-3 text-xs">
-              <div className="space-y-1">
-                <Label htmlFor="filterAccountNo" className="text-[11px] text-slate-500">Account No</Label>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                  <Input id="filterAccountNo" value={filterAccountNo} onChange={(e) => setFilterAccountNo(e.target.value)} placeholder="Search Account No" className="h-8 pl-8 text-xs w-44 bg-white" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="filterAccountName" className="text-[11px] text-slate-500">Account Name</Label>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                  <Input id="filterAccountName" value={filterAccountName} onChange={(e) => setFilterAccountName(e.target.value)} placeholder="Search Account Name" className="h-8 pl-8 text-xs w-44 bg-white" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="filterCountry" className="text-[11px] text-slate-500">Country</Label>
-                <select id="filterCountry" value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)} className="h-8 rounded-lg border border-input bg-white px-2.5 text-xs w-40">
-                  <option value="all">All Countries</option>
-                  {uniqueCountries.map((c) => (<option key={c} value={c}>{c}</option>))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="filterBranch" className="text-[11px] text-slate-500">Branch</Label>
-                <select id="filterBranch" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className="h-8 rounded-lg border border-input bg-white px-2.5 text-xs w-40">
-                  <option value="all">All Branches</option>
-                  {uniqueBranches.map((b) => (<option key={b.code} value={b.code}>{b.name}</option>))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="filterAccountType" className="text-[11px] text-slate-500">Account Type</Label>
-                <select id="filterAccountType" value={filterAccountType} onChange={(e) => setFilterAccountType(e.target.value)} className="h-8 rounded-lg border border-input bg-white px-2.5 text-xs w-40">
-                  <option value="all">All Account Types</option>
-                  {uniqueAccountTypes.map((t) => (<option key={t} value={t}>{t}</option>))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="filterSubType" className="text-[11px] text-slate-500">Sub Type</Label>
-                <select id="filterSubType" value={filterSubType} onChange={(e) => setFilterSubType(e.target.value)} className="h-8 rounded-lg border border-input bg-white px-2.5 text-xs w-40">
-                  <option value="all">All Sub Types</option>
-                  {uniqueSubTypes.map((s) => (<option key={s} value={s}>{s}</option>))}
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <Button type="button" onClick={handleApplyFilters} className="h-8 bg-[#0284c7] hover:bg-[#0369a1] text-white px-4 rounded-lg text-xs">Apply</Button>
-                <Button type="button" onClick={handleResetFilters} className="h-8 bg-[#64748b] hover:bg-[#475569] text-white px-4 rounded-lg text-xs">Reset</Button>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-[#f1f5f9] border-b text-slate-500 uppercase tracking-wider text-[10px]">
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Sr#</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Super Admin</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Account No.</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Account Name</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Account Type</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Sub Type</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Category</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Branch Type</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Branch Name</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Country</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200">Currency</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200 text-center">Company #</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200 text-center">Bank #</th>
-                    <th className="px-3 py-2.5 font-bold border-r border-slate-200 text-center">Contacts</th>
-                    <th className="px-3 py-2.5 font-bold text-center">View</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportLoading ? (
-                    <tr><td colSpan={15} className="text-center py-8 text-slate-400">Loading accounts report...</td></tr>
-                  ) : filteredReportRows.length > 0 ? (
-                    filteredReportRows.map((row, index) => {
-                      const hasCompany = (row.accountSerialNumber ?? (index + 1)) % 6 !== 0;
-                      const hasBank = (row.accountSerialNumber ?? (index + 1)) % 4 !== 0;
-                      return (
-                        <tr key={row.accountId} className="border-b hover:bg-slate-50 transition-colors">
-                          <td className="px-3 py-2 border-r border-slate-200 font-medium text-slate-600">{index + 1}</td>
-                          <td className="px-3 py-2 border-r border-slate-200">
-                            <div className="flex items-center gap-1">
-                              <span className="w-3.5 h-3.5 rounded-full border border-slate-300 flex items-center justify-center bg-white">
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-700">SA</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 border-r border-slate-200 font-bold font-mono text-blue-600">{row.journalCode} / {row.accountCode}</td>
-                          <td className="px-3 py-2 border-r border-slate-200 font-bold text-slate-900">{row.accountName}</td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-slate-600 font-medium">{row.accountCategory} Account</td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-slate-600">{row.subType}</td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-slate-600">{row.accountCategory}</td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-slate-600">{row.branchType === "Main Branch" ? "Main Branch" : "City Branch"}</td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-slate-600 font-medium">{row.branchName}</td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-slate-600 font-medium">{row.countryName}</td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-slate-600 font-semibold font-mono">{row.currency}</td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-center">
-                            {hasCompany ? (
-                              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">-</span>
-                            ) : (
-                              <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">No</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-center">
-                            {hasBank ? (
-                              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">-</span>
-                            ) : (
-                              <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">No</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 border-r border-slate-200 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-50 text-rose-500 border border-rose-100">
-                                <Phone className="h-2.5 w-2.5" />
-                              </span>
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-50 text-purple-500 border border-purple-100">
-                                <Mail className="h-2.5 w-2.5" />
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/dashboard/accounts/view?accountId=${row.accountId}`)}
-                              className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
-                            >
-                              View
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr><td colSpan={15} className="text-center py-8 text-slate-400">No accounts found matching search filters.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </>
       )}
+
 
       {/* ── Step 2: Customer Form ─────────────────────────────────────────── */}
       {currentStep === 2 && (
@@ -1118,27 +941,27 @@ export function NewAccountSetup() {
 
       {/* ── Master Record Modal ───────────────────────────────────────────── */}
       {showMasterModal && masterModalType && (
-        <div className="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/60 p-4 overflow-y-auto">
-          <div className="my-8 w-full max-w-7xl rounded-2xl border bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b bg-slate-50 px-6 py-4 rounded-t-2xl">
+        <div className="fixed inset-0 z-[70] flex flex-col bg-slate-50 overflow-y-auto">
+          <div className="w-full max-w-6xl mx-auto bg-white min-h-screen shadow-xl border-x">
+            <div className="flex items-center justify-between border-b bg-white px-8 py-5 sticky top-0 z-10 shadow-sm">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Master Forms</p>
-                <h2 className="text-base font-bold text-slate-900">
+                <h2 className="text-xl font-bold text-slate-900 mt-1">
                   {masterModalType === "customer" ? "New Customer — Customer Master" : masterModalType === "bank" ? "New Bank — Bank Master" : "New Company — Company Master"}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setShowMasterModal(false)}
-                className="rounded-full p-2 hover:bg-slate-200 transition-colors"
+                className="rounded-full p-2 bg-slate-100 hover:bg-slate-200 transition-colors"
                 aria-label="Close modal"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="p-6 max-h-[70vh] overflow-y-auto">
+            <div className="p-8">
               {masterModalType === "customer" ? (
                 <CustomerForm
                   lang="en"

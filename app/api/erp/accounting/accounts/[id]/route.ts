@@ -103,6 +103,23 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const { id } = await context.params;
     const body = updateSchema.parse(await request.json());
     const supabase = await createApiSupabaseClient();
+    
+    const actorId = isUuid(session.userId) ? session.userId : null;
+    if (!actorId) {
+      throw new Error("A valid logged-in user ID is required to update an account.");
+    }
+
+    // Verify the actorId exists in the profiles table
+    const { data: userProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", actorId)
+      .maybeSingle();
+
+    if (profileError || !userProfile) {
+      throw new Error("The user ID does not exist in the referenced users table. Account update requires a valid user reference.");
+    }
+
     const current = await loadAccount(supabase, id);
 
     if (!current || current.deleted_at) {

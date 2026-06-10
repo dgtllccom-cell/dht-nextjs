@@ -15,12 +15,30 @@ export type UiKey =
   | "nav.super_admin_branch"
   | "nav.country_branch"
   | "nav.city_branch"
+import type { SupportedLanguage } from "@/lib/i18n/languages";
+
+export type UiKey =
+  // Sidebar navigation
+  | "nav.dashboard"
+  | "nav.super_admin_dashboard"
+  | "nav.country_dashboard"
+  | "nav.city_dashboard"
+  | "nav.agent_dashboard"
+  | "nav.shipping_line_dashboard"
+  | "nav.clearing_agent_dashboard"
+  | "nav.new_entry"
+  | "nav.branch_entry"
+  | "nav.branch_menu"
+  | "nav.super_admin_branch"
+  | "nav.country_branch"
+  | "nav.city_branch"
   | "nav.user_entry"
   | "nav.user_form"
   | "nav.user_journal_report"
   | "nav.accounts"
   | "nav.new_account"
   | "nav.new_account_general_report"
+  | "nav.account_setup_report"
   | "nav.super_admin_account_entry"
   | "nav.daily_payment_entry"
   | "nav.journal"
@@ -80,6 +98,7 @@ export type UiKey =
   | "nav.payment_bill_entry"
   | "nav.purchase_sale"
   | "nav.purchase"
+  | "nav.purchase_transfer_payment"
   | "nav.purchase_order"
   | "nav.purchase_confirm"
   | "nav.purchase_loading_records"
@@ -331,8 +350,9 @@ const en: Dict = {
   "nav.user_form": "User Registration",
   "nav.user_journal_report": "User Journal Report",
   "nav.accounts": "Accounts",
-  "nav.new_account": "New Account",
-  "nav.new_account_general_report": "New Account General Report",
+  "nav.new_account": "New Account Setup",
+  "nav.new_account_general_report": "Account General Report",
+  "nav.account_setup_report": "Account Setup Report",
   "nav.super_admin_account_entry": "Super Admin Account Entry",
   "nav.daily_payment_entry": "Daily Payment Entry",
   "nav.journal": "Journal",
@@ -392,6 +412,7 @@ const en: Dict = {
   "nav.payment_bill_entry": "Payment Bill Entry",
   "nav.purchase_sale": "Purchase & Sale",
   "nav.purchase": "Purchase",
+  "nav.purchase_transfer_payment": "Purchase Transfer Payment",
   "nav.purchase_order": "Purchase Order",
   "nav.purchase_confirm": "Purchase Confirm",
   "nav.purchase_loading_records": "Purchase Loading Records",
@@ -629,8 +650,9 @@ const ur: Dict = {
   "nav.user_form": "یوزر رجسٹریشن",
   "nav.user_journal_report": "یوزر جرنل رپورٹ",
   "nav.accounts": "اکاؤنٹس",
-  "nav.new_account": "نیا اکاؤنٹ",
-  "nav.new_account_general_report": "نیا اکاؤنٹ جنرل رپورٹ",
+  "nav.new_account": "نیا اکاؤنٹ سیٹ اپ",
+  "nav.new_account_general_report": "اکاؤنٹ جنرل رپورٹ",
+  "nav.account_setup_report": "Account Setup Report",
   "nav.super_admin_account_entry": "سپر ایڈمن اکاؤنٹ انٹری",
   "nav.daily_payment_entry": "ڈیلی پیمنٹ انٹری",
   "nav.journal": "روزنامچہ",
@@ -689,6 +711,7 @@ const ur: Dict = {
   "nav.payment_bill_entry": "پیمنٹ بل انٹری",
   "nav.purchase_sale": "خرید و فروخت",
   "nav.purchase": "خرید",
+  "nav.purchase_transfer_payment": "Purchase Transfer Payment",
   "nav.purchase_order": "پرچیز آرڈر",
   "nav.purchase_confirm": "پرچیز کنفرم",
   "nav.purchase_loading_records": "پرچیز لوڈنگ ریکارڈز",
