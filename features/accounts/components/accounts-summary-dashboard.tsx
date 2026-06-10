@@ -100,7 +100,7 @@ export function AccountsSummaryDashboard() {
     fetch("/api/erp/accounting/reports/accounts/general?limit=1000")
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && Array.isArray(json.rows)) setRows(json.rows);
+        if (!cancelled && json && json.ok && json.data && Array.isArray(json.data.rows)) setRows(json.data.rows);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });

@@ -16,7 +16,8 @@ import {
   ReceiptText,
   Save,
   Search,
-  UserRound
+  UserRound,
+  Warehouse
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -27,6 +28,8 @@ import { listCountries, type LocationCountry } from "@/features/locations/locati
 import { apiPost } from "@/lib/api/client";
 import { CustomerForm } from "@/features/customers/components/customer-form";
 import { CompanyIncorporationForm } from "@/features/companies/components/company-incorporation-form";
+import { rtlLanguages, type SupportedLanguage } from "@/lib/i18n/languages";
+import { getLabel } from "./translations";
 
 type BranchType = "Main" | "City";
 
@@ -155,50 +158,6 @@ function selectClass() {
   return "flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 }
 
-function StatusBadge({ ready, saved }: { ready: boolean; saved: boolean }) {
-  if (saved) {
-    return (
-      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-        <CheckCircle2 className="h-4 w-4" aria-hidden />
-        Entry saved
-      </span>
-    );
-  }
-  return (
-    <span
-      className={
-        ready
-          ? "inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
-          : "inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
-      }
-    >
-      {ready ? <CheckCircle2 className="h-4 w-4" aria-hidden /> : <AlertCircle className="h-4 w-4" aria-hidden />}
-      {ready ? "Ready to save" : "Draft entry"}
-    </span>
-  );
-}
-
-function ReportRow({ label, value }: { label: string; value: string }) {
-  const blank = !value || value === "-";
-  return (
-    <div className="grid grid-cols-[132px_1fr] gap-3 text-sm">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <span className={blank ? "font-semibold text-slate-400" : "font-semibold text-slate-950"}>
-        {value || "-"}
-      </span>
-    </div>
-  );
-}
-
-function ChecklistItem({ done, label }: { done: boolean; label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <CheckCircle2 className={done ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-slate-300"} aria-hidden />
-      <span className={done ? "font-medium text-slate-900" : "text-slate-500"}>{label}</span>
-    </div>
-  );
-}
-
 function selectedBranchName(rows: CountryBranchRow[], id: string) {
   const row = rows.find((item) => item.id === id);
   return row ? `${row.name} (${row.code})` : "-";
@@ -209,10 +168,39 @@ function selectedCityBranchName(rows: CityBranchRow[], id: string) {
   return row ? `${row.city_name} - ${row.name} (${row.code})` : "-";
 }
 
-export function NewAccountSetup() {
+export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }) {
   const router = useRouter();
 
-  // Branch / Account form state
+  const lang = useMemo(() => {
+    if (propLang) return propLang;
+    if (typeof document !== "undefined") {
+      const docLang = document.documentElement.lang as SupportedLanguage;
+      return ["en", "ar", "ur", "fa", "ps"].includes(docLang) ? docLang : "en";
+    }
+    return "en";
+  }, [propLang]);
+
+  const isRtl = useMemo(() => rtlLanguages.includes(lang), [lang]);
+
+  // Sidebar filter states
+  const [sidebarFilter, setSidebarFilter] = useState("");
+  const filteredSidebarRows = useMemo(() => {
+    return reportRows.filter((r) => {
+      const q = sidebarFilter.toLowerCase().trim();
+      if (!q) return true;
+      return (
+        (r.accountCode ?? "").toLowerCase().includes(q) ||
+        (r.accountName ?? "").toLowerCase().includes(q) ||
+        (r.accountCategory ?? "").toLowerCase().includes(q) ||
+        (r.currency ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [reportRows, sidebarFilter]);
+
+  // Step state
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
+
+  // Branch / Account form state (Step 1)
   const [countries, setCountries] = useState<LocationCountry[]>([]);
   const [mainBranches, setMainBranches] = useState<CountryBranchRow[]>([]);
   const [cityBranches, setCityBranches] = useState<CityBranchRow[]>([]);
@@ -226,38 +214,21 @@ export function NewAccountSetup() {
   const [manualReferenceNumber, setManualReferenceNumber] = useState("");
   const [accountName, setAccountName] = useState("");
   const [journalCounter, setJournalCounter] = useState(0);
-  const [accountCounters, setAccountCounters] = useState<Record<string, number>>({});
   const [lastBranchCode, setLastBranchCode] = useState("");
   const [savedEntries, setSavedEntries] = useState<SavedEntry[]>([]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [lastCreated, setLastCreated] = useState<AccountCreateResponse | null>(null);
 
-  // Report state
-  const [reportRows, setReportRows] = useState<AccountGeneralReportRow[]>([]);
-  const [reportLoading, setReportLoading] = useState(false);
+  // Master record links
+  const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null);
+  const [linkedCustomerName, setLinkedCustomerName] = useState("");
+  const [linkedCompanyId, setLinkedCompanyId] = useState<string | null>(null);
+  const [linkedCompanyName, setLinkedCompanyName] = useState("");
+  const [linkedBankId, setLinkedBankId] = useState<string | null>(null);
+  const [linkedBankName, setLinkedBankName] = useState("");
 
-  // Filter state
-  const [filterAccountNo, setFilterAccountNo] = useState("");
-  const [filterAccountName, setFilterAccountName] = useState("");
-  const [filterCountry, setFilterCountry] = useState("all");
-  const [filterBranch, setFilterBranch] = useState("all");
-  const [filterAccountType, setFilterAccountType] = useState("all");
-  const [filterSubType, setFilterSubType] = useState("all");
-  const [appliedAccountNo, setAppliedAccountNo] = useState("");
-  const [appliedAccountName, setAppliedAccountName] = useState("");
-  const [appliedCountry, setAppliedCountry] = useState("all");
-  const [appliedBranch, setAppliedBranch] = useState("all");
-  const [appliedAccountType, setAppliedAccountType] = useState("all");
-  const [appliedSubType, setAppliedSubType] = useState("all");
-
-  // Global search
-  const [globalSearch, setGlobalSearch] = useState("");
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
-  // ── Master Record Linking ────────────────────────────────────────────────
-  const [linkedMasterId, setLinkedMasterId] = useState<string | null>(null);
-  const [linkedMasterName, setLinkedMasterName] = useState("");
+  // Search states (reused across steps)
   const [masterSearch, setMasterSearch] = useState("");
   const [masterResults, setMasterResults] = useState<{ id: string; name: string }[]>([]);
   const [masterSearchOpen, setMasterSearchOpen] = useState(false);
@@ -265,16 +236,17 @@ export function NewAccountSetup() {
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalType, setMasterModalType] = useState<"customer" | "company" | "bank" | null>(null);
 
-  // Wizard steps (step 1 = main form, 2 = customer, 3 = company)
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-  const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null);
+  // Live report states
+  const [reportRows, setReportRows] = useState<AccountGeneralReportRow[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [selectedReportAccountId, setSelectedReportAccountId] = useState("current");
 
-  // ── Fetch report ─────────────────────────────────────────────────────────
+  // Fetch report records
   async function fetchReport() {
     setReportLoading(true);
     try {
       const res = await fetch("/api/erp/accounting/reports/accounts/general?limit=500").then((r) => r.json());
-      if (res && Array.isArray(res.rows)) setReportRows(res.rows);
+      if (res && res.ok && res.data && Array.isArray(res.data.rows)) setReportRows(res.data.rows);
     } catch (err) {
       console.error("Failed to load account report:", err);
     } finally {
@@ -284,22 +256,19 @@ export function NewAccountSetup() {
 
   useEffect(() => { fetchReport(); }, []);
 
-  // ── Master record live search ─────────────────────────────────────────────
+  // Fetch master records based on active step
   useEffect(() => {
-    if (!accountTitle || accountTitle === "Employee") {
-      setLinkedMasterId(null);
-      setLinkedMasterName("");
-      setMasterSearch("");
-      setMasterResults([]);
-      return;
-    }
     const query = masterSearch.trim();
     if (!query) { setMasterResults([]); return; }
 
+    const targetType =
+      currentStep === 2 ? "Customer" : currentStep === 3 ? "Company" : currentStep === 4 ? "Bank" : "";
+    if (!targetType) return;
+
     const endpoint =
-      accountTitle === "Customer"
+      targetType === "Customer"
         ? `/api/erp/customers?limit=20&search=${encodeURIComponent(query)}`
-        : `/api/erp/companies?limit=20&search=${encodeURIComponent(query)}`;
+        : `/api/erp/companies?limit=20&search=${encodeURIComponent(query)}`; // Banks are companies in this module
 
     let cancelled = false;
     setMasterSearchLoading(true);
@@ -308,7 +277,7 @@ export function NewAccountSetup() {
       .then((json) => {
         if (cancelled) return;
         const rows: { id: string; name: string }[] =
-          accountTitle === "Customer"
+          targetType === "Customer"
             ? (json.customers ?? []).map((c: any) => ({ id: c.id, name: c.customer_name }))
             : (json.companies ?? []).map((c: any) => ({ id: c.id, name: c.company_name ?? c.companyName }));
         setMasterResults(rows);
@@ -317,120 +286,18 @@ export function NewAccountSetup() {
       .finally(() => { if (!cancelled) setMasterSearchLoading(false); });
 
     return () => { cancelled = true; };
-  }, [masterSearch, accountTitle]);
+  }, [masterSearch, currentStep]);
 
-  // ── Derived data ──────────────────────────────────────────────────────────
-  const uniqueCountries = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of reportRows) { if (r.countryName) set.add(r.countryName); }
-    return Array.from(set);
-  }, [reportRows]);
-
-  const uniqueBranches = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const r of reportRows) { if (r.branchCode && r.branchName) map.set(r.branchCode, r.branchName); }
-    return Array.from(map.entries()).map(([code, name]) => ({ code, name }));
-  }, [reportRows]);
-
-  const uniqueAccountTypes = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of reportRows) { if (r.accountCategory) set.add(`${r.accountCategory} Account`); }
-    return Array.from(set);
-  }, [reportRows]);
-
-  const uniqueSubTypes = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of reportRows) { if (r.subType) set.add(r.subType); }
-    return Array.from(set);
-  }, [reportRows]);
-
-  const summaryStats = useMemo(() => ({
-    total: reportRows.length,
-    customers: reportRows.filter((r) => (r.accountCategory ?? "").toLowerCase().includes("customer")).length,
-    companies: reportRows.filter((r) =>
-      (r.accountCategory ?? "").toLowerCase().includes("company") ||
-      (r.subType ?? "").toLowerCase().includes("company")
-    ).length,
-    banks: reportRows.filter((r) => (r.accountCategory ?? "").toLowerCase().includes("bank")).length,
-  }), [reportRows]);
-
-  const globalSearchResults = useMemo(() => {
-    if (!globalSearch.trim()) return [];
-    const q = globalSearch.toLowerCase();
-    return reportRows.filter(
-      (r) =>
-        (r.accountName ?? "").toLowerCase().includes(q) ||
-        (r.accountCode ?? "").toLowerCase().includes(q) ||
-        (r.journalCode ?? "").toLowerCase().includes(q)
-    ).slice(0, 8);
-  }, [globalSearch, reportRows]);
-
-  const filteredReportRows = useMemo(() => {
-    return reportRows.filter((row) => {
-      if (appliedAccountNo) {
-        const q = appliedAccountNo.toLowerCase();
-        if (!(row.accountCode ?? "").toLowerCase().includes(q) && !(row.journalCode ?? "").toLowerCase().includes(q)) return false;
-      }
-      if (appliedAccountName && !(row.accountName ?? "").toLowerCase().includes(appliedAccountName.toLowerCase())) return false;
-      if (appliedCountry !== "all" && row.countryName !== appliedCountry) return false;
-      if (appliedBranch !== "all" && row.branchCode !== appliedBranch) return false;
-      if (appliedAccountType !== "all" && `${row.accountCategory} Account` !== appliedAccountType) return false;
-      if (appliedSubType !== "all" && row.subType !== appliedSubType) return false;
-      return true;
-    });
-  }, [reportRows, appliedAccountNo, appliedAccountName, appliedCountry, appliedBranch, appliedAccountType, appliedSubType]);
-
-  function handleApplyFilters() {
-    setAppliedAccountNo(filterAccountNo);
-    setAppliedAccountName(filterAccountName);
-    setAppliedCountry(filterCountry);
-    setAppliedBranch(filterBranch);
-    setAppliedAccountType(filterAccountType);
-    setAppliedSubType(filterSubType);
-  }
-
-  function handleResetFilters() {
-    setFilterAccountNo(""); setFilterAccountName(""); setFilterCountry("all");
-    setFilterBranch("all"); setFilterAccountType("all"); setFilterSubType("all");
-    setAppliedAccountNo(""); setAppliedAccountName(""); setAppliedCountry("all");
-    setAppliedBranch("all"); setAppliedAccountType("all"); setAppliedSubType("all");
-  }
-
-  const selectedCountry = useMemo(() => countries.find((item) => item.id === country) ?? null, [countries, country]);
-  const branchOptions = branchType === "Main" ? mainBranches : branchType === "City" ? cityBranches : [];
-
-  const branchInfo = useMemo<BranchInfo | null>(() => {
-    if (!selectedCountry || !branchType || !branch) return null;
-    if (branchType === "Main") {
-      const row = mainBranches.find((item) => item.id === branch);
-      if (!row) return null;
-      return { company: `Damaan ${selectedCountry.name}`, code: row.code, city: selectedCountry.name, address: "-", phone: "-", email: "-", manager: "-", opening: "-", currency: row.local_currency || selectedCountry.currency_code || "-" };
-    }
-    const row = cityBranches.find((item) => item.id === branch);
-    if (!row) return null;
-    return { company: `Damaan ${selectedCountry.name}`, code: row.code, city: row.city_name, address: "-", phone: "-", email: "-", manager: "-", opening: "-", currency: row.local_currency || selectedCountry.currency_code || "-" };
-  }, [branch, branchType, cityBranches, mainBranches, selectedCountry]);
-
-  const journalPreview = `SUPER-${nextNumber(journalCounter)}`;
-  const branchCode = branchInfo?.code ?? "";
-  const accountPreview = lastCreated?.accountNumber || accountCode || (branchCode ? "AUTO" : "");
-  const readyToSave = Boolean(country && branchType && branch && accountTitle && subType && category && accountName);
-  const saved = message.startsWith("Saved");
-
-  useEffect(() => {
-    if (!branchCode || branchCode === lastBranchCode) return;
-    setLastBranchCode(branchCode);
-    setAccountCode("");
-  }, [accountCode, accountCounters, branchCode, lastBranchCode]);
-
+  // Load countries
   useEffect(() => {
     let cancelled = false;
     listCountries()
       .then((rows) => { if (!cancelled) setCountries(rows); })
-      .catch(() => { if (!cancelled) setMessage("Could not load countries from database."); });
+      .catch(() => { if (!cancelled) setMessage("Could not load countries."); });
     return () => { cancelled = true; };
   }, []);
 
+  // Load Main Branches
   useEffect(() => {
     if (!country) { setMainBranches([]); return; }
     let cancelled = false;
@@ -439,10 +306,11 @@ export function NewAccountSetup() {
       .then((json: { countryBranches?: CountryBranchRow[] }) => {
         if (!cancelled) setMainBranches(Array.isArray(json.countryBranches) ? json.countryBranches : []);
       })
-      .catch(() => { if (!cancelled) setMessage("Could not load main branches from database."); });
+      .catch(() => { if (!cancelled) setMessage("Could not load main branches."); });
     return () => { cancelled = true; };
   }, [country]);
 
+  // Load City Branches
   useEffect(() => {
     if (!country) { setCityBranches([]); return; }
     let cancelled = false;
@@ -454,9 +322,55 @@ export function NewAccountSetup() {
       .then((json: { cityBranches?: CityBranchRow[] }) => {
         if (!cancelled) setCityBranches(Array.isArray(json.cityBranches) ? json.cityBranches : []);
       })
-      .catch(() => { if (!cancelled) setMessage("Could not load city branches from database."); });
+      .catch(() => { if (!cancelled) setMessage("Could not load city branches."); });
     return () => { cancelled = true; };
   }, [branchType, country, mainBranches]);
+
+  const selectedCountry = useMemo(() => countries.find((item) => item.id === country) ?? null, [countries, country]);
+  const branchOptions = branchType === "Main" ? mainBranches : branchType === "City" ? cityBranches : [];
+
+  const branchInfo = useMemo<BranchInfo | null>(() => {
+    if (!selectedCountry || !branchType || !branch) return null;
+    if (branchType === "Main") {
+      const row = mainBranches.find((item) => item.id === branch);
+      if (!row) return null;
+      return {
+        company: `Damaan ${selectedCountry.name}`,
+        code: row.code,
+        city: selectedCountry.name,
+        address: "-",
+        phone: "-",
+        email: "-",
+        manager: "-",
+        opening: "-",
+        currency: row.local_currency || selectedCountry.currency_code || "USD"
+      };
+    }
+    const row = cityBranches.find((item) => item.id === branch);
+    if (!row) return null;
+    return {
+      company: `Damaan ${selectedCountry.name}`,
+      code: row.code,
+      city: row.city_name,
+      address: "-",
+      phone: "-",
+      email: "-",
+      manager: "-",
+      opening: "-",
+      currency: row.local_currency || selectedCountry.currency_code || "USD"
+    };
+  }, [branch, branchType, cityBranches, mainBranches, selectedCountry]);
+
+  const branchCode = branchInfo?.code ?? "";
+  const accountPreview = lastCreated?.accountNumber || accountCode || (branchCode ? "AUTO" : "");
+  const readyToSave = Boolean(country && branchType && branch && accountTitle && subType && category && accountName);
+  const saved = message.startsWith("Saved");
+
+  useEffect(() => {
+    if (!branchCode || branchCode === lastBranchCode) return;
+    setLastBranchCode(branchCode);
+    setAccountCode("");
+  }, [branchCode, lastBranchCode]);
 
   function handleCountryChange(value: string) {
     setCountry(value); setBranchType(""); setBranch(""); setLastBranchCode(""); setAccountCode(""); setLastCreated(null); setMessage("");
@@ -466,9 +380,10 @@ export function NewAccountSetup() {
     setBranchType(value); setBranch(""); setLastBranchCode(""); setAccountCode(""); setLastCreated(null); setMessage("");
   }
 
+  // Create and save account on Step 6
   async function saveEntry() {
     if (!readyToSave || !branchInfo || !accountTitle || !branchType) {
-      setMessage("Complete branch and account fields first.");
+      setMessage("Account details are incomplete. Please review steps.");
       return;
     }
     const issuedJournal = `SUPER-${nextNumber(journalCounter)}`;
@@ -509,9 +424,11 @@ export function NewAccountSetup() {
         ...current
       ]);
       setAccountCode(response.accountNumber);
-      setMessage(`Saved account ${response.accountNumber}. Ledger linked automatically.`);
+      setMessage(`Saved account ${response.accountNumber}.`);
       void fetchReport();
-      router.push(`/dashboard/accounts?accountId=${response.accountId}&created=1`);
+      setTimeout(() => {
+        router.push(`/dashboard/accounts?accountId=${response.accountId}&created=1`);
+      }, 1500);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Account save failed.");
     } finally {
@@ -520,426 +437,668 @@ export function NewAccountSetup() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6" dir={isRtl ? "rtl" : "ltr"}>
       {/* ── Page Header ──────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Template</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">New Account</h1>
-          <p className="text-sm text-muted-foreground">
-            Branch select karein, account details enter karein, report live update hogi.
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">{getLabel("newAccountReport", lang)}</h1>
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200">
+              {getLabel("draft", lang)}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {getLabel("headerSubtitle", lang)}
           </p>
         </div>
-        <StatusBadge ready={readyToSave} saved={saved} />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/accounts/setup-report")} className="h-9">
+            <ClipboardList className="mr-1.5 h-4 w-4 text-slate-500" /> {getLabel("liveReport", lang)}
+          </Button>
+          <Button variant="default" size="sm" onClick={() => router.push("/dashboard/accounts")} className="h-9 bg-primary text-white">
+            <BookOpen className="mr-1.5 h-4 w-4" /> {getLabel("accountSummary", lang)}
+          </Button>
+        </div>
       </div>
 
-      {/* ── Step 1: Form + Sidebar ───────────────────────────────────────── */}
-      {currentStep === 1 && (
-        <>
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
-            <section className="rounded-lg border bg-card">
-              <div className="border-b px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-primary" aria-hidden />
-                  <h2 className="font-semibold">Step 1 - Branch Selection</h2>
+      {/* ── Steps Indicator Bar ────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs font-semibold text-slate-500">
+        {[
+          { id: 1, label: getLabel("step1Label", lang) },
+          { id: 2, label: getLabel("step2Label", lang) },
+          { id: 3, label: getLabel("step3Label", lang) },
+          { id: 4, label: getLabel("step4Label", lang) },
+          { id: 5, label: getLabel("step5Label", lang) },
+          { id: 6, label: getLabel("step6Label", lang) }
+        ].map((s) => {
+          const active = currentStep === s.id;
+          const completed = currentStep > s.id;
+          return (
+            <button
+              key={s.id}
+              onClick={() => {
+                if (s.id === 1 || (s.id > 1 && country && branchType && branch)) {
+                  setCurrentStep(s.id as any);
+                  setMasterSearch("");
+                  setMasterResults([]);
+                }
+              }}
+              className={`flex items-center gap-2 border rounded-lg p-2.5 text-left transition-all ${
+                active
+                  ? "border-primary bg-primary/5 text-primary font-bold shadow-sm"
+                  : completed
+                  ? "border-emerald-200 bg-emerald-50/50 text-emerald-700 font-bold"
+                  : "border-slate-100 bg-slate-50/50 text-slate-400"
+              }`}
+            >
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                active
+                  ? "bg-primary text-white"
+                  : completed
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-200 text-slate-500"
+              }`}>
+                {s.id}
+              </span>
+              <span className="truncate">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Left Column Form + Right Column Preview ──────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Side: Step View */}
+        <section className="lg:col-span-4 rounded-lg border bg-card p-5 space-y-6">
+          {/* Step 1: Account Info */}
+          {currentStep === 1 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-slate-900">{getLabel("step1Label", lang)}</h2>
+              </div>
+
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="country">{getLabel("country", lang)} *</Label>
+                  <select id="country" value={country} onChange={(event) => handleCountryChange(event.target.value)} className={selectClass()}>
+                    <option value="">Select Country</option>
+                    {countries.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name} ({item.iso2 ?? "-"})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="branchType">{getLabel("branchType", lang)} *</Label>
+                  <select id="branchType" value={branchType} onChange={(event) => handleBranchTypeChange(event.target.value as BranchType)} disabled={!country} className={selectClass()}>
+                    <option value="">Select Branch Type</option>
+                    <option value="Main">Main Branch</option>
+                    <option value="City">City Branch</option>
+                  </select>
                 </div>
               </div>
 
-              <div className="space-y-5 p-5">
-                {/* Branch fields */}
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="country">Country</Label>
-                    <select id="country" value={country} onChange={(event) => handleCountryChange(event.target.value)} className={selectClass()}>
-                      <option value="">Select Country</option>
-                      {countries.map((item) => (
-                        <option key={item.id} value={item.id}>{item.name} ({item.iso2 ?? "-"})</option>
-                      ))}
-                    </select>
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="branch">{getLabel("selectBranch", lang)} *</Label>
+                  <select id="branch" value={branch} onChange={(event) => { setBranch(event.target.value); setMessage(""); }} disabled={!country || !branchType} className={selectClass()}>
+                    <option value="">Select Branch</option>
+                    {branchOptions.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {branchType === "Main"
+                          ? `${(item as CountryBranchRow).name} (${(item as CountryBranchRow).code})`
+                          : `${(item as CityBranchRow).city_name} - ${(item as CityBranchRow).name} (${(item as CityBranchRow).code})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accountTitle">{getLabel("accountTitle", lang)} *</Label>
+                  <select id="accountTitle" value={accountTitle} onChange={(event) => { setAccountTitle(event.target.value as AccountTitle); setSubType(""); }} className={selectClass()}>
+                    <option value="">Select Account Title</option>
+                    <option value="Customer">Customer</option>
+                    <option value="Company">Company</option>
+                    <option value="Bank">Bank</option>
+                    <option value="Employee">Employee</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="subType">{getLabel("subType", lang)} *</Label>
+                  <select id="subType" value={subType} onChange={(event) => setSubType(event.target.value)} disabled={!accountTitle} className={selectClass()}>
+                    <option value="">Select Sub Type</option>
+                    {accountTitle ? subTypes[accountTitle].map((item) => (<option key={item} value={item}>{item}</option>)) : null}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">{getLabel("category", lang)} *</Label>
+                  <select id="category" value={category} onChange={(event) => setCategory(event.target.value)} className={selectClass()}>
+                    <option value="">Select Category</option>
+                    {categories.map((item) => (<option key={item} value={item}>{item}</option>))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="accountCode">{getLabel("accountCodeAuto", lang)}</Label>
+                  <Input id="accountCode" value={accountCode || "Generated on save"} readOnly className="bg-slate-50 font-mono text-xs" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accountName">{getLabel("accountName", lang)} *</Label>
+                  <Input id="accountName" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="e.g. Sales Account" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="manualReferenceNumber">{getLabel("manualReference", lang)}</Label>
+                <Input id="manualReferenceNumber" value={manualReferenceNumber} onChange={(event) => setManualReferenceNumber(event.target.value.toUpperCase())} placeholder="e.g. CUST-001" />
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <Button type="button" onClick={() => { if (country && branchType && branch && accountTitle && subType && category && accountName) { setCurrentStep(2); } else { setMessage("Please complete all required (*) fields."); } }} className="bg-primary text-white">
+                  {getLabel("saveNext", lang)}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Customer Details */}
+          {currentStep === 2 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <UserRound className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-slate-900">Step 2: Customer Details</h2>
+              </div>
+
+              {linkedCustomerId ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-emerald-800">Linked Customer Profile</h3>
+                    <Button variant="outline" size="sm" onClick={() => { setLinkedCustomerId(null); setLinkedCustomerName(""); setMasterSearch(""); }} className="h-7 text-xs text-emerald-700 border-emerald-300 bg-white">
+                      Disconnect
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="branchType">Branch Type</Label>
-                    <select id="branchType" value={branchType} onChange={(event) => handleBranchTypeChange(event.target.value as BranchType)} disabled={!country} className={selectClass()}>
-                      <option value="">Select Branch Type</option>
-                      <option value="Main">Main Branch</option>
-                      <option value="City">City Branch</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="branch">Select Branch</Label>
-                    <select id="branch" value={branch} onChange={(event) => { setBranch(event.target.value); setMessage(""); }} disabled={!country || !branchType} className={selectClass()}>
-                      <option value="">Select Branch</option>
-                      {branchOptions.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {branchType === "Main"
-                            ? `${(item as CountryBranchRow).name} (${(item as CountryBranchRow).code})`
-                            : `${(item as CityBranchRow).city_name} - ${(item as CityBranchRow).name} (${(item as CityBranchRow).code})`}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="text-sm">
+                    <div><b>Name:</b> {linkedCustomerName}</div>
+                    <div className="text-slate-500 font-mono text-[10px] mt-1"><b>ID:</b> {linkedCustomerId}</div>
                   </div>
                 </div>
-
-                {/* Account Entry */}
-                <div className="border-t pt-5">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Landmark className="h-5 w-5 text-primary" aria-hidden />
-                    <h2 className="font-semibold">Step 2 - Account Entry</h2>
+              ) : (
+                <div className="space-y-3">
+                  <Label htmlFor="customerSearch">Search Existing Customer</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Input
+                      id="customerSearch"
+                      value={masterSearch}
+                      onChange={(e) => { setMasterSearch(e.target.value); setMasterSearchOpen(true); }}
+                      placeholder="Type customer name to search..."
+                      className="pl-9"
+                    />
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="accountTitle">Account Title</Label>
-                      <select id="accountTitle" value={accountTitle} onChange={(event) => { setAccountTitle(event.target.value as AccountTitle); setSubType(""); setMessage(""); setLinkedMasterId(null); setLinkedMasterName(""); setMasterSearch(""); }} className={selectClass()}>
-                        <option value="">Select Account Title</option>
-                        <option value="Customer">Customer</option>
-                        <option value="Company">Company</option>
-                        <option value="Bank">Bank</option>
-                        <option value="Employee">Employee</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="subType">Sub Type</Label>
-                      <select id="subType" value={subType} onChange={(event) => { setSubType(event.target.value); setMessage(""); }} disabled={!accountTitle} className={selectClass()}>
-                        <option value="">Select Sub Type</option>
-                        {accountTitle ? subTypes[accountTitle].map((item) => (<option key={item} value={item}>{item}</option>)) : null}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Category</Label>
-                      <select id="category" value={category} onChange={(event) => { setCategory(event.target.value); setMessage(""); }} className={selectClass()}>
-                        <option value="">Select Category</option>
-                        {categories.map((item) => (<option key={item} value={item}>{item}</option>))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
-                    <div className="space-y-2">
-                      <Label htmlFor="accountCode">Account Code (Auto)</Label>
-                      <Input id="accountCode" value={accountCode} readOnly aria-readonly="true" placeholder="Generated on save" />
-                      <p className="text-xs leading-5 text-muted-foreground">
-                        Account code branch/country sequence se auto issue hota hai. User manual code enter nahi karega.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="accountName">Account Name</Label>
-                      <Input id="accountName" value={accountName} onChange={(event) => { setAccountName(event.target.value); setMessage(""); }} placeholder="e.g. Sales Account" />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
-                    <div className="space-y-2">
-                      <Label htmlFor="manualReferenceNumber">Manual Reference Number</Label>
-                      <Input id="manualReferenceNumber" value={manualReferenceNumber} onChange={(event) => { setManualReferenceNumber(event.target.value.toUpperCase()); setMessage(""); }} placeholder="e.g. CUST-001" />
-                      <p className="text-xs leading-5 text-muted-foreground">
-                        Optional. Search anywhere by account number or this manual reference.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* ── Link to Master Record ────────────────────────────── */}
-                  {(accountTitle === "Customer" || accountTitle === "Company" || accountTitle === "Bank") && (
-                    <div className="mt-5 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <UserRound className="h-4 w-4 text-primary" aria-hidden />
-                        <h3 className="text-sm font-semibold text-slate-900">
-                          Link to {accountTitle} Record
-                        </h3>
-                        {linkedMasterId && (
-                          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 className="h-3 w-3" /> Linked
-                          </span>
-                        )}
-                      </div>
-
-                      {linkedMasterId ? (
-                        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-white px-4 py-2.5">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-slate-900 truncate">{linkedMasterName}</p>
-                            <p className="text-[10px] text-slate-500 font-mono">{linkedMasterId}</p>
-                          </div>
-                          <Button type="button" variant="outline" size="sm" onClick={() => { setLinkedMasterId(null); setLinkedMasterName(""); setMasterSearch(""); }} className="h-7 text-xs text-slate-600 border-slate-200 px-2.5 shrink-0">
-                            Change
-                          </Button>
-                        </div>
+                  {masterSearchOpen && masterSearch && (
+                    <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
+                      {masterResults.length > 0 ? (
+                        masterResults.map((r) => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs border-b last:border-0"
+                            onClick={() => {
+                              setLinkedCustomerId(r.id);
+                              setLinkedCustomerName(r.name);
+                              setMasterSearchOpen(false);
+                              if (!accountName) setAccountName(r.name);
+                            }}
+                          >
+                            {r.name}
+                          </button>
+                        ))
                       ) : (
-                        <div className="space-y-2">
-                          <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                            <Input
-                              id="masterSearch"
-                              value={masterSearch}
-                              onChange={(e) => { setMasterSearch(e.target.value); setMasterSearchOpen(true); }}
-                              onFocus={() => setMasterSearchOpen(true)}
-                              onBlur={() => setTimeout(() => setMasterSearchOpen(false), 200)}
-                              placeholder={`Search existing ${accountTitle.toLowerCase()} by name...`}
-                              className="pl-8 bg-white"
-                            />
-                            {masterSearchLoading && (
-                              <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 animate-pulse">Searching...</span>
-                            )}
-                          </div>
-
-                          {masterSearchOpen && masterSearch && (
-                            <div className="rounded-lg border bg-white shadow-lg overflow-hidden">
-                              {masterResults.length > 0 ? (
-                                <>
-                                  {masterResults.map((r) => (
-                                    <button
-                                      key={r.id}
-                                      type="button"
-                                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 border-b last:border-b-0 flex items-center gap-2"
-                                      onClick={() => {
-                                        setLinkedMasterId(r.id);
-                                        setLinkedMasterName(r.name);
-                                        setMasterSearchOpen(false);
-                                        if (!accountName) setAccountName(r.name);
-                                      }}
-                                    >
-                                      <UserRound className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                      <span className="font-semibold text-slate-900 truncate">{r.name}</span>
-                                    </button>
-                                  ))}
-                                  <div className="border-t px-3 py-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => { setMasterModalType(accountTitle === "Customer" ? "customer" : accountTitle === "Bank" ? "bank" : "company"); setShowMasterModal(true); }}
-                                      className="w-full flex items-center gap-2 text-xs font-semibold text-primary hover:text-primary/80 py-1"
-                                    >
-                                      <span className="text-base leading-none">+</span>
-                                      New {accountTitle} — Add to Master
-                                    </button>
-                                  </div>
-                                </>
-                              ) : (
-                                <div className="p-4 space-y-3">
-                                  <p className="text-xs text-slate-500">
-                                    No {accountTitle.toLowerCase()} found matching <b>&ldquo;{masterSearch}&rdquo;</b>.
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => { setMasterModalType(accountTitle === "Customer" ? "customer" : accountTitle === "Bank" ? "bank" : "company"); setShowMasterModal(true); }}
-                                    className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
-                                  >
-                                    <span className="text-sm leading-none">+</span>
-                                    New {accountTitle} — Open Master Form
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {!masterSearch && (
-                            <button
-                              type="button"
-                              onClick={() => { setMasterModalType(accountTitle === "Customer" ? "customer" : accountTitle === "Bank" ? "bank" : "company"); setShowMasterModal(true); }}
-                              className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-                            >
-                              <span className="text-sm">+</span> Add New {accountTitle} to Master Forms
-                            </button>
-                          )}
+                        <div className="p-3 text-xs text-slate-500 flex items-center justify-between">
+                          <span>No customer found matching "{masterSearch}"</span>
+                          <Button size="sm" type="button" onClick={() => { setMasterModalType("customer"); setShowMasterModal(true); }} className="h-7 text-xs">
+                            + New Customer
+                          </Button>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* Save button */}
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-sm text-muted-foreground">
-                      Save account to Account Master. Ledger aur identity numbers automatically link ho jayenge.
-                    </p>
-                    <Button type="button" onClick={saveEntry} disabled={!readyToSave || saving} className="rounded-lg">
-                      <Save className="h-4 w-4" aria-hidden />
-                      {saving ? "Saving..." : "Save Entry"}
+                  <div className="pt-2">
+                    <button type="button" onClick={() => { setMasterModalType("customer"); setShowMasterModal(true); }} className="text-xs text-primary font-bold hover:underline">
+                      + Add New Customer to Master Forms
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setCurrentStep(1)}>Back</Button>
+                <Button type="button" onClick={() => setCurrentStep(3)} className="bg-primary text-white">
+                  {linkedCustomerId ? "Save & Next" : "Skip & Next"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Company Details */}
+          {currentStep === 3 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-slate-900">Step 3: Company Details</h2>
+              </div>
+
+              {linkedCompanyId ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-emerald-800">Linked Company Profile</h3>
+                    <Button variant="outline" size="sm" onClick={() => { setLinkedCompanyId(null); setLinkedCompanyName(""); setMasterSearch(""); }} className="h-7 text-xs text-emerald-700 border-emerald-300 bg-white">
+                      Disconnect
                     </Button>
                   </div>
+                  <div className="text-sm">
+                    <div><b>Name:</b> {linkedCompanyName}</div>
+                    <div className="text-slate-500 font-mono text-[10px] mt-1"><b>ID:</b> {linkedCompanyId}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Label htmlFor="companySearch">Search Existing Company</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Input
+                      id="companySearch"
+                      value={masterSearch}
+                      onChange={(e) => { setMasterSearch(e.target.value); setMasterSearchOpen(true); }}
+                      placeholder="Type company name to search..."
+                      className="pl-9"
+                    />
+                  </div>
 
-                  {message ? (
-                    <div className={saved
-                      ? "mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800"
-                      : "mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800"
-                    }>
-                      {message}
-                    </div>
-                  ) : null}
-
-                  {lastCreated ? (
-                    <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 font-extrabold">
-                            <CheckCircle2 className="h-5 w-5" aria-hidden />
-                            Account Created Successfully
-                          </div>
-                          <div className="mt-2 grid gap-1 text-xs md:grid-cols-2">
-                            <span><b>Account:</b> {lastCreated.accountNumber}</span>
-                            <span><b>Manual Ref:</b> {lastCreated.manualReferenceNumber || "-"}</span>
-                            <span><b>Customer:</b> {lastCreated.customerNumber}</span>
-                            <span><b>Country Serial:</b> {lastCreated.countrySerialNumber}</span>
-                            <span><b>Branch Serial:</b> {lastCreated.branchSerialNumber}</span>
-                            <span><b>Ledger:</b> {lastCreated.ledgerId}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/dashboard/accounts/view?accountId=${lastCreated.accountId}`}>
-                              <Eye className="h-4 w-4" aria-hidden /> View
-                            </Link>
-                          </Button>
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/dashboard/accounts/setup?accountId=${lastCreated.accountId}`}>
-                              <Save className="h-4 w-4" aria-hidden /> Edit
-                            </Link>
-                          </Button>
-                          <Button type="button" size="sm" variant="outline" onClick={() => window.print()}>
-                            <FileText className="h-4 w-4" aria-hidden /> PDF
-                          </Button>
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/dashboard/ledger/new?account=${encodeURIComponent(lastCreated.accountNumber)}`}>
-                              <BookOpen className="h-4 w-4" aria-hidden /> Ledger
-                            </Link>
-                          </Button>
-                          <Button asChild size="sm" variant="outline">
-                            <Link href="/dashboard/roznamcha/cash-entry">
-                              <ReceiptText className="h-4 w-4" aria-hidden /> Daily Payment
-                            </Link>
+                  {masterSearchOpen && masterSearch && (
+                    <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
+                      {masterResults.length > 0 ? (
+                        masterResults.map((r) => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs border-b last:border-0"
+                            onClick={() => {
+                              setLinkedCompanyId(r.id);
+                              setLinkedCompanyName(r.name);
+                              setMasterSearchOpen(false);
+                              if (!accountName) setAccountName(r.name);
+                            }}
+                          >
+                            {r.name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-3 text-xs text-slate-500 flex items-center justify-between">
+                          <span>No company found matching "{masterSearch}"</span>
+                          <Button size="sm" type="button" onClick={() => { setMasterModalType("company"); setShowMasterModal(true); }} className="h-7 text-xs">
+                            + New Company
                           </Button>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-
-            {/* Live Report Sidebar */}
-            <aside className="h-fit rounded-lg border bg-card xl:sticky xl:top-24">
-              <div className="border-b px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-primary" aria-hidden />
-                  <h2 className="font-semibold">New Account Report</h2>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">Yahan har selected field live show hoti hai.</p>
-              </div>
-              <div className="space-y-5 p-5">
-                <div className="rounded-lg border bg-white p-3">
-                  <p className="text-xs font-medium text-slate-500">Full Branch Header</p>
-                  <p className="mt-1 text-sm font-semibold leading-6 text-slate-950">
-                    {branchInfo
-                      ? `${branchInfo.company} - ${branchInfo.code} - ${selectedCountry?.name ?? "-"} - ${branchInfo.city} - ${branchType} - ${branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch)}`
-                      : "- - - - - -"}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                    <Building2 className="h-4 w-4 text-primary" aria-hidden /> Branch Details
-                  </h3>
-                  <ReportRow label="Company" value={branchInfo?.company ?? "-"} />
-                  <ReportRow label="Branch Code" value={branchInfo?.code ?? "-"} />
-                  <ReportRow label="Country" value={selectedCountry?.name ?? "-"} />
-                  <ReportRow label="City" value={branchInfo?.city ?? "-"} />
-                  <ReportRow label="Branch Type" value={branchType || "-"} />
-                  <ReportRow label="Branch Name" value={branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch)} />
-                  <ReportRow label="Currency" value={branchInfo?.currency ?? "-"} />
-                </div>
-                <div className="space-y-2 border-t pt-4">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                    <Landmark className="h-4 w-4 text-primary" aria-hidden /> Account Details
-                  </h3>
-                  <ReportRow label="Account Title" value={accountTitle || "-"} />
-                  <ReportRow label="Sub Type" value={subType || "-"} />
-                  <ReportRow label="Category" value={category || "-"} />
-                  <ReportRow label="Account Number" value={accountPreview || "-"} />
-                  <ReportRow label="Manual Reference" value={manualReferenceNumber || lastCreated?.manualReferenceNumber || "-"} />
-                  <ReportRow label="Customer Number" value={lastCreated?.customerNumber ?? "-"} />
-                  <ReportRow label="Country Serial" value={lastCreated?.countrySerialNumber ?? "-"} />
-                  <ReportRow label="Branch Serial" value={lastCreated?.branchSerialNumber ?? "-"} />
-                  <ReportRow label="Account Name" value={accountName || "-"} />
-                  <ReportRow label="Journal Preview" value={journalPreview} />
-                  {linkedMasterId && <ReportRow label="Linked Master" value={linkedMasterName} />}
-                </div>
-                <div className="space-y-2 border-t pt-4">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                    <Hash className="h-4 w-4 text-primary" aria-hidden /> Entry Check
-                  </h3>
-                  <ChecklistItem done={Boolean(country)} label="Country selected" />
-                  <ChecklistItem done={Boolean(branchType)} label="Branch type selected" />
-                  <ChecklistItem done={Boolean(branch)} label="Branch selected" />
-                  <ChecklistItem done={Boolean(accountTitle)} label="Account title selected" />
-                  <ChecklistItem done={Boolean(subType)} label="Sub type selected" />
-                  <ChecklistItem done={Boolean(category)} label="Category selected" />
-                  <ChecklistItem done={Boolean(accountPreview)} label="Account code ready" />
-                  <ChecklistItem done={Boolean(accountName)} label="Account name entered" />
-                </div>
-                <div className="space-y-3 border-t pt-4">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                    <UserRound className="h-4 w-4 text-primary" aria-hidden /> Saved Account Entries
-                  </h3>
-                  {savedEntries.length ? (
-                    <div className="space-y-2">
-                      {savedEntries.slice(0, 4).map((entry) => (
-                        <div key={entry.id} className="rounded-lg border bg-white p-3 text-xs">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-slate-950">{entry.accountName}</span>
-                            <span className="text-slate-500">{entry.savedAt}</span>
-                          </div>
-                          <p className="mt-1 text-slate-600">{entry.accountCode} - {entry.journalCode}</p>
-                          <p className="mt-1 text-slate-500">{entry.branchName} ({entry.branchCode})</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="rounded-lg border border-dashed bg-white p-3 text-sm text-slate-500">
-                      No entry has been saved yet. Saved account entries will show here.
-                    </p>
                   )}
+
+                  <div className="pt-2">
+                    <button type="button" onClick={() => { setMasterModalType("company"); setShowMasterModal(true); }} className="text-xs text-primary font-bold hover:underline">
+                      + Add New Company to Master Forms
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setCurrentStep(2)}>Back</Button>
+                <Button type="button" onClick={() => setCurrentStep(4)} className="bg-primary text-white">
+                  {linkedCompanyId ? "Save & Next" : "Skip & Next"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Bank Details */}
+          {currentStep === 4 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <Landmark className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-slate-900">Step 4: Bank Details</h2>
+              </div>
+
+              {linkedBankId ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-emerald-800">Linked Bank Profile</h3>
+                    <Button variant="outline" size="sm" onClick={() => { setLinkedBankId(null); setLinkedBankName(""); setMasterSearch(""); }} className="h-7 text-xs text-emerald-700 border-emerald-300 bg-white">
+                      Disconnect
+                    </Button>
+                  </div>
+                  <div className="text-sm">
+                    <div><b>Name:</b> {linkedBankName}</div>
+                    <div className="text-slate-500 font-mono text-[10px] mt-1"><b>ID:</b> {linkedBankId}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Label htmlFor="bankSearch">Search Existing Bank</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Input
+                      id="bankSearch"
+                      value={masterSearch}
+                      onChange={(e) => { setMasterSearch(e.target.value); setMasterSearchOpen(true); }}
+                      placeholder="Type bank name to search..."
+                      className="pl-9"
+                    />
+                  </div>
+
+                  {masterSearchOpen && masterSearch && (
+                    <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
+                      {masterResults.length > 0 ? (
+                        masterResults.map((r) => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs border-b last:border-0"
+                            onClick={() => {
+                              setLinkedBankId(r.id);
+                              setLinkedBankName(r.name);
+                              setMasterSearchOpen(false);
+                              if (!accountName) setAccountName(r.name);
+                            }}
+                          >
+                            {r.name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-3 text-xs text-slate-500 flex items-center justify-between">
+                          <span>No bank found matching "{masterSearch}"</span>
+                          <Button size="sm" type="button" onClick={() => { setMasterModalType("bank"); setShowMasterModal(true); }} className="h-7 text-xs">
+                            + New Bank
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <button type="button" onClick={() => { setMasterModalType("bank"); setShowMasterModal(true); }} className="text-xs text-primary font-bold hover:underline">
+                      + Add New Bank to Master Forms
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setCurrentStep(3)}>Back</Button>
+                <Button type="button" onClick={() => setCurrentStep(5)} className="bg-primary text-white">
+                  {linkedBankId ? "Save & Next" : "Skip & Next"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 5: Warehouse Details */}
+          {currentStep === 5 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <Warehouse className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-slate-900">Step 5: Warehouse Details</h2>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50/30 p-5 space-y-2">
+                <div className="font-bold text-amber-800">Form Disabled (Set to Zero)</div>
+                <p className="text-xs text-amber-700 leading-5">
+                  Warehouse setup page handles inventory locations, currently this configuration is disabled (set to zero). No forms or inputs are required. You can click Next to review and save the account.
+                </p>
+              </div>
+
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setCurrentStep(4)}>Back</Button>
+                <Button type="button" onClick={() => setCurrentStep(6)} className="bg-primary text-white">
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 6: Review & Save */}
+          {currentStep === 6 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-slate-900">Step 6: Review & Save</h2>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 text-xs">
+                <div className="rounded-lg border bg-slate-50/40 p-4 space-y-2">
+                  <h3 className="font-bold text-slate-700 border-b pb-1">Branch Details</h3>
+                  <div><b>Company:</b> {branchInfo?.company || "-"}</div>
+                  <div><b>Branch Name:</b> {branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch)}</div>
+                  <div><b>Branch Code:</b> {branchInfo?.code || "-"}</div>
+                  <div><b>Country:</b> {selectedCountry?.name || "-"}</div>
+                  <div><b>Branch Type:</b> {branchType || "-"}</div>
+                  <div><b>Currency:</b> {branchInfo?.currency || "-"}</div>
+                </div>
+
+                <div className="rounded-lg border bg-slate-50/40 p-4 space-y-2">
+                  <h3 className="font-bold text-slate-700 border-b pb-1">Account Info</h3>
+                  <div><b>Account Title:</b> {accountTitle || "-"}</div>
+                  <div><b>Sub Type:</b> {subType || "-"}</div>
+                  <div><b>Category:</b> {category || "-"}</div>
+                  <div><b>Account Code (Auto):</b> {accountCode || "AUTO"}</div>
+                  <div><b>Account Name:</b> {accountName || "-"}</div>
+                  <div><b>Manual Reference:</b> {manualReferenceNumber || "-"}</div>
                 </div>
               </div>
-            </aside>
-          </div>
-        </>
-      )}
 
+              {/* Linked Masters Summary */}
+              {(linkedCustomerId || linkedCompanyId || linkedBankId) && (
+                <div className="rounded-lg border bg-slate-50/40 p-4 text-xs space-y-2">
+                  <h3 className="font-bold text-slate-700 border-b pb-1">Linked Master Records</h3>
+                  {linkedCustomerId && <div><b>Linked Customer:</b> {linkedCustomerName} <span className="text-slate-400 font-mono">({linkedCustomerId})</span></div>}
+                  {linkedCompanyId && <div><b>Linked Company:</b> {linkedCompanyName} <span className="text-slate-400 font-mono">({linkedCompanyId})</span></div>}
+                  {linkedBankId && <div><b>Linked Bank:</b> {linkedBankName} <span className="text-slate-400 font-mono">({linkedBankId})</span></div>}
+                </div>
+              )}
 
-      {/* ── Step 2: Customer Form ─────────────────────────────────────────── */}
-      {currentStep === 2 && (
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">Step 2 - Owner Details</h2>
-            <Button variant="outline" onClick={() => setCurrentStep(1)}>Back to Step 1</Button>
-          </div>
-          <div className="p-1 rounded-xl border bg-slate-50/50">
-            <CustomerForm
-              lang="en"
-              mode="embedded"
-              onSave={(customerId) => {
-                setCreatedCustomerId(customerId);
-                setCurrentStep(3);
-              }}
-            />
-          </div>
-        </div>
-      )}
+              {message && (
+                <div className={saved
+                  ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-800"
+                  : "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800"
+                }>
+                  {message}
+                </div>
+              )}
 
-      {/* ── Step 3: Company Form ──────────────────────────────────────────── */}
-      {currentStep === 3 && (
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">Step 3 - Company Details</h2>
-            <Button variant="outline" onClick={() => setCurrentStep(2)}>Back to Step 2</Button>
-          </div>
-          <div className="p-1 rounded-xl border bg-slate-50/50">
-            <CompanyIncorporationForm
-              mode="embedded"
-              onSave={() => { router.push("/dashboard/accounts"); }}
-            />
-          </div>
-        </div>
-      )}
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setCurrentStep(5)}>Back</Button>
+                <Button type="button" onClick={saveEntry} disabled={!readyToSave || saving} className="bg-primary text-white">
+                  {saving ? "Saving..." : "Create & Save Account"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
 
-      {/* ── Master Record Modal ───────────────────────────────────────────── */}
+        {/* Right Side: Live Report Sidebar */}
+        <aside className="lg:col-span-8 h-fit rounded-lg border bg-card lg:sticky lg:top-24">
+          <div className="border-b px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-primary" aria-hidden />
+                <h2 className="font-semibold">{getLabel("liveReport", lang)}</h2>
+              </div>
+              <Button variant="outline" size="sm" className="h-7 text-[10px] font-bold" onClick={fetchReport}>
+                {getLabel("refresh", lang)}
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Select and preview accounts setup details live.</p>
+          </div>
+
+          <div className="space-y-4 p-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Select Entry Dropdown */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-slate-500 font-bold uppercase">{getLabel("selectEntry", lang)}</Label>
+                <select
+                  className="flex h-9 w-full rounded-md border bg-white px-3 text-xs shadow-sm focus:outline-none"
+                  value={selectedReportAccountId}
+                  onChange={(e) => setSelectedReportAccountId(e.target.value)}
+                >
+                  <option value="current">{getLabel("currentDraftAccount", lang)}</option>
+                  {reportRows.slice(0, 15).map((r) => (
+                    <option key={r.accountId} value={r.accountId}>
+                      {r.accountCode} - {r.accountName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Setup Progress */}
+              <div className="space-y-2.5">
+                <h3 className="text-[10px] font-bold text-slate-455 uppercase tracking-widest">{getLabel("setupProgress", lang)}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                  {[
+                    { id: 1, label: getLabel("step1Label", lang), step: 1 },
+                    { id: 2, label: getLabel("step2Label", lang), step: 2, linked: Boolean(linkedCustomerId) },
+                    { id: 3, label: getLabel("step3Label", lang), step: 3, linked: Boolean(linkedCompanyId) },
+                    { id: 4, label: getLabel("step4Label", lang), step: 4, linked: Boolean(linkedBankId) },
+                    { id: 5, label: getLabel("step5Label", lang), step: 5 },
+                    { id: 6, label: getLabel("step6Label", lang), step: 6 }
+                  ].map((item, index) => {
+                    const active = currentStep === item.step;
+                    const completed = currentStep > item.step || item.linked;
+                    return (
+                      <div key={item.id} className="flex items-center justify-between text-xs py-0.5">
+                        <span className={`font-semibold text-[11px] ${active ? "text-primary" : completed ? "text-emerald-700" : "text-slate-500"}`}>
+                          {index + 1}. {item.label}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold border ${
+                          active
+                            ? "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
+                            : completed
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-slate-50 text-slate-400 border-slate-200"
+                        }`}>
+                          {active ? getLabel("inProgress", lang) : completed ? getLabel("completed", lang) : getLabel("notStarted", lang)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Dynamic Summary Preview Card */}
+            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-xs space-y-3 border-t">
+              {selectedReportAccountId === "current" ? (
+                <>
+                  <h4 className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">{getLabel("currentDraftAccount", lang)}</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-semibold text-slate-700">
+                    <div><b>Account Name:</b> <span className="text-slate-600">{accountName || "-"}</span></div>
+                    <div><b>Account Number:</b> <span className="text-slate-600">{accountPreview || "-"}</span></div>
+                    <div><b>Branch Code:</b> <span className="text-slate-600">{branchInfo?.code || "-"}</span></div>
+                    <div><b>Currency:</b> <span className="text-slate-600">{branchInfo?.currency || "-"}</span></div>
+                  </div>
+                  {(linkedCustomerId || linkedCompanyId || linkedBankId) && (
+                    <div className="flex flex-wrap gap-4 border-t pt-2 mt-2">
+                      {linkedCustomerId && <div className="text-emerald-750"><b>Linked Customer:</b> {linkedCustomerName}</div>}
+                      {linkedCompanyId && <div className="text-emerald-750"><b>Linked Company:</b> {linkedCompanyName}</div>}
+                      {linkedBankId && <div className="text-emerald-750"><b>Linked Bank:</b> {linkedBankName}</div>}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h4 className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">{getLabel("savedAccountDetails", lang)}</h4>
+                  {(() => {
+                    const row = reportRows.find((r) => r.accountId === selectedReportAccountId);
+                    if (!row) return <div className="text-slate-400">No account found.</div>;
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 font-semibold text-slate-700">
+                        <div><b>Account Name:</b> <span className="text-slate-600">{row.accountName}</span></div>
+                        <div><b>Account Code:</b> <span className="text-slate-600">{row.accountCode}</span></div>
+                        <div><b>Branch Code:</b> <span className="text-slate-600">{row.branchCode}</span></div>
+                        <div><b>Currency:</b> <span className="text-slate-600">{row.currency}</span></div>
+                        <div><b>Category:</b> <span className="text-slate-600">{row.accountCategory} / {row.subType}</span></div>
+                        <div><b>Status:</b> <span className="text-slate-600">{row.status}</span></div>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+
+            {/* Saved Accounts Entries Table */}
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-[10px] font-bold text-slate-455 uppercase tracking-widest">{getLabel("accountSetupReport", lang)}</h3>
+                <div className="relative w-44">
+                  <Search className={cn("absolute top-2 h-3.5 w-3.5 text-slate-400", isRtl ? "right-2" : "left-2")} />
+                  <Input
+                    placeholder="Search entries..."
+                    value={sidebarFilter}
+                    onChange={(e) => setSidebarFilter(e.target.value)}
+                    className={cn("h-7 text-[10px] bg-white", isRtl ? "pr-7" : "pl-7")}
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border bg-white shadow-sm">
+                <table className="w-full text-left border-collapse text-[10px]">
+                  <thead>
+                    <tr className="bg-slate-50 border-b text-slate-500 uppercase tracking-wider text-[9px]">
+                      <th className="px-2.5 py-2 font-bold border-r">Code</th>
+                      <th className="px-2.5 py-2 font-bold border-r">Account Name</th>
+                      <th className="px-2.5 py-2 font-bold border-r">Type</th>
+                      <th className="px-2.5 py-2 font-bold border-r text-center">Currency</th>
+                      <th className="px-2.5 py-2 font-bold text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportLoading ? (
+                      <tr><td colSpan={5} className="text-center py-4 text-slate-400">Loading entries...</td></tr>
+                    ) : filteredSidebarRows.length > 0 ? (
+                      filteredSidebarRows.slice(0, 10).map((r) => (
+                        <tr key={r.accountId} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors">
+                          <td className="px-2.5 py-1.5 border-r font-mono text-[9px] text-blue-600 font-semibold">{r.accountCode}</td>
+                          <td className="px-2.5 py-1.5 border-r font-medium text-slate-800 max-w-[150px] truncate">{r.accountName}</td>
+                          <td className="px-2.5 py-1.5 border-r text-slate-500">{r.accountCategory}</td>
+                          <td className="px-2.5 py-1.5 border-r font-mono text-center font-bold text-slate-655">{r.currency}</td>
+                          <td className="px-2.5 py-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/dashboard/accounts/view?accountId=${r.accountId}`)}
+                              className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
+                            >
+                              {getLabel("view", lang)}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={5} className="text-center py-4 text-slate-400">No entries found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      {/* ── Master Record Overlay Modal ────────────────────────────────────── */}
       {showMasterModal && masterModalType && (
         <div className="fixed inset-0 z-[70] flex flex-col bg-slate-50 overflow-y-auto">
           <div className="w-full max-w-6xl mx-auto bg-white min-h-screen shadow-xl border-x">
@@ -964,18 +1123,18 @@ export function NewAccountSetup() {
             <div className="p-8">
               {masterModalType === "customer" ? (
                 <CustomerForm
-                  lang="en"
+                  lang={lang}
                   mode="embedded"
                   onSave={(customerId) => {
-                    setLinkedMasterId(customerId);
+                    setLinkedCustomerId(customerId);
                     fetch(`/api/erp/customers/${customerId}`)
                       .then((r) => r.json())
                       .then((json) => {
                         const name = json.customer?.customer_name ?? json.customer_name ?? "New Customer";
-                        setLinkedMasterName(name);
+                        setLinkedCustomerName(name);
                         if (!accountName) setAccountName(name);
                       })
-                      .catch(() => setLinkedMasterName("New Customer"));
+                      .catch(() => setLinkedCustomerName("New Customer"));
                     setShowMasterModal(false);
                   }}
                 />
@@ -984,8 +1143,13 @@ export function NewAccountSetup() {
                   mode="embedded"
                   onSave={(data) => {
                     const companyId = (data as any).id ?? "";
-                    setLinkedMasterId(companyId);
-                    setLinkedMasterName(data.companyName ?? (masterModalType === "bank" ? "New Bank" : "New Company"));
+                    if (masterModalType === "bank") {
+                      setLinkedBankId(companyId);
+                      setLinkedBankName(data.companyName ?? "New Bank");
+                    } else {
+                      setLinkedCompanyId(companyId);
+                      setLinkedCompanyName(data.companyName ?? "New Company");
+                    }
                     if (!accountName) setAccountName(data.companyName ?? "");
                     setShowMasterModal(false);
                   }}
