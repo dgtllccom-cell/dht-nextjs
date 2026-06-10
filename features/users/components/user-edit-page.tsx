@@ -151,26 +151,34 @@ export function UserEditPage({ userId }: Props) {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/erp/users/journal-report?limit=500`);
-        const json = await res.json();
-        const rows: any[] = json?.rows ?? [];
-        const found = rows.find((r) => r.userId === userId);
+        const res = await fetch(`/api/erp/users?userId=${encodeURIComponent(userId)}`);
+        const found = await res.json();
         if (found) {
           setUserData(found);
           setFullName(found.fullName || "");
           setUserCode(found.userCode || "");
           setRole((found.role || "city_branch_admin") as EnterpriseRole);
           setCountryId(found.countryId || "");
-          setIsActive(found.status === "active");
+          setIsActive(found.isActive);
           setSelectedPermissions(found.permissions || []);
-          const isMain = found.branchType === "Main Branch" || found.role === "main_branch_admin";
-          const isCity = found.branchType === "City Branch";
-          if (isMain) {
-            setBranchType("main");
-            setCountryBranchId(found.branchId || "");
-          } else if (isCity) {
-            setBranchType("city");
-            setCityBranchId(found.branchId || "");
+          setEmail(found.email || "");
+          setPhone(found.phone || "");
+          setPurpose(found.purpose || "");
+
+          if (found.role === "super_admin" || found.role === "country_admin" || found.role === "country_user") {
+            setBranchType("");
+            setCountryBranchId("");
+            setCityBranchId("");
+          } else {
+            if (found.cityBranchId) {
+              setBranchType("city");
+              setCityBranchId(found.cityBranchId);
+              setCountryBranchId(found.countryBranchId || "");
+            } else if (found.countryBranchId) {
+              setBranchType("main");
+              setCountryBranchId(found.countryBranchId);
+              setCityBranchId("");
+            }
           }
         }
       } catch {
@@ -294,6 +302,9 @@ export function UserEditPage({ userId }: Props) {
         countryBranchId: resolvedCountryBranchId,
         cityBranchId: resolvedCityBranchId,
         permissions: selectedPermissions,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        purpose: purpose.trim() || null
       };
       if (password) payload.password = password;
 

@@ -236,6 +236,61 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const session = await requireErpSession();
+    const userId = request.nextUrl.searchParams.get("userId");
+    if (!userId) {
+      throw new Error("userId is required.");
+    }
+
+    const isCountryManager = session.roles.some((r) => r === "country_admin" || r === "main_branch_admin");
+    if (!session.isSuperAdmin && !isCountryManager) {
+      throw new Error("Not authorized to view user details.");
+    }
+
+    const admin = createSupabaseAdminClient() as any;
+
+    const [profileRes, assignmentRes, permissionsRes, authUserRes] = await Promise.all([
+      admin.from("profiles").select("*").eq("id", userId).maybeSingle(),
+      admin.from("user_role_assignments").select("*").eq("user_id", userId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      admin.from("user_permission_sets").select("permissions").eq("user_id", userId).maybeSingle(),
+      admin.auth.admin.getUserById(userId)
+    ]);
+
+    if (profileRes.error) throw new Error(profileRes.error.message);
+    const profile = profileRes.data;
+    if (!profile) {
+      throw new Error("User profile not found.");
+    }
+
+    const assignment = assignmentRes.data;
+    if (!session.isSuperAdmin && assignment?.country_id && !session.countryIds.includes(assignment.country_id)) {
+      throw new Error("Not authorized to view users outside of your country.");
+    }
+
+    const permissions = permissionsRes.data?.permissions ?? [];
+    const authUser = authUserRes.data?.user;
+
+    return apiOk({
+      userId,
+      userCode: profile.user_code,
+      fullName: profile.full_name,
+      isActive: assignment?.is_active ?? false,
+      role: assignment?.role ?? "city_branch_admin",
+      countryId: assignment?.country_id ?? null,
+      countryBranchId: assignment?.country_branch_id ?? null,
+      cityBranchId: assignment?.city_branch_id ?? null,
+      permissions,
+      email: authUser?.email ?? "",
+      phone: authUser?.user_metadata?.phone ?? "",
+      purpose: authUser?.user_metadata?.purpose ?? ""
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const session = await requireErpSession();
@@ -248,7 +303,10 @@ export async function PATCH(request: NextRequest) {
       countryId: uuidSchema.nullable().optional(),
       countryBranchId: uuidSchema.nullable().optional(),
       cityBranchId: uuidSchema.nullable().optional(),
-      permissions: z.array(z.string()).optional()
+      permissions: z.array(z.string()).optional(),
+      email: z.string().trim().email().optional(),
+      phone: z.string().trim().optional(),
+      purpose: z.string().trim().optional()
     }).parse(await request.json());
 
     // Authorization check:
@@ -298,11 +356,26 @@ export async function PATCH(request: NextRequest) {
       if (profileError) throw new Error(profileError.message);
     }
 
-    // 2. Update Supabase Auth password if password is provided
-    if (body.password !== undefined) {
-      const { error: authError } = await admin.auth.admin.updateUserById(body.userId, {
-        password: body.password
-      });
+    // 2. Update Supabase Auth if password, email, phone, or purpose is provided
+    if (body.password !== undefined || body.email !== undefined || body.phone !== undefined || body.purpose !== undefined) {
+      const updates: any = {};
+      if (body.password !== undefined) updates.password = body.password;
+      if (body.email !== undefined) updates.email = body.email;
+      
+      const userMetadata: any = {};
+      if (body.phone !== undefined) userMetadata.phone = body.phone;
+      if (body.purpose !== undefined) userMetadata.purpose = body.purpose;
+      
+      if (Object.keys(userMetadata).length > 0) {
+        // Merge with existing metadata
+        const { data: currentAuth } = await admin.auth.admin.getUserById(body.userId);
+        updates.user_metadata = {
+          ...(currentAuth?.user?.user_metadata ?? {}),
+          ...userMetadata
+        };
+      }
+      
+      const { error: authError } = await admin.auth.admin.updateUserById(body.userId, updates);
       if (authError) throw new Error(authError.message);
     }
 

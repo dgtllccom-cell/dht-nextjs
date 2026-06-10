@@ -446,6 +446,7 @@ export async function GET(request: NextRequest) {
         countryName: country?.name ?? "-",
         branchId: cityBranch?.id ?? mainBranch?.id ?? null,
         branchName,
+        branchCode: mainBranch?.code ?? cityBranch?.code ?? "-",
         branchType,
         role,
         registrationDate: profile.created_at,
