@@ -30,6 +30,7 @@ import { CustomerForm } from "@/features/customers/components/customer-form";
 import { CompanyIncorporationForm } from "@/features/companies/components/company-incorporation-form";
 import { rtlLanguages, type SupportedLanguage } from "@/lib/i18n/languages";
 import { getLabel } from "./translations";
+import { cn } from "@/lib/utils";
 
 type BranchType = "Main" | "City";
 
@@ -182,6 +183,11 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
 
   const isRtl = useMemo(() => rtlLanguages.includes(lang), [lang]);
 
+  // Live report states
+  const [reportRows, setReportRows] = useState<AccountGeneralReportRow[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [selectedReportAccountId, setSelectedReportAccountId] = useState("current");
+
   // Sidebar filter states
   const [sidebarFilter, setSidebarFilter] = useState("");
   const filteredSidebarRows = useMemo(() => {
@@ -235,11 +241,6 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
   const [masterSearchLoading, setMasterSearchLoading] = useState(false);
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalType, setMasterModalType] = useState<"customer" | "company" | "bank" | null>(null);
-
-  // Live report states
-  const [reportRows, setReportRows] = useState<AccountGeneralReportRow[]>([]);
-  const [reportLoading, setReportLoading] = useState(false);
-  const [selectedReportAccountId, setSelectedReportAccountId] = useState("current");
 
   // Fetch report records
   async function fetchReport() {

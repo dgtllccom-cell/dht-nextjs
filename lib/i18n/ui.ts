@@ -15,23 +15,6 @@ export type UiKey =
   | "nav.super_admin_branch"
   | "nav.country_branch"
   | "nav.city_branch"
-import type { SupportedLanguage } from "@/lib/i18n/languages";
-
-export type UiKey =
-  // Sidebar navigation
-  | "nav.dashboard"
-  | "nav.super_admin_dashboard"
-  | "nav.country_dashboard"
-  | "nav.city_dashboard"
-  | "nav.agent_dashboard"
-  | "nav.shipping_line_dashboard"
-  | "nav.clearing_agent_dashboard"
-  | "nav.new_entry"
-  | "nav.branch_entry"
-  | "nav.branch_menu"
-  | "nav.super_admin_branch"
-  | "nav.country_branch"
-  | "nav.city_branch"
   | "nav.user_entry"
   | "nav.user_form"
   | "nav.user_journal_report"
