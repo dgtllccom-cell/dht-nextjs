@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { rtlLanguages, type SupportedLanguage } from "@/lib/i18n/languages";
+import { cn } from "@/lib/utils";
 import { getLabel } from "./translations";
 
 type AccountGeneralReportRow = {
