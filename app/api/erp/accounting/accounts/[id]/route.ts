@@ -6,6 +6,13 @@ import { createApiSupabaseClient } from "@/lib/api/supabase";
 import { requireErpSession } from "@/lib/auth/session";
 import { ledgerScopeSchema, optionalUuidSchema, scopeSchema } from "@/lib/api/erp-validation";
 
+function isUuid(value: string | null | undefined) {
+  return Boolean(
+    value &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
 const updateSchema = scopeSchema.extend({
   scope: ledgerScopeSchema.optional(),
   parentId: optionalUuidSchema,
@@ -208,6 +215,23 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
     const session = await requireErpSession();
     const { id } = await context.params;
     const supabase = await createApiSupabaseClient();
+
+    const actorId = isUuid(session.userId) ? session.userId : null;
+    if (!actorId) {
+      throw new Error("A valid logged-in user ID is required to delete an account.");
+    }
+
+    // Verify the actorId exists in the profiles table
+    const { data: userProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", actorId)
+      .maybeSingle();
+
+    if (profileError || !userProfile) {
+      throw new Error("The user ID does not exist in the referenced users table. Account deletion requires a valid user reference.");
+    }
+
     const current = await loadAccount(supabase, id);
 
     if (!current || current.deleted_at) {
