@@ -67,6 +67,31 @@ export function CompanyPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!value) return;
+    if (companies.some((c) => c.id === value)) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiGet<{ company: CompanyRow }>(`/api/erp/companies/${encodeURIComponent(value)}`);
+        if (cancelled) return;
+        if (res.company) {
+          setCompanies((current) => {
+            if (current.some((c) => c.id === res.company.id)) return current;
+            return [...current, res.company];
+          });
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   const options: SearchSelectOption[] = useMemo(() => companies.map(toOption), [companies]);
 
   return (

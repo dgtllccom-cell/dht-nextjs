@@ -97,6 +97,13 @@ export function BranchOwnerPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const finalOptions = useMemo(() => {
+    if (value && !options.some((opt) => opt.value === value)) {
+      return [...options, { value, label: value }];
+    }
+    return options;
+  }, [options, value]);
+
   return (
     <>
       <SearchSelect
@@ -104,7 +111,7 @@ export function BranchOwnerPicker({
         value={value}
         placeholder={placeholder ?? (loading ? "Loading..." : "Search owner")}
         disabled={disabled || loading}
-        options={options}
+        options={finalOptions}
         onValueChange={onValueChange}
         createLabel="+ New Owner"
         createButtonPlacement={createButtonPlacement}

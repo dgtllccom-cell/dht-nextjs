@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -343,7 +343,7 @@ export function CountryBranchSetup() {
       { label: "Company Name", value: previewCompany },
       { label: "Company Code", value: companyCode },
       { label: "Company Owner", value: ownerPreview?.name || ownerName || "-" },
-      { label: "Owner Details", value: ownerPreview ? `${ownerPreview.source.toUpperCase()} Ã¯Â¿Â½ ${ownerPreview.code}` : ownerName || "-" },
+      { label: "Owner Details", value: ownerPreview ? `${ownerPreview.source.toUpperCase()} · ${ownerPreview.code}` : ownerName || "-" },
       { label: "Permission Template", value: permissionTemplate || "-" },
       { label: "Permission Grants", value: permissionGrants.length ? permissionGrants.join(", ") : "-" },
       { label: "Contacts", value: contactItems.length ? contactItems.join(", ") : "-" }
@@ -414,9 +414,9 @@ export function CountryBranchSetup() {
         title: "Owner Information",
         items: [
           { label: "Owner Name", value: ownerPreview?.name || ownerName },
-          { label: "Owner Code", value: ownerPreview?.code },
-          { label: "Owner Source", value: ownerPreview?.source },
-          { label: "Owner Role", value: ownerPreview?.role }
+          { label: "Owner Code", value: ownerPreview?.code || "N/A" },
+          { label: "Owner Source", value: ownerPreview?.source || "custom" },
+          { label: "Owner Role", value: ownerPreview?.role || "Owner" }
         ]
       },
       {
@@ -697,6 +697,11 @@ export function CountryBranchSetup() {
         .map((row) => ({ type: row.type.trim(), value: row.value.trim() }))
         .filter((row) => row.type && row.value);
 
+      const emailContact = contactsPayload.find((row) => row.type.toLowerCase().includes("email"))?.value;
+      const email = emailContact && emailContact.includes("@") ? emailContact : `${branchCode.trim().toLowerCase()}@dgt.llc`;
+      const phone = contactsPayload.find((row) => row.type.toLowerCase().includes("phone") || row.type.toLowerCase().includes("mobile"))?.value;
+      const whatsappNumber = contactsPayload.find((row) => row.type.toLowerCase().includes("whatsapp"))?.value;
+
       const res = await fetch("/api/branch-management/country-branches", {
         method: editingCountryBranchId ? "PUT" : "POST",
         headers: { "content-type": "application/json" },
@@ -708,6 +713,9 @@ export function CountryBranchSetup() {
           stateProvinceId: location.stateProvinceId || undefined,
           cityId: location.cityId || undefined,
           address: fullAddress.trim() || undefined,
+          phone: phone || undefined,
+          email,
+          whatsappNumber: whatsappNumber || undefined,
           companyId: companyId || undefined,
           ownerName: ownerName.trim() || undefined,
           permissionTemplate,
@@ -718,10 +726,21 @@ export function CountryBranchSetup() {
 
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const message =
-          (typeof json?.error === "string" && json.error) ||
-          (typeof json?.error?.message === "string" && json.error.message) ||
-          "Failed to save country branch.";
+        let message = "Failed to save country branch.";
+        if (json?.error) {
+          if (typeof json.error === "string") {
+            message = json.error;
+          } else if (json.error.message && typeof json.error.message === "string") {
+            message = json.error.message;
+          } else if (json.error.fieldErrors && typeof json.error.fieldErrors === "object") {
+            const fieldMsgs = Object.entries(json.error.fieldErrors)
+              .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(", ") : msgs}`)
+              .join("; ");
+            message = `Validation Error: ${fieldMsgs}`;
+          } else {
+            message = JSON.stringify(json.error);
+          }
+        }
         if (json?.existingBranch?.id) {
           setExistingMainBranch(json.existingBranch);
           setBranchCode(json.existingBranch.code ?? branchCode);
@@ -729,7 +748,6 @@ export function CountryBranchSetup() {
         setBanner({ type: "error", message });
         return;
       }
-
       setBanner({ type: "success", message: `${editingCountryBranchId ? "Updated" : "Saved"}: ${branchName} (${branchCode})` });
       setEditingCountryBranchId("");
       await loadExistingMainBranch(location.countryId);

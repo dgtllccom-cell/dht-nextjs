@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -407,7 +407,7 @@ export function CityBranchSetup() {
       { label: "Company Name", value: previewCompany },
       { label: "Company Code", value: companyCode },
       { label: "Company Owner", value: ownerPreview?.name || activeExistingCityBranch?.owner_name || ownerName || "-" },
-      { label: "Owner Details", value: ownerPreview ? `${ownerPreview.source.toUpperCase()} Ã¯Â¿Â½ ${ownerPreview.code}` : activeExistingCityBranch?.owner_name || ownerName || "-" },
+      { label: "Owner Details", value: ownerPreview ? `${ownerPreview.source.toUpperCase()} · ${ownerPreview.code}` : activeExistingCityBranch?.owner_name || ownerName || "-" },
       { label: "Permission Template", value: activeExistingCityBranch?.permission_template || permissionTemplate || "-" },
       {
         label: "Permission Grants",
@@ -489,9 +489,9 @@ export function CityBranchSetup() {
         title: "Owner Information",
         items: [
           { label: "Owner Name", value: ownerPreview?.name || activeExistingCityBranch?.owner_name || ownerName },
-          { label: "Owner Code", value: ownerPreview?.code },
-          { label: "Owner Source", value: ownerPreview?.source },
-          { label: "Owner Role", value: ownerPreview?.role }
+          { label: "Owner Code", value: ownerPreview?.code || "N/A" },
+          { label: "Owner Source", value: ownerPreview?.source || "custom" },
+          { label: "Owner Role", value: ownerPreview?.role || "Owner" }
         ]
       },
       {
@@ -828,6 +828,11 @@ export function CityBranchSetup() {
         .map((row) => ({ type: row.type.trim(), value: row.value.trim() }))
         .filter((row) => row.type && row.value);
 
+      const emailContact = contactsPayload.find((row) => row.type.toLowerCase().includes("email"))?.value;
+      const email = emailContact && emailContact.includes("@") ? emailContact : `${branchCode.trim().toLowerCase()}@dgt.llc`;
+      const phone = contactsPayload.find((row) => row.type.toLowerCase().includes("phone") || row.type.toLowerCase().includes("mobile"))?.value;
+      const whatsappNumber = contactsPayload.find((row) => row.type.toLowerCase().includes("whatsapp"))?.value;
+
       const res = await fetch("/api/branch-management/city-branches", {
         method: editingCityBranchId ? "PUT" : "POST",
         headers: { "content-type": "application/json" },
@@ -843,6 +848,9 @@ export function CityBranchSetup() {
           code: branchCode,
           currencyCode: currency || locationMeta.country?.currency_code || "USD",
           address: fullAddress.trim() || undefined,
+          phone: phone || undefined,
+          email,
+          whatsappNumber: whatsappNumber || undefined,
           companyId: companyId || undefined,
           ownerName: ownerName.trim() || undefined,
           permissionTemplate,
@@ -853,10 +861,21 @@ export function CityBranchSetup() {
 
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const message =
-          (typeof json?.error === "string" && json.error) ||
-          (typeof json?.error?.message === "string" && json.error.message) ||
-          "Failed to save city branch.";
+        let message = "Failed to save city branch.";
+        if (json?.error) {
+          if (typeof json.error === "string") {
+            message = json.error;
+          } else if (json.error.message && typeof json.error.message === "string") {
+            message = json.error.message;
+          } else if (json.error.fieldErrors && typeof json.error.fieldErrors === "object") {
+            const fieldMsgs = Object.entries(json.error.fieldErrors)
+              .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(", ") : msgs}`)
+              .join("; ");
+            message = `Validation Error: ${fieldMsgs}`;
+          } else {
+            message = JSON.stringify(json.error);
+          }
+        }
         setBanner({ type: "error", message });
         return;
       }

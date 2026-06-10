@@ -206,13 +206,13 @@ export function AccountProfileView({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button asChild variant="outline" size="icon" className="no-print shrink-0">
-            <Link href="/dashboard/accounts">
+            <Link href="/dashboard/accounts/setup-report">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Accounts</p>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">Account View Profile</h1>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Account Profile Report</p>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">Account Profile Report</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               {selectedRow.accountName} &mdash; {selectedRow.accountCode}
             </p>
@@ -272,7 +272,7 @@ export function AccountProfileView({
           </Button>
           <Button
             type="button" variant="outline" size="sm"
-            onClick={() => router.push(`/dashboard/accounts/setup?accountId=${selectedRow.accountId}`)}
+            onClick={() => router.push(`/dashboard/accounts/setup?accountId=${selectedRow.accountId}&mode=edit`)}
           >
             Edit Account
           </Button>
@@ -326,10 +326,10 @@ export function AccountProfileView({
         <div className="space-y-6">
           <Card className="rounded-lg">
             <CardContent className="p-5 space-y-4">
-              <h2 className="text-sm font-bold border-b pb-2 text-slate-900">Workspace</h2>
+              <h2 className="text-sm font-bold border-b pb-2 text-slate-900">Company &amp; Workspace</h2>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Company</span>
+                  <span className="text-muted-foreground">Company Name</span>
                   <span className="font-semibold">{data?.workspace.companyName ?? "-"}</span>
                 </div>
                 <div className="flex justify-between gap-3">
@@ -337,7 +337,7 @@ export function AccountProfileView({
                   <span className="font-semibold">{data?.workspace.companyCode ?? "-"}</span>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Company Owner</span>
+                  <span className="text-muted-foreground">Created By</span>
                   <span className="font-semibold">{data?.workspace.companyOwner ?? "-"}</span>
                 </div>
               </div>
@@ -346,31 +346,32 @@ export function AccountProfileView({
 
           <Card className="rounded-lg">
             <CardContent className="p-5 space-y-3">
-              <h2 className="text-sm font-bold border-b pb-2 text-slate-900">Account Information</h2>
-              <PreviewRow label="Account Number" value={selectedRow.accountCode} />
-              <PreviewRow label="Manual Reference" value={selectedRow.manualReferenceNumber ?? undefined} />
+              <h2 className="text-sm font-bold border-b pb-2 text-slate-900">Customer &amp; Account Information</h2>
+              <PreviewRow label="Customer Name" value={selectedRow.accountName} />
+              <PreviewRow label="Company Name" value={selectedRow.companyName} />
+              <PreviewRow label="Automatic Account Number" value={selectedRow.accountCode} />
+              <PreviewRow label="Manual Account Number" value={selectedRow.manualReferenceNumber ?? undefined} />
+              <PreviewRow label="Journal Number" value={selectedRow.journalCode} />
+              <PreviewRow label="Customer Number" value={selectedRow.customerNumber} />
               <PreviewRow label="Country Serial" value={selectedRow.countrySerialNumber} />
               <PreviewRow label="Branch Serial" value={selectedRow.branchSerialNumber} />
-              <PreviewRow label="Customer Number" value={selectedRow.customerNumber} />
-              <PreviewRow label="Account Name" value={selectedRow.accountName} />
-              <PreviewRow label="Journal Code" value={selectedRow.journalCode} />
               <PreviewRow label="Account Category" value={selectedRow.accountCategory} />
               <PreviewRow label="Sub Type" value={selectedRow.subType} />
               <PreviewRow label="Status" value={selectedRow.status ? titleCase(selectedRow.status) : "-"} />
               <PreviewRow label="Created Date" value={fmtDateTime(selectedRow.createdAt)} />
+              <PreviewRow label="Last Updated" value={fmtDateTime(selectedRow.latestActivityAt)} />
             </CardContent>
           </Card>
 
           <Card className="rounded-lg">
             <CardContent className="p-5 space-y-3">
-              <h2 className="text-sm font-bold border-b pb-2 text-slate-900">Branch & Country Details</h2>
-              <PreviewRow label="Main Branch" value={selectedRow.mainBranchName ?? selectedRow.branchName} />
+              <h2 className="text-sm font-bold border-b pb-2 text-slate-900">Branch &amp; Country Details</h2>
+              <PreviewRow label="Country Name" value={selectedRow.countryName} />
+              <PreviewRow label="Country Code" value={selectedRow.countryCode} />
+              <PreviewRow label="Branch Name" value={selectedRow.mainBranchName ?? selectedRow.branchName} />
               <PreviewRow label="City Branch" value={selectedRow.cityBranchName ?? selectedRow.cityName} />
               <PreviewRow label="Branch Code" value={selectedRow.branchCode} />
               <PreviewRow label="Branch Type" value={selectedRow.branchType} />
-              <PreviewRow label="Country" value={selectedRow.countryName} />
-              <PreviewRow label="Country Code" value={selectedRow.countryCode} />
-              <PreviewRow label="State / Province" value={selectedRow.stateName} />
               <PreviewRow label="City" value={selectedRow.cityName} />
               <PreviewRow label="Currency" value={selectedRow.currency} />
             </CardContent>

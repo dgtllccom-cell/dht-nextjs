@@ -1,4 +1,5 @@
-export type PermissionLevel = "super_admin" | "country" | "city" | "branch" | "department" | "user" | "agent";
+type PermissionLevel = "super_admin" | "country" | "city" | "branch" | "department" | "user" | "agent";
+export type { PermissionLevel };
 
 export type PermissionDefinition = {
   key: string;

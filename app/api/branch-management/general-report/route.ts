@@ -93,7 +93,30 @@ export async function GET() {
   try {
     const session = await requireErpSession();
     const admin = createSupabaseAdminClient() as any;
+
     const accessibleCountryIds = await resolveAccessibleCountryIds(admin, session);
+
+    const { data: superAdminBranchData, error: superAdminBranchError } = await admin
+      .from("branches")
+      .select("id, company_id, name, code, currency, address, phone, email, owner_name, contacts, created_at, updated_at, companies(name)")
+      .eq("is_super_admin", true)
+      .is("deleted_at", null);
+
+    if (superAdminBranchError) throw new Error(superAdminBranchError.message);
+    const superAdminBranches = (superAdminBranchData ?? []).map((branch: any) => ({
+      id: branch.id,
+      name: branch.name,
+      code: branch.code,
+      currency: branch.currency || "USD",
+      address: branch.address,
+      phone: branch.phone,
+      email: branch.email,
+      ownerName: branch.owner_name,
+      contacts: branch.contacts,
+      createdAt: branch.created_at,
+      updatedAt: branch.updated_at,
+      companyName: branch.companies?.name || "Global Group"
+    }));
 
     if (accessibleCountryIds && accessibleCountryIds.length === 0) {
       return NextResponse.json(
@@ -106,6 +129,7 @@ export async function GET() {
             totalActiveUsers: 0,
             totalActiveBranches: 0
           },
+          superAdminBranches,
           countries: [],
           generatedAt: new Date().toISOString()
         },
@@ -251,6 +275,7 @@ export async function GET() {
             countryBranches.filter((branch) => branch.status === "active").length +
             cityBranches.filter((branch) => branch.status === "active").length
         },
+        superAdminBranches,
         countries: countriesPayload,
         generatedAt: new Date().toISOString()
       },

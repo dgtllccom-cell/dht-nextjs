@@ -618,10 +618,10 @@ export function UserRegistrationWizard() {
         })}
       </div>
 
-      {/* ── Left Column Form + Right Column Preview/List ──────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Side: Step View */}
-        <section className="lg:col-span-5 rounded-lg border bg-card p-5 space-y-6">
+      {/* ── Step Form — Full Width ──────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-6">
+        {/* Step View: full width */}
+        <section className="rounded-lg border bg-card p-5 space-y-6">
           {/* Header Banner */}
           {banner ? (
             <div
@@ -953,157 +953,6 @@ export function UserRegistrationWizard() {
             </div>
           )}
         </section>
-
-        {/* Right Side: Live User Setup List / Report */}
-        <aside className="lg:col-span-7 h-fit rounded-lg border bg-card lg:sticky lg:top-24">
-          <div className="border-b px-5 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ClipboardList className="h-5 w-5 text-primary" aria-hidden />
-                <h2 className="font-semibold">Live User Setup Report</h2>
-              </div>
-              <Button variant="outline" size="sm" className="h-7 text-[10px] font-bold" onClick={fetchUsers}>
-                Refresh
-              </Button>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">Select and configure users setup live.</p>
-          </div>
-
-          <div className="space-y-4 p-5">
-            <div className="grid gap-4 md:grid-cols-2 text-xs">
-              {/* Select User Dropdown */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] text-slate-500 font-bold uppercase">Select User for Preview</Label>
-                <select
-                  className="flex h-9 w-full rounded-md border bg-white px-3 text-xs shadow-sm focus:outline-none"
-                  value={selectedReportUserId}
-                  onChange={(e) => {
-                    setSelectedReportUserId(e.target.value);
-                    if (e.target.value !== "current") {
-                      const match = usersList.find((u) => u.userId === e.target.value);
-                      if (match) loadUserForEditing(match);
-                    }
-                  }}
-                >
-                  <option value="current">{editUserId ? `Current Editing (${userCode})` : "Current Registration Draft"}</option>
-                  {usersList.slice(0, 15).map((u) => (
-                    <option key={u.userId} value={u.userId}>
-                      {u.userCode} - {u.fullName} ({u.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Progress */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] text-slate-500 font-bold uppercase">Setup Progress</Label>
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] font-semibold">
-                  <div>1. Info: <span className={fullName ? "text-emerald-600" : "text-slate-400"}>{fullName ? "Done" : "Pending"}</span></div>
-                  <div>2. Scope: <span className={countryId ? "text-emerald-600" : "text-slate-400"}>{countryId ? "Done" : "Pending"}</span></div>
-                  <div className="col-span-2">3. Permissions: <span className={selectedPermissions.length ? "text-emerald-600" : "text-slate-400"}>{selectedPermissions.length ? `${selectedPermissions.length} assigned` : "Pending"}</span></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Dynamic Summary Preview Card */}
-            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-xs space-y-3 border-t">
-              {selectedReportUserId === "current" ? (
-                <>
-                  <h4 className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">{editUserId ? "Currently Editing User Details" : "Registration Draft Preview"}</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 font-semibold text-slate-700">
-                    <div><b>Name:</b> <span className="text-slate-600">{fullName || "-"}</span></div>
-                    <div><b>User ID:</b> <span className="text-slate-600">{userCode || "-"}</span></div>
-                    <div><b>Role:</b> <span className="text-slate-600">{role || "-"}</span></div>
-                    <div><b>Country:</b> <span className="text-slate-600">{selectedCountry?.name || "Global"}</span></div>
-                    <div><b>Branch Code:</b> <span className="text-slate-600">{branchCode || "-"}</span></div>
-                    <div><b>City:</b> <span className="text-slate-600">{cityName || "-"}</span></div>
-                  </div>
-                  <div className="border-t pt-2 mt-2">
-                    <span className="text-[10px] text-slate-500 font-bold">Permissions: </span>
-                    <span className="text-slate-600 font-mono text-[10px]">{selectedPermissions.slice(0, 10).join(", ")} {selectedPermissions.length > 10 ? `+${selectedPermissions.length - 10} more` : ""}</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h4 className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">Saved User Details</h4>
-                  {(() => {
-                    const row = usersList.find((u) => u.userId === selectedReportUserId);
-                    if (!row) return <div className="text-slate-400">No user selected.</div>;
-                    return (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 font-semibold text-slate-700">
-                        <div><b>Name:</b> <span className="text-slate-600">{row.fullName}</span></div>
-                        <div><b>User ID:</b> <span className="text-slate-600">{row.userCode}</span></div>
-                        <div><b>Role:</b> <span className="text-slate-600">{row.role}</span></div>
-                        <div><b>Country:</b> <span className="text-slate-600">{row.countryName}</span></div>
-                        <div><b>Branch Type:</b> <span className="text-slate-600">{row.branchType}</span></div>
-                        <div><b>Branch Name:</b> <span className="text-slate-600">{row.branchName}</span></div>
-                      </div>
-                    );
-                  })()}
-                </>
-              )}
-            </div>
-
-            {/* Users list setup table */}
-            <div className="border-t pt-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Saved Users Setup Directory</h3>
-                <div className="relative w-44">
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                  <Input
-                    placeholder="Search directory..."
-                    value={sidebarFilter}
-                    onChange={(e) => setSidebarFilter(e.target.value)}
-                    className="h-8 pl-8 text-xs bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded-lg border bg-white shadow-sm">
-                <table className="w-full text-left border-collapse text-[10px]">
-                  <thead>
-                    <tr className="bg-slate-50 border-b text-slate-500 uppercase tracking-wider text-[9px]">
-                      <th className="px-2.5 py-2 font-bold border-r">User ID</th>
-                      <th className="px-2.5 py-2 font-bold border-r">Full Name</th>
-                      <th className="px-2.5 py-2 font-bold border-r">Role</th>
-                      <th className="px-2.5 py-2 font-bold border-r text-center">Status</th>
-                      <th className="px-2.5 py-2 font-bold text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {usersLoading ? (
-                      <tr><td colSpan={5} className="text-center py-4 text-slate-400">Loading users...</td></tr>
-                    ) : filteredSidebarUsers.length > 0 ? (
-                      filteredSidebarUsers.slice(0, 10).map((u) => (
-                        <tr key={u.userId} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors">
-                          <td className="px-2.5 py-1.5 border-r font-mono text-[9px] text-blue-600 font-semibold">{u.userCode}</td>
-                          <td className="px-2.5 py-1.5 border-r font-medium text-slate-800 max-w-[120px] truncate">{u.fullName}</td>
-                          <td className="px-2.5 py-1.5 border-r text-slate-500 truncate">{u.role}</td>
-                          <td className="px-2.5 py-1.5 border-r text-center">
-                            <span className={`px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold ${u.status === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-slate-50 text-slate-400 border border-slate-200"}`}>
-                              {u.status}
-                            </span>
-                          </td>
-                          <td className="px-2.5 py-1.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => loadUserForEditing(u)}
-                              className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
-                            >
-                              Edit
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan={5} className="text-center py-4 text-slate-400">No users found.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </aside>
       </div>
     </div>
   );

@@ -57,74 +57,87 @@ export function BranchReportActionsMenu({
   }
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="flex items-center gap-2">
       <Button
         type="button"
         variant="outline"
-        size="icon"
-        aria-label={ariaLabel}
         disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
+        onClick={onView}
+        className="flex h-10 items-center gap-1.5 rounded-lg border-slate-200 px-3 text-sm font-semibold hover:bg-muted dark:hover:bg-slate-800"
       >
-        <MoreVertical className="h-4 w-4" aria-hidden />
+        <Eye className="h-4 w-4" aria-hidden />
+        View
       </Button>
 
-      {open ? (
-        <div
-          className={cn(
-            "absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-lg border bg-background shadow-lg"
-          )}
+      <div className="relative">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label={ariaLabel}
+          disabled={disabled}
+          onClick={() => setOpen((current) => !current)}
         >
-          <button
-            type="button"
-            onClick={() => closeAndRun(onView)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+          <MoreVertical className="h-4 w-4" aria-hidden />
+        </Button>
+
+        {open ? (
+          <div
+            className={cn(
+              "absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-lg border bg-background shadow-lg"
+            )}
           >
-            <Eye className="h-4 w-4" aria-hidden />
-            View
-          </button>
-          <button
-            type="button"
-            onClick={() => closeAndRun(onEdit)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-          >
-            <PencilLine className="h-4 w-4" aria-hidden />
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => closeAndRun(onPrint)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-          >
-            <Printer className="h-4 w-4" aria-hidden />
-            Print
-          </button>
-          <button
-            type="button"
-            onClick={() => closeAndRun(onPdf)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-          >
-            <FileDown className="h-4 w-4" aria-hidden />
-            PDF Download
-          </button>
-          <button
-            type="button"
-            onClick={() => closeAndRun(onEmail)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-          >
-            <Mail className="h-4 w-4" aria-hidden />
-            Email
-          </button>
-          <button
-            type="button"
-            onClick={() => closeAndRun(onExcel)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-          >
-            <FileSpreadsheet className="h-4 w-4" aria-hidden />
-            Excel
-          </button>
-        </div>
-      ) : null}
+            <button
+              type="button"
+              onClick={() => closeAndRun(onView)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+            >
+              <Eye className="h-4 w-4" aria-hidden />
+              View
+            </button>
+            <button
+              type="button"
+              onClick={() => closeAndRun(onEdit)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+            >
+              <PencilLine className="h-4 w-4" aria-hidden />
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => closeAndRun(onPrint)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+            >
+              <Printer className="h-4 w-4" aria-hidden />
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={() => closeAndRun(onPdf)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+            >
+              <FileDown className="h-4 w-4" aria-hidden />
+              PDF Download
+            </button>
+            <button
+              type="button"
+              onClick={() => closeAndRun(onEmail)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+            >
+              <Mail className="h-4 w-4" aria-hidden />
+              Email
+            </button>
+            <button
+              type="button"
+              onClick={() => closeAndRun(onExcel)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+            >
+              <FileSpreadsheet className="h-4 w-4" aria-hidden />
+              Excel
+            </button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

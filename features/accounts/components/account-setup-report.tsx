@@ -1,326 +1,956 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Search, UserRound, Building2, Landmark, Hash, Phone, Mail } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Search, UserRound, Building2, Landmark, Hash,
+  Phone, Mail, MoreVertical, Download, FileSpreadsheet,
+  FileText, Send, MessageCircle, Printer, RefreshCw,
+  Eye, Edit3, Filter, X, ChevronDown, CheckCircle2,
+  XCircle, Loader2, LayoutList,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { rtlLanguages, type SupportedLanguage } from "@/lib/i18n/languages";
 import { cn } from "@/lib/utils";
-import { getLabel } from "./translations";
 
-type AccountGeneralReportRow = {
+/* ─── Types ─────────────────────────────────────────────────────────────── */
+type AccountRow = {
   accountId: string;
   accountCode: string;
+  manualReferenceNumber: string | null;
   journalCode: string;
   accountName: string;
   accountCategory: string;
   subType: string;
   branchType: string;
   branchName: string;
+  branchCode: string;
+  mainBranchName: string;
+  cityBranchName: string;
+  countryId: string | null;
   countryName: string;
+  countryCode: string;
   currency: string;
-  accountSerialNumber?: number;
+  status: string;
+  companyName: string;
+  companyCode: string;
+  customerNumber: string;
+  accountSerialNumber: number;
+  createdAt: string;
+  latestActivityAt: string;
+  recentActivityLabel: string | null;
 };
 
+type ReportMeta = {
+  companyName: string;
+  companyOwner: string;
+};
+
+type SummaryStats = {
+  totalAccounts: number;
+  activeAccounts: number;
+};
+
+/* ─── Helpers ────────────────────────────────────────────────────────────── */
+function fmt(date: string) {
+  if (!date) return "—";
+  return new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+function fmtTime(date: string) {
+  if (!date) return "—";
+  return new Date(date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+}
+function exportCSV(rows: AccountRow[]) {
+  const header = ["#", "Account No", "Manual Ref", "Account Name", "Account Type", "Category", "Branch", "Branch Code", "Country", "Currency", "Status"];
+  const lines = rows.map((r, i) => [
+    i + 1, r.accountCode, r.manualReferenceNumber ?? "", r.accountName,
+    r.subType, r.accountCategory, r.branchName, r.branchCode,
+    r.countryName, r.currency, r.status,
+  ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+  const blob = new Blob([header.join(",") + "\n" + lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = "account-setup-report.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ─── Component ──────────────────────────────────────────────────────────── */
 export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguage }) {
   const router = useRouter();
 
   const lang = useMemo(() => {
     if (propLang) return propLang;
     if (typeof document !== "undefined") {
-      const docLang = document.documentElement.lang as SupportedLanguage;
-      return ["en", "ar", "ur", "fa", "ps"].includes(docLang) ? docLang : "en";
+      const d = document.documentElement.lang as SupportedLanguage;
+      return ["en", "ar", "ur", "fa", "ps"].includes(d) ? d : "en";
     }
     return "en";
   }, [propLang]);
 
   const isRtl = useMemo(() => rtlLanguages.includes(lang), [lang]);
 
-  // Report state
-  const [reportRows, setReportRows] = useState<AccountGeneralReportRow[]>([]);
-  const [reportLoading, setReportLoading] = useState(false);
+  /* ── Data ─────────────────────────────────────────────────── */
+  const [rows, setRows] = useState<AccountRow[]>([]);
+  const [meta, setMeta] = useState<ReportMeta>({ companyName: "—", companyOwner: "—" });
+  const [summary, setSummary] = useState<SummaryStats>({ totalAccounts: 0, activeAccounts: 0 });
+  const [generatedAt, setGeneratedAt] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // Filter state
-  const [filterAccountNo, setFilterAccountNo] = useState("");
-  const [filterAccountName, setFilterAccountName] = useState("");
-  const [filterCountry, setFilterCountry] = useState("all");
-  const [filterBranch, setFilterBranch] = useState("all");
-  const [filterAccountType, setFilterAccountType] = useState("all");
-  const [filterSubType, setFilterSubType] = useState("all");
-  
-  const [appliedAccountNo, setAppliedAccountNo] = useState("");
-  const [appliedAccountName, setAppliedAccountName] = useState("");
-  const [appliedCountry, setAppliedCountry] = useState("all");
-  const [appliedBranch, setAppliedBranch] = useState("all");
-  const [appliedAccountType, setAppliedAccountType] = useState("all");
-  const [appliedSubType, setAppliedSubType] = useState("all");
+  /* ── Filter state ─────────────────────────────────────────── */
+  const [draftAccNo, setDraftAccNo] = useState("");
+  const [draftName, setDraftName] = useState("");
+  const [draftCountry, setDraftCountry] = useState("all");
+  const [draftBranch, setDraftBranch] = useState("all");
+  const [draftType, setDraftType] = useState("all");
+  const [draftSub, setDraftSub] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
+  const [accNo, setAccNo] = useState("");
+  const [accName, setAccName] = useState("");
+  const [country, setCountry] = useState("all");
+  const [branch, setBranch] = useState("all");
+  const [accType, setAccType] = useState("all");
+  const [subType, setSubType] = useState("all");
+
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
+  const actionRef = useRef<HTMLDivElement>(null);
+
+  /* ── Fetch ────────────────────────────────────────────────── */
   async function fetchReport() {
-    setReportLoading(true);
+    setLoading(true);
     try {
-      const res = await fetch("/api/erp/accounting/reports/accounts/general?limit=500").then((r) => r.json());
-      if (res && res.ok && res.data && Array.isArray(res.data.rows)) setReportRows(res.data.rows);
-    } catch (err) {
-      console.error("Failed to load account report:", err);
+      const res = await fetch("/api/erp/accounting/reports/accounts/general?limit=500");
+      const json = await res.json();
+      if (json?.ok && json?.data) {
+        setRows(json.data.rows ?? []);
+        setMeta({
+          companyName: json.data.workspace?.companyName ?? "—",
+          companyOwner: json.data.workspace?.companyOwner ?? "—",
+        });
+        setSummary({
+          totalAccounts: json.data.summary?.totalAccounts ?? 0,
+          activeAccounts: json.data.summary?.activeAccounts ?? 0,
+        });
+        setGeneratedAt(json.data.generatedAt ?? new Date().toISOString());
+      }
+    } catch (e) {
+      console.error("Account report fetch error:", e);
     } finally {
-      setReportLoading(false);
+      setLoading(false);
     }
   }
 
   useEffect(() => { fetchReport(); }, []);
 
-  const uniqueCountries = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of reportRows) { if (r.countryName) set.add(r.countryName); }
-    return Array.from(set);
-  }, [reportRows]);
+  /* Close action menu on outside click */
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (actionRef.current && !actionRef.current.contains(e.target as Node)) setActionMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
-  const uniqueBranches = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const r of reportRows) { if (r.branchName) map.set(r.branchName, r.branchName); }
-    return Array.from(map.entries()).map(([code, name]) => ({ code, name }));
-  }, [reportRows]);
+  /* ── Filter options ───────────────────────────────────────── */
+  const uniqueCountries = useMemo(() => [...new Set(rows.map(r => r.countryName).filter(Boolean))].sort(), [rows]);
+  const uniqueBranches  = useMemo(() => [...new Set(rows.map(r => r.branchName).filter(Boolean))].sort(), [rows]);
+  const uniqueTypes     = useMemo(() => [...new Set(rows.map(r => r.accountCategory).filter(Boolean))].sort(), [rows]);
+  const uniqueSubs      = useMemo(() => [...new Set(rows.map(r => r.subType).filter(Boolean))].sort(), [rows]);
 
-  const uniqueAccountTypes = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of reportRows) { if (r.accountCategory) set.add(`${r.accountCategory} Account`); }
-    return Array.from(set);
-  }, [reportRows]);
+  /* ── Filtered rows ────────────────────────────────────────── */
+  const filtered = useMemo(() => rows.filter(r => {
+    if (accNo && !r.accountCode.toLowerCase().includes(accNo.toLowerCase()) && !(r.manualReferenceNumber ?? "").toLowerCase().includes(accNo.toLowerCase())) return false;
+    if (accName && !r.accountName.toLowerCase().includes(accName.toLowerCase())) return false;
+    if (country !== "all" && r.countryName !== country) return false;
+    if (branch !== "all" && r.branchName !== branch) return false;
+    if (accType !== "all" && r.accountCategory !== accType) return false;
+    if (subType !== "all" && r.subType !== subType) return false;
+    return true;
+  }), [rows, accNo, accName, country, branch, accType, subType]);
 
-  const uniqueSubTypes = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of reportRows) { if (r.subType) set.add(r.subType); }
-    return Array.from(set);
-  }, [reportRows]);
+  /* ── Counts ───────────────────────────────────────────────── */
+  const customers = useMemo(() => filtered.filter(r => r.accountCategory.toLowerCase().includes("customer") || r.customerNumber?.startsWith("CUST")).length, [filtered]);
+  const companies = useMemo(() => filtered.filter(r => r.companyName && r.companyName !== "—").length, [filtered]);
+  const banks     = useMemo(() => filtered.filter(r => r.accountCategory.toLowerCase().includes("bank") || r.accountCategory.toLowerCase().includes("asset")).length, [filtered]);
 
-  const summaryStats = useMemo(() => ({
-    total: reportRows.length,
-    customers: reportRows.filter((r) => (r.accountCategory ?? "").toLowerCase().includes("customer")).length,
-    companies: reportRows.filter((r) =>
-      (r.accountCategory ?? "").toLowerCase().includes("company") ||
-      (r.subType ?? "").toLowerCase().includes("company")
-    ).length,
-    banks: reportRows.filter((r) => (r.accountCategory ?? "").toLowerCase().includes("bank")).length,
-  }), [reportRows]);
-
-  const filteredReportRows = useMemo(() => {
-    return reportRows.filter((row) => {
-      if (appliedAccountNo) {
-        const q = appliedAccountNo.toLowerCase();
-        if (!(row.accountCode ?? "").toLowerCase().includes(q) && !(row.journalCode ?? "").toLowerCase().includes(q)) return false;
-      }
-      if (appliedAccountName && !(row.accountName ?? "").toLowerCase().includes(appliedAccountName.toLowerCase())) return false;
-      if (appliedCountry !== "all" && row.countryName !== appliedCountry) return false;
-      if (appliedBranch !== "all" && row.branchName !== appliedBranch) return false;
-      if (appliedAccountType !== "all" && `${row.accountCategory} Account` !== appliedAccountType) return false;
-      if (appliedSubType !== "all" && row.subType !== appliedSubType) return false;
-      return true;
-    });
-  }, [reportRows, appliedAccountNo, appliedAccountName, appliedCountry, appliedBranch, appliedAccountType, appliedSubType]);
-
-  function handleApplyFilters() {
-    setAppliedAccountNo(filterAccountNo);
-    setAppliedAccountName(filterAccountName);
-    setAppliedCountry(filterCountry);
-    setAppliedBranch(filterBranch);
-    setAppliedAccountType(filterAccountType);
-    setAppliedSubType(filterSubType);
+  function applyFilters() {
+    setAccNo(draftAccNo); setAccName(draftName); setCountry(draftCountry);
+    setBranch(draftBranch); setAccType(draftType); setSubType(draftSub);
+    setFiltersOpen(false);
   }
-
-  function handleResetFilters() {
-    setFilterAccountNo(""); setFilterAccountName(""); setFilterCountry("all");
-    setFilterBranch("all"); setFilterAccountType("all"); setFilterSubType("all");
-    setAppliedAccountNo(""); setAppliedAccountName(""); setAppliedCountry("all");
-    setAppliedBranch("all"); setAppliedAccountType("all"); setAppliedSubType("all");
+  function resetFilters() {
+    setDraftAccNo(""); setDraftName(""); setDraftCountry("all");
+    setDraftBranch("all"); setDraftType("all"); setDraftSub("all");
+    setAccNo(""); setAccName(""); setCountry("all");
+    setBranch("all"); setAccType("all"); setSubType("all");
   }
+  const hasActiveFilters = accNo || accName || country !== "all" || branch !== "all" || accType !== "all" || subType !== "all";
+
+  const activeFiltersObj = { accNo, accName, country, branch, accType, subType };
+  const activeFilterCount = Object.values(activeFiltersObj).filter(v => v && v !== "all").length;
 
   return (
-    <div className="space-y-5" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">{getLabel("template", lang)}</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{getLabel("accountSetupReport", lang)}</h1>
-          <p className="text-sm text-muted-foreground">{getLabel("reportSubtitle", lang)}</p>
-        </div>
-      </div>
+    <div className="asr-shell" dir={isRtl ? "rtl" : "ltr"}>
+      <AsrStyles />
 
-      <div className="mt-6 mb-3">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">{getLabel("dashboard", lang)}</p>
-            <h2 className="text-base font-bold text-slate-900 leading-tight">{getLabel("accountsSummaryReport", lang)}</h2>
+      {/* ─── Compact Professional Header ─────────────────────────────── */}
+      <header className="asr-header">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="asr-header-icon">
+            <LayoutList className="h-4 w-4 text-[#1f5eff]" />
           </div>
-          <span className="text-[10px] text-slate-400 font-medium">
-            {lang === "en" ? "As of " : ""}{new Date().toLocaleDateString(lang === "en" ? "en-US" : lang, { day: "2-digit", month: "short", year: "numeric" })}
-          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="asr-title">Account Setup Report</h1>
+              <span className="asr-badge">{loading ? "…" : filtered.length} accounts</span>
+              {hasActiveFilters && (
+                <span className="asr-badge asr-badge-orange">{activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active</span>
+              )}
+            </div>
+            <p className="asr-subtitle">Enterprise FMS · Multi-country branch account management</p>
+          </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: getLabel("totalAccounts", lang), count: summaryStats.total, color: "#0284c7", Icon: Hash },
-            { label: getLabel("customers", lang), count: summaryStats.customers, color: "#059669", Icon: UserRound },
-            { label: getLabel("companies", lang), count: summaryStats.companies, color: "#7c3aed", Icon: Building2 },
-            { label: getLabel("banks", lang), count: summaryStats.banks, color: "#d97706", Icon: Landmark },
-          ].map(({ label, count, color, Icon }) => (
-            <div key={label} className="relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(135deg, ${color}08, transparent)` }} />
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color }}>{label}</p>
-              <p className="text-3xl font-extrabold text-slate-900 tabular-nums">
-                {reportLoading ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-slate-200" /> : count}
-              </p>
-              <div className={cn("absolute bottom-3 h-8 w-8 rounded-full flex items-center justify-center", isRtl ? "left-3" : "right-3")} style={{ background: `${color}18` }}>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Refresh */}
+          <button type="button" className="asr-icon-btn" onClick={fetchReport} title="Refresh" disabled={loading}>
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          </button>
+
+          {/* Filters toggle */}
+          <button
+            type="button"
+            className={cn("asr-toolbar-btn", filtersOpen && "asr-toolbar-btn-active")}
+            onClick={() => setFiltersOpen(v => !v)}
+          >
+            <Filter className="h-3.5 w-3.5" />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="asr-filter-count">{activeFilterCount}</span>
+            )}
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", filtersOpen && "rotate-180")} />
+          </button>
+
+          {/* Three-dot action menu */}
+          <div className="relative" ref={actionRef}>
+            <button
+              type="button"
+              className="asr-icon-btn"
+              onClick={() => setActionMenuOpen(v => !v)}
+              title="Export & Share"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+            {actionMenuOpen && (
+              <div className="asr-action-menu">
+                <div className="asr-action-section-label">Export</div>
+                {[
+                  { icon: FileSpreadsheet, label: "Export Excel", color: "text-emerald-600", action: () => alert("Export Excel coming soon") },
+                  { icon: FileText, label: "Export CSV", color: "text-blue-600", action: () => { exportCSV(filtered); setActionMenuOpen(false); } },
+                  { icon: FileText, label: "Export PDF", color: "text-red-600", action: () => window.print() },
+                ].map(({ icon: Icon, label, color, action }) => (
+                  <button key={label} type="button" className="asr-action-item" onClick={() => { action(); setActionMenuOpen(false); }}>
+                    <Icon className={cn("h-3.5 w-3.5 shrink-0", color)} />
+                    <span>{label}</span>
+                  </button>
+                ))}
+                <div className="asr-action-divider" />
+                <div className="asr-action-section-label">Share</div>
+                {[
+                  { icon: Send, label: "Email Report", color: "text-indigo-600" },
+                  { icon: MessageCircle, label: "WhatsApp Share", color: "text-emerald-600" },
+                ].map(({ icon: Icon, label, color }) => (
+                  <button key={label} type="button" className="asr-action-item" onClick={() => setActionMenuOpen(false)}>
+                    <Icon className={cn("h-3.5 w-3.5 shrink-0", color)} />
+                    <span>{label}</span>
+                  </button>
+                ))}
+                <div className="asr-action-divider" />
+                <div className="asr-action-section-label">Print</div>
+                {[
+                  { icon: Printer, label: "Print Report", action: () => window.print() },
+                  { icon: Download, label: "Download Report", action: () => exportCSV(filtered) },
+                ].map(({ icon: Icon, label, action }) => (
+                  <button key={label} type="button" className="asr-action-item" onClick={() => { action(); setActionMenuOpen(false); }}>
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ─── Filter Panel ─────────────────────────────────────────────── */}
+      {filtersOpen && (
+        <div className="asr-filter-panel">
+          <div className="asr-filter-grid">
+            {/* Account Number */}
+            <div className="asr-filter-field">
+              <label className="asr-filter-label">Account Number</label>
+              <div className="relative">
+                <Search className="asr-filter-icon" />
+                <input className="asr-filter-input" placeholder="Search account no…" value={draftAccNo} onChange={e => setDraftAccNo(e.target.value)} />
+              </div>
+            </div>
+            {/* Account Name */}
+            <div className="asr-filter-field">
+              <label className="asr-filter-label">Account Name</label>
+              <div className="relative">
+                <Search className="asr-filter-icon" />
+                <input className="asr-filter-input" placeholder="Search name…" value={draftName} onChange={e => setDraftName(e.target.value)} />
+              </div>
+            </div>
+            {/* Country */}
+            <div className="asr-filter-field">
+              <label className="asr-filter-label">Country</label>
+              <select className="asr-filter-select" value={draftCountry} onChange={e => setDraftCountry(e.target.value)}>
+                <option value="all">All Countries</option>
+                {uniqueCountries.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            {/* Branch */}
+            <div className="asr-filter-field">
+              <label className="asr-filter-label">Branch</label>
+              <select className="asr-filter-select" value={draftBranch} onChange={e => setDraftBranch(e.target.value)}>
+                <option value="all">All Branches</option>
+                {uniqueBranches.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            {/* Account Type */}
+            <div className="asr-filter-field">
+              <label className="asr-filter-label">Account Type</label>
+              <select className="asr-filter-select" value={draftType} onChange={e => setDraftType(e.target.value)}>
+                <option value="all">All Types</option>
+                {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            {/* Sub Type */}
+            <div className="asr-filter-field">
+              <label className="asr-filter-label">Sub Type</label>
+              <select className="asr-filter-select" value={draftSub} onChange={e => setDraftSub(e.target.value)}>
+                <option value="all">All Sub Types</option>
+                {uniqueSubs.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <button type="button" className="asr-btn-primary" onClick={applyFilters}>Apply Filters</button>
+            <button type="button" className="asr-btn-secondary" onClick={resetFilters}>
+              <X className="h-3.5 w-3.5" /> Reset
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Summary Cards (compact row) ──────────────────────────────── */}
+      <div className="asr-cards-row">
+        {[
+          { label: "Total Accounts", value: loading ? null : filtered.length, color: "#1f5eff", Icon: Hash },
+          { label: "Customers",      value: loading ? null : customers,        color: "#059669", Icon: UserRound },
+          { label: "Companies",      value: loading ? null : companies,        color: "#7c3aed", Icon: Building2 },
+          { label: "Banks",          value: loading ? null : banks,            color: "#d97706", Icon: Landmark },
+        ].map(({ label, value, color, Icon }) => (
+          <div key={label} className="asr-card" style={{ borderTopColor: color }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="asr-card-label" style={{ color }}>{label}</div>
+                <div className="asr-card-value">
+                  {value === null ? <span className="asr-skeleton" /> : value}
+                </div>
+              </div>
+              <div className="asr-card-icon" style={{ background: `${color}18` }}>
                 <Icon className="h-4 w-4" style={{ color }} />
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
-      <div className="rounded-lg border bg-card shadow-sm overflow-hidden mt-3">
-        <div className="bg-[#0284c7] px-4 py-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white">{getLabel("accountSetupReport", lang)}</h2>
-          <span className="text-xs text-white/90">{lang === "en" ? "Generated: " : ""}{new Date().toISOString().slice(0, 10)}</span>
+      {/* ─── Report Info Strip ────────────────────────────────────────── */}
+      <div className="asr-meta-strip">
+        <div className="asr-meta-item">
+          <span className="asr-meta-label">Generated By</span>
+          <span className="asr-meta-value">{meta.companyOwner}</span>
         </div>
-        <div className="bg-[#f8fafc] border-b p-3 flex flex-wrap items-end gap-3 text-xs">
-          <div className="space-y-1">
-            <Label htmlFor="filterAccountNo" className="text-[11px] text-slate-500">{getLabel("accountNo", lang)}</Label>
-            <div className="relative">
-              <Search className={cn("absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400", isRtl ? "right-2.5" : "left-2.5")} />
-              <Input id="filterAccountNo" value={filterAccountNo} onChange={(e) => setFilterAccountNo(e.target.value)} placeholder={getLabel("filterAccountNo", lang)} className={cn("h-8 text-xs w-44 bg-white", isRtl ? "pr-8" : "pl-8")} />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="filterAccountName" className="text-[11px] text-slate-500">{getLabel("accountName", lang)}</Label>
-            <div className="relative">
-              <Search className={cn("absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400", isRtl ? "right-2.5" : "left-2.5")} />
-              <Input id="filterAccountName" value={filterAccountName} onChange={(e) => setFilterAccountName(e.target.value)} placeholder={getLabel("filterAccountName", lang)} className={cn("h-8 text-xs w-44 bg-white", isRtl ? "pr-8" : "pl-8")} />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="filterCountry" className="text-[11px] text-slate-500">{getLabel("country", lang)}</Label>
-            <select id="filterCountry" value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)} className="h-8 rounded-lg border border-input bg-white px-2.5 text-xs w-40">
-              <option value="all">{getLabel("allCountries", lang)}</option>
-              {uniqueCountries.map((c) => (<option key={c} value={c}>{c}</option>))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="filterBranch" className="text-[11px] text-slate-500">{getLabel("branchType", lang)}</Label>
-            <select id="filterBranch" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className="h-8 rounded-lg border border-input bg-white px-2.5 text-xs w-40">
-              <option value="all">{getLabel("allBranches", lang)}</option>
-              {uniqueBranches.map((b) => (<option key={b.code} value={b.code}>{b.name}</option>))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="filterAccountType" className="text-[11px] text-slate-500">{getLabel("accountTitle", lang)}</Label>
-            <select id="filterAccountType" value={filterAccountType} onChange={(e) => setFilterAccountType(e.target.value)} className="h-8 rounded-lg border border-input bg-white px-2.5 text-xs w-40">
-              <option value="all">{getLabel("allAccountTypes", lang)}</option>
-              {uniqueAccountTypes.map((t) => (<option key={t} value={t}>{t}</option>))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="filterSubType" className="text-[11px] text-slate-500">{getLabel("subType", lang)}</Label>
-            <select id="filterSubType" value={filterSubType} onChange={(e) => setFilterSubType(e.target.value)} className="h-8 rounded-lg border border-input bg-white px-2.5 text-xs w-40">
-              <option value="all">{getLabel("allSubTypes", lang)}</option>
-              {uniqueSubTypes.map((s) => (<option key={s} value={s}>{s}</option>))}
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" onClick={handleApplyFilters} className="h-8 bg-[#0284c7] hover:bg-[#0369a1] text-white px-4 rounded-lg text-xs">{getLabel("apply", lang)}</Button>
-            <Button type="button" onClick={handleResetFilters} className="h-8 bg-[#64748b] hover:bg-[#475569] text-white px-4 rounded-lg text-xs">{getLabel("reset", lang)}</Button>
-          </div>
+        <div className="asr-meta-sep" />
+        <div className="asr-meta-item">
+          <span className="asr-meta-label">Date</span>
+          <span className="asr-meta-value">{fmt(generatedAt)}</span>
         </div>
+        <div className="asr-meta-sep" />
+        <div className="asr-meta-item">
+          <span className="asr-meta-label">Time</span>
+          <span className="asr-meta-value">{fmtTime(generatedAt)}</span>
+        </div>
+        <div className="asr-meta-sep" />
+        <div className="asr-meta-item">
+          <span className="asr-meta-label">Company</span>
+          <span className="asr-meta-value">{meta.companyName}</span>
+        </div>
+        <div className="asr-meta-sep" />
+        <div className="asr-meta-item">
+          <span className="asr-meta-label">Records</span>
+          <span className="asr-meta-value font-black text-[#1f5eff]">{filtered.length} / {rows.length}</span>
+        </div>
+        {hasActiveFilters && (
+          <>
+            <div className="asr-meta-sep" />
+            <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-[10px] font-bold text-orange-600 hover:text-orange-800">
+              <X className="h-3 w-3" /> Clear filters
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* ─── Table ────────────────────────────────────────────────────── */}
+      <div className="asr-table-wrap">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="asr-table">
             <thead>
-              <tr className="bg-[#f1f5f9] border-b text-slate-500 uppercase tracking-wider text-[10px]">
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("srNo", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("superAdmin", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("accountNo", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("accountName", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("accountTitle", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("subType", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("categoryCol", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("branchType", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("selectBranch", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200", isRtl ? "border-l text-right" : "border-r text-left")}>{getLabel("country", lang)}</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200 font-mono text-center", isRtl ? "border-l" : "border-r")}>Currency</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200 text-center", isRtl ? "border-l" : "border-r")}>Company #</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200 text-center", isRtl ? "border-l" : "border-r")}>Bank #</th>
-                <th className={cn("px-3 py-2.5 font-bold border-slate-200 text-center", isRtl ? "border-l" : "border-r")}>{getLabel("contacts", lang)}</th>
-                <th className="px-3 py-2.5 font-bold text-center">{getLabel("view", lang)}</th>
+              <tr>
+                {[
+                  "#",
+                  "Account Number",
+                  "Manual Ref No",
+                  "Customer Name / Account",
+                  "Account Type",
+                  "Category",
+                  "Branch Name",
+                  "Branch Code",
+                  "Country",
+                  "Currency",
+                  "Company",
+                  "Bank",
+                  "Contact",
+                  "Actions",
+                ].map(h => (
+                  <th key={h} className="asr-th">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {reportLoading ? (
-                <tr><td colSpan={15} className="text-center py-8 text-slate-400">Loading accounts report...</td></tr>
-              ) : filteredReportRows.length > 0 ? (
-                filteredReportRows.map((row, index) => {
-                  const hasCompany = (row.accountSerialNumber ?? (index + 1)) % 6 !== 0;
-                  const hasBank = (row.accountSerialNumber ?? (index + 1)) % 4 !== 0;
+              {loading ? (
+                <tr>
+                  <td colSpan={14} className="asr-empty-cell">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-[#1f5eff]" />
+                      <span>Loading accounts report…</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.length > 0 ? (
+                filtered.map((row, idx) => {
+                  const hasCompany = Boolean(row.companyName && row.companyName !== "—");
+                  const hasBank = row.accountCategory.toLowerCase().includes("asset") || row.accountCategory.toLowerCase().includes("bank");
+                  const hasContact = true; // all accounts assumed to have contact links
+
                   return (
-                    <tr key={row.accountId} className="border-b hover:bg-slate-50 transition-colors">
-                      <td className={cn("px-3 py-2 border-slate-200 font-medium text-slate-600", isRtl ? "border-l" : "border-r")}>{index + 1}</td>
-                      <td className={cn("px-3 py-2 border-slate-200", isRtl ? "border-l" : "border-r")}>
-                        <div className="flex items-center gap-1">
-                          <span className="w-3.5 h-3.5 rounded-full border border-slate-300 flex items-center justify-center bg-white">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-700">SA</span>
+                    <tr key={row.accountId} className="asr-row">
+                      {/* # */}
+                      <td className="asr-td asr-td-num">{idx + 1}</td>
+
+                      {/* Account Number */}
+                      <td className="asr-td">
+                        <div className="font-mono font-bold text-[#1455ff] text-[11px] leading-tight whitespace-nowrap">
+                          {row.accountCode}
+                        </div>
+                        {row.journalCode && row.journalCode !== row.accountCode && (
+                          <div className="text-[9px] text-[var(--asr-muted)] font-mono mt-0.5">{row.journalCode}</div>
+                        )}
+                      </td>
+
+                      {/* Manual Ref No */}
+                      <td className="asr-td">
+                        <span className="font-mono text-[10px] font-semibold text-slate-500">
+                          {row.manualReferenceNumber || "—"}
+                        </span>
+                      </td>
+
+                      {/* Customer Name / Account */}
+                      <td className="asr-td">
+                        <div className="flex items-center gap-2">
+                          <div className="asr-avatar">{row.accountName.charAt(0).toUpperCase()}</div>
+                          <div>
+                            <div className="font-black text-[var(--asr-title)] text-[11px] leading-tight">{row.accountName}</div>
+                            <div className="text-[9px] text-[var(--asr-muted)] font-mono mt-0.5">{row.customerNumber}</div>
+                          </div>
                         </div>
                       </td>
-                      <td className={cn("px-3 py-2 border-slate-200 font-bold font-mono text-blue-600", isRtl ? "border-l text-right" : "border-r text-left")}>{row.journalCode} / {row.accountCode}</td>
-                      <td className={cn("px-3 py-2 border-slate-200 font-bold text-slate-900", isRtl ? "border-l text-right" : "border-r text-left")}>{row.accountName}</td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-slate-600 font-medium", isRtl ? "border-l text-right" : "border-r text-left")}>{row.accountCategory} Account</td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-slate-600", isRtl ? "border-l text-right" : "border-r text-left")}>{row.subType}</td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-slate-600", isRtl ? "border-l text-right" : "border-r text-left")}>{row.accountCategory}</td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-slate-600", isRtl ? "border-l text-right" : "border-r text-left")}>{row.branchType === "Main Branch" ? "Main Branch" : "City Branch"}</td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-slate-600 font-medium", isRtl ? "border-l text-right" : "border-r text-left")}>{row.branchName}</td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-slate-600 font-medium", isRtl ? "border-l text-right" : "border-r text-left")}>{row.countryName}</td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-slate-600 font-semibold font-mono text-center", isRtl ? "border-l" : "border-r")}>{row.currency}</td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-center", isRtl ? "border-l" : "border-r")}>
+
+                      {/* Account Type */}
+                      <td className="asr-td">
+                        <span className="asr-type-badge">{row.subType}</span>
+                      </td>
+
+                      {/* Category */}
+                      <td className="asr-td">
+                        <span className={cn("asr-cat-badge", {
+                          "asr-cat-asset":     row.accountCategory.toLowerCase() === "asset",
+                          "asr-cat-expense":   row.accountCategory.toLowerCase() === "expense",
+                          "asr-cat-income":    row.accountCategory.toLowerCase() === "income",
+                          "asr-cat-liability": row.accountCategory.toLowerCase() === "liability",
+                          "asr-cat-equity":    row.accountCategory.toLowerCase() === "equity",
+                        })}>
+                          {row.accountCategory}
+                        </span>
+                      </td>
+
+                      {/* Branch Name */}
+                      <td className="asr-td">
+                        <div className="font-semibold text-[11px] leading-tight">{row.branchName}</div>
+                        <div className="text-[9px] text-[var(--asr-muted)] mt-0.5">{row.branchType}</div>
+                      </td>
+
+                      {/* Branch Code */}
+                      <td className="asr-td">
+                        <span className="font-mono font-black text-[10px] text-[#1455ff]">{row.branchCode || "—"}</span>
+                      </td>
+
+                      {/* Country */}
+                      <td className="asr-td font-semibold text-[11px]">{row.countryName}</td>
+
+                      {/* Currency */}
+                      <td className="asr-td">
+                        <span className="font-mono font-bold text-[11px]">{row.currency}</span>
+                      </td>
+
+                      {/* Company Status */}
+                      <td className="asr-td text-center">
                         {hasCompany ? (
-                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">-</span>
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
                         ) : (
-                          <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">{getLabel("noCompany", lang)}</span>
+                          <XCircle className="h-4 w-4 text-red-400 mx-auto" />
                         )}
                       </td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-center", isRtl ? "border-l" : "border-r")}>
+
+                      {/* Bank Status */}
+                      <td className="asr-td text-center">
                         {hasBank ? (
-                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">-</span>
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
                         ) : (
-                          <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">{getLabel("noCompany", lang)}</span>
+                          <XCircle className="h-4 w-4 text-red-400 mx-auto" />
                         )}
                       </td>
-                      <td className={cn("px-3 py-2 border-slate-200 text-center", isRtl ? "border-l" : "border-r")}>
+
+                      {/* Contact Status */}
+                      <td className="asr-td">
                         <div className="flex items-center justify-center gap-1.5">
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-50 text-rose-500 border border-rose-100">
+                          <span className="asr-contact-dot bg-rose-50 text-rose-500 border-rose-100">
                             <Phone className="h-2.5 w-2.5" />
                           </span>
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-50 text-purple-500 border border-purple-100">
+                          <span className="asr-contact-dot bg-purple-50 text-purple-500 border-purple-100">
                             <Mail className="h-2.5 w-2.5" />
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/dashboard/accounts/view?accountId=${row.accountId}`)}
-                          className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
-                        >
-                          {getLabel("view", lang)}
-                        </button>
+
+                      {/* Actions */}
+                      <td className="asr-td">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            className="asr-action-btn asr-action-view"
+                            title="View Account Profile"
+                            onClick={() => router.push(`/dashboard/accounts/view?accountId=${row.accountId}`)}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>View</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="asr-action-btn asr-action-edit"
+                            title="Edit Account"
+                            onClick={() => router.push(`/dashboard/accounts/setup?accountId=${row.accountId}&mode=edit`)}
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                            <span>Edit</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
                 })
               ) : (
-                <tr><td colSpan={15} className="text-center py-8 text-slate-400">No accounts found matching search filters.</td></tr>
+                <tr>
+                  <td colSpan={14} className="asr-empty-cell">
+                    No accounts found matching the selected filters.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Table Footer */}
+        <div className="asr-table-footer">
+          <span>Showing <strong>{filtered.length}</strong> of <strong>{rows.length}</strong> accounts</span>
+          <span className="text-[var(--asr-muted)]">Generated {fmt(generatedAt)} at {fmtTime(generatedAt)}</span>
+        </div>
       </div>
     </div>
+  );
+}
+
+/* ─── Styles ─────────────────────────────────────────────────────────────── */
+function AsrStyles() {
+  return (
+    <style>{`
+      .asr-shell {
+        --asr-bg: #f0f5ff;
+        --asr-card: rgba(255,255,255,.97);
+        --asr-line: #d9e4f5;
+        --asr-title: #0a1028;
+        --asr-muted: #64728b;
+        --asr-head: #f3f7ff;
+        --asr-hover: #f7faff;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        background: var(--asr-bg);
+        padding: 20px;
+        min-height: 100%;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        font-size: 12px;
+      }
+      .dark .asr-shell {
+        --asr-bg: #071120;
+        --asr-card: #101b2f;
+        --asr-line: #24344c;
+        --asr-title: #f8fafc;
+        --asr-muted: #90a4c2;
+        --asr-head: #152238;
+        --asr-hover: #182842;
+      }
+
+      /* Header */
+      .asr-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        background: var(--asr-card);
+        border: 1px solid var(--asr-line);
+        border-radius: 12px;
+        padding: 14px 18px;
+        box-shadow: 0 4px 16px rgba(15,23,42,.06);
+      }
+      .asr-header-icon {
+        width: 36px; height: 36px;
+        border-radius: 10px;
+        background: rgba(31,94,255,.1);
+        display: grid; place-items: center;
+        flex-shrink: 0;
+        border: 1px solid rgba(31,94,255,.2);
+      }
+      .asr-title {
+        font-size: 15px; font-weight: 900;
+        color: var(--asr-title); line-height: 1.2;
+        letter-spacing: -.02em;
+      }
+      .asr-subtitle {
+        font-size: 10px; font-weight: 600;
+        color: var(--asr-muted); margin-top: 2px;
+      }
+      .asr-badge {
+        display: inline-flex; align-items: center;
+        border-radius: 9999px;
+        background: rgba(31,94,255,.1);
+        color: #1f5eff;
+        font-size: 9px; font-weight: 800;
+        padding: 2px 8px;
+        border: 1px solid rgba(31,94,255,.2);
+      }
+      .asr-badge-orange {
+        background: rgba(249,115,22,.1);
+        color: #ea580c;
+        border-color: rgba(249,115,22,.2);
+      }
+
+      /* Toolbar buttons */
+      .asr-icon-btn {
+        width: 34px; height: 34px;
+        display: grid; place-items: center;
+        border-radius: 9px;
+        border: 1.5px solid var(--asr-line);
+        background: var(--asr-card);
+        color: var(--asr-muted);
+        transition: all .15s;
+      }
+      .asr-icon-btn:hover { border-color: #1f5eff; color: #1f5eff; }
+      .asr-icon-btn:disabled { opacity: .5; }
+      .asr-toolbar-btn {
+        display: inline-flex; align-items: center; gap: 5px;
+        height: 34px; padding: 0 12px;
+        border-radius: 9px;
+        border: 1.5px solid var(--asr-line);
+        background: var(--asr-card);
+        color: var(--asr-muted);
+        font-size: 11px; font-weight: 800;
+        transition: all .15s;
+      }
+      .asr-toolbar-btn:hover, .asr-toolbar-btn-active {
+        border-color: #1f5eff; color: #1f5eff;
+        background: rgba(31,94,255,.06);
+      }
+      .asr-filter-count {
+        background: #1f5eff; color: white;
+        font-size: 9px; font-weight: 900;
+        border-radius: 9999px; padding: 0 5px;
+        min-width: 16px; text-align: center;
+      }
+
+      /* Action menu */
+      .asr-action-menu {
+        position: absolute; right: 0; top: calc(100% + 6px); z-index: 100;
+        width: 200px;
+        background: var(--asr-card);
+        border: 1px solid var(--asr-line);
+        border-radius: 12px;
+        box-shadow: 0 20px 40px rgba(15,23,42,.16);
+        padding: 6px;
+        animation: asr-fadein .12s ease-out;
+      }
+      @keyframes asr-fadein { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+      .asr-action-section-label {
+        font-size: 9px; font-weight: 900; text-transform: uppercase;
+        letter-spacing: .08em; color: var(--asr-muted);
+        padding: 4px 10px 2px;
+      }
+      .asr-action-item {
+        display: flex; align-items: center; gap: 8px;
+        width: 100%; text-align: left;
+        padding: 7px 10px; border-radius: 8px;
+        font-size: 11px; font-weight: 700;
+        color: var(--asr-title);
+        transition: background .1s;
+      }
+      .asr-action-item:hover { background: var(--asr-hover); }
+      .asr-action-divider { height: 1px; background: var(--asr-line); margin: 4px 6px; }
+
+      /* Filter panel */
+      .asr-filter-panel {
+        background: var(--asr-card);
+        border: 1px solid var(--asr-line);
+        border-radius: 12px;
+        padding: 16px 18px;
+        box-shadow: 0 4px 16px rgba(15,23,42,.05);
+        animation: asr-fadein .12s ease-out;
+      }
+      .asr-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+      }
+      .asr-filter-field { display: flex; flex-direction: column; gap: 4px; }
+      .asr-filter-label { font-size: 10px; font-weight: 800; color: var(--asr-title); }
+      .asr-filter-icon {
+        position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+        width: 13px; height: 13px; color: var(--asr-muted); pointer-events: none;
+      }
+      .asr-filter-input {
+        height: 32px; width: 100%; border-radius: 8px;
+        border: 1.5px solid var(--asr-line); background: var(--asr-card);
+        padding: 0 10px 0 28px; color: var(--asr-title);
+        font-size: 11px; font-weight: 600; outline: none;
+        transition: border-color .15s, box-shadow .15s;
+      }
+      .asr-filter-input:focus { border-color: #1f5eff; box-shadow: 0 0 0 3px rgba(31,94,255,.1); }
+      .asr-filter-select {
+        height: 32px; width: 100%; border-radius: 8px;
+        border: 1.5px solid var(--asr-line); background: var(--asr-card);
+        padding: 0 10px; color: var(--asr-title);
+        font-size: 11px; font-weight: 600; outline: none;
+        transition: border-color .15s;
+      }
+      .asr-filter-select:focus { border-color: #1f5eff; }
+
+      /* Buttons */
+      .asr-btn-primary {
+        display: inline-flex; align-items: center; gap: 6px;
+        height: 32px; padding: 0 16px; border-radius: 8px;
+        background: #1f5eff; color: white;
+        font-size: 11px; font-weight: 900;
+        box-shadow: 0 6px 16px rgba(31,94,255,.28);
+        transition: all .15s;
+      }
+      .asr-btn-primary:hover { background: #1a50e0; transform: translateY(-1px); }
+      .asr-btn-secondary {
+        display: inline-flex; align-items: center; gap: 5px;
+        height: 32px; padding: 0 14px; border-radius: 8px;
+        border: 1.5px solid var(--asr-line); background: var(--asr-card);
+        color: var(--asr-muted); font-size: 11px; font-weight: 800;
+        transition: all .15s;
+      }
+      .asr-btn-secondary:hover { border-color: #ef4444; color: #ef4444; }
+
+      /* Summary cards */
+      .asr-cards-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+      @media (max-width: 640px) { .asr-cards-row { grid-template-columns: repeat(2, 1fr); } }
+      .asr-card {
+        background: var(--asr-card);
+        border: 1px solid var(--asr-line);
+        border-top-width: 3px;
+        border-radius: 10px;
+        padding: 12px 14px;
+        box-shadow: 0 2px 8px rgba(15,23,42,.04);
+        transition: box-shadow .15s;
+      }
+      .asr-card:hover { box-shadow: 0 8px 20px rgba(15,23,42,.08); }
+      .asr-card-label {
+        font-size: 9px; font-weight: 900;
+        text-transform: uppercase; letter-spacing: .06em;
+        margin-bottom: 4px;
+      }
+      .asr-card-value {
+        font-size: 24px; font-weight: 900;
+        color: var(--asr-title); line-height: 1;
+        letter-spacing: -.03em;
+      }
+      .asr-card-icon {
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        display: grid; place-items: center;
+        flex-shrink: 0;
+      }
+      .asr-skeleton {
+        display: inline-block; width: 48px; height: 24px;
+        border-radius: 6px;
+        background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+        background-size: 200% 100%;
+        animation: asr-shimmer 1.2s infinite;
+      }
+      @keyframes asr-shimmer { to { background-position: -200% 0; } }
+
+      /* Meta strip */
+      .asr-meta-strip {
+        display: flex; align-items: center; flex-wrap: wrap; gap: 0;
+        background: var(--asr-card);
+        border: 1px solid var(--asr-line);
+        border-radius: 10px;
+        padding: 8px 16px;
+        box-shadow: 0 2px 8px rgba(15,23,42,.04);
+      }
+      .asr-meta-item { display: flex; flex-direction: column; padding: 0 12px; }
+      .asr-meta-item:first-child { padding-left: 0; }
+      .asr-meta-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--asr-muted); }
+      .asr-meta-value { font-size: 11px; font-weight: 800; color: var(--asr-title); margin-top: 1px; }
+      .asr-meta-sep { width: 1px; height: 28px; background: var(--asr-line); flex-shrink: 0; }
+
+      /* Table */
+      .asr-table-wrap {
+        background: var(--asr-card);
+        border: 1px solid var(--asr-line);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 16px rgba(15,23,42,.06);
+      }
+      .asr-table {
+        width: 100%; border-collapse: collapse;
+        font-size: 11px; text-align: left;
+        min-width: 1400px;
+      }
+      .asr-th {
+        background: var(--asr-head);
+        padding: 9px 10px;
+        font-size: 9px; font-weight: 900;
+        text-transform: uppercase; letter-spacing: .06em;
+        color: var(--asr-muted);
+        border-bottom: 1px solid var(--asr-line);
+        border-right: 1px solid var(--asr-line);
+        white-space: nowrap;
+      }
+      .asr-th:last-child { border-right: none; }
+      .asr-row { background: var(--asr-card); transition: background .1s; }
+      .asr-row:hover { background: var(--asr-hover); }
+      .asr-td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--asr-line);
+        border-right: 1px solid var(--asr-line);
+        color: var(--asr-title);
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+      .asr-td:last-child { border-right: none; }
+      .asr-td-num { font-weight: 800; color: var(--asr-muted); text-align: center; width: 36px; }
+      .asr-empty-cell { padding: 48px; text-align: center; color: var(--asr-muted); font-weight: 600; }
+
+      /* Avatar */
+      .asr-avatar {
+        width: 24px; height: 24px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #1f5eff, #7c3aed);
+        color: white; font-size: 9px; font-weight: 900;
+        display: grid; place-items: center; flex-shrink: 0;
+      }
+
+      /* Badges */
+      .asr-type-badge {
+        display: inline-flex; align-items: center;
+        border-radius: 6px; padding: 2px 7px;
+        background: #f0f5ff; color: #1f5eff;
+        border: 1px solid #c7d8ff;
+        font-size: 9px; font-weight: 800;
+        white-space: nowrap;
+      }
+      .asr-cat-badge {
+        display: inline-flex; align-items: center;
+        border-radius: 6px; padding: 2px 7px;
+        font-size: 9px; font-weight: 800; white-space: nowrap;
+        background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;
+      }
+      .asr-cat-asset    { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+      .asr-cat-expense  { background:#fff7ed; color:#c2410c; border-color:#fed7aa; }
+      .asr-cat-income   { background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
+      .asr-cat-liability{ background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+      .asr-cat-equity   { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+
+      /* Contact dots */
+      .asr-contact-dot {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 20px; height: 20px; border-radius: 50%; border: 1px solid;
+      }
+
+      /* Action buttons */
+      .asr-action-btn {
+        display: inline-flex; align-items: center; gap: 4px;
+        height: 26px; padding: 0 8px; border-radius: 6px;
+        font-size: 10px; font-weight: 800;
+        border: 1.5px solid; transition: all .15s;
+        white-space: nowrap;
+      }
+      .asr-action-view {
+        background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe;
+      }
+      .asr-action-view:hover { background: #dbeafe; border-color: #1d4ed8; }
+      .asr-action-edit {
+        background: #fff7ed; color: #c2410c; border-color: #fed7aa;
+      }
+      .asr-action-edit:hover { background: #ffedd5; border-color: #c2410c; }
+
+      /* Table footer */
+      .asr-table-footer {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 16px;
+        border-top: 1px solid var(--asr-line);
+        font-size: 10px; font-weight: 700;
+        color: var(--asr-muted);
+        background: var(--asr-head);
+        flex-wrap: wrap; gap: 8px;
+      }
+
+      @media print {
+        .asr-header button, .asr-action-menu,
+        .asr-filter-panel, .asr-action-btn { display: none !important; }
+        .asr-shell { background: white; padding: 0; }
+        .asr-table-wrap { box-shadow: none; border: 1px solid #ddd; }
+      }
+    `}</style>
   );
 }

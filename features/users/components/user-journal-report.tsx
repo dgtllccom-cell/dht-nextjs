@@ -47,8 +47,10 @@ type UserJournalRow = {
   countryName: string;
   branchId: string | null;
   branchName: string;
+  branchCode?: string | null;
   branchType: string;
   role: string;
+  purpose?: string | null;
   registrationDate: string;
   status: "active" | "inactive";
   permissions: string[];
@@ -154,20 +156,12 @@ export function UserJournalReport() {
   const [currentPage, setCurrentPage] = useState(1);
   const [clientGeneratedAt, setClientGeneratedAt] = useState("");
 
-  // Upgraded active user states
+  // Active user states
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [activeActionUserId, setActiveActionUserId] = useState<string | null>(null);
 
   // Modals state
   const [viewUser, setViewUser] = useState<UserJournalRow | null>(null);
-  const [editUser, setEditUser] = useState<UserJournalRow | null>(null);
-
-  // Edit fields state
-  const [editFullName, setEditFullName] = useState("");
-  const [editPassword, setEditPassword] = useState("");
-  const [editIsActive, setEditIsActive] = useState(true);
 
   // Outside click listener to close open action/top menus
   useEffect(() => {
@@ -367,60 +361,9 @@ export function UserJournalReport() {
     }
   };
 
-  // Trigger edit user setup
+  // Trigger edit — navigate to dedicated full-screen edit page
   const triggerEdit = (row: UserJournalRow) => {
-    router.push(`/dashboard/new-entry/users/registration?userId=${row.userId}`);
-  };
-
-  // Save general edits
-  const handleSaveEdit = async () => {
-    if (!editUser) return;
-    setSavingEdit(true);
-    try {
-      const payload: any = {
-        userId: editUser.userId,
-        fullName: editFullName,
-        isActive: editIsActive
-      };
-      if (editPassword) payload.password = editPassword;
-
-      const res = await fetch("/api/erp/users", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json?.error?.message || json?.error || "Failed to update user.");
-      }
-
-      // Update local state and cache
-      if (data) {
-        const updatedRows = data.rows.map((row) => {
-          if (row.userId === editUser.userId) {
-            return {
-              ...row,
-              fullName: editFullName,
-              status: editIsActive ? ("active" as const) : ("inactive" as const),
-              ...(editPassword ? { rawPassword: editPassword } : {})
-            };
-          }
-          return row;
-        });
-        const nextData = { ...data, rows: updatedRows };
-        setData(nextData);
-        if (userJournalCache) userJournalCache.data = nextData;
-      }
-      setEditUser(null);
-    } catch (err: any) {
-      alert(err.message || "Failed to save edits.");
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
-  const togglePasswordVisible = (userId: string) => {
-    setVisiblePasswords((prev) => ({ ...prev, [userId]: !prev[userId] }));
+    router.push(`/dashboard/users/edit/${row.userId}`);
   };
 
   function applyFilters() {
@@ -644,121 +587,130 @@ export function UserJournalReport() {
           </div>
         ) : null}
 
-        {/* Upgraded Table Layout with Status Toggle and Password Column */}
+        {/* Clean Report Table — columns: #, Country, Branch, Branch Code, User Name, User ID, Login User ID, Role, Purpose/Work, Status, Actions */}
         <section className="ujr-table-card overflow-hidden rounded-[14px] border shadow-[0_12px_34px_rgba(15,23,42,.08)]">
           <div className="overflow-x-auto">
-            <table className="min-w-[1180px] w-full border-collapse text-left text-[11px]">
+            <table className="min-w-[1300px] w-full border-collapse text-left text-[11px]">
               <thead>
                 <tr className="bg-[var(--ujr-table-head)] text-[11px] font-black uppercase tracking-wide text-[var(--ujr-title)]">
-                  {["#", "Country", "Branch Name", "User Name", "System ID", "Login User ID", "Password", "Role", "Status", "Actions"].map((head) => (
+                  {["#", "Country", "Branch", "Branch Code", "User Name", "User ID", "Login User ID", "Role", "Purpose / Work", "Status", "Actions"].map((head) => (
                     <th key={head} className="border-b border-r border-[var(--ujr-line)] px-2.5 py-2 last:border-r-0">{head}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={10} className="px-4 py-8 text-center text-[var(--ujr-muted)]">Loading user journal report...</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-8 text-center text-[var(--ujr-muted)]">Loading user journal report...</td></tr>
                 ) : paginatedRows.length ? (
-                  paginatedRows.map((row, index) => {
-                    const isVisible = !!visiblePasswords[row.userId];
-                    return (
-                      <tr key={row.userId} className="bg-[var(--ujr-card)] text-[var(--ujr-title)] transition hover:bg-[var(--ujr-row-hover)]">
-                        <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-bold">{pageStart + index + 1}</td>
-                        <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-black">{row.countryName || "Global"}</td>
-                        <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5">
-                          <div className="font-bold">{row.branchName || "-"}</div>
-                          <div className="text-[10px] font-semibold text-[var(--ujr-muted)]">{row.branchType}</div>
-                        </td>
-                        <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-black">
-                          <div className="flex items-center gap-2">
-                            <div className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-[8px] font-black text-white shrink-0 shadow-sm">
-                              {initials(row.fullName)}
-                            </div>
-                            <span>{row.fullName}</span>
+                  paginatedRows.map((row, index) => (
+                    <tr key={row.userId} className="bg-[var(--ujr-card)] text-[var(--ujr-title)] transition hover:bg-[var(--ujr-row-hover)]">
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-bold">{pageStart + index + 1}</td>
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-black">{row.countryName || "Global"}</td>
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5">
+                        <div className="font-bold">{row.branchName || "-"}</div>
+                        <div className="text-[10px] font-semibold text-[var(--ujr-muted)]">{row.branchType}</div>
+                      </td>
+                      {/* Branch Code */}
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-mono font-bold text-[10px] text-[var(--ujr-muted)]">
+                        {(row as any).branchCode || "-"}
+                      </td>
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-black">
+                        <div className="flex items-center gap-2">
+                          <div className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-[8px] font-black text-white shrink-0 shadow-sm">
+                            {initials(row.fullName)}
                           </div>
-                        </td>
-                        <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-mono font-bold text-[10px] text-[var(--ujr-muted)]">
-                          {row.userId.slice(0, 8).toUpperCase()}
-                        </td>
-                        <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-black text-[#1455ff]">{row.userCode}</td>
-                        
-                        {/* Password Column */}
-                        <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-mono font-bold text-[11px]">
-                          {row.rawPassword || "••••••••"}
-                        </td>
-
-                        <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-mono text-[11px] font-semibold">{row.role}</td>
-                        
-                        {/* Status Toggle Switch */}
-                        <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5">
-                          <div className="flex items-center gap-2">
+                          <span>{row.fullName}</span>
+                        </div>
+                      </td>
+                      {/* User ID (System) */}
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-mono font-bold text-[10px] text-[var(--ujr-muted)]">
+                        {row.userId.slice(0, 8).toUpperCase()}
+                      </td>
+                      {/* Login User ID */}
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-black text-[#1455ff]">{row.userCode}</td>
+                      {/* Role */}
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 font-mono text-[11px] font-semibold">{row.role}</td>
+                      {/* Purpose / Work */}
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--ujr-muted)]">
+                        {row.purpose || row.lastActivityAction || "—"}
+                      </td>
+                      {/* Status Toggle */}
+                      <td className="border-b border-r border-[var(--ujr-line)] px-2.5 py-1.5">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={updatingUserId === row.userId}
+                            className={cn("ujr-toggle-switch", row.status === "active" ? "ujr-toggle-switch-active" : "")}
+                            onClick={() => handleToggleStatus(row.userId, row.status)}
+                          >
+                            <span className="ujr-toggle-thumb" />
+                          </button>
+                          <span className={cn("text-[10px] font-bold uppercase tracking-wider", row.status === "active" ? "text-emerald-600" : "text-slate-400")}>
+                            {updatingUserId === row.userId ? "..." : row.status}
+                          </span>
+                        </div>
+                      </td>
+                      {/* Actions */}
+                      <td className="border-b border-[var(--ujr-line)] px-2.5 py-1.5 ujr-action-container relative">
+                        <div className="flex items-center gap-2">
+                          {/* View Details icon */}
+                          <button className="ujr-icon-btn" type="button" onClick={() => setViewUser(row)} title="View Details">
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          {/* Edit icon — direct navigate to edit page */}
+                          <button
+                            className="ujr-icon-btn ujr-icon-btn-edit"
+                            type="button"
+                            onClick={() => triggerEdit(row)}
+                            title="Edit User"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                          {/* More actions dropdown */}
+                          <div className="relative">
                             <button
+                              className="ujr-icon-btn"
                               type="button"
-                              disabled={updatingUserId === row.userId}
-                              className={cn("ujr-toggle-switch", row.status === "active" ? "ujr-toggle-switch-active" : "")}
-                              onClick={() => handleToggleStatus(row.userId, row.status)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveActionUserId(activeActionUserId === row.userId ? null : row.userId);
+                              }}
+                              title="More Actions"
                             >
-                              <span className="ujr-toggle-thumb" />
+                              <MoreVertical className="h-4 w-4" />
                             </button>
-                            <span className={cn("text-[10px] font-bold uppercase tracking-wider", row.status === "active" ? "text-emerald-600" : "text-slate-400")}>
-                              {updatingUserId === row.userId ? "..." : row.status}
-                            </span>
+                            {activeActionUserId === row.userId && (
+                              <div className="ujr-action-dropdown absolute right-0 mt-1.5 w-44 bg-[var(--ujr-card)] border border-[var(--ujr-line)] rounded-lg shadow-lg z-[80] py-1 text-left">
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 text-[var(--ujr-title)]"
+                                  onClick={() => { setActiveActionUserId(null); setViewUser(row); }}
+                                >
+                                  <Eye className="h-3.5 w-3.5 text-[#1455ff]" /> View Details
+                                </button>
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 text-[var(--ujr-title)]"
+                                  onClick={() => { setActiveActionUserId(null); triggerEdit(row); }}
+                                >
+                                  <Edit3 className="h-3.5 w-3.5 text-orange-500" /> Edit User
+                                </button>
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 text-[var(--ujr-title)]"
+                                  onClick={() => { setActiveActionUserId(null); handleToggleStatus(row.userId, row.status); }}
+                                >
+                                  <Power className="h-3.5 w-3.5 text-emerald-500" /> Toggle Status
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        </td>
-
-                        {/* Dropdown Menu Actions */}
-                        <td className="border-b border-[var(--ujr-line)] px-2.5 py-1.5 ujr-action-container relative">
-                          <div className="flex items-center gap-2">
-                            <button className="ujr-icon-btn" type="button" onClick={() => setViewUser(row)} title="View Details">
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            
-                            <div className="relative">
-                              <button
-                                className="ujr-icon-btn"
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveActionUserId(activeActionUserId === row.userId ? null : row.userId);
-                                }}
-                                title="Actions"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </button>
-
-                              {activeActionUserId === row.userId && (
-                                <div className="ujr-action-dropdown absolute right-0 mt-1.5 w-36 bg-[var(--ujr-card)] border border-[var(--ujr-line)] rounded-lg shadow-lg z-[80] py-1 text-left">
-                                  <button
-                                    type="button"
-                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 text-[var(--ujr-title)]"
-                                    onClick={() => setViewUser(row)}
-                                  >
-                                    <Eye className="h-3.5 w-3.5 text-[#1455ff]" /> View Details
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 text-[var(--ujr-title)]"
-                                    onClick={() => triggerEdit(row)}
-                                  >
-                                    <Edit3 className="h-3.5 w-3.5 text-orange-500" /> Edit User
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 text-[var(--ujr-title)]"
-                                    onClick={() => handleToggleStatus(row.userId, row.status)}
-                                  >
-                                    <Power className="h-3.5 w-3.5 text-emerald-500" /> Toggle Status
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 ) : (
-                  <tr><td colSpan={10} className="px-4 py-8 text-center text-[var(--ujr-muted)]">No user journal records found for the selected filters.</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-8 text-center text-[var(--ujr-muted)]">No user journal records found for the selected filters.</td></tr>
                 )}
               </tbody>
             </table>
@@ -881,80 +833,6 @@ export function UserJournalReport() {
         </div>
       )}
 
-      {/* Edit User Modal Overlay */}
-      {editUser && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="ujr-modal w-full max-w-md bg-[var(--ujr-card)] border border-[var(--ujr-line)] rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ujr-line)]">
-              <h3 className="text-base font-black text-[var(--ujr-title)]">Edit ERP User</h3>
-              <button
-                type="button"
-                onClick={() => setEditUser(null)}
-                className="text-[var(--ujr-muted)] hover:text-slate-900 focus:outline-none font-bold text-sm"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-5 max-h-[70vh] overflow-y-auto space-y-4">
-              {/* Full Name Input */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-black text-[var(--ujr-title)]">Full Name</label>
-                <input
-                  className="ujr-input"
-                  value={editFullName}
-                  onChange={(e) => setEditFullName(e.target.value)}
-                  placeholder="User's Full Name"
-                />
-              </div>
-
-              {/* Password Input */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-black text-[var(--ujr-title)]">Password (Leave blank to keep current)</label>
-                <input
-                  className="ujr-input"
-                  type="password"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  placeholder="New Password (min 8 characters)"
-                />
-              </div>
-
-              {/* Status Toggle Switch */}
-              <div className="flex items-center justify-between p-3 rounded-lg border border-[var(--ujr-line)] bg-slate-50 dark:bg-slate-900/40">
-                <div>
-                  <div className="text-xs font-black text-[var(--ujr-title)]">User Account Status</div>
-                  <div className="text-[10px] text-[var(--ujr-muted)] mt-0.5">Toggle active status to enable or block ERP logins.</div>
-                </div>
-                <button
-                  type="button"
-                  className={cn("ujr-toggle-switch", editIsActive ? "ujr-toggle-switch-active" : "")}
-                  onClick={() => setEditIsActive((prev) => !prev)}
-                >
-                  <span className="ujr-toggle-thumb" />
-                </button>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--ujr-line)] bg-slate-50 dark:bg-slate-900">
-              <button
-                type="button"
-                onClick={() => setEditUser(null)}
-                className="ujr-secondary-btn h-9 px-4"
-                disabled={savingEdit}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveEdit}
-                className="ujr-primary-btn h-9 px-5"
-                disabled={savingEdit || !editFullName.trim()}
-              >
-                {savingEdit ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1345,6 +1223,15 @@ function UserJournalStyles() {
         place-items:center;
         border-radius:7px;
         color:#1455ff;
+      }
+      .ujr-icon-btn-edit {
+        color:#f97316;
+        border-color:#fed7aa;
+      }
+      .ujr-icon-btn-edit:hover {
+        background:#fff7ed;
+        color:#ea580c;
+        border-color:#f97316;
       }
       .ujr-page-btn,
       .ujr-page-active {

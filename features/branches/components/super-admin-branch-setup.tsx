@@ -1,6 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Building2,
   CheckCircle2,
@@ -18,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { CompanyPicker } from "@/features/companies/components/company-picker";
 import { BranchOwnerPicker } from "@/features/branches/components/branch-owner-picker";
 import { BranchLiveReportPanel } from "@/features/branches/components/branch-live-report-panel";
+import { BranchRecordProfile, type BranchProfileSection } from "@/features/branches/components/branch-record-profile";
 import { BranchReportActionsMenu } from "@/features/branches/components/branch-report-actions-menu";
 import { downloadCsv } from "@/features/branches/components/branch-report-export";
 import {
@@ -27,6 +29,10 @@ import {
 } from "@/features/locations/components/location-hierarchy-select";
 import { apiGet } from "@/lib/api/client";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 
 type ContactRow = { id: string; type: string; value: string };
 type SavedBranch = {
@@ -252,6 +258,8 @@ function ChipList({
 }
 
 export function SuperAdminBranchSetup() {
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("editId") ?? "";
   const [contactTypes, setContactTypes] = useState(initialContactTypes);
 
   const [location, setLocation] = useState<LocationHierarchyValue>({
@@ -296,6 +304,17 @@ export function SuperAdminBranchSetup() {
   const companyCode = companyDetails?.id ? compactCode(companyDetails.id, "CMP") : "-";
   const readyToSave = Boolean(countryName && stateName && cityName && branchCode && currency && companyName && owner && address);
 
+  const hasAny = useMemo(() => Boolean(
+    location.countryId ||
+      location.stateProvinceId ||
+      location.cityId ||
+      currency ||
+      address ||
+      companyId ||
+      owner ||
+      contacts.length
+  ), [location, currency, address, companyId, owner, contacts]);
+
   const reportRows = useMemo(
     () => [
       { label: "Branch Code", value: branchCode || "-" },
@@ -310,13 +329,90 @@ export function SuperAdminBranchSetup() {
       { label: "Company Name", value: companyName || "-" },
       { label: "Company Code", value: companyCode || "-" },
       { label: "Company Owner", value: ownerPreview?.name || owner || "-" },
-      { label: "Owner Details", value: ownerPreview ? `${ownerPreview.source.toUpperCase()} Â· ${ownerPreview.code}` : owner || "-" },
+      { label: "Owner Details", value: ownerPreview ? `${ownerPreview.source.toUpperCase()} · ${ownerPreview.code}` : owner || "-" },
       { label: "Branch Name", value: "Super Admin Branch" },
       { label: "Currency", value: currency || "USD" },
       { label: "Address", value: address || "-" },
       { label: "Contacts", value: contactsText }
     ],
     [address, branchCode, cityName, companyCode, companyName, contactsText, countryName, currency, locationMeta.city?.code, locationMeta.country?.iso2, locationMeta.country?.iso3, locationMeta.state?.code, owner, ownerPreview, stateName, zip]
+  );
+  const editIdentityRows = useMemo(
+    () => [
+      { label: "Country", value: countryName || "-" },
+      { label: "Branch Type", value: "Super Admin Branch" },
+      { label: "Branch Code", value: branchCode },
+      { label: "Record ID", value: editingBranchId },
+      { label: "Status", value: "active" },
+      { label: "Currency", value: currency }
+    ],
+    [branchCode, currency, editingBranchId, countryName]
+  );
+
+  const editProfileSections: BranchProfileSection[] = useMemo(
+    () => [
+      {
+        title: "Branch Information",
+        items: [
+          { label: "Branch Type", value: "Super Admin Branch" },
+          { label: "Branch Code", value: branchCode },
+          { label: "Currency", value: currency },
+          { label: "Status", value: "active" }
+        ]
+      },
+      {
+        title: "Location Information",
+        items: [
+          { label: "Country", value: countryName || "-" },
+          { label: "Country Code", value: locationMeta.country?.iso2 || locationMeta.country?.iso3 || "-" },
+          { label: "State", value: stateName || "-" },
+          { label: "City", value: cityName || "-" },
+          { label: "Address", value: address }
+        ]
+      },
+      {
+        title: "Company Information",
+        items: [
+          { label: "Company Name", value: companyDetails?.name || "-" },
+          { label: "Company Code", value: companyCode },
+          { label: "Legal Name", value: companyDetails?.legal_name || "-" },
+          { label: "Base Currency", value: companyDetails?.base_currency || "-" }
+        ]
+      },
+      {
+        title: "Owner Information",
+        items: [
+          { label: "Owner Name", value: ownerPreview?.name || owner },
+          { label: "Owner Code", value: ownerPreview?.code || "N/A" },
+          { label: "Owner Source", value: ownerPreview?.source || "custom" },
+          { label: "Owner Role", value: ownerPreview?.role || "Owner" }
+        ]
+      },
+      {
+        title: "Contact Information",
+        items: [
+          { label: "Contacts", value: contactsText },
+          { label: "Phone", value: contacts.find((row) => row.type.toLowerCase().includes("phone"))?.value || "-" },
+          { label: "Email", value: contacts.find((row) => row.type.toLowerCase().includes("email"))?.value || "-" }
+        ]
+      }
+    ],
+    [
+      branchCode,
+      companyCode,
+      companyDetails,
+      contacts,
+      contactsText,
+      countryName,
+      currency,
+      locationMeta.country?.iso2,
+      locationMeta.country?.iso3,
+      owner,
+      ownerPreview,
+      stateName,
+      cityName,
+      address
+    ]
   );
 
   const filteredSavedBranches = useMemo(() => {
@@ -573,6 +669,11 @@ export function SuperAdminBranchSetup() {
         .map((row) => ({ type: row.type.trim(), value: row.value.trim() }))
         .filter((row) => row.type && row.value);
 
+      const emailContact = contactsPayload.find((row) => row.type.toLowerCase().includes("email"))?.value;
+      const email = emailContact && emailContact.includes("@") ? emailContact : `${branchCode.trim().toLowerCase()}@dgt.llc`;
+      const phone = contactsPayload.find((row) => row.type.toLowerCase().includes("phone") || row.type.toLowerCase().includes("mobile"))?.value;
+      const whatsappNumber = contactsPayload.find((row) => row.type.toLowerCase().includes("whatsapp"))?.value;
+
       const branchName = companyName ? `${companyName} Super Admin Branch` : "Super Admin Branch";
 
       const res = await fetch("/api/branch-management/super-admin-branches", {
@@ -588,6 +689,9 @@ export function SuperAdminBranchSetup() {
           cityId: location.cityId || undefined,
           currencyCode: currency || undefined,
           address: address.trim() || undefined,
+          phone: phone || undefined,
+          email,
+          whatsappNumber: whatsappNumber || undefined,
           ownerName: owner.trim() || undefined,
           contacts: contactsPayload.length ? contactsPayload : undefined
         })
@@ -595,10 +699,21 @@ export function SuperAdminBranchSetup() {
 
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const errorMessage =
-          (typeof json?.error === "string" && json.error) ||
-          (typeof json?.error?.message === "string" && json.error.message) ||
-          "Failed to save Super Admin Branch.";
+        let errorMessage = "Failed to save Super Admin Branch.";
+        if (json?.error) {
+          if (typeof json.error === "string") {
+            errorMessage = json.error;
+          } else if (json.error.message && typeof json.error.message === "string") {
+            errorMessage = json.error.message;
+          } else if (json.error.fieldErrors && typeof json.error.fieldErrors === "object") {
+            const fieldMsgs = Object.entries(json.error.fieldErrors)
+              .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(", ") : msgs}`)
+              .join("; ");
+            errorMessage = `Validation Error: ${fieldMsgs}`;
+          } else {
+            errorMessage = JSON.stringify(json.error);
+          }
+        }
         setMessage(errorMessage);
         return;
       }
@@ -615,6 +730,14 @@ export function SuperAdminBranchSetup() {
     loadSavedBranches().catch(() => null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!isUuid(editId) || !savedBranchRows.length) return;
+    const row = savedBranchRows.find((r) => r.id === editId);
+    if (row && editingBranchId !== editId) {
+      beginEditBranch(row);
+    }
+  }, [editId, savedBranchRows, editingBranchId]);
 
   return (
     <div className="space-y-6">
@@ -782,7 +905,7 @@ export function SuperAdminBranchSetup() {
         <div className="space-y-4 lg:sticky lg:top-4">
           <BranchLiveReportPanel
             title="Store Entry (Live Preview)"
-            status={readyToSave ? "Ready" : "Draft"}
+            status={hasAny ? "Draft" : "Empty"}
             summary={[
               { label: "Branch", value: branchCode || "-" },
               { label: "Country", value: locationMeta.country?.iso2 || countryName || "-" },
@@ -792,7 +915,7 @@ export function SuperAdminBranchSetup() {
             actions={
               <BranchReportActionsMenu
                 ariaLabel="Super Admin branch actions"
-                disabled={!readyToSave}
+                disabled={!hasAny}
                 onView={viewReport}
                 onEdit={editReport}
                 onPrint={printReport}
@@ -812,7 +935,7 @@ export function SuperAdminBranchSetup() {
                   { label: "Owner", value: ownerPreview?.name || owner || "-" },
                   { label: "Owner Code", value: ownerPreview?.code || "-" },
                   { label: "Source", value: ownerPreview ? ownerPreview.source : "-" },
-                  { label: "Role / Branch", value: ownerPreview ? [ownerPreview.role, ownerPreview.branch].filter(Boolean).join(" Â· ") : "-" }
+                  { label: "Role / Branch", value: ownerPreview ? [ownerPreview.role, ownerPreview.branch].filter(Boolean).join(" · ") : "-" }
                 ]
               },
               {
@@ -839,40 +962,51 @@ export function SuperAdminBranchSetup() {
               }
             ]}
             footer={
-              <details className="rounded-lg border bg-background p-3">
-                <summary className="cursor-pointer text-sm font-semibold text-foreground">Saved Super Admin Branches</summary>
-                <div className="mt-3 space-y-2">
-                  <Input
-                    value={savedSearch}
-                    onChange={(event) => setSavedSearch(event.target.value)}
-                    placeholder="Search saved branch"
-                    className="h-9"
+              <div className="space-y-3">
+                {editingBranchId ? (
+                  <BranchRecordProfile
+                    title="Editing Existing Branch"
+                    subtitle="Saved data, completed fields, and missing information."
+                    identity={editIdentityRows}
+                    sections={editProfileSections}
                   />
-                  {loadingSaved ? (
-                    <p className="text-sm text-muted-foreground">Loading saved branches...</p>
-                  ) : filteredSavedBranches.length ? (
-                    filteredSavedBranches.map((entry) => {
-                      const row = savedBranchRows.find((item) => item.id === entry.id);
-                      return (
-                        <div key={entry.id} className="flex items-center justify-between gap-3 rounded-lg border p-2 text-sm">
-                          <div>
-                            <p className="font-semibold">{entry.branchCode}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {entry.company} · {entry.country} · {entry.city}
-                            </p>
+                ) : null}
+
+                <details className="rounded-lg border bg-background p-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-foreground">Saved Super Admin Branches</summary>
+                  <div className="mt-3 space-y-2">
+                    <Input
+                      value={savedSearch}
+                      onChange={(event) => setSavedSearch(event.target.value)}
+                      placeholder="Search saved branch"
+                      className="h-9"
+                    />
+                    {loadingSaved ? (
+                      <p className="text-sm text-muted-foreground">Loading saved branches...</p>
+                    ) : filteredSavedBranches.length ? (
+                      filteredSavedBranches.map((entry) => {
+                        const row = savedBranchRows.find((item) => item.id === entry.id);
+                        return (
+                          <div key={entry.id} className="flex items-center justify-between gap-3 rounded-lg border p-2 text-sm">
+                            <div>
+                              <p className="font-semibold">{entry.branchCode}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {entry.company} · {entry.country} · {entry.city}
+                              </p>
+                            </div>
+                            <Button type="button" size="sm" variant="outline" disabled={!row} onClick={() => row && beginEditBranch(row)}>
+                              <Pencil className="h-3.5 w-3.5" aria-hidden />
+                              Edit
+                            </Button>
                           </div>
-                          <Button type="button" size="sm" variant="outline" disabled={!row} onClick={() => row && beginEditBranch(row)}>
-                            <Pencil className="h-3.5 w-3.5" aria-hidden />
-                            Edit
-                          </Button>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No saved branches found.</p>
-                  )}
-                </div>
-              </details>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No saved branches found.</p>
+                    )}
+                  </div>
+                </details>
+              </div>
             }
           />
         </div>
