@@ -152,6 +152,34 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
     permissions = ["*:*", ...permissions];
   }
 
+  const countryIds = uniqueStrings(assignments.map((assignment) => assignment.countryId));
+  let countryBranchIds = uniqueStrings(assignments.map((assignment) => assignment.countryBranchId));
+  let cityBranchIds = uniqueStrings(assignments.map((assignment) => assignment.cityBranchId));
+
+  if (!roles.includes("super_admin") && countryIds.length > 0) {
+    const [countryBranchesRes, cityBranchesRes] = await Promise.all([
+      supabase
+        .from("country_branches")
+        .select("id")
+        .in("country_id", countryIds)
+        .is("deleted_at", null),
+      supabase
+        .from("city_branches")
+        .select("id")
+        .in("country_id", countryIds)
+        .is("deleted_at", null)
+    ]);
+
+    if (countryBranchesRes.data) {
+      const resolvedCbs = countryBranchesRes.data.map((r: any) => r.id as string);
+      countryBranchIds = uniqueStrings([...countryBranchIds, ...resolvedCbs]);
+    }
+    if (cityBranchesRes.data) {
+      const resolvedCityBranches = cityBranchesRes.data.map((r: any) => r.id as string);
+      cityBranchIds = uniqueStrings([...cityBranchIds, ...resolvedCityBranches]);
+    }
+  }
+
   return {
     userId: user.id,
     email: user.email ?? null,
@@ -160,9 +188,9 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
     roles,
     permissions,
     assignments,
-    countryIds: uniqueStrings(assignments.map((assignment) => assignment.countryId)),
-    countryBranchIds: uniqueStrings(assignments.map((assignment) => assignment.countryBranchId)),
-    cityBranchIds: uniqueStrings(assignments.map((assignment) => assignment.cityBranchId)),
+    countryIds,
+    countryBranchIds,
+    cityBranchIds,
     isSuperAdmin: roles.includes("super_admin")
   };
 }

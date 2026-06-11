@@ -31,6 +31,8 @@ import { CompanyIncorporationForm } from "@/features/companies/components/compan
 import { rtlLanguages, type SupportedLanguage } from "@/lib/i18n/languages";
 import { getLabel } from "./translations";
 import { cn } from "@/lib/utils";
+import { AccountLiveReportPanel } from "./account-live-report-panel";
+import { openAccountA4ReportWindow } from "@/lib/reports/open-account-a4-report-window";
 
 type BranchType = "Main" | "City";
 
@@ -233,6 +235,70 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
   const [linkedCompanyName, setLinkedCompanyName] = useState("");
   const [linkedBankId, setLinkedBankId] = useState<string | null>(null);
   const [linkedBankName, setLinkedBankName] = useState("");
+
+  const [customerDetail, setCustomerDetail] = useState<any>(null);
+  const [companyDetail, setCompanyDetail] = useState<any>(null);
+  const [bankDetail, setBankDetail] = useState<any>(null);
+
+  // Fetch full customer details when linkedCustomerId changes
+  useEffect(() => {
+    if (!linkedCustomerId) {
+      setCustomerDetail(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/erp/customers/${linkedCustomerId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!cancelled && json?.ok && json?.data) {
+          setCustomerDetail(json.data);
+        }
+      })
+      .catch((err) => console.error("Error fetching customer details:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedCustomerId]);
+
+  // Fetch company details when linkedCompanyId changes
+  useEffect(() => {
+    if (!linkedCompanyId) {
+      setCompanyDetail(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/erp/companies/${linkedCompanyId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!cancelled && json?.ok && json?.company) {
+          setCompanyDetail(json.company);
+        }
+      })
+      .catch((err) => console.error("Error fetching company details:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedCompanyId]);
+
+  // Fetch bank details when linkedBankId changes
+  useEffect(() => {
+    if (!linkedBankId) {
+      setBankDetail(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/erp/companies/${linkedBankId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!cancelled && json?.ok && json?.company) {
+          setBankDetail(json.company);
+        }
+      })
+      .catch((err) => console.error("Error fetching bank details:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedBankId]);
 
   // Search states (reused across steps)
   const [masterSearch, setMasterSearch] = useState("");
@@ -437,6 +503,32 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
     }
   }
 
+  function openReport(autoPrint: boolean) {
+    openAccountA4ReportWindow({
+      title: "Account Profile Report",
+      subtitle: "Account Profile Summary",
+      autoPrint,
+      accountData: {
+        accountName,
+        accountCode: accountPreview,
+        accountTitle,
+        subType,
+        category,
+        manualReferenceNumber,
+        currency: branchInfo?.currency || selectedCountry?.currency_code || "AED",
+        status: saved ? "Active" : "In Progress",
+        customerDetail,
+        companyDetail,
+        bankDetail,
+        selectedCountryName: selectedCountry?.name,
+        selectedCountryCode: selectedCountry?.iso2 || selectedCountry?.iso3,
+        selectedBranchName: branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch),
+        selectedBranchCode: branchInfo?.code,
+        createdBy: "Super Admin"
+      }
+    });
+  }
+
   return (
     <div className="space-y-6" dir={isRtl ? "rtl" : "ltr"}>
       {/* ── Page Header ──────────────────────────────────────────────────── */}
@@ -497,11 +589,14 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
                   ? "bg-primary text-white"
                   : completed
                   ? "bg-emerald-600 text-white"
-                  : "bg-slate-200 text-slate-500"
+                  : "bg-slate-200 text-slate-600"
               }`}>
                 {s.id}
               </span>
-              <span className="truncate">{s.label}</span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] text-slate-400 font-normal uppercase tracking-wider">Step {s.id}</span>
+                <span className="truncate">{s.label}</span>
+              </div>
             </button>
           );
         })}
@@ -510,13 +605,13 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
       {/* ── Left Column Form + Right Column Preview ──────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Side: Step View */}
-        <section className="lg:col-span-4 rounded-lg border bg-card p-5 space-y-6">
+        <div className="lg:col-span-4 space-y-6">
           {/* Step 1: Account Info */}
           {currentStep === 1 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                <h2 className="text-base font-bold text-slate-900">{getLabel("step1Label", lang)}</h2>
+            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5 border-b pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">1</span>
+                <h2 className="text-sm font-bold text-slate-900">{getLabel("step1Label", lang)}</h2>
               </div>
 
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
@@ -608,10 +703,10 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
 
           {/* Step 2: Customer Details */}
           {currentStep === 2 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <UserRound className="h-5 w-5 text-primary" />
-                <h2 className="text-base font-bold text-slate-900">Step 2: Customer Details</h2>
+            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5 border-b pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">2</span>
+                <h2 className="text-sm font-bold text-slate-900">Step 2: Customer Details</h2>
               </div>
 
               {linkedCustomerId ? (
@@ -689,10 +784,10 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
 
           {/* Step 3: Company Details */}
           {currentStep === 3 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                <h2 className="text-base font-bold text-slate-900">Step 3: Company Details</h2>
+            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5 border-b pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">3</span>
+                <h2 className="text-sm font-bold text-slate-900">Step 3: Company Details</h2>
               </div>
 
               {linkedCompanyId ? (
@@ -770,10 +865,10 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
 
           {/* Step 4: Bank Details */}
           {currentStep === 4 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <Landmark className="h-5 w-5 text-primary" />
-                <h2 className="text-base font-bold text-slate-900">Step 4: Bank Details</h2>
+            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5 border-b pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">4</span>
+                <h2 className="text-sm font-bold text-slate-900">Step 4: Bank Details</h2>
               </div>
 
               {linkedBankId ? (
@@ -822,7 +917,7 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
                           </button>
                         ))
                       ) : (
-                        <div className="p-3 text-xs text-slate-500 flex items-center justify-between">
+                        <div className="p-3 text-xs text-slate-555 flex items-center justify-between">
                           <span>No bank found matching "{masterSearch}"</span>
                           <Button size="sm" type="button" onClick={() => { setMasterModalType("bank"); setShowMasterModal(true); }} className="h-7 text-xs">
                             + New Bank
@@ -851,10 +946,10 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
 
           {/* Step 5: Warehouse Details */}
           {currentStep === 5 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <Warehouse className="h-5 w-5 text-primary" />
-                <h2 className="text-base font-bold text-slate-900">Step 5: Warehouse Details</h2>
+            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5 border-b pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">5</span>
+                <h2 className="text-sm font-bold text-slate-900">Step 5: Warehouse Details</h2>
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50/30 p-5 space-y-2">
@@ -875,10 +970,10 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
 
           {/* Step 6: Review & Save */}
           {currentStep === 6 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <CheckCircle2 className="h-5 w-5 text-primary" />
-                <h2 className="text-base font-bold text-slate-900">Step 6: Review & Save</h2>
+            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5 border-b pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">6</span>
+                <h2 className="text-sm font-bold text-slate-900">Step 6: Review & Save</h2>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 text-xs">
@@ -930,173 +1025,58 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
               </div>
             </div>
           )}
-        </section>
+        </div>
 
-        {/* Right Side: Live Report Sidebar */}
-        <aside className="lg:col-span-8 h-fit rounded-lg border bg-card lg:sticky lg:top-24">
-          <div className="border-b px-5 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ClipboardList className="h-5 w-5 text-primary" aria-hidden />
-                <h2 className="font-semibold">{getLabel("liveReport", lang)}</h2>
-              </div>
-              <Button variant="outline" size="sm" className="h-7 text-[10px] font-bold" onClick={fetchReport}>
-                {getLabel("refresh", lang)}
-              </Button>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">Select and preview accounts setup details live.</p>
-          </div>
-
-          <div className="space-y-4 p-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Select Entry Dropdown */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] text-slate-500 font-bold uppercase">{getLabel("selectEntry", lang)}</Label>
-                <select
-                  className="flex h-9 w-full rounded-md border bg-white px-3 text-xs shadow-sm focus:outline-none"
-                  value={selectedReportAccountId}
-                  onChange={(e) => setSelectedReportAccountId(e.target.value)}
-                >
-                  <option value="current">{getLabel("currentDraftAccount", lang)}</option>
-                  {reportRows.slice(0, 15).map((r) => (
-                    <option key={r.accountId} value={r.accountId}>
-                      {r.accountCode} - {r.accountName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Setup Progress */}
-              <div className="space-y-2.5">
-                <h3 className="text-[10px] font-bold text-slate-455 uppercase tracking-widest">{getLabel("setupProgress", lang)}</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                  {[
-                    { id: 1, label: getLabel("step1Label", lang), step: 1 },
-                    { id: 2, label: getLabel("step2Label", lang), step: 2, linked: Boolean(linkedCustomerId) },
-                    { id: 3, label: getLabel("step3Label", lang), step: 3, linked: Boolean(linkedCompanyId) },
-                    { id: 4, label: getLabel("step4Label", lang), step: 4, linked: Boolean(linkedBankId) },
-                    { id: 5, label: getLabel("step5Label", lang), step: 5 },
-                    { id: 6, label: getLabel("step6Label", lang), step: 6 }
-                  ].map((item, index) => {
-                    const active = currentStep === item.step;
-                    const completed = currentStep > item.step || item.linked;
-                    return (
-                      <div key={item.id} className="flex items-center justify-between text-xs py-0.5">
-                        <span className={`font-semibold text-[11px] ${active ? "text-primary" : completed ? "text-emerald-700" : "text-slate-500"}`}>
-                          {index + 1}. {item.label}
-                        </span>
-                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold border ${
-                          active
-                            ? "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
-                            : completed
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-slate-50 text-slate-400 border-slate-200"
-                        }`}>
-                          {active ? getLabel("inProgress", lang) : completed ? getLabel("completed", lang) : getLabel("notStarted", lang)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Dynamic Summary Preview Card */}
-            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-xs space-y-3 border-t">
-              {selectedReportAccountId === "current" ? (
-                <>
-                  <h4 className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">{getLabel("currentDraftAccount", lang)}</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-semibold text-slate-700">
-                    <div><b>Account Name:</b> <span className="text-slate-600">{accountName || "-"}</span></div>
-                    <div><b>Account Number:</b> <span className="text-slate-600">{accountPreview || "-"}</span></div>
-                    <div><b>Branch Code:</b> <span className="text-slate-600">{branchInfo?.code || "-"}</span></div>
-                    <div><b>Currency:</b> <span className="text-slate-600">{branchInfo?.currency || "-"}</span></div>
-                  </div>
-                  {(linkedCustomerId || linkedCompanyId || linkedBankId) && (
-                    <div className="flex flex-wrap gap-4 border-t pt-2 mt-2">
-                      {linkedCustomerId && <div className="text-emerald-750"><b>Linked Customer:</b> {linkedCustomerName}</div>}
-                      {linkedCompanyId && <div className="text-emerald-750"><b>Linked Company:</b> {linkedCompanyName}</div>}
-                      {linkedBankId && <div className="text-emerald-750"><b>Linked Bank:</b> {linkedBankName}</div>}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <h4 className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">{getLabel("savedAccountDetails", lang)}</h4>
-                  {(() => {
-                    const row = reportRows.find((r) => r.accountId === selectedReportAccountId);
-                    if (!row) return <div className="text-slate-400">No account found.</div>;
-                    return (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 font-semibold text-slate-700">
-                        <div><b>Account Name:</b> <span className="text-slate-600">{row.accountName}</span></div>
-                        <div><b>Account Code:</b> <span className="text-slate-600">{row.accountCode}</span></div>
-                        <div><b>Branch Code:</b> <span className="text-slate-600">{row.branchCode}</span></div>
-                        <div><b>Currency:</b> <span className="text-slate-600">{row.currency}</span></div>
-                        <div><b>Category:</b> <span className="text-slate-600">{row.accountCategory} / {row.subType}</span></div>
-                        <div><b>Status:</b> <span className="text-slate-600">{row.status}</span></div>
-                      </div>
-                    );
-                  })()}
-                </>
-              )}
-            </div>
-
-            {/* Saved Accounts Entries Table */}
-            <div className="border-t pt-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-[10px] font-bold text-slate-455 uppercase tracking-widest">{getLabel("accountSetupReport", lang)}</h3>
-                <div className="relative w-44">
-                  <Search className={cn("absolute top-2 h-3.5 w-3.5 text-slate-400", isRtl ? "right-2" : "left-2")} />
-                  <Input
-                    placeholder="Search entries..."
-                    value={sidebarFilter}
-                    onChange={(e) => setSidebarFilter(e.target.value)}
-                    className={cn("h-7 text-[10px] bg-white", isRtl ? "pr-7" : "pl-7")}
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded-lg border bg-white shadow-sm">
-                <table className="w-full text-left border-collapse text-[10px]">
-                  <thead>
-                    <tr className="bg-slate-50 border-b text-slate-500 uppercase tracking-wider text-[9px]">
-                      <th className="px-2.5 py-2 font-bold border-r">Code</th>
-                      <th className="px-2.5 py-2 font-bold border-r">Account Name</th>
-                      <th className="px-2.5 py-2 font-bold border-r">Type</th>
-                      <th className="px-2.5 py-2 font-bold border-r text-center">Currency</th>
-                      <th className="px-2.5 py-2 font-bold text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportLoading ? (
-                      <tr><td colSpan={5} className="text-center py-4 text-slate-400">Loading entries...</td></tr>
-                    ) : filteredSidebarRows.length > 0 ? (
-                      filteredSidebarRows.slice(0, 10).map((r) => (
-                        <tr key={r.accountId} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors">
-                          <td className="px-2.5 py-1.5 border-r font-mono text-[9px] text-blue-600 font-semibold">{r.accountCode}</td>
-                          <td className="px-2.5 py-1.5 border-r font-medium text-slate-800 max-w-[150px] truncate">{r.accountName}</td>
-                          <td className="px-2.5 py-1.5 border-r text-slate-500">{r.accountCategory}</td>
-                          <td className="px-2.5 py-1.5 border-r font-mono text-center font-bold text-slate-655">{r.currency}</td>
-                          <td className="px-2.5 py-1.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/dashboard/accounts/view?accountId=${r.accountId}`)}
-                              className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
-                            >
-                              {getLabel("view", lang)}
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan={5} className="text-center py-4 text-slate-400">No entries found.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </aside>
+        {/* Right Side: High-fidelity Live Report Preview */}
+        <div className="lg:col-span-8 h-fit lg:sticky lg:top-24 space-y-4">
+          <AccountLiveReportPanel
+            accountName={accountName}
+            accountCode={accountPreview}
+            accountTitle={accountTitle}
+            subType={subType}
+            category={category}
+            manualReferenceNumber={manualReferenceNumber}
+            currency={branchInfo?.currency || selectedCountry?.currency_code || "AED"}
+            status={saved ? "Active" : "In Progress"}
+            customerDetail={customerDetail}
+            companyDetail={companyDetail}
+            bankDetail={bankDetail}
+            selectedCountryName={selectedCountry?.name}
+            selectedCountryCode={selectedCountry?.iso2 || selectedCountry?.iso3}
+            selectedBranchName={branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch)}
+            selectedBranchCode={branchInfo?.code}
+            onBack={() => router.push("/dashboard/accounts")}
+            onPrint={() => openReport(true)}
+            onPdf={() => openReport(false)}
+            onExcel={() => {
+              const rows = [
+                ["Field", "Value"],
+                ["Account Name", accountName || "-"],
+                ["Account Code", accountPreview || "-"],
+                ["Account Type", subType || category || "Expense"],
+                ["Currency", branchInfo?.currency || selectedCountry?.currency_code || "AED"],
+                ["Status", saved ? "Active" : "In Progress"]
+              ];
+              const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+              const encodedUri = encodeURI(csvContent);
+              const link = document.createElement("a");
+              link.setAttribute("href", encodedUri);
+              link.setAttribute("download", `account_${accountPreview || "draft"}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            onEmail={() => {
+              const subject = encodeURIComponent("Account Profile Report");
+              const body = encodeURIComponent(`Account Profile Report\nAccount Name: ${accountName}\nAccount Code: ${accountPreview}`);
+              window.location.href = `mailto:?subject=${subject}&body=${body}`;
+            }}
+            onWhatsApp={() => {
+              const text = encodeURIComponent(`Account Profile: ${accountName} (${accountPreview})`);
+              window.open(`https://wa.me/?text=${text}`, "_blank");
+            }}
+          />
+        </div>
       </div>
 
       {/* ── Master Record Overlay Modal ────────────────────────────────────── */}

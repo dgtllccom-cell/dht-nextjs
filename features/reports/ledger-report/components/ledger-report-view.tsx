@@ -137,12 +137,16 @@ export function LedgerReportView({
   lang,
   reportScope,
   pageTitle,
-  initialLedgerId
+  initialLedgerId,
+  initialFromDate,
+  initialToDate
 }: {
   lang: SupportedLanguage;
   reportScope: LedgerReportScope;
   pageTitle: string;
   initialLedgerId?: string | null;
+  initialFromDate?: string | null;
+  initialToDate?: string | null;
 }) {
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const [loadingLedgers, setLoadingLedgers] = useState(true);
@@ -151,9 +155,11 @@ export function LedgerReportView({
 
   const [accountNoFilter, setAccountNoFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState<"all" | string>("all");
-  const [fromDate, setFromDate] = useState(monthStartIso());
-  const [toDate, setToDate] = useState(todayIso());
-  const [datePreset, setDatePreset] = useState<DatePresetKey>("this_month");
+  const [fromDate, setFromDate] = useState(initialFromDate ?? monthStartIso());
+  const [toDate, setToDate] = useState(initialToDate ?? todayIso());
+  const [datePreset, setDatePreset] = useState<DatePresetKey>(
+    initialFromDate || initialToDate ? "custom" : "this_month"
+  );
   const [entrySearch, setEntrySearch] = useState("");
   const [actionsOpen, setActionsOpen] = useState(false);
 

@@ -23,6 +23,8 @@ import { CashEntryForm } from "@/features/roznamcha/components/cash-entry-form";
 import { cn } from "@/lib/utils";
 import type { RoznamchaType } from "@/lib/accounting/roznamcha-flow";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
+import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
+import { Mail } from "lucide-react";
 
 type JournalScope = "country" | "city" | "construction";
 
@@ -86,6 +88,8 @@ type JournalRow = {
   balance: number;
   trend: string;
   status: string;
+  entries?: number;
+  companyName?: string;
 };
 
 const sampleRows: JournalRow[] = [
@@ -112,7 +116,8 @@ const sampleRows: JournalRow[] = [
     credit: 0,
     balance: 250000,
     trend: "Increase",
-    status: "Active"
+    status: "Active",
+    entries: 10
   },
   {
     id: "sample-2",
@@ -137,7 +142,8 @@ const sampleRows: JournalRow[] = [
     credit: 20000,
     balance: 65000,
     trend: "Increase",
-    status: "Active"
+    status: "Active",
+    entries: 5
   }
 ];
 
@@ -160,21 +166,16 @@ function csvEscape(value: string) {
 }
 
 function exportCsv(rows: JournalRow[], scope: JournalScope) {
-  const headers = ["Serial No", "Account Number", "Account Name", "Tx Type", "Branch Name", "Branch Code", "Start Date", "End Date", "Credit", "Debit", "Next Balance", "Trend"];
-  const body = rows.map((row) =>
+  const headers = ["Serial No", "Account Number", "Account Name", "Branch Name", "Entries Today", "Total Debit", "Total Credit"];
+  const body = rows.map((row, index) =>
     [
-      rows.indexOf(row) + 1,
+      index + 1,
       row.accountNumber,
       row.accountName,
-      row.txType,
       row.branch,
-      row.branchCode,
-      row.date,
-      row.endDate,
-      fmt(row.credit),
+      row.entries ?? 0,
       fmt(row.debit),
-      fmt(row.balance),
-      row.trend
+      fmt(row.credit)
     ].map((cell) => csvEscape(String(cell))).join(",")
   );
   const blob = new Blob([[headers.join(","), ...body].join("\n")], { type: "text/csv;charset=utf-8" });
@@ -217,7 +218,9 @@ function mapApiRows(rows: ApiRow[], scope: JournalScope): JournalRow[] {
       credit,
       balance,
       trend: balance >= 0 ? "Increase" : "Decrease",
-      status: row.status === "active" ? "Active" : "Inactive"
+      status: row.status === "active" ? "Active" : "Inactive",
+      entries: row.entries || 0,
+      companyName: row.companyName || "-"
     };
   });
 }
@@ -235,6 +238,7 @@ function paymentConfigFor(scope: JournalScope): { postingType: RoznamchaType; sc
 }
 
 export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguage; scope: JournalScope }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
   const [rows, setRows] = useState<JournalRow[]>([]);
   const [generatedAt, setGeneratedAt] = useState("");
   const [loading, setLoading] = useState(true);
@@ -249,19 +253,27 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
   const [project, setProject] = useState("");
   const [site, setSite] = useState("");
   const [contractor, setContractor] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [sortKey, setSortKey] = useState<keyof JournalRow>("date");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [fromDate, setFromDate] = useState(todayStr);
+  const [toDate, setToDate] = useState(todayStr);
+  const [sortKey, setSortKey] = useState<keyof JournalRow>("accountName");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const pageSize = 25;
 
-  async function loadReport() {
+  async function loadReport(fDate = fromDate, tDate = toDate, query = search) {
     setLoading(true);
     setMessage("");
     try {
       const reportScope = scope === "city" ? "branch" : scope === "country" ? "country" : "super_admin";
-      const qp = new URLSearchParams({ reportScope, limit: "250" });
+      const qp = new URLSearchParams({ 
+        reportScope, 
+        limit: "250",
+        fromDate: fDate,
+        toDate: tDate
+      });
+      if (query.trim()) {
+        qp.set("q", query.trim());
+      }
       const response = await fetch(`/api/erp/accounting/reports/ledger/general?${qp.toString()}`, { cache: "no-store" });
       const body = (await response.json().catch(() => ({}))) as ApiResponse;
       if (!response.ok) throw new Error("Journal report API could not be loaded.");
@@ -279,9 +291,9 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
   }
 
   useEffect(() => {
-    void loadReport();
+    void loadReport(fromDate, toDate, search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope]);
+  }, [scope, fromDate, toDate]);
 
   const options = useMemo(() => ({
     countries: Array.from(new Set(rows.map((row) => row.country).filter(Boolean))),
@@ -302,8 +314,6 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
       if (project && row.project !== project) return false;
       if (site && row.site !== site) return false;
       if (contractor && row.contractor !== contractor) return false;
-      if (fromDate && row.date < fromDate) return false;
-      if (toDate && row.date > toDate) return false;
       if (!q) return true;
       return Object.values(row).some((value) => normalize(value).includes(q));
     });
@@ -315,7 +325,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
         : String(av).localeCompare(String(bv));
       return sortDir === "asc" ? result : -result;
     });
-  }, [branch, city, contractor, country, draftStatus, fromDate, project, rows, search, site, sortDir, sortKey, toDate]);
+  }, [branch, city, contractor, country, draftStatus, project, rows, search, site, sortDir, sortKey]);
 
   const summary = useMemo(() => ({
     vouchers: filtered.length,
@@ -342,8 +352,8 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
     setProject("");
     setSite("");
     setContractor("");
-    setFromDate("");
-    setToDate("");
+    setFromDate(todayStr);
+    setToDate(todayStr);
     setPage(1);
   }
 
@@ -353,6 +363,31 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
       setSortKey(column);
       setSortDir("asc");
     }
+  }
+
+  function openPrint(autoPrint: boolean) {
+    openA4ReportWindow({
+      title: titleFor(scope),
+      subtitle: `Generated: ${generatedAt ? new Date(generatedAt).toLocaleString() : new Date().toLocaleString()}`,
+      rows: [
+        { label: "Report Type", value: titleFor(scope) },
+        { label: "Date Range", value: `${fromDate} to ${toDate}` },
+        { label: "Total Accounts in Branch", value: String(summary.accounts) },
+        { label: "Active Accounts", value: String(summary.active) },
+        { label: "Credit Accounts", value: String(summary.creditAccounts) },
+        { label: "Debit Accounts", value: String(summary.debitAccounts) },
+        { label: "Total Credit", value: fmt(summary.credit) },
+        { label: "Total Debit", value: fmt(summary.debit) },
+        { label: "Final Balance", value: fmt(summary.balance) }
+      ],
+      autoPrint
+    });
+  }
+
+  function emailReport() {
+    const subject = encodeURIComponent(`${titleFor(scope)} - Summary`);
+    const body = encodeURIComponent(`Please find the summary of the ${titleFor(scope)}:\n\nDate Range: ${fromDate} to ${toDate}\nTotal Accounts: ${summary.accounts}\nActive Accounts: ${summary.active}\nTotal Credit: ${fmt(summary.credit)}\nTotal Debit: ${fmt(summary.debit)}\nFinal Balance: ${fmt(summary.balance)}\n\nBest regards,\nERP Management System`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
 
   return (
@@ -518,47 +553,56 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
               <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5" />
               Export Excel
             </Button>
-            <Button size="sm" variant="outline" onClick={() => window.print()} className="h-8 rounded-md px-2.5 text-xs">
+            <Button size="sm" variant="outline" onClick={() => openPrint(false)} className="h-8 rounded-md px-2.5 text-xs">
               <Download className="mr-1.5 h-3.5 w-3.5" />
               Export PDF
             </Button>
-            <Button size="sm" variant="outline" onClick={() => window.print()} className="h-8 rounded-md px-2.5 text-xs">
+            <Button size="sm" variant="outline" onClick={() => openPrint(true)} className="h-8 rounded-md px-2.5 text-xs">
               <Printer className="mr-1.5 h-3.5 w-3.5" />
               Print
+            </Button>
+            <Button size="sm" variant="outline" onClick={emailReport} className="h-8 rounded-md px-2.5 text-xs">
+              <Mail className="mr-1.5 h-3.5 w-3.5" />
+              Email
             </Button>
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1450px] text-sm">
+          <table className="w-full min-w-[900px] text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400">
               <tr>
-                {[
-                  ["voucherNo", "Serial No"],
-                  ["accountNumber", "Account Number"],
-                  ["accountName", "Account Name"],
-                  ["txType", "Tx Type"],
-                  ["branch", "Branch"],
-                  ["branchCode", "Branch Code"],
-                  ["date", "Start Date"],
-                  ["endDate", "End Date"],
-                  ["credit", "Credit"],
-                  ["balance", "Balance"],
-                  ["debit", "Debit"],
-                  ["trend", "Trend"]
-                ].map(([key, label]) => (
-                  <th key={String(key)} className="px-3 py-2 text-left first:pl-3">
-                    <button type="button" onClick={() => sort(key as keyof JournalRow)} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none">
-                      {label}
-                    </button>
-                  </th>
-                ))}
-                <th className="px-3 py-2 text-center pr-3">Action</th>
+                <th className="px-3 py-3 text-left pl-3 w-16">
+                  <button type="button" onClick={() => sort("voucherNo")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none">
+                    Serial No
+                  </button>
+                </th>
+                <th className="px-3 py-3 text-left">
+                  <button type="button" onClick={() => sort("accountName")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none">
+                    Account Name
+                  </button>
+                </th>
+                <th className="px-3 py-3 text-center w-32">
+                  <button type="button" onClick={() => sort("entries")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none mx-auto">
+                    Entries Today
+                  </button>
+                </th>
+                <th className="px-3 py-3 text-right w-44">
+                  <button type="button" onClick={() => sort("debit")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none ml-auto">
+                    Debit Total
+                  </button>
+                </th>
+                <th className="px-3 py-3 text-right w-44">
+                  <button type="button" onClick={() => sort("credit")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none ml-auto">
+                    Credit Total
+                  </button>
+                </th>
+                <th className="px-3 py-3 text-center pr-3 w-36">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
               {loading ? (
                 <tr>
-                  <td colSpan={13} className="px-3 py-8 text-center font-bold text-slate-400 dark:text-slate-500">
+                  <td colSpan={6} className="px-3 py-8 text-center font-bold text-slate-400 dark:text-slate-500">
                     <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
                     Loading report...
                   </td>
@@ -566,32 +610,47 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
               ) : pageRows.length ? (
                 pageRows.map((row, index) => (
                   <tr key={row.id} className={cn("hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors", index % 2 ? "bg-slate-50/20 dark:bg-slate-900/5" : "bg-background")}>
-                    <td className="px-3 py-2 pl-3 font-black text-slate-500 dark:text-slate-400">{(page - 1) * pageSize + index + 1}</td>
-                    <td className="px-3 py-2">
-                      <span className="inline-block px-2.5 py-1 text-xs font-extrabold text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/15 transition shadow-sm">
-                        {row.accountNumber}
-                      </span>
+                    <td className="px-3 py-3 pl-3 font-black text-slate-500 dark:text-slate-400">{(page - 1) * pageSize + index + 1}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
+                          {row.accountName}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                          <span className="inline-block px-1.5 py-0.5 font-bold text-primary bg-primary/10 border border-primary/20 rounded">
+                            {row.accountNumber}
+                          </span>
+                          <span>•</span>
+                          <span>{row.branch}</span>
+                          {row.companyName && row.companyName !== "-" && (
+                            <>
+                              <span>•</span>
+                              <span className="text-muted-foreground">{row.companyName}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-3 py-2 font-extrabold text-slate-800 dark:text-slate-200">{row.accountName}</td>
-                    <td className="px-3 py-2">
-                      <span className={cn("inline-block rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide", row.txType === "Credit" ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300" : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300")}>
-                        {row.txType}
-                      </span>
+                    <td className="px-3 py-3 text-center font-bold text-slate-700 dark:text-slate-300">{row.entries ?? 0}</td>
+                    <td className="px-3 py-3 text-right font-black text-rose-600 dark:text-rose-400">{fmt(row.debit)}</td>
+                    <td className="px-3 py-3 text-right font-black text-emerald-600 dark:text-emerald-400">{fmt(row.credit)}</td>
+                    <td className="px-3 py-3 text-center pr-3">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-4 h-8 rounded-md shadow-sm transition-all"
+                        onClick={() => {
+                          window.location.href = `/dashboard/ledger/general-report?ledgerId=${row.id}&fromDate=${fromDate}&toDate=${toDate}`;
+                        }}
+                      >
+                        View
+                      </Button>
                     </td>
-                    <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-300">{row.branch}</td>
-                    <td className="px-3 py-2 font-mono text-xs font-bold text-slate-600 dark:text-slate-400">{row.branchCode}</td>
-                    <td className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">{formatDateDisplay(row.date)}</td>
-                    <td className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">{formatDateDisplay(row.endDate)}</td>
-                    <td className="px-3 py-2 text-right font-black text-emerald-600 dark:text-emerald-400">{fmt(row.credit)}</td>
-                    <td className="px-3 py-2 text-right font-black text-slate-800 dark:text-slate-100">{fmt(row.balance)}</td>
-                    <td className="px-3 py-2 text-right font-black text-rose-600 dark:text-rose-400">{fmt(row.debit)}</td>
-                    <td className="px-3 py-2"><Trend label={row.trend} /></td>
-                    <td className="px-3 py-2 text-center pr-3"><RowActions /></td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={13} className="px-3 py-8 text-center font-medium text-slate-400 dark:text-slate-500">
+                  <td colSpan={6} className="px-3 py-8 text-center font-medium text-slate-400 dark:text-slate-500">
                     No journal vouchers found.
                   </td>
                 </tr>
@@ -599,13 +658,13 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
             </tbody>
             <tfoot className="border-t border-slate-200 bg-slate-50 text-xs font-black uppercase tracking-wide text-slate-700 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200">
               <tr>
-                <td className="px-3 py-2 pl-3" colSpan={3}>Summary</td>
-                <td className="px-3 py-2" colSpan={5}>Total Accounts: {summary.accounts}</td>
-                <td className="px-3 py-2 text-right text-emerald-700 dark:text-emerald-300">{fmt(summary.credit)}</td>
-                <td className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">{fmt(summary.balance)}</td>
-                <td className="px-3 py-2 text-right text-rose-700 dark:text-rose-300">{fmt(summary.debit)}</td>
-                <td className="px-3 py-2">Final Balance</td>
-                <td className="px-3 py-2 pr-3" />
+                <td className="px-3 py-3 pl-3" colSpan={2}>Summary</td>
+                <td className="px-3 py-3 text-center text-slate-800 dark:text-slate-200">
+                  {filtered.reduce((sum, row) => sum + (row.entries || 0), 0)}
+                </td>
+                <td className="px-3 py-3 text-right text-rose-700 dark:text-rose-300">{fmt(summary.debit)}</td>
+                <td className="px-3 py-3 text-right text-emerald-700 dark:text-emerald-300">{fmt(summary.credit)}</td>
+                <td className="px-3 py-3 pr-3" />
               </tr>
             </tfoot>
           </table>

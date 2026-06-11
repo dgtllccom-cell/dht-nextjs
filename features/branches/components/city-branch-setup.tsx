@@ -537,12 +537,108 @@ export function CityBranchSetup() {
     ]
   );
 
+  const liveBranchData = useMemo(() => {
+    const active = activeExistingCityBranch;
+    const phoneVal = contacts.find((row) => row.type.toLowerCase().includes("phone"))?.value || "";
+    const emailVal = contacts.find((row) => row.type.toLowerCase().includes("email"))?.value || active?.email || "";
+    const whatsappVal = contacts.find((row) => row.type.toLowerCase().includes("whatsapp"))?.value || "";
+
+    return {
+      serialNumber: active?.id ? active.id.slice(0, 4).toUpperCase() : "0001",
+      branchStatus: active?.status || (hasAny ? "Draft" : "Empty"),
+      branchCode: active?.code || branchCode || "-",
+      branchType: "CITY",
+      country: previewCountry,
+      currency: active?.local_currency || currency || "USD",
+      
+      grandparentBranch: {
+        name: "ACCOUNTS.DGT.LLC Headquarters",
+        code: "SUPER-HQ-001",
+        type: "SUPER_ADMIN",
+        status: "ACTIVE",
+        currency: "USD"
+      },
+      parentBranch: selectedMainBranch
+        ? {
+            name: selectedMainBranch.name,
+            code: selectedMainBranch.code,
+            type: "MAIN",
+            status: selectedMainBranch.status,
+            currency: selectedMainBranch.local_currency
+          }
+        : undefined,
+
+      branchName: active?.name || branchName || "-",
+      createdDate: active?.created_at ? new Date(active.created_at).toLocaleDateString() : undefined,
+      updatedDate: active?.updated_at ? new Date(active.updated_at).toLocaleDateString() : undefined,
+      createdBy: "Super Admin",
+      updatedBy: "Super Admin",
+      establishedOn: "-",
+      taxRegNo: "-",
+      ntnGstNo: "-",
+
+      city: locationMeta.city?.name || active?.city_name || "-",
+      cityCode: locationMeta.city?.code || "-",
+      stateProvince: locationMeta.state?.name || "-",
+      areaRegion: locationMeta.area?.name || "-",
+      zipCode: zip || "-",
+      fullAddress: active?.address || fullAddress || "-",
+
+      ownerName: ownerPreview?.name || active?.owner_name || ownerName || "-",
+      ownerCode: ownerPreview?.code || "OWN-0001",
+      fatherHusbandName: "-",
+      cnicId: "-",
+      nationality: "Pakistani",
+      designation: "Branch Manager",
+      ownershipType: "Individual",
+      ownershipPercent: "100%",
+      ownerPhone: phoneVal || ownerPreview?.mobile || "-",
+      ownerWhatsApp: whatsappVal || ownerPreview?.whatsapp || "-",
+      ownerEmail: emailVal || ownerPreview?.email || "-",
+      ownerAltEmail: "-",
+      ownerLandline: "-",
+      ownerWebsite: ownerPreview?.address || "-",
+
+      companyName: previewCompany || "-",
+      companyCode: companyCode || "-",
+      companyType: "Private Limited",
+      companyRegNo: "-",
+      companyIncDate: "-",
+      companyTaxRegNo: "-",
+      companyNtnGstNo: "-",
+      companyStatus: "Active",
+      companyPhone: phoneVal || "-",
+      companyEmail: emailVal || "-",
+      companyWebsite: "-",
+      companyOfficeAddress: active?.address || fullAddress || "-",
+
+      allowedPermissions: active?.permission_grants || permissionGrants,
+      remarks: "This is a detailed city branch report representing live settings."
+    };
+  }, [
+    activeExistingCityBranch,
+    contacts,
+    branchCode,
+    previewCountry,
+    currency,
+    branchName,
+    locationMeta,
+    zip,
+    fullAddress,
+    ownerPreview,
+    ownerName,
+    previewCompany,
+    companyCode,
+    permissionGrants,
+    hasAny
+  ]);
+
   function openReport(autoPrint: boolean) {
     openA4ReportWindow({
       title: "City Branch Report",
       subtitle: "Store Entry Preview (A4)",
-      rows: reportRows,
-      autoPrint
+      autoPrint,
+      branchData: liveBranchData
     });
   }
 
@@ -967,8 +1063,11 @@ export function CityBranchSetup() {
             ) : null}
 
             <form onSubmit={onSubmit} onReset={onReset} className="space-y-6">
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 1 - Country & Currency</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 1 - Country & Currency</h2>
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <LocationHierarchySelect
                     value={location}
@@ -985,8 +1084,11 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 2 - Main Branch</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">2</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 2 - Main Branch</h2>
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <SearchSelect
                     label="Select Main Branch"
@@ -1004,8 +1106,11 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 3 - Location</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">3</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 3 - Location</h2>
+                </div>
                 <div className="grid gap-3 md:grid-cols-12">
                   <div className="space-y-2 md:col-span-4">
                     <Label className="text-xs text-slate-600">Country (auto)</Label>
@@ -1038,8 +1143,11 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 4 - City Branch Details</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">4</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 4 - City Branch Details</h2>
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="text-xs text-slate-600">Branch Name</Label>
@@ -1052,8 +1160,11 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 5 - Company & Branch Owner</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">5</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 5 - Company & Branch Owner</h2>
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <CompanyPicker
                     label="Company Name"
@@ -1076,8 +1187,11 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 6 - Contacts</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">6</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 6 - Contacts</h2>
+                </div>
                 <div className="space-y-3">
                   {contacts.map((row, idx) => (
                     <div key={`contact-${idx}`} className="grid gap-2 md:grid-cols-[180px_1fr_120px]">
@@ -1142,16 +1256,22 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <PermissionAssignmentSection
-                level="city"
-                template={permissionTemplate}
-                selected={permissionGrants}
-                onTemplateChange={setPermissionTemplate}
-                onSelectedChange={setPermissionGrants}
-                parentPermissions={parentPermissionGrants}
-                required
-                note="City permissions are explicit and are not inherited automatically from the Country/Main Branch."
-              />
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">7</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 7 - Roles & Permissions</h2>
+                </div>
+                <PermissionAssignmentSection
+                  level="city"
+                  template={permissionTemplate}
+                  selected={permissionGrants}
+                  onTemplateChange={setPermissionTemplate}
+                  onSelectedChange={setPermissionGrants}
+                  parentPermissions={parentPermissionGrants}
+                  required
+                  note="City permissions are explicit and are not inherited automatically from the Country/Main Branch."
+                />
+              </section>
 
               <div className="flex flex-wrap justify-end gap-2">
                 <Button type="reset" variant="outline" disabled={saving}>
@@ -1169,6 +1289,7 @@ export function CityBranchSetup() {
           <BranchLiveReportPanel
             title="Store Entry (Live Preview)"
             status={hasAny ? "Draft" : "Empty"}
+            branchData={liveBranchData}
             summary={[
               { label: "Branch", value: previewMainBranch || "-" },
               { label: "Country", value: previewCountry || "-" },

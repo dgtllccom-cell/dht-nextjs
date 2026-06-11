@@ -426,12 +426,90 @@ export function SuperAdminBranchSetup() {
     });
   }, [savedBranches, savedSearch]);
 
+  const liveBranchData = useMemo(() => {
+    const phoneVal = contacts.find((row) => row.type.toLowerCase().includes("phone"))?.value || "";
+    const emailVal = contacts.find((row) => row.type.toLowerCase().includes("email"))?.value || "";
+    const whatsappVal = contacts.find((row) => row.type.toLowerCase().includes("whatsapp"))?.value || "";
+
+    return {
+      serialNumber: editingBranchId ? editingBranchId.slice(0, 4).toUpperCase() : "0001",
+      branchStatus: editingBranchId ? "Active" : (hasAny ? "Draft" : "Empty"),
+      branchCode: branchCode || "-",
+      branchType: "SUPER_ADMIN",
+      country: countryName || "-",
+      currency: currency || "USD",
+      
+      branchName: companyDetails?.name ? `${companyDetails.name} Super Admin Branch` : "Super Admin Branch",
+      createdDate: undefined,
+      updatedDate: undefined,
+      createdBy: "Super Admin",
+      updatedBy: "Super Admin",
+      establishedOn: "-",
+      taxRegNo: "-",
+      ntnGstNo: "-",
+
+      city: cityName || "-",
+      cityCode: locationMeta.city?.code || "-",
+      stateProvince: stateName || "-",
+      areaRegion: locationMeta.area?.name || "-",
+      zipCode: zip || "-",
+      fullAddress: address || "-",
+
+      ownerName: ownerPreview?.name || owner || "-",
+      ownerCode: ownerPreview?.code || "OWN-0001",
+      fatherHusbandName: "-",
+      cnicId: "-",
+      nationality: "Pakistani",
+      designation: ownerPreview?.role || "Super Admin",
+      ownershipType: "Individual",
+      ownershipPercent: "100%",
+      ownerPhone: phoneVal || ownerPreview?.mobile || "-",
+      ownerWhatsApp: whatsappVal || ownerPreview?.whatsapp || "-",
+      ownerEmail: emailVal || ownerPreview?.email || "-",
+      ownerAltEmail: "-",
+      ownerLandline: "-",
+      ownerWebsite: ownerPreview?.address || "-",
+
+      companyName: companyDetails?.name || "-",
+      companyCode: companyCode || "-",
+      companyType: "Private Limited",
+      companyRegNo: "-",
+      companyIncDate: "-",
+      companyTaxRegNo: "-",
+      companyNtnGstNo: "-",
+      companyStatus: "Active",
+      companyPhone: phoneVal || "-",
+      companyEmail: emailVal || "-",
+      companyWebsite: "-",
+      companyOfficeAddress: companyDetails?.address || address || "-",
+
+      allowedPermissions: ["settings.access", "branch.super_admin", "settings.system"],
+      remarks: "Super Admin main headquarters and system configurations."
+    };
+  }, [
+    editingBranchId,
+    contacts,
+    branchCode,
+    countryName,
+    currency,
+    companyDetails,
+    cityName,
+    locationMeta,
+    stateName,
+    zip,
+    address,
+    ownerPreview,
+    owner,
+    companyCode,
+    hasAny
+  ]);
+
   function openReport(autoPrint: boolean) {
     openA4ReportWindow({
       title: "Super Admin Branch Report",
       subtitle: "Store Entry Preview (A4)",
-      rows: reportRows,
-      autoPrint
+      autoPrint,
+      branchData: liveBranchData
     });
   }
 
@@ -763,68 +841,70 @@ export function SuperAdminBranchSetup() {
               <CardTitle>Super Admin Branch Setup</CardTitle>
             </div>
           </CardHeader>
-
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Branch Type</Label>
-                <Input value="Super Admin Branch" readOnly className="bg-muted/50 font-semibold" />
+          <CardContent className="space-y-6 bg-slate-50/30 dark:bg-slate-900/5 p-6">
+            <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 1 - Branch Info & Currency</h2>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="currencySelect">Currency</Label>
-                <select id="currencySelect" value={currency} onChange={(event) => setCurrency(event.target.value)} className={selectClass()}>
-                  {currencies.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Branch Code</Label>
-                <Input value={branchCode} readOnly placeholder="Auto" className="bg-muted/50 font-mono font-semibold" />
-              </div>
-            </div>
-
-            <div className="space-y-4 border-t pt-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-primary" aria-hidden />
-                  <div>
-                    <h2 className="font-semibold">Location</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Select Country, State, City from Settings / Location.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <LocationHierarchySelect
-                value={location}
-                onChange={(next, meta) => {
-                  setLocation(next);
-                  setLocationMeta(meta);
-                  setMessage("");
-                }}
-              />
-
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Zip Code</Label>
-                  <Input value={zip} readOnly className="bg-muted/50 font-semibold" />
+                  <Label>Branch Type</Label>
+                  <Input value="Super Admin Branch" readOnly className="bg-muted/50 font-semibold" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="currencySelect">Currency</Label>
+                  <select id="currencySelect" value={currency} onChange={(event) => setCurrency(event.target.value)} className={selectClass()}>
+                    {currencies.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Branch Code</Label>
+                  <Input value={branchCode} readOnly placeholder="Auto" className="bg-muted/50 font-mono font-semibold" />
                 </div>
               </div>
+            </section>
 
-              <div className="space-y-2">
-                <Label>Full Address</Label>
-                <TextArea value={address} onChange={setAddress} placeholder="Enter full branch address" />
+            <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">2</span>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 2 - Location Settings</h2>
               </div>
-            </div>
+              <div className="space-y-4">
+                <LocationHierarchySelect
+                  value={location}
+                  onChange={(next, meta) => {
+                    setLocation(next);
+                    setLocationMeta(meta);
+                    setMessage("");
+                  }}
+                />
 
-            <div className="space-y-4 border-t pt-5">
-              <h2 className="font-semibold">Company & Owner</h2>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Zip Code</Label>
+                    <Input value={zip} readOnly className="bg-muted/50 font-semibold" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Full Address</Label>
+                  <TextArea value={address} onChange={setAddress} placeholder="Enter full branch address" />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">3</span>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 3 - Company & Owner Settings</h2>
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <CompanyPicker
@@ -840,36 +920,41 @@ export function SuperAdminBranchSetup() {
                   <BranchOwnerPicker value={owner} onValueChange={setOwner} placeholder="Search owner" createButtonPlacement="below" />
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div className="space-y-4 border-t pt-5">
-              <h2 className="font-semibold">Contacts Detail</h2>
-              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
-                <div className="space-y-2">
-                  <Label>Contact Type</Label>
-                  <select
-                    value={contactType}
-                    onChange={(event) => (event.target.value === "__new__" ? setModal("contactType") : setContactType(event.target.value))}
-                    className={selectClass()}
-                  >
-                    {contactTypes.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                    <option value="__new__">+ New</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Value</Label>
-                  <Input value={contactValue} onChange={(event) => setContactValue(event.target.value)} placeholder="Enter value" />
-                </div>
-                <Button type="button" onClick={addContact} className="rounded-lg">
-                  <Plus className="h-4 w-4" aria-hidden />
-                </Button>
+            <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">4</span>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 4 - Contact Details</h2>
               </div>
-              <ChipList empty="No contacts added yet." rows={contacts} onRemove={(id) => setContacts((rows) => rows.filter((row) => row.id !== id))} />
-            </div>
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                  <div className="space-y-2">
+                    <Label>Contact Type</Label>
+                    <select
+                      value={contactType}
+                      onChange={(event) => (event.target.value === "__new__" ? setModal("contactType") : setContactType(event.target.value))}
+                      className={selectClass()}
+                    >
+                      {contactTypes.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                      <option value="__new__">+ New</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Value</Label>
+                    <Input value={contactValue} onChange={(event) => setContactValue(event.target.value)} placeholder="Enter value" />
+                  </div>
+                  <Button type="button" onClick={addContact} className="rounded-lg">
+                    <Plus className="h-4 w-4" aria-hidden />
+                  </Button>
+                </div>
+                <ChipList empty="No contacts added yet." rows={contacts} onRemove={(id) => setContacts((rows) => rows.filter((row) => row.id !== id))} />
+              </div>
+            </section>
 
             <div className="flex flex-wrap justify-end gap-3 border-t pt-5">
               <Button
@@ -906,6 +991,7 @@ export function SuperAdminBranchSetup() {
           <BranchLiveReportPanel
             title="Store Entry (Live Preview)"
             status={hasAny ? "Draft" : "Empty"}
+            branchData={liveBranchData}
             summary={[
               { label: "Branch", value: branchCode || "-" },
               { label: "Country", value: locationMeta.country?.iso2 || countryName || "-" },

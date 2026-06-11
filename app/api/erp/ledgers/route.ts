@@ -26,6 +26,19 @@ export async function GET(request: NextRequest) {
       .is("deleted_at", null)
       .order("code", { ascending: true });
 
+    // Enforce ledger security boundaries based on user scope
+    if (!session.isSuperAdmin) {
+      if (session.cityBranchIds.length > 0) {
+        query = query.in("city_branch_id", session.cityBranchIds);
+      } else if (session.countryBranchIds.length > 0) {
+        query = query.in("country_branch_id", session.countryBranchIds);
+      } else if (session.countryIds.length > 0) {
+        query = query.in("country_id", session.countryIds);
+      } else {
+        query = query.eq("id", "00000000-0000-0000-0000-000000000000");
+      }
+    }
+
     if (scope.countryId) query = query.eq("country_id", scope.countryId);
     if (scope.countryBranchId) query = query.eq("country_branch_id", scope.countryBranchId);
     if (scope.cityBranchId) query = query.eq("city_branch_id", scope.cityBranchId);

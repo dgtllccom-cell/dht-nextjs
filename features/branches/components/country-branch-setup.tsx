@@ -456,12 +456,98 @@ export function CountryBranchSetup() {
     ]
   );
 
+  const liveBranchData = useMemo(() => {
+    const active = existingMainBranch;
+    const phoneVal = contacts.find((row) => row.type.toLowerCase().includes("phone"))?.value || "";
+    const emailVal = contacts.find((row) => row.type.toLowerCase().includes("email"))?.value || active?.email || "";
+    const whatsappVal = contacts.find((row) => row.type.toLowerCase().includes("whatsapp"))?.value || "";
+
+    return {
+      serialNumber: active?.id ? active.id.slice(0, 4).toUpperCase() : "0001",
+      branchStatus: active?.status || (hasAny ? "Draft" : "Empty"),
+      branchCode: active?.code || branchCode || "-",
+      branchType: "MAIN",
+      country: previewCountry,
+      currency: active?.local_currency || currency || "USD",
+      
+      parentBranch: {
+        name: "ACCOUNTS.DGT.LLC Headquarters",
+        code: "SUPER-HQ-001",
+        type: "SUPER_ADMIN",
+        status: "ACTIVE",
+        currency: "USD"
+      },
+
+      branchName: active?.name || (previewCountry && previewCountry !== "-" ? `${previewCountry} Main Branch` : "Main Branch"),
+      createdDate: active?.created_at ? new Date(active.created_at).toLocaleDateString() : undefined,
+      updatedDate: active?.updated_at ? new Date(active.updated_at).toLocaleDateString() : undefined,
+      createdBy: "Super Admin",
+      updatedBy: "Super Admin",
+      establishedOn: "-",
+      taxRegNo: "-",
+      ntnGstNo: "-",
+
+      city: locationMeta.city?.name || "-",
+      cityCode: locationMeta.city?.code || "-",
+      stateProvince: locationMeta.state?.name || "-",
+      areaRegion: locationMeta.area?.name || "-",
+      zipCode: zip || "-",
+      fullAddress: active?.address || fullAddress || "-",
+
+      ownerName: ownerPreview?.name || active?.owner_name || ownerName || "-",
+      ownerCode: ownerPreview?.code || "OWN-0001",
+      fatherHusbandName: "-",
+      cnicId: "-",
+      nationality: "Pakistani",
+      designation: "Country Admin",
+      ownershipType: "Individual",
+      ownershipPercent: "100%",
+      ownerPhone: phoneVal || ownerPreview?.mobile || "-",
+      ownerWhatsApp: whatsappVal || ownerPreview?.whatsapp || "-",
+      ownerEmail: emailVal || ownerPreview?.email || "-",
+      ownerAltEmail: "-",
+      ownerLandline: "-",
+      ownerWebsite: ownerPreview?.address || "-",
+
+      companyName: previewCompany || "-",
+      companyCode: companyCode || "-",
+      companyType: "Private Limited",
+      companyRegNo: "-",
+      companyIncDate: "-",
+      companyTaxRegNo: "-",
+      companyNtnGstNo: "-",
+      companyStatus: "Active",
+      companyPhone: phoneVal || "-",
+      companyEmail: emailVal || "-",
+      companyWebsite: "-",
+      companyOfficeAddress: active?.address || fullAddress || "-",
+
+      allowedPermissions: active?.permission_grants || permissionGrants,
+      remarks: "This is a detailed country main branch report representing live settings."
+    };
+  }, [
+    existingMainBranch,
+    contacts,
+    branchCode,
+    previewCountry,
+    currency,
+    locationMeta,
+    zip,
+    fullAddress,
+    ownerPreview,
+    ownerName,
+    previewCompany,
+    companyCode,
+    permissionGrants,
+    hasAny
+  ]);
+
   function openReport(autoPrint: boolean) {
     openA4ReportWindow({
       title: "Country Main Branch Report",
       subtitle: "Store Entry Preview (A4)",
-      rows: reportRows,
-      autoPrint
+      autoPrint,
+      branchData: liveBranchData
     });
   }
 
@@ -830,10 +916,12 @@ export function CountryBranchSetup() {
                 ) : null}
               </div>
             ) : null}
-
             <form onSubmit={onSubmit} onReset={onReset} className="space-y-6">
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 1 - Country & Currency</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 1 - Country & Currency</h2>
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <LocationHierarchySelect
                     value={location}
@@ -852,8 +940,11 @@ export function CountryBranchSetup() {
                 <input type="hidden" value={branchCode} readOnly />
               </section>
 
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 2 - Location</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">2</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 2 - Location</h2>
+                </div>
                 <div className="grid gap-3 md:grid-cols-12">
                   <div className="space-y-2 md:col-span-4">
                     <Label className="text-xs text-slate-600">Country (auto)</Label>
@@ -886,31 +977,37 @@ export function CountryBranchSetup() {
                 </div>
               </section>
 
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 3 - Company & Branch Owner</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">3</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 3 - Company & Branch Owner</h2>
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                  <CompanyPicker
-                    label="Company Name"
-                    value={companyId}
-                    onValueChange={setCompanyId}
-                    placeholder="Search company"
-                    createButtonPlacement="below"
-                  />
+                    <CompanyPicker
+                      label="Company Name"
+                      value={companyId}
+                      onValueChange={setCompanyId}
+                      placeholder="Search company"
+                      createButtonPlacement="below"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <BranchOwnerPicker
+                      value={ownerName}
+                      onValueChange={setOwnerName}
+                      placeholder="Search owner"
+                      createButtonPlacement="below"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <BranchOwnerPicker
-                    value={ownerName}
-                    onValueChange={setOwnerName}
-                    placeholder="Search owner"
-                    createButtonPlacement="below"
-                  />
-                </div>
-              </div>
-            </section>
+              </section>
 
-              <section className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 4 - Contacts</h2>
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">4</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 4 - Contacts</h2>
+                </div>
                 <div className="space-y-3">
                   {contacts.map((row, idx) => (
                     <div key={`contact-${idx}`} className="grid gap-2 md:grid-cols-[180px_1fr_120px]">
@@ -975,15 +1072,21 @@ export function CountryBranchSetup() {
                 </div>
               </section>
 
-              <PermissionAssignmentSection
-                level="country"
-                template={permissionTemplate}
-                selected={permissionGrants}
-                onTemplateChange={setPermissionTemplate}
-                onSelectedChange={setPermissionGrants}
-                required
-                note="Super Admin must grant the Country permissions explicitly before saving."
-              />
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">5</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 5 - Roles & Permissions</h2>
+                </div>
+                <PermissionAssignmentSection
+                  level="country"
+                  template={permissionTemplate}
+                  selected={permissionGrants}
+                  onTemplateChange={setPermissionTemplate}
+                  onSelectedChange={setPermissionGrants}
+                  required
+                  note="Super Admin must grant the Country permissions explicitly before saving."
+                />
+              </section>
 
               <div className="flex flex-wrap justify-end gap-2">
                 <Button type="reset" variant="outline" disabled={saving}>
@@ -1001,6 +1104,7 @@ export function CountryBranchSetup() {
           <BranchLiveReportPanel
             title="Store Entry (Live Preview)"
             status={hasAny ? "Draft" : "Empty"}
+            branchData={liveBranchData}
             summary={[
               { label: "Branch", value: branchType || "-" },
               { label: "Country", value: previewCountry || "-" },
@@ -1010,8 +1114,6 @@ export function CountryBranchSetup() {
               <BranchReportActionsMenu
                 ariaLabel="Country branch actions"
                 disabled={!hasAny}
-                onView={viewReport}
-                onEdit={editReport}
                 onPrint={printReport}
                 onPdf={() => openReport(true)}
                 onEmail={emailReport}

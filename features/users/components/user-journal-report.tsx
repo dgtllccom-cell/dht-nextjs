@@ -38,6 +38,7 @@ import {
 import { apiGet } from "@/lib/api/client";
 import type { SearchSelectOption } from "@/components/ui/search-select";
 import { cn } from "@/lib/utils";
+import { UserLiveReportPanel } from "./user-live-report-panel";
 
 type UserJournalRow = {
   userId: string;
@@ -739,99 +740,58 @@ export function UserJournalReport() {
         </section>
       </main>
 
-      {/* View Details Modal Overlay */}
+      {/* View Details Full-page Overlay */}
       {viewUser && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="ujr-modal w-full max-w-xl bg-[var(--ujr-card)] border border-[var(--ujr-line)] rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ujr-line)]">
-              <h3 className="text-base font-black text-[var(--ujr-title)]">User Journal Details</h3>
-              <button
-                type="button"
-                onClick={() => setViewUser(null)}
-                className="text-[var(--ujr-muted)] hover:text-slate-900 focus:outline-none font-bold text-sm"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-5 max-h-[70vh] overflow-y-auto space-y-4">
-              {/* Profile Header */}
-              <div className="flex items-center gap-3 pb-3 border-b border-[var(--ujr-line)]">
-                <div className="grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-sm">
-                  {initials(viewUser.fullName)}
-                </div>
-                <div>
-                  <div className="text-sm font-black text-[var(--ujr-title)]">{viewUser.fullName}</div>
-                  <div className="text-[10px] text-[var(--ujr-muted)] font-semibold mt-0.5 flex items-center gap-2">
-                    <span>Role: <b>{viewUser.role}</b></span>
-                    <span>|</span>
-                    <span>Status: <StatusPill status={viewUser.status} /></span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Scopes and Info */}
-              <div className="grid grid-cols-2 gap-3">
-                <InfoBlock label="System Generated ID" value={viewUser.userId} />
-                <InfoBlock label="Login User ID" value={viewUser.userCode} />
-                <InfoBlock label="Country" value={viewUser.countryName} />
-                <InfoBlock label="Branch Name" value={viewUser.branchName} />
-                <InfoBlock label="Branch Type" value={viewUser.branchType} />
-                <InfoBlock label="Registered Date" value={formatDateTime(viewUser.registrationDate)} />
-              </div>
-
-              {/* Raw Password (only for Super Admins) */}
-              {isSuperAdminUser && viewUser.rawPassword && (
-                <div className="rounded-lg border bg-blue-50/20 dark:bg-blue-950/20 p-3">
-                  <div className="text-[9px] font-black uppercase text-[var(--ujr-muted)]">Raw Password</div>
-                  <div className="mt-1 font-mono text-xs font-black select-all text-blue-600 dark:text-blue-300">
-                    {viewUser.rawPassword}
-                  </div>
-                </div>
-              )}
-
-              {/* Stats / Audit Metrics */}
-              <div className="space-y-2 pt-2">
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-[var(--ujr-muted)]">Activity Log Counts</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <ActivityCard label="Logins" value={viewUser.activityCounts.logins} />
-                  <ActivityCard label="Transactions" value={viewUser.activityCounts.transactions} />
-                  <ActivityCard label="Roznamcha" value={viewUser.activityCounts.roznamcha} />
-                  <ActivityCard label="Purchases" value={viewUser.activityCounts.purchases} />
-                  <ActivityCard label="Payments" value={viewUser.activityCounts.payments} />
-                  <ActivityCard label="Accounts" value={viewUser.activityCounts.accounts} />
-                  <ActivityCard label="Approvals" value={viewUser.activityCounts.approvals} />
-                  <ActivityCard label="Edits" value={viewUser.activityCounts.edits} />
-                </div>
-              </div>
-
-              {/* Permissions List */}
-              <div className="space-y-2 pt-2">
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-[var(--ujr-muted)]">Assigned Permissions ({viewUser.permissions.length})</h4>
-                <div className="flex flex-wrap gap-1">
-                  {viewUser.permissions.length ? (
-                    viewUser.permissions.map((perm) => (
-                      <span
-                        key={perm}
-                        className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-[var(--ujr-line)] font-mono text-[9px] font-bold text-[var(--ujr-title)]"
-                      >
-                        {perm}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-[var(--ujr-muted)]">No permissions assigned.</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--ujr-line)] bg-slate-50 dark:bg-slate-900">
-              <button
-                type="button"
-                onClick={() => setViewUser(null)}
-                className="ujr-secondary-btn h-9 px-4"
-              >
-                Close
-              </button>
-            </div>
+        <div className="fixed inset-0 z-[100] bg-slate-100 dark:bg-slate-900 overflow-y-auto p-4 md:p-8">
+          <div className="max-w-6xl mx-auto">
+            <UserLiveReportPanel
+              fullName={viewUser.fullName}
+              gender={viewUser.gender || "Male"}
+              accountRegNo={viewUser.userId}
+              role={viewUser.role}
+              userCode={viewUser.userCode}
+              rawPassword={viewUser.rawPassword || "••••••••"}
+              status={viewUser.status === "active" ? "Active" : "Inactive"}
+              selectedCountryName={viewUser.countryName}
+              selectedBranchName={viewUser.branchName}
+              selectedBranchCode={viewUser.branchCode || undefined}
+              selectedBranchType={viewUser.branchType}
+              selectedPermissions={viewUser.permissions}
+              activityCounts={viewUser.activityCounts}
+              lastActivityDate={viewUser.lastActivity}
+              lastActivityAction={viewUser.lastActivityAction}
+              onBack={() => setViewUser(null)}
+              onExcel={() => {
+                const rows = [
+                  ["Field", "Value"],
+                  ["User Name", viewUser.fullName],
+                  ["Role", viewUser.role],
+                  ["User ID", viewUser.userId],
+                  ["Login ID", viewUser.userCode],
+                  ["Country", viewUser.countryName],
+                  ["Branch", viewUser.branchName],
+                  ["Branch Code", viewUser.branchCode || "-"],
+                  ["Status", viewUser.status]
+                ];
+                const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `user_report_${viewUser.userCode}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              onEmail={() => {
+                const subject = encodeURIComponent("User Profile Report");
+                const body = encodeURIComponent(`User Profile Report\nUser Name: ${viewUser.fullName}\nLogin ID: ${viewUser.userCode}`);
+                window.location.href = `mailto:?subject=${subject}&body=${body}`;
+              }}
+              onWhatsApp={() => {
+                const text = encodeURIComponent(`User Profile: ${viewUser.fullName} (${viewUser.userCode})`);
+                window.open(`https://wa.me/?text=${text}`, "_blank");
+              }}
+            />
           </div>
         </div>
       )}

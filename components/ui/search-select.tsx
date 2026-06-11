@@ -63,8 +63,7 @@ export function SearchSelect({
   onValueChange,
   onOpenChange,
   createLabel = "+ New",
-  onCreateNew,
-  createButtonPlacement = "modal"
+  onCreateNew
 }: {
   label: string;
   value: string;
@@ -79,6 +78,7 @@ export function SearchSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const containerRef = useMemo(() => ({ current: null as HTMLDivElement | null }), []);
 
   const selectedLabel = useMemo(() => {
     const match = options.find((opt) => opt.value === value);
@@ -98,7 +98,6 @@ export function SearchSelect({
       .sort((a, b) => b.score - a.score)
       .map((row) => row.opt);
 
-    // Keep the list bounded for performance.
     return ranked.slice(0, 250);
   }, [options, q]);
 
@@ -108,107 +107,99 @@ export function SearchSelect({
     if (!next) setQ("");
   }
 
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-10 flex-1 justify-between rounded-lg px-3 text-sm"
-          disabled={disabled}
-          onClick={() => setOpenSafe(true)}
-        >
-          <span className={cn("truncate text-left", selectedLabel ? "" : "text-muted-foreground")}>
-            {selectedLabel || placeholder}
-          </span>
-          <ChevronDown className="h-4 w-4 opacity-60" aria-hidden />
-        </Button>
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpenSafe(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open, containerRef]);
 
-        {onCreateNew && (createButtonPlacement === "trigger" || createButtonPlacement === "both") ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 shrink-0 rounded-lg px-3 text-sm"
-            disabled={disabled}
-            onClick={async () => {
-              await onCreateNew();
-            }}
-          >
-            {createLabel}
-          </Button>
-        ) : null}
+  return (
+    <div className="relative space-y-1.5" ref={(el) => { containerRef.current = el; }}>
+      {label && <Label className="text-[11px] font-semibold text-muted-foreground">{label}</Label>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpenSafe(!open)}
+          className={cn(
+            "w-full h-10 flex items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-xs text-left shadow-sm hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 text-slate-900 bg-white",
+            selectedLabel ? "" : "text-muted-foreground"
+          )}
+        >
+          <span className="truncate">{selectedLabel || placeholder}</span>
+          <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+        </button>
       </div>
 
-      {onCreateNew && createButtonPlacement === "below" ? (
-        <div className="pt-1">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-9 w-full justify-center rounded-lg px-3 text-sm"
-            disabled={disabled}
-            onClick={async () => {
-              await onCreateNew();
-            }}
-          >
-            {createLabel}
-          </Button>
-        </div>
-      ) : null}
-
-      {open ? (
-        <SimpleModal title={label} onClose={() => setOpenSafe(false)} className="max-w-xl">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search..." className="pl-9" />
+      {open && (
+        <div className="absolute left-0 mt-1 w-full min-w-[240px] max-w-sm rounded-xl bg-card border border-border shadow-2xl z-[80] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150 bg-white text-slate-900">
+          <div className="p-1 border-b border-border/40 mb-1">
+            <div className="relative flex items-center">
+              <Search className="absolute left-2.5 h-3.5 w-3.5 text-muted-foreground opacity-50" />
+              <input
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search..."
+                className="w-full bg-background border border-input rounded-md pl-8 pr-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-ring text-foreground h-8 bg-white text-slate-900"
+                autoFocus
+              />
             </div>
-            {onCreateNew && (createButtonPlacement === "modal" || createButtonPlacement === "both") ? (
-              <Button
+          </div>
+          <div className="max-h-48 overflow-y-auto space-y-0.5">
+            {filtered.length ? (
+              filtered.map((opt) => {
+                const active = opt.value === value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={opt.disabled}
+                    onClick={() => {
+                      onValueChange(opt.value);
+                      setOpenSafe(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between p-2 rounded-lg hover:bg-muted text-left text-xs transition",
+                      active ? "bg-muted font-semibold" : ""
+                    )}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {active && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="px-3 py-2 text-center text-muted-foreground text-xs italic">
+                No matches found.
+              </div>
+            )}
+          </div>
+          {onCreateNew && (
+            <div className="border-t border-border/40 pt-1 mt-1">
+              <button
                 type="button"
-                variant="outline"
-                className="h-10 shrink-0 rounded-lg px-3 text-sm"
                 onClick={async () => {
                   setOpenSafe(false);
                   await onCreateNew();
                 }}
+                className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-primary hover:bg-primary/5 transition text-left"
               >
-                {createLabel}
-              </Button>
-            ) : null}
-          </div>
-
-          <div className="max-h-[52vh] overflow-y-auto rounded-lg border">
-            {filtered.length ? (
-              <div className="divide-y">
-                {filtered.map((opt) => {
-                  const active = opt.value === value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      disabled={opt.disabled}
-                      onClick={() => {
-                        onValueChange(opt.value);
-                        setOpenSafe(false);
-                      }}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50",
-                        active ? "bg-muted" : ""
-                      )}
-                    >
-                      <span className="truncate">{opt.label}</span>
-                      {active ? <Check className="h-4 w-4 text-primary" aria-hidden /> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="p-4 text-sm text-muted-foreground">No results.</div>
-            )}
-          </div>
-        </SimpleModal>
-      ) : null}
+                <span className="text-sm font-bold">+</span>
+                <span>{createLabel}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+

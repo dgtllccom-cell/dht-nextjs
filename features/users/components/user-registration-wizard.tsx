@@ -26,6 +26,7 @@ import type { EnterpriseRole } from "@/lib/permissions/enterprise-roles";
 import { enterpriseRolePermissions } from "@/lib/permissions/enterprise-roles";
 import { apiPost } from "@/lib/api/client";
 import { normalizeUserCode } from "@/lib/services/user-identity-service";
+import { UserLiveReportPanel } from "./user-live-report-panel";
 
 type MainBranchRow = { id: string; name: string; code: string; local_currency: string; is_main: boolean; city_id?: string | null };
 type CityBranchRow = { id: string; name: string; code: string; city_name: string; local_currency: string; country_branch_id: string };
@@ -618,10 +619,10 @@ export function UserRegistrationWizard() {
         })}
       </div>
 
-      {/* ── Step Form — Full Width ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* Step View: full width */}
-        <section className="rounded-lg border bg-card p-5 space-y-6">
+      {/* ── Left Column Form + Right Column Preview ──────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Side: Step View (Wizard Form) */}
+        <div className="lg:col-span-4 space-y-6">
           {/* Header Banner */}
           {banner ? (
             <div
@@ -714,10 +715,10 @@ export function UserRegistrationWizard() {
 
           {/* Step 1: Personal Info */}
           {step === 1 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <UserPlus className="h-5 w-5 text-primary" />
-                <h2 className="text-base font-bold text-slate-900">Step 1: Personal Information</h2>
+            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5 border-b pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">1</span>
+                <h2 className="text-sm font-bold text-slate-900">Step 1: Personal Information</h2>
               </div>
 
               <div className="flex items-center gap-4 rounded-xl border bg-muted/10 p-4">
@@ -783,13 +784,13 @@ export function UserRegistrationWizard() {
 
           {/* Step 2: Scope Flow */}
           {step === 2 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <MapPin className="h-5 w-5 text-primary" />
-                <h2 className="text-base font-bold text-slate-900">Step 2: Country / Branch / Role</h2>
+            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5 border-b pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">2</span>
+                <h2 className="text-sm font-bold text-slate-900">Step 2: Country / Branch / Role</h2>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-1">
                 <SearchSelect
                   label={loadingCountries ? "Country (Loading...)" : "Country *"}
                   value={countryId}
@@ -831,19 +832,19 @@ export function UserRegistrationWizard() {
                     onValueChange={setCityBranchId}
                   />
                 ) : (
-                  <div className="rounded-lg border bg-muted/10 p-3 text-sm text-muted-foreground md:col-span-1">
+                  <div className="rounded-lg border bg-muted/10 p-3 text-xs text-muted-foreground">
                     Select Branch Type first.
                   </div>
                 )}
 
                 <div className="space-y-2">
                   <Label>Branch Code (Auto)</Label>
-                  <Input value={branchCode} readOnly className="bg-muted/40 font-semibold" />
+                  <Input value={branchCode} readOnly className="bg-muted/40 font-semibold text-xs" />
                 </div>
 
                 <div className="space-y-2">
                   <Label>City (Auto)</Label>
-                  <Input value={cityName} readOnly className="bg-muted/40 font-semibold" />
+                  <Input value={cityName} readOnly className="bg-muted/40 font-semibold text-xs" />
                 </div>
 
                 <SearchSelect
@@ -866,18 +867,18 @@ export function UserRegistrationWizard() {
 
           {/* Step 3: Permissions & Finish */}
           {step === 3 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                <h2 className="text-base font-bold text-slate-900">Step 3: Security & Permissions</h2>
+            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5 border-b pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">3</span>
+                <h2 className="text-sm font-bold text-slate-900">Step 3: Security & Permissions</h2>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-1">
                 <div className="space-y-2">
                   <Label>User ID *</Label>
                   <div className="flex gap-2">
                     <Input value={userCode} onChange={(e) => setUserCode(e.target.value)} placeholder="User login ID" />
-                    <Button type="button" variant="outline" size="icon" aria-label="Regenerate" onClick={generateUserCode}>
+                    <Button type="button" variant="outline" size="icon" aria-label="Regenerate" onClick={generateUserCode} className="flex-shrink-0">
                       <RefreshCcw className="h-4 w-4" aria-hidden />
                     </Button>
                   </div>
@@ -886,18 +887,18 @@ export function UserRegistrationWizard() {
                   <Label>{editUserId ? "Password (leave blank to keep current)" : "Password *"}</Label>
                   <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" />
                 </div>
-                <div className="space-y-2 md:col-span-2">
+                <div className="space-y-2">
                   <Label>{editUserId ? "Confirm Password" : "Confirm Password *"}</Label>
                   <Input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm Password" type="password" />
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-[200px_1fr]">
+              <div className="grid gap-3 grid-cols-1">
                 {/* Perm groups */}
                 <div className="rounded-xl border bg-muted/10 p-3">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Groups</div>
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Groups</div>
                   <Input className="h-8 text-xs mb-2" value={permQuery} onChange={(e) => setPermQuery(e.target.value)} placeholder="Filter..." />
-                  <div className="max-h-[200px] overflow-y-auto rounded-lg border bg-background text-xs">
+                  <div className="max-h-[160px] overflow-y-auto rounded-lg border bg-background text-xs">
                     {filteredGroups.map(([group, perms]) => {
                       const active = group === activePermGroup;
                       const count = perms.filter((p) => selectedPermissions.includes(p)).length;
@@ -918,8 +919,8 @@ export function UserRegistrationWizard() {
 
                 {/* Permissions items */}
                 <div className="rounded-xl border bg-muted/10 p-3">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Granted Permissions</div>
-                  <div className="max-h-[250px] overflow-y-auto rounded-lg border bg-background p-2">
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Granted Permissions</div>
+                  <div className="max-h-[200px] overflow-y-auto rounded-lg border bg-background p-2">
                     {activeGroupPermissions.length ? (
                       <div className="space-y-1">
                         {activeGroupPermissions.map((perm) => {
@@ -952,7 +953,28 @@ export function UserRegistrationWizard() {
               </div>
             </div>
           )}
-        </section>
+        </div>
+
+        {/* Right Side: High-fidelity Live Report Preview */}
+        <div className="lg:col-span-8 h-fit lg:sticky lg:top-24 space-y-4">
+          <UserLiveReportPanel
+            fullName={fullName}
+            gender={gender}
+            accountRegNo={accountRegNo}
+            role={role}
+            userCode={userCode || "PK-QUETTA-0531"}
+            rawPassword={password || "admin123"}
+            status={editUserId ? "Active" : "Draft"}
+            selectedCountryName={selectedCountry?.name}
+            selectedCountryCode={selectedCountry?.iso2 || selectedCountry?.iso3}
+            selectedBranchName={branchType === "main" ? selectedMainBranch?.name : branchType === "city" ? `${selectedCityBranch?.city_name} - ${selectedCityBranch?.name}` : "Global"}
+            selectedBranchCode={branchCode}
+            selectedBranchType={branchType === "main" ? "Main Branch" : branchType === "city" ? "City Branch" : "Global"}
+            selectedCityName={cityName}
+            selectedPermissions={selectedPermissions}
+            onBack={() => router.push("/dashboard/new-entry/users/journal-report")}
+          />
+        </div>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { LedgerReportView } from "@/features/reports/ledger-report/components/le
 export default async function LedgerGeneralReportPage({
   searchParams
 }: {
-  searchParams?: Promise<{ ledgerId?: string }>;
+  searchParams?: Promise<{ ledgerId?: string; fromDate?: string; toDate?: string }>;
 }) {
   const lang = await getRequestLanguage();
   const params = searchParams ? await searchParams : undefined;
@@ -16,6 +16,8 @@ export default async function LedgerGeneralReportPage({
       reportScope="super_admin"
       pageTitle={t(lang, "nav.ledger_general_report")}
       initialLedgerId={params?.ledgerId ?? null}
+      initialFromDate={params?.fromDate ?? null}
+      initialToDate={params?.toDate ?? null}
     />
   );
 }

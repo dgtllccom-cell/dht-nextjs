@@ -14,6 +14,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { apiGet } from "@/lib/api/client";
+import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -191,6 +192,172 @@ export function BranchGeneralReportView({
   // Popover states
   const [activeContactPopup, setActiveContactPopup] = useState<{ id: string; type: "phone" | "email" } | null>(null);
   const [activeProductPopup, setActiveProductPopup] = useState<string | null>(null);
+
+  const [viewLoadingId, setViewLoadingId] = useState<string | null>(null);
+
+  async function viewCountryBranch(branchId: string, countryName: string) {
+    try {
+      setViewLoadingId(branchId);
+      const res = await fetch(`/api/branch-management/country-branches?id=${encodeURIComponent(branchId)}`, {
+        cache: "no-store"
+      });
+      const json = await res.json();
+      const row = json.countryBranches?.[0];
+      if (!row) throw new Error("Main branch not found.");
+      
+      const contactsArray = Array.isArray(row.contacts) ? row.contacts : [];
+      const phoneVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("phone") || String(c.type || "").toLowerCase().includes("mobile"))?.value || row.phone || "";
+      const emailVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("email"))?.value || row.email || "";
+      const whatsappVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("whatsapp"))?.value || "";
+
+      openA4ReportWindow({
+        title: "Country Main Branch Report",
+        subtitle: "Branch Profile Report (A4)",
+        autoPrint: false,
+        branchData: {
+          serialNumber: row.id.slice(0, 4).toUpperCase(),
+          branchStatus: row.status || "Active",
+          branchCode: row.code || "-",
+          branchType: "MAIN",
+          country: countryName,
+          currency: row.local_currency || "USD",
+          
+          branchName: row.name || `${countryName} Main Branch`,
+          createdDate: row.created_at ? new Date(row.created_at).toLocaleDateString() : undefined,
+          updatedDate: row.updated_at ? new Date(row.updated_at).toLocaleDateString() : undefined,
+          createdBy: "Super Admin",
+          updatedBy: "Super Admin",
+          establishedOn: "-",
+          taxRegNo: "-",
+          ntnGstNo: "-",
+
+          city: "-",
+          cityCode: "-",
+          stateProvince: "-",
+          areaRegion: "-",
+          zipCode: "-",
+          fullAddress: row.address || "-",
+
+          ownerName: row.owner_name || "-",
+          ownerCode: "OWN-0001",
+          fatherHusbandName: "-",
+          cnicId: "-",
+          nationality: "Pakistani",
+          designation: "Country Admin",
+          ownershipType: "Individual",
+          ownershipPercent: "100%",
+          ownerPhone: phoneVal || "-",
+          ownerWhatsApp: whatsappVal || "-",
+          ownerEmail: emailVal || "-",
+          ownerAltEmail: "-",
+          ownerLandline: "-",
+          ownerWebsite: "-",
+
+          companyName: "Asmat & Brothers (Pvt) Ltd.",
+          companyCode: "COMP-001",
+          companyType: "Private Limited",
+          companyRegNo: "-",
+          companyIncDate: "-",
+          companyTaxRegNo: "-",
+          companyNtnGstNo: "-",
+          companyStatus: "Active",
+          companyPhone: phoneVal || "-",
+          companyEmail: emailVal || "-",
+          companyWebsite: "-",
+          companyOfficeAddress: row.address || "-",
+
+          allowedPermissions: row.permission_grants || [],
+          remarks: "Country Main Branch details profile."
+        }
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to load branch details.");
+    } finally {
+      setViewLoadingId(null);
+    }
+  }
+
+  async function viewCityBranch(branchId: string, countryName: string, cityName: string) {
+    try {
+      setViewLoadingId(branchId);
+      const res = await fetch(`/api/branch-management/city-branches?id=${encodeURIComponent(branchId)}`, {
+        cache: "no-store"
+      });
+      const json = await res.json();
+      const row = json.cityBranches?.[0];
+      if (!row) throw new Error("City branch not found.");
+      
+      const contactsArray = Array.isArray(row.contacts) ? row.contacts : [];
+      const phoneVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("phone") || String(c.type || "").toLowerCase().includes("mobile"))?.value || row.phone || "";
+      const emailVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("email"))?.value || row.email || "";
+      const whatsappVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("whatsapp"))?.value || "";
+
+      openA4ReportWindow({
+        title: "City Branch Report",
+        subtitle: "Branch Profile Report (A4)",
+        autoPrint: false,
+        branchData: {
+          serialNumber: row.id.slice(0, 4).toUpperCase(),
+          branchStatus: row.status || "Active",
+          branchCode: row.code || "-",
+          branchType: "CITY",
+          country: countryName,
+          currency: row.local_currency || "USD",
+          
+          branchName: row.name || `${cityName} City Branch`,
+          createdDate: row.created_at ? new Date(row.created_at).toLocaleDateString() : undefined,
+          updatedDate: row.updated_at ? new Date(row.updated_at).toLocaleDateString() : undefined,
+          createdBy: "Super Admin",
+          updatedBy: "Super Admin",
+          establishedOn: "-",
+          taxRegNo: "-",
+          ntnGstNo: "-",
+
+          city: cityName,
+          cityCode: row.code?.split("-")?.[1] || "-",
+          stateProvince: "-",
+          areaRegion: "-",
+          zipCode: "-",
+          fullAddress: row.address || "-",
+
+          ownerName: row.owner_name || "-",
+          ownerCode: "OWN-0001",
+          fatherHusbandName: "-",
+          cnicId: "-",
+          nationality: "Pakistani",
+          designation: "Branch Manager",
+          ownershipType: "Individual",
+          ownershipPercent: "100%",
+          ownerPhone: phoneVal || "-",
+          ownerWhatsApp: whatsappVal || "-",
+          ownerEmail: emailVal || "-",
+          ownerAltEmail: "-",
+          ownerLandline: "-",
+          ownerWebsite: "-",
+
+          companyName: "Asmat & Brothers (Pvt) Ltd.",
+          companyCode: "COMP-001",
+          companyType: "Private Limited",
+          companyRegNo: "-",
+          companyIncDate: "-",
+          companyTaxRegNo: "-",
+          companyNtnGstNo: "-",
+          companyStatus: "Active",
+          companyPhone: phoneVal || "-",
+          companyEmail: emailVal || "-",
+          companyWebsite: "-",
+          companyOfficeAddress: row.address || "-",
+
+          allowedPermissions: row.permission_grants || [],
+          remarks: "City Branch details profile."
+        }
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to load branch details.");
+    } finally {
+      setViewLoadingId(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -795,12 +962,21 @@ export function BranchGeneralReportView({
                                 <span className="text-[8px]">{isExpanded ? "▲" : "▼"}</span>
                               </button>
                               {mainBranch ? (
-                                <button
-                                  onClick={() => openCountryBranchEdit(mainBranch.id)}
-                                  className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all"
-                                >
-                                  Edit
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => viewCountryBranch(mainBranch.id, country.name)}
+                                    disabled={viewLoadingId !== null}
+                                    className="rounded border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm transition-all"
+                                  >
+                                    {viewLoadingId === mainBranch.id ? "Loading..." : "View"}
+                                  </button>
+                                  <button
+                                    onClick={() => openCountryBranchEdit(mainBranch.id)}
+                                    className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all"
+                                  >
+                                    Edit
+                                  </button>
+                                </>
                               ) : (
                                 <button className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all">
                                   Edit
@@ -844,12 +1020,21 @@ export function BranchGeneralReportView({
                                           <td className="p-2 border-r border-slate-200">{cityBranch.cityName}</td>
                                           <td className="p-2 border-r border-slate-200 tabular-nums">3</td>
                                           <td className="p-2">
-                                            <button
-                                              onClick={() => openCityBranchEdit(cityBranch.id)}
-                                              className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all"
-                                            >
-                                              Edit
-                                            </button>
+                                            <div className="flex items-center justify-center gap-1.5">
+                                              <button
+                                                onClick={() => viewCityBranch(cityBranch.id, country.name, cityBranch.cityName)}
+                                                disabled={viewLoadingId !== null}
+                                                className="rounded border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm transition-all"
+                                              >
+                                                {viewLoadingId === cityBranch.id ? "Loading..." : "View"}
+                                              </button>
+                                              <button
+                                                onClick={() => openCityBranchEdit(cityBranch.id)}
+                                                className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all"
+                                              >
+                                                Edit
+                                              </button>
+                                            </div>
                                           </td>
                                         </tr>
                                       ))
