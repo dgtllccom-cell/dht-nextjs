@@ -171,51 +171,6 @@ export const accountCreateSchema = scopeSchema.extend({
   branchId: optionalUuidSchema,
   parentId: optionalUuidSchema,
   code: z.string().trim().min(2).max(50),
-  name: z.string().trim().min(2).max(200),
-  kind: accountKindSchema,
-  currency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
-  isControlAccount: z.coerce.boolean().default(false)
-});
-
-export const accountUpdateSchema = scopeSchema.extend({
-  branchId: optionalUuidSchema,
-  parentId: optionalUuidSchema,
-  code: z.string().trim().min(2).max(50).optional(),
-  name: z.string().trim().min(2).max(200).optional(),
-  kind: accountKindSchema.optional(),
-  currency: z.string().trim().length(3).transform((value) => value.toUpperCase()).optional(),
-  status: z.enum(["active", "archived"]).optional(),
-  isControlAccount: z.coerce.boolean().optional(),
-  approvalRequestId: uuidSchema.optional(),
-  reason: z.string().max(1000).optional()
-});
-
-export const enterpriseAccountCreateSchema = scopeSchema.extend({
-  scope: ledgerScopeSchema,
-  parentId: optionalUuidSchema,
-  code: z.string().trim().min(2).max(50),
-  manualReferenceNumber: z.string().trim().min(1).max(120).optional().nullable(),
-  name: z.string().trim().min(2).max(200),
-  kind: accountKindSchema,
-  currency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
-  openingBalance: z.coerce.number().finite().default(0),
-  isControlAccount: z.coerce.boolean().default(false)
-});
-
-export const enterpriseLedgerCreateSchema = scopeSchema.extend({
-  scope: ledgerScopeSchema,
-  enterpriseAccountId: optionalUuidSchema,
-  parentLedgerId: optionalUuidSchema,
-  code: z.string().trim().min(2).max(50),
-  name: z.string().trim().min(2).max(200),
-  currency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
-  openingBalance: z.coerce.number().finite().default(0),
-  normalBalance: normalBalanceSchema.default("debit")
-});
-
-export const financialPeriodCreateSchema = scopeSchema.extend({
-  scope: ledgerScopeSchema,
-  periodName: z.string().trim().min(2).max(120),
   startDate: z.string().date(),
   endDate: z.string().date()
 });
@@ -331,8 +286,7 @@ export const customerCreateSchema = scopeSchema.extend({
   contacts: z.array(customerContactInputSchema).default([]),
   registrations: z.array(customerRegistrationInputSchema).default([])
 });
-
-export const customerUpdateSchema = customerCreateSchema.partial().extend({
+export const customerUpdateSchema = customerCreateSchema.partial().extend({
   countryId: uuidSchema
 });
 
@@ -443,5 +397,33 @@ export const shippingBlRecordCreateSchema = scopeSchema.extend({
   debit: z.coerce.number().finite().min(0).default(0),
   credit: z.coerce.number().finite().min(0).default(0),
   currencyCode: currencyCodeSchema.default("USD"),
-  reportPayload: z.unknown().optional()
 });
+
+export const shippingBlRecordUpdateSchema = shippingBlRecordCreateSchema.partial();
+
+// ─── Bank Master ─────────────────────────────────────────────────────────────
+export const bankCreateSchema = z.object({
+  bankType: z.string().trim().min(1).max(80),
+  accountType: z.string().trim().min(1).max(80),
+  bankName: z.string().trim().min(2).max(200),
+  branchName: z.string().trim().min(2).max(200),
+  branchCode: z.string().trim().min(1).max(80),
+  branchCodeType: z.string().trim().min(1).max(80),
+  shortName: z.string().trim().min(1).max(20),
+  accountTitle: z.string().trim().min(2).max(200),
+  accountNumber: z.string().trim().min(2).max(120),
+  ibanNumber: z.string().trim().max(34).nullable().optional(),
+  currency: z.string().trim().length(3).transform((v) => v.toUpperCase()),
+  accountStatus: z.enum(["Active", "Inactive", "Frozen", "Closed"]).default("Active"),
+  countryId: optionalUuidSchema,
+  stateProvinceId: optionalUuidSchema,
+  cityId: optionalUuidSchema,
+  fullAddress: z.string().trim().max(500).nullable().optional(),
+  phone: z.string().trim().max(50).nullable().optional(),
+  email: z.string().trim().email().nullable().optional(),
+  swiftBic: z.string().trim().max(20).nullable().optional(),
+  website: z.string().trim().url().nullable().optional(),
+  remarks: z.string().trim().max(2000).nullable().optional()
+});
+
+export const bankUpdateSchema = bankCreateSchema.partial();

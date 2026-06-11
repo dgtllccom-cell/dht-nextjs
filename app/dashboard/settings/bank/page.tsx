@@ -1,7 +1,5 @@
-import type { Route } from "next";
-import { redirect } from "next/navigation";
+import { BankForm } from "@/features/banks/components/bank-form";
 
-export default function BankSettingsRedirect() {
-  redirect("/dashboard/settings/management" as Route);
+export default function BankMasterFormPage() {
+  return <BankForm mode="standalone" />;
 }
-

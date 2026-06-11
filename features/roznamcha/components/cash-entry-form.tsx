@@ -15,7 +15,8 @@ import {
   Save,
   Search,
   User,
-  X
+  X,
+  MoreVertical
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,8 @@ import type { RoznamchaType } from "@/lib/accounting/roznamcha-flow";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
 import { t } from "@/lib/i18n/ui";
 import { cn } from "@/lib/utils";
+import { BankPicker } from "@/features/banks/components/bank-picker";
+import { getBankById } from "@/features/banks/bank-api";
 
 const SAVED_BANKS_KEY = "erp_saved_banks_v1";
 const SAVED_METHODS_KEY = "erp_saved_payment_methods_v1";
@@ -195,6 +198,7 @@ export function CashEntryForm({
   const [roznamchaBookType, setRoznamchaBookType] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
   const [narration, setNarration] = useState("");
+  const [remarks, setRemarks] = useState("");
 
   const selectedCountry = useMemo(
     () => countries.find((c) => c.id === countryId) ?? null,
@@ -213,7 +217,7 @@ export function CashEntryForm({
     debitRate?: number;
   } | null>(null);
 
-  const [paymentType, setPaymentType] = useState<"" | "bank" | "business" | "cash" | "transfer">("");
+  const [paymentType, setPaymentType] = useState<"" | "bank" | "business" | "invoice" | "cash" | "transfer">("");
   const [paymentMode, setPaymentMode] = useState<"" | "DEBIT" | "CREDIT">("");
   const [finalPayment, setFinalPayment] = useState("");
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -237,6 +241,11 @@ export function CashEntryForm({
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [lastEntryId, setLastEntryId] = useState<string | null>(null);
+
+  const [showRoznamcha, setShowRoznamcha] = useState(false);
+  const [roznamchaType, setRoznamchaType] = useState("Cash Book No.");
+  const [roznamchaBook, setRoznamchaBook] = useState("CB-001 - Main Cash Book");
+  const [roznamchaNumber, setRoznamchaNumber] = useState("000123");
 
   useEffect(() => {
     setLoginTimeText(new Date().toLocaleString());
@@ -268,10 +277,6 @@ export function CashEntryForm({
   const cashBankLedgerOptions = useMemo(
     () => cashBankLedgerRows.map(toLedgerOption),
     [cashBankLedgerRows]
-  );
-  const accountLedgerOptions = useMemo(
-    () => ledgerRowsWithAccount.map(toLedgerOption),
-    [ledgerRowsWithAccount]
   );
 
   const selectedCashLedger = useMemo(
@@ -311,7 +316,107 @@ export function CashEntryForm({
     setCashLedgerId("");
   }, [ledgerRowsWithAccount, cashLedgerId, selectedCounterLedger?.ledgerId]);
 
-  const amount = useMemo(() => Number(finalPayment || 0), [finalPayment]);
+  const showCalcPanel = Boolean(currency) && ["USD", "AED", "AFN", "INR", "IRR"].includes(currency.toUpperCase());
+
+  const calcFinal = useMemo(() => {
+    if (!showCalcPanel) return null;
+    const a = Number(calcAmount);
+    const p = Number(calcPrice);
+    if (!Number.isFinite(a) || !Number.isFinite(p) || a <= 0 || p <= 0) return null;
+    if (calcOp === "div" && p === 0) return null;
+    const v = calcOp === "mul" ? a * p : a / p;
+    return Number.isFinite(v) ? v : null;
+  }, [calcAmount, calcOp, calcPrice, showCalcPanel]);
+
+  const amount = useMemo(() => {
+    if (showCalcPanel && calcFinal !== null) return calcFinal;
+    return Number(finalPayment || 0);
+  }, [finalPayment, showCalcPanel, calcFinal]);
+
+  const computedDetails = useMemo(() => {
+    if (!paymentType) return "";
+    if (paymentType === "bank") {
+      const bankName = typeDetails.bankName || "";
+      const bankAccount = typeDetails.bankAccount || "";
+      const transferType = typeDetails.transferType || "Bank Transfer";
+      const transferNumber = typeDetails.transferReferenceNumber || "";
+      const attachment = attachmentFile?.name || typeDetails.bankAttachmentName || "";
+      return `Bank: ${bankName || "-"}${bankAccount ? ` (A/C: ${bankAccount})` : ""} | Transfer Type: ${transferType} | Transfer Number: ${transferNumber || "-"} | Attachment: ${attachment || "-"}`;
+    }
+    if (paymentType === "cash") {
+      const debitAcc = paymentMode === "DEBIT" 
+        ? (selectedCounterLedger?.ledgerName || selectedCounterLedger?.accountName || "-")
+        : (selectedCashLedger?.ledgerName || selectedCashLedger?.accountName || "-");
+      const creditAcc = paymentMode === "CREDIT"
+        ? (selectedCounterLedger?.ledgerName || selectedCounterLedger?.accountName || "-")
+        : (selectedCashLedger?.ledgerName || selectedCashLedger?.accountName || "-");
+      const receiverSender = typeDetails.receiverSenderName || typeDetails.receiver || "";
+      const mobile = typeDetails.mobileNumber || "";
+      return `Debit Account: ${debitAcc} | Credit Account: ${creditAcc} | Amount: ${amount || 0} ${currency || ""} | Receiver/Sender: ${receiverSender || "-"} | Mobile: ${mobile || "-"}`;
+    }
+    if (paymentType === "business" || paymentType === "invoice") {
+      const invoiceType = typeDetails.invoiceType || "Sales Invoice";
+      const invoiceName = typeDetails.invoiceName || "";
+      const invoiceNumber = typeDetails.invoiceNumber || "";
+      const purchaseInfo = typeDetails.purchaseInfo || typeDetails.businessName || "";
+      const transferInfo = typeDetails.transferInfo || typeDetails.receiptNumber || "";
+      return `Invoice Type: ${invoiceType} | Invoice Name: ${invoiceName || "-"} | Invoice Number: ${invoiceNumber || "-"} | Purchase Info: ${purchaseInfo || "-"} | Transfer Info: ${transferInfo || "-"}`;
+    }
+    if (paymentType === "transfer") {
+      const fromAcc = typeDetails.from || "";
+      const toAcc = typeDetails.to || "";
+      const ref = typeDetails.ref || "";
+      return `From: ${fromAcc || "-"} | To: ${toAcc || "-"} | Reference: ${ref || "-"}`;
+    }
+    return "";
+  }, [paymentType, paymentMode, selectedCounterLedger, selectedCashLedger, amount, currency, typeDetails, attachmentFile]);
+
+  const recentTransactions = useMemo(() => [
+    {
+      date: entryDate.split("-").reverse().join("/"),
+      accountCode: selectedCounterLedger?.accountCode || selectedCounterLedger?.ledgerCode || "1102-0001",
+      accountName: selectedCounterLedger?.accountName || "ABC Traders",
+      voucherNo: lastEntryId || "PV-000123",
+      description: (computedDetails || remarks.trim()) ? `Details: ${computedDetails}\nRemarks: ${remarks.trim()}` : "Payment to ABC Traders against invoice",
+      debit: paymentMode === "DEBIT" ? amount : 0,
+      credit: paymentMode === "CREDIT" ? amount : 0,
+      balance: paymentMode === "DEBIT" ? 25000 + amount : paymentMode === "CREDIT" ? 25000 - amount : 25000,
+      type: paymentMode === "DEBIT" ? "Receipt" : "Payment"
+    },
+    {
+      date: entryDate.split("-").reverse().join("/"),
+      accountCode: "1110-0002",
+      accountName: "Cash in Hand",
+      voucherNo: "RC-000087",
+      description: "Cash received from ABC Traders",
+      debit: 0,
+      credit: 7500,
+      balance: 17500,
+      type: "Receipt"
+    },
+    {
+      date: entryDate.split("-").reverse().join("/"),
+      accountCode: "6300-0001",
+      accountName: "Stationery Expenses",
+      voucherNo: "JV-000045",
+      description: "Stationery purchase",
+      debit: 300,
+      credit: 0,
+      balance: 17800,
+      type: "Journal"
+    },
+    {
+      date: entryDate.split("-").reverse().join("/"),
+      accountCode: "1120-0003",
+      accountName: "Bank Alfalah - Current A/C",
+      voucherNo: "BP-000012",
+      description: "Bank deposit",
+      debit: 0,
+      credit: 2650,
+      balance: 15150,
+      type: "Bank Payment"
+    }
+  ], [entryDate, selectedCounterLedger, lastEntryId, narration, paymentMode, amount, computedDetails, remarks]);
 
   const computed = useMemo(() => {
     if (!selectedCashLedger || !selectedCounterLedger) return null;
@@ -323,7 +428,7 @@ export function CashEntryForm({
         ? paymentMode === "DEBIT"
           ? "bank_deposit"
           : "bank_cheque"
-        : paymentType === "business"
+        : (paymentType === "business" || paymentType === "invoice")
           ? paymentMode === "DEBIT"
             ? "debit"
             : "credit"
@@ -354,7 +459,7 @@ export function CashEntryForm({
     selectedCounterLedger
   ]);
 
-  // Load session + countries once.
+  // Load session + countries + global accounts once.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -376,6 +481,24 @@ export function CashEntryForm({
         if (!cancelled) setCountries(rows);
       } finally {
         if (!cancelled) setLoadingCountries(false);
+      }
+    })();
+
+    (async () => {
+      setLoadingLedgers(true);
+      try {
+        const res = await listLedgerReportLedgers({
+          reportScope: "super_admin",
+          limit: 500
+        });
+        if (!cancelled) {
+          const rows = Array.isArray(res.ledgers) ? res.ledgers : [];
+          setLedgers(rows);
+        }
+      } catch (e) {
+        console.error("Failed to load global accounts", e);
+      } finally {
+        if (!cancelled) setLoadingLedgers(false);
       }
     })();
 
@@ -448,7 +571,6 @@ export function CashEntryForm({
     }
     setMainBranches([]);
     setCityBranches([]);
-    setLedgers([]);
 
     // Keep currency empty until an account is selected (matches reference UX).
     if (!suppress) setCurrency("");
@@ -507,8 +629,7 @@ export function CashEntryForm({
     };
   }, [countryId, countryBranchId]);
 
-  // Load ledgers once the branch scope is selected. City branch is optional:
-  // main-branch cash entries should still allow payment workflow selection.
+  // Load ledgers once the branch scope is selected.
   useEffect(() => {
     let cancelled = false;
     if (!countryId || !countryBranchId) return;
@@ -525,15 +646,23 @@ export function CashEntryForm({
         });
         if (!cancelled) {
           const rows = Array.isArray(res.ledgers) ? res.ledgers : [];
-          setLedgers(rows);
+          
+          // Ensure selected lookup ledger is kept in the list
+          const selectedRow = selectedLookupLedger || ledgers.find(r => r.ledgerId === counterLedgerId);
+          const finalRows = [...rows];
+          if (selectedRow && !finalRows.some(r => r.ledgerId === selectedRow.ledgerId)) {
+            finalRows.unshift(selectedRow);
+          }
+
+          setLedgers(finalRows);
 
           // Sensible defaults: pick first "cash" ledger if found.
           const cashGuess =
-            rows.find((r) => (r.ledgerName ?? "").toLowerCase().includes("cash")) ??
-            rows.find((r) => (r.accountName ?? "").toLowerCase().includes("cash")) ??
+            finalRows.find((r) => (r.ledgerName ?? "").toLowerCase().includes("cash")) ??
+            finalRows.find((r) => (r.accountName ?? "").toLowerCase().includes("cash")) ??
             null;
           if (cashGuess?.ledgerId) setCashLedgerId(cashGuess.ledgerId);
-          else if (rows[0]?.ledgerId) setCashLedgerId(rows[0].ledgerId);
+          else if (finalRows[0]?.ledgerId) setCashLedgerId(finalRows[0].ledgerId);
         }
       } finally {
         if (!cancelled) setLoadingLedgers(false);
@@ -564,20 +693,16 @@ export function CashEntryForm({
 
   function applyScopeFromLedger(row: LedgerLookupRow) {
     if (!row.countryId || !row.countryBranchId) return;
-    if (!isSuperAdmin) return;
 
     const needsCountry = row.countryId !== countryId;
     const needsMain = row.countryBranchId !== countryBranchId;
     const nextCityBranchId = row.cityBranchId ?? "";
     const needsCity = nextCityBranchId !== cityBranchId;
 
-    if (needsCountry || needsMain || needsCity) {
-      // Prevent the "country changed" reset effect from wiping the selected ledger.
-      suppressScopeResetRef.current = true;
-      if (needsCountry) setCountryId(row.countryId);
-      if (needsMain) setCountryBranchId(row.countryBranchId);
-      if (needsCity) setCityBranchId(nextCityBranchId);
-    }
+    suppressScopeResetRef.current = true;
+    if (needsCountry) setCountryId(row.countryId);
+    if (needsMain) setCountryBranchId(row.countryBranchId);
+    if (needsCity) setCityBranchId(nextCityBranchId);
   }
 
   function applyPostingLedger(row: LedgerLookupRow) {
@@ -631,6 +756,7 @@ export function CashEntryForm({
     setEntryDate(todayIso());
     setReferenceNo("");
     setNarration("");
+    setRemarks("");
     setAttachmentFile(null);
     setMessage(null);
     setActionMenuOpen(false);
@@ -730,6 +856,7 @@ export function CashEntryForm({
 
     setSaving(true);
     try {
+      const finalNarration = `Details: ${computedDetails}\nRemarks: ${remarks.trim()}`;
       const payload = {
         mode: "post" as const,
         type: postingType,
@@ -742,7 +869,7 @@ export function CashEntryForm({
         voucherNo: effectiveVoucher,
         paymentMethodId: null,
         referenceNo: referenceNo.trim() ? referenceNo.trim() : undefined,
-        narration: narration.trim() ? narration.trim() : undefined,
+        narration: finalNarration.trim() ? finalNarration.trim() : undefined,
         paymentDetails: {
           roznamchaBookType,
           paymentType: paymentMode === "DEBIT" ? "money_received" : "money_paid",
@@ -773,14 +900,18 @@ export function CashEntryForm({
           invoiceNumber: typeDetails.invoiceNumber ?? null,
           invoiceName: typeDetails.invoiceName ?? null,
           receiptNumber: typeDetails.receiptNumber ?? null,
-          attachmentName: attachmentFile?.name ?? null
+          attachmentName: attachmentFile?.name ?? null,
+          transferType: typeDetails.transferType ?? null,
+          invoiceType: typeDetails.invoiceType ?? null,
+          purchaseInfo: typeDetails.purchaseInfo ?? null,
+          transferInfo: typeDetails.transferInfo ?? null
         },
         lines: [
           {
             paymentEntryType: computed.entryType,
             enterpriseAccountId: computed.counter.enterpriseAccountId,
             ledgerId: computed.counter.ledgerId,
-            description: narration.trim() ? narration.trim() : undefined,
+            description: finalNarration.trim() ? finalNarration.trim() : undefined,
             debit: computed.counter.debit,
             credit: computed.counter.credit,
             currency: currency.trim().toUpperCase(),
@@ -795,7 +926,7 @@ export function CashEntryForm({
             paymentEntryType: computed.entryType,
             enterpriseAccountId: selectedCashLedger?.accountId || null,
             ledgerId: selectedCashLedger?.ledgerId || null,
-            description: narration.trim() ? narration.trim() : undefined,
+            description: finalNarration.trim() ? finalNarration.trim() : undefined,
             debit: computed.cash.debit,
             credit: computed.cash.credit,
             currency: currency.trim().toUpperCase(),
@@ -829,58 +960,6 @@ export function CashEntryForm({
     } finally {
       setSaving(false);
     }
-  }
-
-  function printPreview() {
-    if (!computed || !selectedCounterLedger || !selectedCashLedger) return;
-    const w = window.open("", "_blank");
-    if (!w) return;
-
-    const html = `
-<html>
-  <head>
-    <title>${pageTitle}</title>
-    <style>
-      body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#111}
-      h2{margin:0 0 12px 0}
-      .muted{color:#555;font-size:12px}
-      table{width:100%;border-collapse:collapse;margin-top:16px}
-      th,td{border:1px solid #ccc;padding:8px;font-size:13px;text-align:left}
-      th{background:#f3f4f6}
-    </style>
-  </head>
-  <body>
-    <h2>${pageTitle}</h2>
-    <div class="muted">Date: ${entryDate}</div>
-    <div class="muted">Currency: ${currency} &nbsp; | &nbsp; Rate: ${exchangeRate}</div>
-    <div style="margin-top:10px"><b>Narration:</b> ${narration || "-"}</div>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Ledger</th>
-          <th>Debit</th>
-          <th>Credit</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>${selectedCounterLedger.ledgerName || selectedCounterLedger.accountName || "-"}</td>
-          <td>${fmtAmount(computed.counter.debit)}</td>
-          <td>${fmtAmount(computed.counter.credit)}</td>
-        </tr>
-        <tr>
-          <td>${selectedCashLedger.ledgerName || selectedCashLedger.accountName || "-"}</td>
-          <td>${fmtAmount(computed.cash.debit)}</td>
-          <td>${fmtAmount(computed.cash.credit)}</td>
-        </tr>
-      </tbody>
-</html>
-    `.trim();
-
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
   }
 
   const countryOptions: SearchSelectOption[] = useMemo(
@@ -930,17 +1009,6 @@ export function CashEntryForm({
 
   const normalizedCurrency = currency.trim().toUpperCase();
   const isLocalCurrency = normalizedCurrency === branchCurrency.toUpperCase();
-  const showCalcPanel = Boolean(normalizedCurrency) && allowedCurrencies.has(normalizedCurrency);
-
-  const calcFinal = useMemo(() => {
-    if (!showCalcPanel) return null;
-    const a = Number(calcAmount);
-    const p = Number(calcPrice);
-    if (!Number.isFinite(a) || !Number.isFinite(p) || a <= 0 || p <= 0) return null;
-    if (calcOp === "div" && p === 0) return null;
-    const v = calcOp === "mul" ? a * p : a / p;
-    return Number.isFinite(v) ? v : null;
-  }, [calcAmount, calcOp, calcPrice, showCalcPanel]);
 
   const saUsdRate = useMemo(() => {
     if (!dailyUsdRates) return null;
@@ -1025,8 +1093,6 @@ export function CashEntryForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchCurrency, countryBranchId, countryId, isLocalCurrency, normalizedCurrency]);
 
-
-
   const branchFullName = [
     selectedCountry?.name ? `${selectedCountry.name} (${branchCurrency})` : null,
     selectedMainBranch?.name ? `${selectedMainBranch.name} (${selectedMainBranch.code})` : null,
@@ -1042,1397 +1108,821 @@ export function CashEntryForm({
       : effectiveScopeMode === "country"
         ? "Country-level cash entry access filtered to assigned country, branches, cities, approvals, and reports."
         : "City-level cash entry access filtered to assigned city branch operations and transactions.";
-  const hierarchyItems = [
-    { label: "Country", value: selectedCountry?.name ?? (countryId ? "Selected" : "Not selected") },
-    { label: "Main Branch", value: selectedMainBranch?.name ?? (countryBranchId ? "Selected" : "Not selected") },
-    { label: "City Branch", value: selectedCityBranch?.name ?? (cityBranchId ? "Selected" : "Not selected") },
-    { label: "Currency", value: branchCurrency }
-  ];
-  const scopeReady =
-    effectiveScopeMode === "super_admin" || effectiveScopeMode === "country"
-      ? Boolean(countryId && countryBranchId)
-      : Boolean(countryBranchId || cityBranchId);
-  const accountLookupReady = isSuperAdmin || scopeReady;
 
-  useEffect(() => {
-    const value = accountNoInput.trim();
-    if (!accountLookupReady || loadingLedgers || value.length < 3) return;
+  const accountNoOptions = useMemo(() => {
+    return ledgers.map((row) => {
+      const label = `${row.accountCode || row.ledgerCode || ""} — ${row.accountName || row.ledgerName || ""}`;
+      const keywords = `${row.accountCode} ${row.ledgerCode} ${row.accountName} ${row.ledgerName} ${row.manualReferenceNumber} ${row.customerNumber}`;
+      return { value: row.ledgerId, label, keywords };
+    });
+  }, [ledgers]);
 
-    const selectedKeys = selectedCounterLedger
-      ? [
-          selectedCounterLedger.accountCode,
-          selectedCounterLedger.rawAccountCode,
-          selectedCounterLedger.ledgerCode,
-          selectedCounterLedger.manualReferenceNumber,
-          selectedCounterLedger.customerNumber,
-          selectedCounterLedger.accountName
-        ]
-          .filter(Boolean)
-          .map((item) => String(item).trim().toLowerCase())
-      : [];
-
-    if (selectedKeys.includes(value.toLowerCase())) return;
-
-    const timer = window.setTimeout(() => {
-      void lookupAccountNo();
-    }, 450);
-
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountLookupReady, accountNoInput, loadingLedgers, selectedCounterLedger?.ledgerId]);
-
-  const scopeMetrics = [
-    { label: "Working Scope", value: scopeTitle },
-    { label: "Reports", value: scopeReady ? "Filtered" : "Waiting" },
-    { label: "Approval Status", value: "Draft" },
-    { label: "Audit", value: session?.user?.fullName || session?.user?.email || "Current User" }
-  ];
-
-  function handleViewScopeChange(nextScope: CashEntryViewScope) {
-    setManualViewScope(nextScope);
-    setCashLedgerId("");
-    setCounterLedgerId("");
-    setAccountNoInput("");
-    setAccountLookupError(null);
-
-    if (nextScope === "super_admin" && !isSuperAdmin) return;
-    if (nextScope === "super_admin") {
-      setCountryId("");
-      setCountryBranchId("");
-      setCityBranchId("");
-      return;
-    }
-
-    if (session?.scopes?.countryIds?.length) {
-      setCountryId(session.scopes.countryIds[0]!);
-    } else if (!isSuperAdmin) {
-      setCountryId("");
-    }
-
-    if (nextScope === "branch" && session?.scopes?.cityBranchIds?.length) {
-      if (session.scopes.countryBranchIds?.length) setCountryBranchId(session.scopes.countryBranchIds[0]!);
-      setCityBranchId(session.scopes.cityBranchIds[0]!);
-    } else {
-      setCountryBranchId("");
-      setCityBranchId("");
-    }
-  }
-
-  function saveDraftLocally() {
-    const draft = {
-      countryId,
-      countryBranchId,
-      cityBranchId,
-      accountNoInput,
-      counterLedgerId,
-      cashLedgerId,
-      entryDate,
-      roznamchaBookType,
-      paymentType,
-      paymentMode,
-      currency,
-      exchangeRate,
-      finalPayment,
-      referenceNo,
-      narration,
-      typeDetails,
-      savedAt: new Date().toISOString()
-    };
-    window.localStorage.setItem("erp_cash_entry_draft_v1", JSON.stringify(draft));
-    setMessage("Draft saved on this screen. Use Save Entry to post it to database.");
-  }
-
-  const accountProfileCards = selectedCounterLedger ? (
-    <div className="space-y-2">
-      <div className="rounded-[10px] border border-slate-200 bg-card p-2.5 shadow-[0_3px_10px_rgba(15,23,42,.05)] dark:border-slate-800">
-        <div className="mb-1.5 border-b-2 border-blue-600 pb-1.5 text-xs font-black uppercase tracking-[0.25px] text-blue-700 dark:text-blue-300">
-          Payment Branch Details
-        </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          <div className="space-y-1 md:pr-3">
-            <div className="text-[11px] font-black text-slate-900 dark:text-slate-100">Main Branch Address</div>
-            <AddressLine icon="👤" strong value={selectedCounterLedger.countryBranchName || selectedMainBranch?.name || selectedCountry?.name || "Main Branch"} />
-            <AddressLine icon="📍" label="Main Branch Code" value={selectedMainBranch?.code || selectedCounterLedger.branchSerialNumber || "-"} />
-            <AddressLine icon="📍" label="Country" value={selectedCounterLedger.countryName || selectedCountry?.name || "-"} />
-            <AddressLine icon="📍" label="Country Serial" value={selectedCounterLedger.countrySerialNumber || "-"} />
-            <AddressLine icon="📍" label="Branch Serial" value={selectedCounterLedger.branchSerialNumber || "-"} />
-            <AddressContact icon="👤" label="User" value={session?.user?.fullName || session?.user?.email || "-"} />
-          </div>
-          <div className="space-y-1 border-t border-dashed border-slate-300 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0 dark:border-slate-700">
-            <div className="text-[11px] font-black text-slate-900 dark:text-slate-100">Working Branch Address</div>
-            <AddressLine icon="👤" strong value={selectedCounterLedger.cityBranchName || selectedCityBranch?.name || selectedCityBranch?.city_name || branchFullName || "-"} />
-            <AddressLine icon="📍" label="Working Branch Code" value={selectedCityBranch?.code || selectedMainBranch?.code || selectedCounterLedger.branchSerialNumber || "-"} />
-            <AddressLine icon="📍" label="City Branch" value={selectedCounterLedger.cityBranchName || selectedCityBranch?.city_name || "-"} />
-            <AddressLine icon="📍" label="Currency" value={selectedCounterLedger.ledgerCurrency || branchCurrency} />
-            <AddressLine icon="📅" label="Report Date" value={entryDate} />
-            <AddressContact icon="ID" label="User ID" value={session?.user?.id ?? "-"} />
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-[10px] border border-slate-200 bg-card p-2.5 shadow-[0_3px_10px_rgba(15,23,42,.05)] dark:border-slate-800">
-        <div className="mb-1.5 border-b-2 border-emerald-600 pb-1.5 text-xs font-black uppercase tracking-[0.25px] text-emerald-700 dark:text-emerald-300">
-          Payment Customer Account Details
-        </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          <div className="space-y-1 md:pr-3">
-            <div className="text-[11px] font-black text-slate-900 dark:text-slate-100">Billing Address</div>
-            <AddressLine icon="👤" strong value={selectedCounterLedger.companyName || selectedCounterLedger.accountName || "-"} />
-            <AddressLine icon="📍" label="Account Number" value={selectedCounterLedger.accountCode || selectedCounterLedger.ledgerCode || "-"} />
-            <AddressLine icon="📍" label="Manual Reference" value={selectedCounterLedger.manualReferenceNumber || "-"} />
-            <AddressLine icon="📍" label="Customer Number" value={selectedCounterLedger.customerNumber || "-"} />
-            <AddressLine icon="📍" label="Company" value={selectedCounterLedger.companyName || "-"} />
-            <AddressContact icon="☎" label="Balance" value={fmtAmount(selectedCounterLedger.currentBalance ?? 0)} />
-            <AddressLine icon="#" label="Customer Currency" value={selectedCounterLedger.ledgerCurrency || "-"} />
-          </div>
-          <div className="space-y-1 border-t border-dashed border-slate-300 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0 dark:border-slate-700">
-            <div className="text-[11px] font-black text-slate-900 dark:text-slate-100">Shipping / Account Address</div>
-            <AddressLine icon="👤" strong value={selectedCounterLedger.accountName || "-"} />
-            <AddressLine icon="📍" label="Country" value={selectedCounterLedger.countryName || selectedCountry?.name || "-"} />
-            <AddressLine icon="📍" label="City Branch" value={selectedCounterLedger.cityBranchName || selectedCityBranch?.city_name || "-"} />
-            <AddressLine icon="📍" label="Status" value="Active" />
-            <AddressContact icon="▣" label="Ledger" value={selectedCounterLedger.ledgerCode || selectedCounterLedger.ledgerName || "-"} />
-            <AddressLine icon="▣" label="Category" value={selectedCounterLedger.accountKind || selectedCounterLedger.scope || "-"} />
-          </div>
-        </div>
-      </div>
-    </div>
-  ) : null;
+  const accountNameOptions = useMemo(() => {
+    return ledgers.map((row) => {
+      const label = `${row.accountName || row.ledgerName || ""} (${row.accountCode || row.ledgerCode || ""})`;
+      const keywords = `${row.accountCode} ${row.ledgerCode} ${row.accountName} ${row.ledgerName} ${row.manualReferenceNumber} ${row.customerNumber}`;
+      return { value: row.ledgerId, label, keywords };
+    });
+  }, [ledgers]);
 
   return (
-    <div className="mx-auto w-full max-w-[1160px] overflow-hidden rounded-[18px] border border-slate-200 bg-white text-slate-950 shadow-[0_18px_50px_rgba(15,23,42,.10)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50">
+    <div className="mx-auto w-full overflow-hidden rounded-[18px] border border-slate-200 bg-white text-slate-950 shadow-[0_18px_50px_rgba(15,23,42,.10)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50">
       <section className="bg-gradient-to-br from-slate-950 to-blue-700 px-4 py-3 text-white">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-black tracking-tight text-white">Cash Entry Payment Software</h1>
-            <p className="mt-0.5 text-xs font-semibold text-white/85">2025 Dashboard - Branch Payment Voucher</p>
-            <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/15 px-3 py-1 text-xs font-extrabold text-white">
-              Report No: <span>{lastEntryId || "Draft"}</span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Menu className="h-5 w-5 opacity-70" />
+            <div>
+              <h1 className="text-lg font-black tracking-tight text-white">Cash Entry Payment Software</h1>
+              <p className="text-[10px] font-semibold text-white/85">Smart Daily Roznamcha System — Branch Payment Voucher</p>
             </div>
           </div>
 
-          <div className="relative">
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-9 rounded-lg bg-white px-4 text-xs font-black text-slate-900 shadow hover:bg-slate-100"
-              onClick={() => setActionMenuOpen((open) => !open)}
-              aria-label="Open cash entry actions"
-              title="Actions"
-            >
-              Actions
-              <ChevronDown className="ml-2 h-4 w-4" aria-hidden />
-            </Button>
-            {actionMenuOpen ? (
-              <div className="absolute right-0 z-40 mt-2 min-w-[220px] rounded-xl border border-slate-200 bg-white p-2 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,.18)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50">
-                <Button type="button" variant="ghost" className="h-9 w-full justify-start text-xs font-bold" onClick={clearSelectedAccount}>
-                  Clear Account
-                </Button>
-                <Button type="button" variant="ghost" className="h-9 w-full justify-start text-xs font-bold" onClick={resetPaymentDraft}>
-                  Reset Payment
-                </Button>
-                <Button type="button" variant="ghost" className="h-9 w-full justify-start text-xs font-bold" onClick={printPreview}>
-                  Print Report
-                </Button>
-                <Button type="button" className="h-9 w-full justify-start bg-emerald-700 text-xs font-black hover:bg-emerald-800" disabled={!canSave || saving} onClick={() => void save()}>
-                  {saving ? "Saving..." : "Submit Payment"}
-                </Button>
-              </div>
-            ) : null}
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+              {entryDate}
+            </span>
+            <div className="relative">
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 w-9 rounded-full p-0 text-white hover:bg-white/10 flex items-center justify-center"
+                onClick={() => setActionMenuOpen((open) => !open)}
+                aria-label="Open actions"
+                title="Actions"
+              >
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+              {actionMenuOpen ? (
+                <div className="absolute right-0 z-40 mt-2 min-w-[220px] rounded-xl border border-slate-200 bg-white p-2 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,.18)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50">
+                  <Button type="button" variant="ghost" className="h-9 w-full justify-start text-xs font-bold gap-2" onClick={clearSelectedAccount}>
+                    <X className="h-4 w-4" />
+                    Clear Account
+                  </Button>
+                  <Button type="button" variant="ghost" className="h-9 w-full justify-start text-xs font-bold gap-2" onClick={resetPaymentDraft}>
+                    <RefreshCw className="h-4 w-4" />
+                    Reset Payment
+                  </Button>
+                  <Button type="button" variant="ghost" className="h-9 w-full justify-start text-xs font-bold gap-2" onClick={printPreview}>
+                    <Printer className="h-4 w-4" />
+                    Print PDF View
+                  </Button>
+                  <Button type="button" className="h-9 w-full justify-start bg-emerald-700 text-white text-xs font-black hover:bg-emerald-800 gap-2" disabled={!canSave || saving} onClick={() => void save()}>
+                    <Save className="h-4 w-4" />
+                    {saving ? "Saving..." : "Submit Payment"}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>
 
-      <div className="space-y-3 bg-[#f8fbff] p-3 dark:bg-slate-950">
+      <div className="space-y-3 bg-[#f8fbff] p-3 dark:bg-slate-950/40">
         {message ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
             {message}
           </div>
         ) : null}
 
-        <section className="space-y-3">
-          {selectedCounterLedger ? (
-            accountProfileCards
-          ) : (
-            <div className="space-y-3">
-              <ProfilePanel
-                tone="blue"
-                icon={<Building2 className="h-7 w-7" aria-hidden />}
-                title="Payment Branch Details"
-                badge="Active"
-                rows={[
-                  ["Country", selectedCountry ? `${selectedCountry.name} (${branchCurrency})` : "-"],
-                  ["Main Branch Code", selectedMainBranch?.code || "-"],
-                  ["Main Branch", selectedMainBranch?.name || "-"],
-                  ["Working Branch", selectedCityBranch?.city_name || selectedCityBranch?.name || selectedMainBranch?.name || "-"],
-                  ["Currency", branchCurrency],
-                  ["Report Date", entryDate],
-                  ["User", session?.user?.fullName || session?.user?.email || "-"],
-                  ["User ID", session?.user?.id ?? "-"]
-                ]}
+        {/* 1. Compact Branch Details section at the top */}
+        <Card className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+          <div className="border-b border-slate-200 bg-gradient-to-r from-blue-50 to-white px-4 py-2 dark:border-slate-800 dark:from-slate-900 dark:to-slate-950">
+            <div className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
+              🏢 Branch Details
+            </div>
+          </div>
+          <div className="p-3 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <SearchSelect
+                label="Country"
+                value={countryId}
+                placeholder="Select Country"
+                options={countryOptions}
+                disabled={loadingCountries || (effectiveScopeMode !== "super_admin" && !isSuperAdmin)}
+                onValueChange={(value) => setCountryId(value)}
               />
-              <ProfilePanel
-                tone="purple"
-                icon={<User className="h-7 w-7" aria-hidden />}
-                title="Payment Customer Account Details"
-                badge="-"
-                rows={[
-                  ["Account Number", "-"],
-                  ["Manual Reference", "-"],
-                  ["Customer Number", "-"],
-                  ["Account Name", "-"],
-                  ["Company", "-"],
-                  ["Country", selectedCountry?.name || "-"],
-                  ["Branch", selectedMainBranch?.name || "-"],
-                  ["Current Balance", `0.00 ${branchCurrency}`]
-                ]}
+              <SearchSelect
+                label="Branch"
+                value={countryBranchId}
+                placeholder="Select Branch"
+                options={mainBranchOptions}
+                disabled={!countryId}
+                onValueChange={(value) => setCountryBranchId(value)}
+              />
+              <SearchSelect
+                label="City Branch"
+                value={cityBranchId}
+                placeholder="Select City Branch"
+                options={cityBranchOptions}
+                disabled={!countryId || !countryBranchId}
+                onValueChange={(value) => setCityBranchId(value)}
               />
             </div>
-          )}
-        </section>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-dashed border-slate-200 pt-2 text-[11px] font-semibold text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              <span><b>Logged-in User:</b> {session?.user?.fullName || session?.user?.email || "Admin"} (ID: {session?.user?.id || "-"})</span>
+              <span>•</span>
+              <span><b>Team:</b> {session?.roles?.join(", ") || "Accounts"}</span>
+              <span>•</span>
+              <span><b>Branch Currency:</b> {branchCurrency}</span>
+              <span>•</span>
+              <span><b>Login Time:</b> {loginTimeText}</span>
+            </div>
+          </div>
+        </Card>
 
-        <section className="grid gap-3 xl:grid-cols-[1.45fr_0.95fr]">
-          <Card className="overflow-hidden rounded-xl border-slate-200 shadow-sm dark:border-slate-800">
-            <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-white py-2 dark:from-slate-900 dark:to-slate-950">
-              <CardTitle className="flex items-center gap-2 text-base font-black uppercase text-blue-800 dark:text-blue-300">
-                <Building2 className="h-5 w-5" aria-hidden />
-                Payment Entry
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 p-3">
-              <div className="rounded-lg border border-slate-200 bg-white shadow-[0_6px_16px_rgba(15,23,42,.04)] dark:border-slate-800 dark:bg-slate-950">
-                <div className="rounded-t-lg border-b bg-gradient-to-r from-slate-50 to-blue-50 px-3 py-2 text-xs font-black uppercase tracking-[0.2em] text-slate-800 dark:from-slate-900 dark:to-slate-950 dark:text-slate-100">
-                  Payment Details
-                </div>
-                <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-4">
-                  <FieldBlock label="Country">
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-black outline-none"
-                      value={countryId}
-                      disabled={loadingCountries || (effectiveScopeMode !== "super_admin" && !isSuperAdmin)}
-                      onChange={(event) => setCountryId(event.target.value)}
-                    >
-                      <option value="">Select Country</option>
-                      {countryOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </FieldBlock>
-                  <FieldBlock label="Branch">
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-black outline-none"
-                      value={countryBranchId}
-                      disabled={!countryId}
-                      onChange={(event) => setCountryBranchId(event.target.value)}
-                    >
-                      <option value="">Select Branch</option>
-                      {mainBranchOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </FieldBlock>
-                  <FieldBlock label="City Branch">
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-black outline-none"
-                      value={cityBranchId}
-                      disabled={!countryId || !countryBranchId}
-                      onChange={(event) => setCityBranchId(event.target.value)}
-                    >
-                      <option value="">Select City Branch</option>
-                      {cityBranchOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </FieldBlock>
-                  <FieldBlock label="Roznamcha Category" required>
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-black outline-none"
-                      value={paymentType}
-                      onChange={(event) => {
-                        const value = event.target.value as "" | "cash" | "bank" | "business";
-                        setPaymentType(value);
-                        setTypeDetails({});
-                        setAttachmentFile(null);
-                        setRoznamchaBookType(value ? "branch_payment_voucher" : "");
-                        setFinalPayment("");
-                        setPaymentMode("");
-                      }}
-                    >
-                      <option value="">Select Roznamcha Category</option>
-                      <option value="cash">Cash Roznamcha</option>
-                      <option value="bank">Bank Roznamcha</option>
-                      <option value="business">Business Roznamcha</option>
-                    </select>
-                  </FieldBlock>
-                </div>
+        {/* Two column layout below the header card */}
+        <div className="grid gap-4 lg:grid-cols-[1.4fr_0.8fr]">
+          {/* Left Column */}
+          <div className="space-y-4">
+            {/* Payment Customer Account Details Card */}
+            <Card className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <div className="border-b-2 border-emerald-600 bg-gradient-to-r from-emerald-50 to-white px-4 py-2 dark:from-slate-900 dark:to-slate-950">
+                <h3 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                  👤 Payment Customer Account Details
+                </h3>
               </div>
+              <CardContent className="p-3">
+                {selectedCounterLedger ? (
+                  <div className="grid gap-4 md:grid-cols-2 text-xs">
+                    <div className="space-y-1 md:pr-3">
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Billing Address</div>
+                      <AddressLine icon="👤" strong value={selectedCounterLedger.companyName || selectedCounterLedger.accountName || "-"} />
+                      <AddressLine icon="📍" label="Account Number" value={selectedCounterLedger.accountCode || selectedCounterLedger.ledgerCode || "-"} />
+                      <AddressLine icon="📍" label="Manual Reference" value={selectedCounterLedger.manualReferenceNumber || "-"} />
+                      <AddressLine icon="📍" label="Customer Number" value={selectedCounterLedger.customerNumber || "-"} />
+                      <AddressLine icon="📍" label="Company" value={selectedCounterLedger.companyName || "-"} />
+                      <AddressContact icon="💵" label="Balance" value={`${fmtAmount(selectedCounterLedger.currentBalance ?? 0)} ${selectedCounterLedger.ledgerCurrency || branchCurrency}`} />
+                      <AddressLine icon="▣" label="Customer Currency" value={selectedCounterLedger.ledgerCurrency || "-"} />
+                    </div>
+                    <div className="space-y-1 border-t border-dashed border-slate-200 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0 dark:border-slate-800">
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Shipping / Account Address</div>
+                      <AddressLine icon="👤" strong value={selectedCounterLedger.accountName || "-"} />
+                      <AddressLine icon="📍" label="Country" value={selectedCounterLedger.countryName || selectedCountry?.name || "-"} />
+                      <AddressLine icon="📍" label="City Branch" value={selectedCounterLedger.cityBranchName || selectedCityBranch?.city_name || "-"} />
+                      <AddressLine icon="📍" label="Status" value="Active" />
+                      <AddressContact icon="▣" label="Ledger" value={selectedCounterLedger.ledgerCode || selectedCounterLedger.ledgerName || "-"} />
+                      <AddressLine icon="▣" label="Category" value={selectedCounterLedger.accountKind || selectedCounterLedger.scope || "-"} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-slate-400 font-semibold italic text-xs">
+                    No customer account selected. Search by Account Number or Account Name below to select one.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-              <div className="grid gap-3 lg:grid-cols-[1.4fr_0.7fr]">
-                <FieldBlock label="Account Number / Manual Reference" required>
-                  <div className="flex gap-2">
-                    <Input
-                      className="h-9 text-xs font-black"
-                      value={accountNoInput}
-                      onChange={(e) => setAccountNoInput(e.target.value)}
-                      placeholder="Account no / manual ref / customer no / name"
-                      list="acctSamples"
-                      disabled={!accountLookupReady || loadingLedgers}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") void lookupAccountNo();
-                      }}
+            {/* Payment Entry Card */}
+            <Card className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <div className="border-b border-slate-200 bg-gradient-to-r from-blue-50 to-white px-4 py-2 dark:border-slate-800 dark:from-slate-900 dark:to-slate-950">
+                <h3 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                  📋 Payment Work Entry
+                </h3>
+              </div>
+              <CardContent className="p-4 space-y-4">
+                {/* 3. Account Number Master Search (Two Pickers: Number or Name) */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-black">Search by Account Number <span className="text-red-600">*</span></Label>
+                    <SearchSelect
+                      label=""
+                      value={counterLedgerId}
+                      placeholder="Select by Account Number..."
+                      options={accountNoOptions}
+                      disabled={loadingLedgers}
+                      onValueChange={handleCounterLedgerChange}
                     />
-                    <Button type="button" variant="outline" size="icon" className="h-9 w-9" disabled={!accountLookupReady || loadingLedgers} onClick={() => void lookupAccountNo()} title="Search Account">
-                      <Search className="h-4 w-4" aria-hidden />
-                    </Button>
-                    <Button type="button" variant="outline" size="icon" className="h-9 w-9" disabled={!accountLookupReady || loadingLedgers} onClick={clearSelectedAccount} title="Clear Account">
-                      <X className="h-4 w-4" aria-hidden />
-                    </Button>
                   </div>
-                  <datalist id="acctSamples">
-                    {ledgerRowsWithAccount.slice(0, 80).flatMap((row) =>
-                      [row.accountCode || row.ledgerCode, row.manualReferenceNumber, row.customerNumber, row.accountName]
-                        .filter(Boolean)
-                        .map((value) => <option key={`${row.ledgerId}-${value}`} value={String(value)} />)
-                    )}
-                  </datalist>
-                  <p className="mt-2 text-[11px] font-medium text-slate-500">
-                    Universal lookup: Account Number, Manual Reference, Customer Number, or Account Name.
-                  </p>
-                  {accountLookupError ? (
-                    <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                      {accountLookupError}
-                    </div>
-                  ) : null}
-                </FieldBlock>
 
-                <FieldBlock label="Date" required>
-                  <Input className="h-9 text-xs font-black" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} type="date" />
-                </FieldBlock>
-              </div>
-
-              {selectedCounterLedger && paymentType ? (
-                <div className="rounded-lg border bg-white p-3 dark:bg-slate-950">
-                  <div className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-blue-700 dark:text-blue-300">
-                    {paymentType === "cash"
-                      ? "Cash Roznamcha Details"
-                      : paymentType === "bank"
-                        ? "Bank Roznamcha Details"
-                        : "Business Roznamcha Details"}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-black">Search by Account Name <span className="text-red-600">*</span></Label>
+                    <SearchSelect
+                      label=""
+                      value={counterLedgerId}
+                      placeholder="Select by Account Name..."
+                      options={accountNameOptions}
+                      disabled={loadingLedgers}
+                      onValueChange={handleCounterLedgerChange}
+                    />
                   </div>
-                  {paymentType === "cash" ? (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <FieldBlock label="Receiver / Sender Name">
-                        <Input className="h-9 text-xs" value={typeDetails.receiverSenderName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, receiverSenderName: e.target.value }))} placeholder="Receiver or sender name" />
-                      </FieldBlock>
-                      <FieldBlock label="Mobile Number">
-                        <Input className="h-9 text-xs" value={typeDetails.mobileNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, mobileNumber: e.target.value }))} placeholder="Mobile number" />
-                      </FieldBlock>
-                      <FieldBlock label="WhatsApp Number">
-                        <Input className="h-9 text-xs" value={typeDetails.whatsappNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, whatsappNumber: e.target.value }))} placeholder="WhatsApp number" />
-                      </FieldBlock>
-                      <FieldBlock label="ID Card Copy Upload">
-                        <Input
-                          className="h-9 text-xs"
-                          type="file"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] ?? null;
-                            setAttachmentFile(file);
-                            setTypeDetails((p) => ({ ...p, idCardCopyName: file?.name || "" }));
-                          }}
-                        />
-                      </FieldBlock>
+                </div>
+
+                {accountLookupError && (
+                  <p className="text-xs text-red-600 font-semibold">{accountLookupError}</p>
+                )}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FieldBlock label="Roznamcha Date" required>
+                    <Input
+                      className="h-10 text-xs font-semibold"
+                      value={entryDate}
+                      onChange={(e) => setEntryDate(e.target.value)}
+                      type="date"
+                    />
+                  </FieldBlock>
+
+                  <FieldBlock label="Roznamcha Type" required>
+                    <select
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                      value={roznamchaType}
+                      onChange={(e) => setRoznamchaType(e.target.value)}
+                    >
+                      <option value="Roznamcha Book No.">Roznamcha Book No.</option>
+                      <option value="Cash Book No.">Cash Book No.</option>
+                      <option value="Receipt No.">Receipt No.</option>
+                    </select>
+                  </FieldBlock>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FieldBlock label="Roznamcha Book" required>
+                    <Input
+                      className="h-10 text-xs font-semibold"
+                      value={roznamchaBook}
+                      onChange={(e) => setRoznamchaBook(e.target.value)}
+                      placeholder="e.g. CB-001 - Main Cash Book"
+                    />
+                  </FieldBlock>
+
+                  <FieldBlock label="Roznamcha Number" required>
+                    <Input
+                      className="h-10 text-xs font-semibold"
+                      value={roznamchaNumber}
+                      onChange={(e) => setRoznamchaNumber(e.target.value)}
+                      placeholder="e.g. 000123"
+                    />
+                  </FieldBlock>
+                </div>
+
+                <div className="w-full">
+                  <Button
+                    type="button"
+                    variant={showRoznamcha ? "default" : "outline"}
+                    className={cn("w-full h-10 text-xs font-black gap-2 transition-all duration-200", showRoznamcha ? "bg-blue-700 hover:bg-blue-800 text-white" : "")}
+                    onClick={() => setShowRoznamcha(!showRoznamcha)}
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    {showRoznamcha ? "Hide Roznamcha Details" : "Open Roznamcha"}
+                  </Button>
+                </div>
+
+                {/* Transaction entry details (category, currency, amount) */}
+                <div className="border-t border-slate-100 pt-4 space-y-4 dark:border-slate-800">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FieldBlock label="Roznamcha Category" required>
+                      <select
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                        value={paymentType}
+                        disabled={!selectedCounterLedger}
+                        onChange={(event) => {
+                          const value = event.target.value as "" | "cash" | "bank" | "business" | "invoice" | "transfer";
+                          setPaymentType(value);
+                          setTypeDetails({});
+                          setAttachmentFile(null);
+                          setRoznamchaBookType(value ? "branch_payment_voucher" : "");
+                          setFinalPayment("");
+                          setPaymentMode("");
+                        }}
+                      >
+                        <option value="">Select Category</option>
+                        <option value="cash">Cash Roznamcha</option>
+                        <option value="bank">Bank Roznamcha</option>
+                        <option value="business">Business Roznamcha</option>
+                        <option value="invoice">Invoice Journal</option>
+                        <option value="transfer">Transfer</option>
+                      </select>
+                    </FieldBlock>
+
+                    <FieldBlock label="Currency Type" required>
+                      <select
+                        className={cn(
+                          "h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none",
+                          currencyError ? "border-red-300" : ""
+                        )}
+                        value={currency}
+                        disabled={!selectedCounterLedger}
+                        onChange={(e) => {
+                          setCurrency(e.target.value);
+                          setFinalPayment("");
+                        }}
+                      >
+                        <option value="">Select Currency</option>
+                        {[...allowedCurrencies].map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </FieldBlock>
+                  </div>
+
+                  {/* Dynamic Type Panel */}
+                  {selectedCounterLedger && paymentType && (
+                    <div className="rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/20">
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                        {paymentType === "cash" && "Cash Details"}
+                        {paymentType === "bank" && "Bank Details"}
+                        {paymentType === "business" && "Business Details"}
+                        {paymentType === "invoice" && "Invoice Details"}
+                        {paymentType === "transfer" && "Transfer Details"}
+                      </div>
+                      
+                      {paymentType === "cash" && (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <FieldBlock label="Receiver / Sender Name">
+                            <Input className="h-9 text-xs" value={typeDetails.receiverSenderName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, receiverSenderName: e.target.value }))} placeholder="Receiver or sender name" />
+                          </FieldBlock>
+                          <FieldBlock label="Mobile Number">
+                            <Input className="h-9 text-xs" value={typeDetails.mobileNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, mobileNumber: e.target.value }))} placeholder="Mobile number" />
+                          </FieldBlock>
+                          <FieldBlock label="WhatsApp Number">
+                            <Input className="h-9 text-xs" value={typeDetails.whatsappNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, whatsappNumber: e.target.value }))} placeholder="WhatsApp number" />
+                          </FieldBlock>
+                          <FieldBlock label="ID Card Copy Upload">
+                            <Input
+                              className="h-9 text-xs"
+                              type="file"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] ?? null;
+                                setAttachmentFile(file);
+                                setTypeDetails((p) => ({ ...p, idCardCopyName: file?.name || "" }));
+                              }}
+                            />
+                          </FieldBlock>
+                        </div>
+                      )}
+
+                      {paymentType === "bank" && (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="md:col-span-2">
+                            <BankPicker
+                              label="Bank Name (Master Search)"
+                              value={typeDetails.bankId || ""}
+                              placeholder="Search central Bank Master database..."
+                              onValueChange={(bankId) => {
+                                void (async () => {
+                                  try {
+                                    const bank = await getBankById(bankId);
+                                    if (bank) {
+                                      setTypeDetails((p) => ({
+                                        ...p,
+                                        bankId,
+                                        bankName: bank.bank_name,
+                                        bankAccount: bank.account_number,
+                                        bankAccountTitle: bank.account_title
+                                      }));
+                                    }
+                                  } catch {
+                                    setTypeDetails((p) => ({ ...p, bankId }));
+                                  }
+                                })();
+                              }}
+                            />
+                          </div>
+                          
+                          {typeDetails.bankName && (
+                            <div className="md:col-span-2 grid gap-3 md:grid-cols-2 bg-white dark:bg-slate-900 p-2.5 rounded-lg border">
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-500 block">Bank Account Number</span>
+                                <span className="text-xs font-black text-slate-950 dark:text-slate-50">{typeDetails.bankAccount || "—"}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-500 block">Bank Account Title</span>
+                                <span className="text-xs font-black text-slate-950 dark:text-slate-50">{typeDetails.bankAccountTitle || "—"}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          <FieldBlock label="Transfer Type">
+                            <select
+                              className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-semibold outline-none"
+                              value={typeDetails.transferType || "Bank Transfer"}
+                              onChange={(e) => setTypeDetails((p) => ({ ...p, transferType: e.target.value }))}
+                            >
+                              <option value="Bank Transfer">Bank Transfer</option>
+                              <option value="Wire Transfer">Wire Transfer</option>
+                              <option value="Online Banking">Online Banking</option>
+                              <option value="Cheque Deposit">Cheque Deposit</option>
+                            </select>
+                          </FieldBlock>
+                          <FieldBlock label="Transfer Reference Number">
+                            <Input className="h-9 text-xs" value={typeDetails.transferReferenceNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, transferReferenceNumber: e.target.value }))} placeholder="Transfer reference" />
+                          </FieldBlock>
+                          <FieldBlock label="Payment Date">
+                            <Input className="h-9 text-xs" type="date" value={typeDetails.payDate || entryDate} onChange={(e) => setTypeDetails((p) => ({ ...p, payDate: e.target.value }))} />
+                          </FieldBlock>
+                          <FieldBlock label="Attachment Upload">
+                            <Input
+                              className="h-9 text-xs"
+                              type="file"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] ?? null;
+                                setAttachmentFile(file);
+                                setTypeDetails((p) => ({ ...p, bankAttachmentName: file?.name || "" }));
+                              }}
+                            />
+                          </FieldBlock>
+                        </div>
+                      )}
+
+                      {(paymentType === "business" || paymentType === "invoice") && (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <FieldBlock label="Invoice Type">
+                            <select
+                              className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-semibold outline-none"
+                              value={typeDetails.invoiceType || "Sales Invoice"}
+                              onChange={(e) => setTypeDetails((p) => ({ ...p, invoiceType: e.target.value }))}
+                            >
+                              <option value="Sales Invoice">Sales Invoice</option>
+                              <option value="Purchase Invoice">Purchase Invoice</option>
+                              <option value="Service Invoice">Service Invoice</option>
+                              <option value="Credit Note">Credit Note</option>
+                              <option value="Debit Note">Debit Note</option>
+                            </select>
+                          </FieldBlock>
+                          <FieldBlock label="Invoice Name">
+                            <Input className="h-9 text-xs" value={typeDetails.invoiceName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, invoiceName: e.target.value }))} placeholder="Invoice name" />
+                          </FieldBlock>
+                          <FieldBlock label="Invoice Number">
+                            <Input className="h-9 text-xs" value={typeDetails.invoiceNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, invoiceNumber: e.target.value }))} placeholder="Invoice number" />
+                          </FieldBlock>
+                          <FieldBlock label="Purchase Information">
+                            <Input className="h-9 text-xs" value={typeDetails.purchaseInfo || typeDetails.businessName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, purchaseInfo: e.target.value, businessName: e.target.value }))} placeholder="Purchase information" />
+                          </FieldBlock>
+                          <FieldBlock label="Transfer Information" className="md:col-span-2">
+                            <Input className="h-9 text-xs" value={typeDetails.transferInfo || typeDetails.receiptNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, transferInfo: e.target.value, receiptNumber: e.target.value }))} placeholder="Transfer details or receipt reference" />
+                          </FieldBlock>
+                        </div>
+                      )}
+
+                      {paymentType === "transfer" && (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <FieldBlock label="From">
+                            <Input className="h-9 text-xs" value={typeDetails.from || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, from: e.target.value }))} placeholder="From account" />
+                          </FieldBlock>
+                          <FieldBlock label="To">
+                            <Input className="h-9 text-xs" value={typeDetails.to || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, to: e.target.value }))} placeholder="To account" />
+                          </FieldBlock>
+                          <FieldBlock label="Reference" className="md:col-span-2">
+                            <Input className="h-9 text-xs" value={typeDetails.ref || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, ref: e.target.value }))} placeholder="Reference" />
+                          </FieldBlock>
+                        </div>
+                      )}
                     </div>
-                  ) : paymentType === "bank" ? (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <FieldBlock label="Bank Name">
-                        <Input className="h-9 text-xs" value={typeDetails.bankName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, bankName: e.target.value }))} placeholder="Bank name" />
-                      </FieldBlock>
-                      <FieldBlock label="Bank Account">
-                        <Input className="h-9 text-xs" value={typeDetails.bankAccount || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, bankAccount: e.target.value }))} placeholder="Bank account" />
-                      </FieldBlock>
-                      <FieldBlock label="Transfer Reference Number">
-                        <Input className="h-9 text-xs" value={typeDetails.transferReferenceNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, transferReferenceNumber: e.target.value }))} placeholder="Transfer reference" />
-                      </FieldBlock>
-                      <FieldBlock label="Payment Date">
-                        <Input className="h-9 text-xs" type="date" value={typeDetails.payDate || entryDate} onChange={(e) => setTypeDetails((p) => ({ ...p, payDate: e.target.value }))} />
-                      </FieldBlock>
-                      <FieldBlock label="Attachment Upload">
-                        <Input
-                          className="h-9 text-xs"
-                          type="file"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] ?? null;
-                            setAttachmentFile(file);
-                            setTypeDetails((p) => ({ ...p, bankAttachmentName: file?.name || "" }));
-                          }}
-                        />
-                      </FieldBlock>
+                  )}
+
+                  {/* Currency Rate / Calculations */}
+                  {selectedCounterLedger && currency && showCalcPanel && (
+                    <div className="rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/20">
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Exchange rate calculation ({currency} ➔ {branchCurrency})
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <FieldBlock label="Foreign Amount">
+                          <Input className="h-9 text-xs font-semibold" value={calcAmount} onChange={(e) => setCalcAmount(e.target.value)} type="number" step="0.0001" min="0" placeholder="e.g. 100" />
+                        </FieldBlock>
+                        <FieldBlock label="Exchange Rate">
+                          <Input className="h-9 text-xs font-semibold" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} type="number" step="0.0001" min="0" disabled={isLocalCurrency} />
+                        </FieldBlock>
+                        <FieldBlock label="Operation">
+                          <select
+                            className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-semibold outline-none"
+                            value={calcOp}
+                            onChange={(e) => setCalcOp(e.target.value as any)}
+                          >
+                            <option value="mul">Multiply (*)</option>
+                            <option value="div">Divide (/)</option>
+                          </select>
+                        </FieldBlock>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <FieldBlock label="Business Name">
-                        <Input className="h-9 text-xs" value={typeDetails.businessName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, businessName: e.target.value }))} placeholder="Business name" />
-                      </FieldBlock>
-                      <FieldBlock label="Invoice Number">
-                        <Input className="h-9 text-xs" value={typeDetails.invoiceNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, invoiceNumber: e.target.value }))} placeholder="Invoice number" />
-                      </FieldBlock>
-                      <FieldBlock label="Invoice Name">
-                        <Input className="h-9 text-xs" value={typeDetails.invoiceName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, invoiceName: e.target.value }))} placeholder="Invoice name" />
-                      </FieldBlock>
-                      <FieldBlock label="Receipt Number">
-                        <Input className="h-9 text-xs" value={typeDetails.receiptNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, receiptNumber: e.target.value }))} placeholder="Receipt number" />
+                  )}
+
+                  {/* Amount, Debit/Credit Selector */}
+                  {selectedCounterLedger && currency && (
+                    <div className="space-y-3">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <FieldBlock label="Final Amount" required>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
+                              {branchCurrency}
+                            </span>
+                            <Input
+                              className="h-10 pl-12 text-right text-xs font-black"
+                              value={showCalcPanel && calcFinal !== null ? fmtAmount(calcFinal) : finalPayment}
+                              onChange={(e) => setFinalPayment(e.target.value)}
+                              placeholder="0.00"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              disabled={showCalcPanel && calcFinal !== null}
+                            />
+                          </div>
+                        </FieldBlock>
+
+                        <FieldBlock label="Debit / Credit Entry" required>
+                          <div className="grid grid-cols-2 gap-2 h-10">
+                            <Button
+                              type="button"
+                              variant={paymentMode === "DEBIT" ? "default" : "outline"}
+                              className={cn("h-10 text-[11px] font-black", paymentMode === "DEBIT" ? "bg-emerald-700 hover:bg-emerald-800 text-white" : "")}
+                              onClick={() => {
+                                setPaymentMode("DEBIT");
+                                setRoznamchaBookType("branch_payment_voucher");
+                              }}
+                            >
+                              Debit
+                              <span className="block text-[9px] opacity-75 font-medium">(Receive)</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={paymentMode === "CREDIT" ? "default" : "outline"}
+                              className={cn("h-10 text-[11px] font-black", paymentMode === "CREDIT" ? "bg-red-700 hover:bg-red-800 text-white" : "")}
+                              onClick={() => {
+                                setPaymentMode("CREDIT");
+                                setRoznamchaBookType("branch_payment_voucher");
+                              }}
+                            >
+                              Credit
+                              <span className="block text-[9px] opacity-75 font-medium">(Pay)</span>
+                            </Button>
+                          </div>
+                        </FieldBlock>
+                      </div>
+                      <div className="text-[10px] font-semibold text-slate-500">
+                        Credit = جمع رقم (Money Paid) | Debit = ادا رقم (Money Received)
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Details and Remarks */}
+                  {selectedCounterLedger && currency && (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 block mb-1.5">
+                          Details (Auto-populated)
+                        </span>
+                        <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 p-2.5 rounded border border-slate-200 dark:border-slate-800 min-h-[36px] break-words">
+                          {computedDetails || "—"}
+                        </div>
+                      </div>
+
+                      <FieldBlock label="Remarks / Notes">
+                        <textarea
+                          rows={3}
+                          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-semibold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          value={remarks}
+                          onChange={(e) => setRemarks(e.target.value)}
+                          placeholder="Manually add additional descriptions, comments, explanations, or transaction notes..."
+                        />
                       </FieldBlock>
                     </div>
                   )}
                 </div>
-              ) : null}
-
-              {selectedCounterLedger && paymentType ? (
-                <div className="grid gap-3 rounded-lg border bg-white p-3 dark:bg-slate-950 lg:grid-cols-3">
-                  <FieldBlock label="Roznamcha No">
-                    <Input className="h-9 text-xs font-black" value={lastEntryId || referenceNo || "Draft"} onChange={(e) => setReferenceNo(e.target.value)} />
-                  </FieldBlock>
-                  <FieldBlock label="Reference No">
-                    <Input className="h-9 text-xs" value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Optional" />
-                  </FieldBlock>
-                  <FieldBlock label="Currency Type" required>
-                    <select
-                      className={cn("h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-black outline-none", currencyError ? "border-red-300" : null)}
-                      value={currency}
-                      onChange={(e) => {
-                        setCurrency(e.target.value);
-                        setFinalPayment("");
-                      }}
-                    >
-                      <option value="">Select Currency</option>
-                      {[...allowedCurrencies].map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </FieldBlock>
-                </div>
-              ) : null}
-
-              {selectedCounterLedger && paymentType && currency ? (
-                <div className="grid gap-3 rounded-lg border bg-white p-3 dark:bg-slate-950 lg:grid-cols-3">
-                  <FieldBlock label="Currency Type">
-                    <Input className="h-9 text-xs font-black" value={currency || "-"} readOnly />
-                  </FieldBlock>
-                  <FieldBlock label="Exchange Rate">
-                    <Input className="h-9 text-xs font-black" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} type="number" step="0.0001" min="0" disabled={!selectedCounterLedger || !countryBranchId || isLocalCurrency} />
-                  </FieldBlock>
-                  <FieldBlock label="Final Amount" required>
-                    <Input className="h-9 text-right text-xs font-black" value={finalPayment} onChange={(e) => setFinalPayment(e.target.value)} placeholder="Enter final amount" type="number" step="0.01" min="0" disabled={!selectedCounterLedger || !countryBranchId} />
-                  </FieldBlock>
-                </div>
-              ) : null}
-
-              {selectedCounterLedger && paymentType && currency ? (
-                <div className="rounded-lg border bg-white p-3 dark:bg-slate-950">
-                  <FieldBlock label="Debit / Credit Entry" required>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant={paymentMode === "DEBIT" ? "default" : "outline"}
-                        className={cn("h-9 text-[11px] font-black", paymentMode === "DEBIT" ? "bg-emerald-700 hover:bg-emerald-800" : "")}
-                        disabled={!selectedCounterLedger}
-                        onClick={() => {
-                          setPaymentMode("DEBIT");
-                          setRoznamchaBookType("branch_payment_voucher");
-                        }}
-                      >
-                        Debit
-                        <span className="ml-1 text-[10px] opacity-80">(Money Received)</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={paymentMode === "CREDIT" ? "default" : "outline"}
-                        className={cn("h-9 text-[11px] font-black", paymentMode === "CREDIT" ? "bg-red-700 hover:bg-red-800" : "")}
-                        disabled={!selectedCounterLedger}
-                        onClick={() => {
-                          setPaymentMode("CREDIT");
-                          setRoznamchaBookType("branch_payment_voucher");
-                        }}
-                      >
-                        Credit
-                        <span className="ml-1 text-[10px] opacity-80">(Money Paid)</span>
-                      </Button>
-                    </div>
-                    <div className="mt-2 rounded-md border bg-muted/30 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
-                      {paymentMode === "DEBIT"
-                        ? "Debit (Money Received) adds the final amount to this account balance."
-                        : paymentMode === "CREDIT"
-                          ? "Credit (Money Paid) reduces the final amount from this account balance."
-                          : "Select Debit or Credit before saving the transaction."}
-                    </div>
-                  </FieldBlock>
-                </div>
-              ) : null}
-
-              {paymentMode && paymentType && currency ? (
-                <>
-                  <FieldBlock label="Remarks / Details">
-                    <Input className="h-9 text-xs" value={narration} onChange={(e) => setNarration(e.target.value)} placeholder="e.g. Cash paid for office expense" />
-                  </FieldBlock>
-                </>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          {selectedCounterLedger && paymentMode && paymentType && currency ? (
-          <Card className="overflow-hidden rounded-xl border-red-100 shadow-sm dark:border-slate-800">
-            <CardHeader className="border-b bg-gradient-to-r from-red-50 to-white py-3 dark:from-slate-900 dark:to-slate-950">
-              <CardTitle className="flex items-center justify-between gap-2 text-base font-black uppercase text-red-700 dark:text-red-300">
-                <span className="flex items-center gap-2"><FileText className="h-5 w-5" aria-hidden /> Live Payment Report</span>
-                <span className="text-[11px] normal-case text-slate-500">{session?.user?.email ?? "-"}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 p-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <ReportBox
-                  rows={[
-                    ["Scope", scopeTitle],
-                    ["Country", selectedCountry ? `${selectedCountry.name} (${branchCurrency})` : "-"],
-                    ["Branch", selectedMainBranch?.name || "-"],
-                    ["City Branch", selectedCityBranch?.city_name || selectedCityBranch?.name || "-"]
-                  ]}
-                />
-                <ReportBox
-                  rows={[
-                    ["Date", entryDate.split("-").reverse().join("/")],
-                    ["Amount", amount ? `${fmtAmount(amount)} ${currency.toUpperCase()}` : "-"],
-                    ["Exchange Rate", exchangeRate],
-                    ["Rate Source", exchangeRateSource],
-                    ["Rate Time", exchangeRateEffectiveAt || "-"],
-                    ...(isLocalCurrency && saUsdRate ? [
-                      ["SA USD Rate", String(saUsdRate)],
-                      ["SA USD Equiv.", saUsdAmount ? `${fmtAmount(saUsdAmount)} USD` : "-"]
-                    ] : []),
-                    ["Payment Type", paymentType ? `${paymentType[0]!.toUpperCase()}${paymentType.slice(1)} Roznamcha` : "-"]
-                  ].filter(Boolean) as Array<[string, string]>}
-                />
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <ReportBox
-                  title="Ledger Summary"
-                  rows={[
-                    ["Account", selectedCounterLedger?.ledgerName || selectedCounterLedger?.accountName || "-"],
-                    ["Account Number", selectedCounterLedger?.accountCode || selectedCounterLedger?.ledgerCode || "-"],
-                    ["Transaction Type", paymentMode === "DEBIT" ? "Debit (Money Received)" : "Credit (Money Paid)"],
-                    ["Amount", amount ? fmtAmount(amount) : "-"],
-                    ["Balance Effect", paymentMode === "DEBIT" ? "Add to account balance" : "Reduce account balance"]
-                  ]}
-                />
-                <ReportBox title="Narration" rows={[["", narration.trim() || "-"]]} />
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="h-12 w-full border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                onClick={() => {
-                  const payload = {
-                    countryId,
-                    countryBranchId,
-                    cityBranchId,
-                    entryDate,
-                    roznamchaBookType,
-                    attachmentName: attachmentFile?.name ?? null,
-                    transactionType: paymentMode,
-                    roznamchaCategory: paymentType,
-                    paymentDetails: typeDetails,
-                    currency,
-                    exchangeRate,
-                    exchangeRateSource,
-                    exchangeRateEffectiveAt,
-                    quantity: 1,
-                    finalPayment,
-                    narration,
-                    referenceNo
-                  };
-                  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `cash-entry-${entryDate || "draft"}.json`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                <Download className="h-4 w-4" aria-hidden />
-                Export Draft (JSON)
-              </Button>
-            </CardContent>
-          </Card>
-          ) : (
-            <Card className="overflow-hidden rounded-xl border-dashed border-slate-200 bg-white/70 shadow-sm dark:border-slate-800 dark:bg-slate-950/60">
-              <CardHeader className="border-b py-3">
-                <CardTitle className="text-base font-black uppercase text-slate-700 dark:text-slate-200">Live Payment Report</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 p-6 text-sm font-semibold text-muted-foreground">
-                {selectedCounterLedger && !countryBranchId ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
-                    <p className="font-black">⚠️ Required options are not available.</p>
-                    <p className="mt-3">
-                      Account Number has been selected, but branch scope is not available or not loading.
-                    </p>
-                    <p className="mt-3">Please refresh the page or contact the system administrator.</p>
-                    <p className="mt-3 font-black">You cannot continue until these options are loaded.</p>
-                  </div>
-                ) : selectedCounterLedger && !paymentMode ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-                    <p className="font-black">⚠️ صرف Account Number منتخب کیا گیا ہے۔</p>
-                    <p className="mt-3">آگے بڑھنے کے لیے پہلے:</p>
-                    <ul className="mt-2 list-disc space-y-1 ps-5">
-                      <li>Debit (Money Received) یا Credit (Money Paid) منتخب کریں</li>
-                    </ul>
-                    <p className="mt-3">اس کے بعد Currency Type اور Amount کے آپشن ظاہر ہوں گے۔</p>
-                  </div>
-                ) : selectedCounterLedger && paymentMode && !paymentType ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-                    <p className="font-black">Payment Type منتخب کریں۔</p>
-                    <p className="mt-2">Cash Roznamcha، Bank Roznamcha یا Business Roznamcha میں سے ایک category منتخب کریں۔</p>
-                  </div>
-                ) : selectedCounterLedger && paymentMode && paymentType && !currency ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-                    <p className="font-black">Currency Type منتخب کریں۔</p>
-                    <p className="mt-2">Currency Type کے بعد Exchange Rate اور Final Amount fields active ہوں گی۔</p>
-                  </div>
-                ) : (
-                  <p>Select Account, Debit/Credit transaction type, Payment Type, and Currency to open the live payment report.</p>
-                )}
               </CardContent>
             </Card>
-          )}
-        </section>
+          </div>
 
-        <section className="flex justify-end border-t bg-white p-2 pt-3 dark:bg-slate-950">
-          <Button type="button" className="h-9 min-w-32 justify-center gap-2 rounded-md bg-emerald-700 px-4 text-xs font-black text-white hover:bg-emerald-800" disabled={!canSave || saving} onClick={save}>
-            <Save className="h-4 w-4" aria-hidden />
+          {/* Right Column */}
+          <div className="space-y-4">
+            {/* Live Payment Report Card */}
+            {selectedCounterLedger && paymentMode && paymentType && currency ? (
+              <div className="space-y-4">
+                <Card className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <div className="border-b border-blue-200 bg-gradient-to-r from-blue-50 to-white px-4 py-2 dark:from-slate-900 dark:to-slate-950">
+                    <CardTitle className="flex items-center justify-between text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                      <span>📄 Professional Live Payment Report</span>
+                      <span className="text-[10px] normal-case text-slate-500 font-semibold">{session?.user?.email ?? "-"}</span>
+                    </CardTitle>
+                  </div>
+                  <CardContent className="p-3 space-y-3">
+                    <div className="grid gap-3">
+                      <ReportBox
+                        rows={[
+                          ["Scope", scopeTitle],
+                          ["Country", selectedCountry ? `${selectedCountry.name} (${branchCurrency})` : "-"],
+                          ["Branch", selectedMainBranch?.name || "-"],
+                          ["City Branch", selectedCityBranch?.city_name || selectedCityBranch?.name || "-"]
+                        ]}
+                      />
+                      <ReportBox
+                        rows={[
+                          ["Date", entryDate.split("-").reverse().join("/")],
+                          ["Amount", amount ? `${fmtAmount(amount)} ${currency.toUpperCase()}` : "-"],
+                          ["Exchange Rate", exchangeRate],
+                          ["Rate Source", exchangeRateSource],
+                          ["Rate Time", exchangeRateEffectiveAt || "-"],
+                          ...(isLocalCurrency && saUsdRate ? [
+                            ["SA USD Rate", String(saUsdRate)],
+                            ["SA USD Equiv.", saUsdAmount ? `${fmtAmount(saUsdAmount)} USD` : "-"]
+                          ] : []),
+                          ["Payment Type", paymentType ? `${paymentType[0]!.toUpperCase()}${paymentType.slice(1)} Roznamcha` : "-"]
+                        ].filter(Boolean) as Array<[string, string]>}
+                      />
+                    </div>
+
+                    <ReportBox
+                      title="Ledger Summary"
+                      rows={[
+                        ["Account", selectedCounterLedger.ledgerName || selectedCounterLedger.accountName || "-"],
+                        ["Account Number", selectedCounterLedger.accountCode || selectedCounterLedger.ledgerCode || "-"],
+                        ["Transaction Type", paymentMode === "DEBIT" ? "Debit (Money Received)" : "Credit (Money Paid)"],
+                        ["Amount", amount ? fmtAmount(amount) : "-"],
+                        ["Balance Effect", paymentMode === "DEBIT" ? "Add to account balance" : "Reduce account balance"]
+                      ]}
+                    />
+                    
+                    <ReportBox title="Details" rows={[["", computedDetails || "-"]]} />
+                    <ReportBox title="Remarks" rows={[["", remarks.trim() || "-"]]} />
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 w-full border-blue-200 text-blue-700 hover:bg-blue-50 text-xs font-black gap-2"
+                      onClick={() => {
+                        const payload = {
+                          countryId,
+                          countryBranchId,
+                          cityBranchId,
+                          entryDate,
+                          roznamchaBookType,
+                          attachmentName: attachmentFile?.name ?? null,
+                          transactionType: paymentMode,
+                          roznamchaCategory: paymentType,
+                          paymentDetails: typeDetails,
+                          currency,
+                          exchangeRate,
+                          exchangeRateSource,
+                          exchangeRateEffectiveAt,
+                          quantity: 1,
+                          finalPayment: amount,
+                          narration: `Details: ${computedDetails}\nRemarks: ${remarks.trim()}`,
+                          referenceNo
+                        };
+                        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `cash-entry-${entryDate || "draft"}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <Download className="h-4 w-4" />
+                      Export Draft (JSON)
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Report Summary Card */}
+                <Card className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <div className="border-b border-slate-200 bg-white px-4 py-2 dark:from-slate-900 dark:to-slate-950">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      📊 Report Summary
+                    </h3>
+                  </div>
+                  <CardContent className="p-3 space-y-2.5 text-xs">
+                    <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-slate-800">
+                      <span className="font-semibold text-slate-500">Total Debit (Received)</span>
+                      <span className="font-black text-emerald-700 text-sm">
+                        {paymentMode === "DEBIT" ? `${fmtAmount(amount)} ${currency}` : "0.00"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-slate-800">
+                      <span className="font-semibold text-slate-500">Total Credit (Paid)</span>
+                      <span className="font-black text-red-700 text-sm">
+                        {paymentMode === "CREDIT" ? `${fmtAmount(amount)} ${currency}` : "0.00"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 font-bold bg-white dark:bg-slate-900 p-2 rounded-lg border">
+                      <span className="font-black text-slate-800 dark:text-slate-100">Net Amount</span>
+                      <span className="font-black text-blue-700 text-base">
+                        {fmtAmount(amount)} {currency}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <Card className="overflow-hidden rounded-xl border-dashed border-slate-200 bg-white/70 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 h-full min-h-[300px] grid place-items-center">
+                <div className="p-6 text-center text-xs font-semibold text-slate-400 space-y-2">
+                  <p className="text-sm">🔍 Live Payment Report Preview</p>
+                  <p className="max-w-[280px]">Select Account, Payment Category, Currency, Amount and Debit/Credit to display the live report.</p>
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Save Entry actions ribbon */}
+        <section className="flex justify-end border-t border-slate-200 pt-3 dark:border-slate-800">
+          <Button
+            type="button"
+            className="h-10 min-w-36 justify-center gap-2 rounded-md bg-emerald-700 px-5 text-xs font-black text-white hover:bg-emerald-800 animate-in fade-in"
+            disabled={!canSave || saving}
+            onClick={save}
+          >
+            <Save className="h-4 w-4" />
             {saving ? "Saving..." : "Save Entry"}
           </Button>
         </section>
 
-        {addOptionOpen ? (
-          <SimpleModal title={`Add New ${addOptionType === "bank" ? "Bank" : "Method"}`} onClose={() => setAddOptionOpen(false)} className="max-w-md">
-            <div className="space-y-3">
-              <Label>Name</Label>
-              <Input value={addOptionValue} onChange={(e) => setAddOptionValue(e.target.value)} placeholder="Enter name" />
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setAddOptionOpen(false)}>Cancel</Button>
-                <Button type="button" onClick={commitAddOption}>Save</Button>
+        {/* 8. Roznamcha details open below the form */}
+        {showRoznamcha && (
+          <Card className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950 animate-in slide-in-from-bottom-5 duration-200">
+            <div className="border-b border-slate-200 bg-gradient-to-r from-blue-50 to-white px-4 py-3 dark:border-slate-800 dark:from-slate-900 dark:to-slate-950 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                  📔 Roznamcha (Cash Book) Details
+                </h3>
+                <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                  Book: <b>{roznamchaBook}</b> | Type: <b>{roznamchaType}</b> | Number: <b>{roznamchaNumber}</b>
+                </p>
               </div>
-            </div>
-          </SimpleModal>
-        ) : null}
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="mx-auto max-w-[1160px] overflow-hidden rounded-[18px] border border-slate-200 bg-card text-card-foreground shadow-[0_18px_50px_rgba(15,23,42,.10)] dark:border-slate-800">
-      <section className="bg-gradient-to-br from-slate-950 to-blue-700 px-4 py-3 text-white">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-lg bg-white/10 text-lg font-black">
-              <Menu className="h-5 w-5" aria-hidden />
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight">Cash Entry Payment Software</h1>
-              <p className="mt-0.5 text-xs text-white/80">2025 Dashboard - Branch Payment Voucher</p>
-              <div className="mt-1 inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/15 px-3 py-1 text-xs font-extrabold">
-                Report No: <span>{lastEntryId || "Draft"}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-blue-200/20 px-3 py-1 text-xs font-semibold">{entryDate}</span>
-            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
-              {session?.user?.fullName || session?.user?.email || "Admin"}
-            </span>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setActionMenuOpen((value) => !value)}
-              aria-expanded={actionMenuOpen}
-              aria-haspopup="menu"
-            >
-              Actions
-              <span className="ms-2 text-[10px]">▼</span>
-            </Button>
-            {actionMenuOpen ? (
-              <div className="absolute right-0 top-full z-30 mt-2 w-60 rounded-[14px] border border-slate-200 bg-white p-2 text-slate-950 shadow-[0_18px_45px_rgba(15,23,42,.18)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
-                <Button type="button" variant="outline" size="sm" className="mb-2 w-full justify-start" onClick={clearSelectedAccount} disabled={!selectedCounterLedger}>
-                  <X className="h-4 w-4" aria-hidden />
-                  <span className="ms-2">Clear Account</span>
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="mb-2 w-full justify-start" onClick={resetPaymentDraft}>
-                  <X className="h-4 w-4" aria-hidden />
-                  <span className="ms-2">Clear Payment</span>
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="mb-2 w-full justify-start" onClick={printPreview} disabled={!computed}>
-                  <Printer className="h-4 w-4" aria-hidden />
-                  <span className="ms-2">Print Report</span>
-                </Button>
-                <Button type="button" size="sm" className="w-full justify-start bg-emerald-600 text-white hover:bg-emerald-700" onClick={save} disabled={!canSave || saving}>
-                  <Save className="h-4 w-4" aria-hidden />
-                  <span className="ms-2">{saving ? "Saving..." : "Submit Payment"}</span>
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <div className="space-y-3 bg-gradient-to-br from-slate-50 to-white p-3 dark:from-slate-950 dark:to-slate-900">
-        {message ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
-            {message}
-          </div>
-        ) : null}
-
-      {false && scopeMode === "auto" ? (
-        <Card className="overflow-hidden rounded-[14px] border-slate-200 bg-card shadow-[0_6px_16px_rgba(15,23,42,.04)] dark:border-slate-800">
-          <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 px-3 py-2 text-xs font-black uppercase tracking-[0.35px] text-slate-950 dark:border-slate-800 dark:from-slate-900 dark:to-blue-950 dark:text-slate-100">
-            View Scope / Access Level
-          </div>
-          <CardContent className="space-y-3 p-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div className="grid gap-2 sm:w-72">
-                <Label className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-                  View Scope
-                </Label>
-                <select
-                  className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm font-semibold shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={effectiveScopeMode}
-                  onChange={(event) => handleViewScopeChange(event.target.value as CashEntryViewScope)}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] font-bold gap-1.5"
+                  onClick={printPreview}
                 >
-                  <option value="super_admin" disabled={!isSuperAdmin}>
-                    Super Admin Scope
-                  </option>
-                  <option value="country">Country Scope</option>
-                  <option value="branch">City Scope</option>
-                </select>
-              </div>
-
-              <div className="flex-1 rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-blue-600 px-3 py-1 font-extrabold text-white dark:bg-blue-500">
-                    {scopeTitle}
-                  </span>
-                  <span>{scopeAccessText}</span>
-                </div>
+                  <Printer className="h-3.5 w-3.5" />
+                  Print
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] font-bold"
+                  onClick={() => setShowRoznamcha(false)}
+                >
+                  Close
+                </Button>
               </div>
             </div>
-
-            <div className="grid gap-2 md:grid-cols-4">
-              {scopeMetrics.map((item) => (
-                <div key={item.label} className="rounded-lg border bg-background px-3 py-2">
-                  <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted-foreground">
-                    {item.label}
-                  </div>
-                  <div className="mt-1 truncate text-sm font-extrabold">{item.value}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {hierarchyItems.map((item) => (
-                <span key={item.label} className="rounded-full border bg-background px-3 py-1 text-xs">
-                  <span className="font-semibold text-muted-foreground">{item.label}:</span>{" "}
-                  <span className="font-bold">{item.value}</span>
-                </span>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {false && scopeReady ? (
-        <div className="space-y-2">
-          <div className="rounded-[10px] border border-slate-200 bg-card p-2.5 shadow-[0_3px_10px_rgba(15,23,42,.05)] dark:border-slate-800">
-            <div className="mb-1.5 border-b-2 border-blue-600 pb-1.5 text-xs font-black uppercase tracking-[0.25px] text-blue-700 dark:text-blue-300">
-              Payment Branch Details
-            </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              <div className="space-y-1 md:pr-3">
-                <div className="text-[11px] font-black text-slate-900 dark:text-slate-100">Main Branch Address</div>
-                <AddressLine icon="👤" strong value={selectedMainBranch?.name || selectedCountry?.name || "Main Branch"} />
-                <AddressLine icon="📍" label="Main Branch Code" value={selectedMainBranch?.code ?? "-"} />
-                <AddressLine icon="📍" label="Global Super Admin" value="SA-GLOBAL-0001" />
-                <AddressLine icon="📍" label="System Level" value={isSuperAdmin ? "Global / All Branches" : scopeTitle} />
-                <AddressLine icon="📍" label="Model Code" value="CEP-2025" />
-                <AddressContact icon="👤" label="User" value={session?.user?.fullName || session?.user?.email || "-"} />
-                <AddressLine icon="#" label="Branch Serial" value={selectedMainBranch?.code ? `${selectedMainBranch?.code}-2025` : "-"} />
-              </div>
-              <div className="space-y-1 border-t border-dashed border-slate-300 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0 dark:border-slate-700">
-                <div className="text-[11px] font-black text-slate-900 dark:text-slate-100">Working Branch Address</div>
-                <AddressLine icon="👤" strong value={branchFullName || "-"} />
-                <AddressLine icon="📍" label="Working Branch Code" value={selectedCityBranch?.code || selectedMainBranch?.code || "-"} />
-                <AddressLine icon="📍" label="City Branch Code" value={selectedCityBranch?.code ?? "-"} />
-                <AddressLine icon="📍" label="Currency" value={branchCurrency} />
-                <AddressLine icon="📅" label="Report Date" value={entryDate} />
-                <AddressContact icon="ID" label="User ID" value={session?.user?.id ?? "-"} />
-                <AddressLine icon="✉" label="Team / Roles" value={session?.roles?.length ? (session?.roles.join(", ") ?? "-") : "-"} />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[10px] border border-slate-200 bg-card p-2.5 shadow-[0_3px_10px_rgba(15,23,42,.05)] dark:border-slate-800">
-            <div className="mb-1.5 border-b-2 border-emerald-600 pb-1.5 text-xs font-black uppercase tracking-[0.25px] text-emerald-700 dark:text-emerald-300">
-              Payment Customer Account Details
-            </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              <div className="space-y-1 md:pr-3">
-                <div className="text-[11px] font-black text-slate-900 dark:text-slate-100">Billing Address</div>
-                <AddressLine icon="👤" strong value={selectedCounterLedger?.companyName || selectedCounterLedger?.accountName || "-"} />
-                <AddressLine icon="📍" label="Account Number" value={selectedCounterLedger?.accountCode || selectedCounterLedger?.ledgerCode || "-"} />
-                <AddressLine icon="📍" label="Manual Reference" value={selectedCounterLedger?.manualReferenceNumber || "-"} />
-                <AddressLine icon="📍" label="Customer Number" value={selectedCounterLedger?.customerNumber || "-"} />
-                <AddressLine icon="📍" label="Main Branch Code" value={selectedMainBranch?.code || selectedCounterLedger?.branchSerialNumber || "-"} />
-                <AddressContact icon="☎" label="Balance" value={fmtAmount(selectedCounterLedger?.currentBalance ?? 0)} />
-                <AddressLine icon="#" label="Customer Currency" value={selectedCounterLedger?.ledgerCurrency || "-"} />
-              </div>
-              <div className="space-y-1 border-t border-dashed border-slate-300 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0 dark:border-slate-700">
-                <div className="text-[11px] font-black text-slate-900 dark:text-slate-100">Shipping / Account Address</div>
-                <AddressLine icon="👤" strong value={selectedCounterLedger?.accountName || "-"} />
-                <AddressLine icon="📍" label="City Branch Code" value={selectedCityBranch?.code || selectedCounterLedger?.branchSerialNumber || "-"} />
-                <AddressLine icon="📍" label="Customer City" value={selectedCounterLedger?.cityName || selectedCityBranch?.city_name || "-"} />
-                <AddressLine icon="📍" label="Country" value={selectedCounterLedger?.countryName || selectedCountry?.name || "-"} />
-                <AddressLine icon="📍" label="Status" value={selectedCounterLedger ? "Active" : "-"} />
-                <AddressContact icon="▣" label="Ledger" value={selectedCounterLedger?.ledgerCode || selectedCounterLedger?.ledgerName || "-"} />
-                <AddressLine icon="▣" label="Category" value={selectedCounterLedger?.accountKind || selectedCounterLedger?.scope || "-"} />
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="space-y-3">
-        <Card className="overflow-hidden rounded-[14px] border-slate-200 bg-card shadow-[0_6px_16px_rgba(15,23,42,.04)] dark:border-slate-800">
-          <CardHeader className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 py-2 dark:border-slate-800 dark:from-slate-900 dark:to-blue-950">
-            <CardTitle className="text-sm font-black uppercase tracking-[0.35px]">Payment Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 p-3">
-            {showScopeSelectors ? (
-              <div className="overflow-hidden rounded-[10px] border border-slate-200 dark:border-slate-800">
-                <div className={cn("grid gap-3 bg-background p-3", showCountrySelector ? "md:grid-cols-3" : "md:grid-cols-2")}>
-                {showCountrySelector ? (
-                  <SearchSelect
-                    label={loadingCountries ? `${t(lang, "roz.country")} (Loading...)` : t(lang, "roz.country")}
-                    value={countryId}
-                    placeholder={t(lang, "roz.country")}
-                    options={countryOptions}
-                    disabled={loadingCountries || (effectiveScopeMode !== "super_admin" && !isSuperAdmin)}
-                    onValueChange={(value) => setCountryId(value)}
-                  />
-                ) : null}
-                <SearchSelect
-                  label={t(lang, "roz.branch")}
-                  value={countryBranchId}
-                  placeholder={countryId ? t(lang, "roz.branch") : t(lang, "roz.country")}
-                  options={mainBranchOptions}
-                  disabled={!countryId}
-                  onValueChange={(value) => setCountryBranchId(value)}
+            <CardContent className="p-4 space-y-4">
+              {/* Balanced KPI Ribbon */}
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+                <MiniMetric label="Opening Balance" value={`25,000.00 ${branchCurrency}`} tone="blue" />
+                <MiniMetric
+                  label="Total Debit (+)"
+                  value={`${fmtAmount(recentTransactions.reduce((acc, t) => acc + (t.debit ? Number(t.debit) : 0), 0))} ${branchCurrency}`}
+                  tone="green"
                 />
-                <SearchSelect
-                  label={t(lang, "nav.city_branch")}
-                  value={cityBranchId}
-                  placeholder={countryBranchId ? t(lang, "nav.city_branch") : t(lang, "roz.branch")}
-                  options={cityBranchOptions}
-                  disabled={!countryId || !countryBranchId}
-                  onValueChange={(value) => setCityBranchId(value)}
+                <MiniMetric
+                  label="Total Credit (-)"
+                  value={`${fmtAmount(recentTransactions.reduce((acc, t) => acc + (t.credit ? Number(t.credit) : 0), 0))} ${branchCurrency}`}
+                  tone="red"
                 />
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-lg border bg-muted/10 px-3 py-2 text-xs">
-                <div className="font-semibold">{t(lang, "roz.branch")} Scope</div>
-                <div className="mt-1 text-muted-foreground">{branchFullName || "-"}</div>
-              </div>
-            )}
-
-            {accountLookupReady ? (
-              <>
-                <div className="space-y-2 rounded-[10px] border border-slate-200 bg-background p-3 dark:border-slate-800">
-                  <Label>Account No *</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={accountNoInput}
-                      onChange={(e) => setAccountNoInput(e.target.value)}
-                      placeholder="Account No / Manual Ref / Customer No / Account Name"
-                      list="acctSamples"
-                      disabled={!accountLookupReady || loadingLedgers}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") void lookupAccountNo();
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      disabled={!accountLookupReady || loadingLedgers}
-                      onClick={() => void lookupAccountNo()}
-                      aria-label="Lookup"
-                    >
-                      <Search className="h-4 w-4" aria-hidden />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      disabled={!accountLookupReady || loadingLedgers}
-                      onClick={clearSelectedAccount}
-                      aria-label="Clear"
-                    >
-                      <X className="h-4 w-4" aria-hidden />
-                    </Button>
-                  </div>
-
-                  <datalist id="acctSamples">
-                    {ledgerRowsWithAccount.slice(0, 80).flatMap((row) =>
-                      [
-                        row.accountCode || row.ledgerCode,
-                        row.manualReferenceNumber,
-                        row.customerNumber,
-                        row.accountName
-                      ]
-                        .filter(Boolean)
-                        .map((value) => <option key={`${row.ledgerId}-${value}`} value={String(value)} />)
-                    )}
-                  </datalist>
-
-                  <div className="text-xs text-muted-foreground">
-                    Universal lookup: Account Number, Manual Reference, Customer Number, and Account Name all load the same Account Master record.
-                  </div>
-
-                  {accountLookupError ? (
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                      {accountLookupError}
-                    </div>
-                  ) : null}
-                </div>
-
-                {accountProfileCards}
-
-                <div className="max-w-xs space-y-2">
-                  <Label>{t(lang, "roz.date")}</Label>
-                  <Input value={entryDate} onChange={(e) => setEntryDate(e.target.value)} type="date" />
-                </div>
-              </>
-            ) : (
-              <div className="rounded-lg border bg-muted/10 p-4 text-sm text-muted-foreground">
-                Select Country/Branch/City scope first to continue, or use Super Admin scope for global account lookup.
-              </div>
-            )}
-
-            {accountLookupReady ? (
-              <div className="space-y-5">
-            <div className="grid gap-3 rounded-[10px] border border-slate-200 bg-background p-3 dark:border-slate-800 lg:grid-cols-12 lg:items-end">
-              <div className="space-y-2 lg:col-span-3">
-                <Label>Book Type</Label>
-                <Input value="Roznamcha" readOnly className="font-semibold" />
-              </div>
-
-              <div className="space-y-2 lg:col-span-3">
-                <Label>Roznamcha Number</Label>
-                <Input value={lastEntryId || referenceNo || "Draft"} readOnly className="font-semibold" />
-              </div>
-
-              <div className="space-y-2 lg:col-span-3">
-                <Label>Payment Type *</Label>
-                <select
-                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  value={paymentType}
-                  disabled={!selectedCounterLedger || !countryBranchId}
-                  onChange={(e) => setPaymentType(e.target.value as any)}
-                >
-                  <option value="">Select</option>
-                  <option value="bank">Bank</option>
-                  <option value="business">Business</option>
-                  <option value="cash">Cash</option>
-                  <option value="transfer">Transfer</option>
-                </select>
-              </div>
-
-              <div className="space-y-2 lg:col-span-3">
-                <Label>Currency Type *</Label>
-                <select
-                  className={cn(
-                    "flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-                    currencyError ? "border-red-300" : null
-                  )}
-                  value={currency}
-                  disabled={!selectedCounterLedger || !countryBranchId}
-                  onChange={(e) => setCurrency(e.target.value)}
-                >
-                  <option value="">Select</option>
-                  {[...allowedCurrencies].map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                {currencyError ? (
-                  <div className="text-xs font-medium text-red-600">This currency is not allowed.</div>
-                ) : null}
-              </div>
-
-              <div className="space-y-2 lg:col-span-12">
-                <Label>Amount *</Label>
-                <div className="flex h-10 overflow-hidden rounded-lg border">
-                  <div className="grid place-items-center bg-muted px-3 text-xs font-semibold text-muted-foreground">
-                    Rs
-                  </div>
-                  <input
-                    value={finalPayment}
-                    onChange={(e) => setFinalPayment(e.target.value)}
-                    inputMode="decimal"
-                    className="w-full bg-background px-3 text-sm outline-none"
-                    placeholder={showCalcPanel ? "Auto" : `Enter ${branchCurrency.toUpperCase()} amount`}
-                    disabled={!selectedCounterLedger || !countryBranchId}
-                    readOnly={showCalcPanel}
-                  />
-                  <button
-                    type="button"
-                    className={cn(
-                      "min-w-[92px] border-l px-3 text-xs font-extrabold",
-                      paymentMode === "CREDIT" ? "bg-emerald-600 text-white" : "bg-background text-foreground hover:bg-muted"
-                    )}
-                    disabled={!selectedCounterLedger || !countryBranchId}
-                    onClick={() => setPaymentMode("CREDIT")}
-                  >
-                    + Credit
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      "min-w-[92px] border-l px-3 text-xs font-extrabold",
-                      paymentMode === "DEBIT" ? "bg-red-600 text-white" : "bg-background text-foreground hover:bg-muted"
-                    )}
-                    disabled={!selectedCounterLedger || !countryBranchId}
-                    onClick={() => setPaymentMode("DEBIT")}
-                  >
-                    - Debit
-                  </button>
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Credit = {t(lang, "roz.credit")} | Debit = {t(lang, "roz.debit")}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 rounded-[10px] border border-slate-200 bg-background p-3 dark:border-slate-800 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>USD Rate</Label>
-                <Input
-                  value={exchangeRate}
-                  onChange={(e) => setExchangeRate(e.target.value)}
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  disabled={!selectedCounterLedger || !countryBranchId}
+                <MiniMetric
+                  label="Closing Balance"
+                  value={`${fmtAmount(25000 + recentTransactions.reduce((acc, t) => acc + (t.debit ? Number(t.debit) : 0) - (t.credit ? Number(t.credit) : 0), 0))} ${branchCurrency}`}
+                  tone="blue"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>{t(lang, "roz.reference_no")}</Label>
-                <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Optional" />
+
+              {/* Transactions Table */}
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                      <th className="p-3 font-bold">Date</th>
+                      <th className="p-3 font-bold">Account</th>
+                      <th className="p-3 font-bold">Voucher No</th>
+                      <th className="p-3 font-bold">Description</th>
+                      <th className="p-3 font-bold text-right">Debit (+)</th>
+                      <th className="p-3 font-bold text-right">Credit (-)</th>
+                      <th className="p-3 font-bold text-right">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
+                    {recentTransactions.map((tx, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
+                        <td className="p-3 whitespace-nowrap">{tx.date}</td>
+                        <td className="p-3">
+                          <div>{tx.accountName}</div>
+                          <div className="text-[10px] text-slate-400">{tx.accountCode}</div>
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                            {tx.voucherNo}
+                          </span>
+                        </td>
+                        <td className="p-3 max-w-[200px] truncate" title={tx.description}>{tx.description}</td>
+                        <td className="p-3 text-right text-emerald-700 whitespace-nowrap">
+                          {tx.debit ? `+${fmtAmount(Number(tx.debit))}` : "—"}
+                        </td>
+                        <td className="p-3 text-right text-red-700 whitespace-nowrap">
+                          {tx.credit ? `-${fmtAmount(Number(tx.credit))}` : "—"}
+                        </td>
+                        <td className="p-3 text-right font-black whitespace-nowrap">{fmtAmount(tx.balance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
-
-            {paymentType ? (
-              <div className="rounded-[10px] border border-slate-200 bg-background p-3 dark:border-slate-800">
-                <div className="border-b border-slate-200 pb-2 text-xs font-extrabold uppercase tracking-[0.22em] text-slate-600 dark:border-slate-800 dark:text-slate-300">Selected Payment Type Information</div>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {paymentType === "bank" ? (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Bank Name</Label>
-                        <div className="flex gap-2">
-                          <select
-                            className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            value={typeDetails.bankName || ""}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === "__NEW__") return openAddOption("bank");
-                              setTypeDetails((p) => ({ ...p, bankName: v }));
-                            }}
-                          >
-                            <option value="">Select</option>
-                            {["HBL", "MCB", "UBL", "Meezan", "Bank Alfalah", ...savedBanks].map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                            <option value="__NEW__">+ New</option>
-                          </select>
-                          <Button type="button" variant="outline" size="icon" onClick={() => openAddOption("bank")}>
-                            <span className="text-sm font-black">+</span>
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Payment Method</Label>
-                        <div className="flex gap-2">
-                          <select
-                            className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            value={typeDetails.method || ""}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === "__NEW__") return openAddOption("method");
-                              setTypeDetails((p) => ({ ...p, method: v }));
-                            }}
-                          >
-                            <option value="">Select</option>
-                            {["Cheque", "Mobile Transfer", "Online Transfer", ...savedMethods].map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                            <option value="__NEW__">+ New</option>
-                          </select>
-                          <Button type="button" variant="outline" size="icon" onClick={() => openAddOption("method")}>
-                            <span className="text-sm font-black">+</span>
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Reference No.</Label>
-                        <Input
-                          value={typeDetails.refNo || ""}
-                          onChange={(e) => setTypeDetails((p) => ({ ...p, refNo: e.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Payment Date</Label>
-                        <Input
-                          type="date"
-                          value={typeDetails.payDate || ""}
-                          onChange={(e) => setTypeDetails((p) => ({ ...p, payDate: e.target.value }))}
-                        />
-                      </div>
-                    </>
-                  ) : paymentType === "business" ? (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Business Name</Label>
-                        <Input
-                          value={typeDetails.bizName || ""}
-                          onChange={(e) => setTypeDetails((p) => ({ ...p, bizName: e.target.value }))}
-                        />
-                      </div>
-                    </>
-                  ) : paymentType === "cash" ? (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Receiver Name</Label>
-                        <Input
-                          value={typeDetails.receiver || ""}
-                          onChange={(e) => setTypeDetails((p) => ({ ...p, receiver: e.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Purpose</Label>
-                        <Input
-                          value={typeDetails.purpose || ""}
-                          onChange={(e) => setTypeDetails((p) => ({ ...p, purpose: e.target.value }))}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="space-y-2">
-                        <Label>From</Label>
-                        <Input value={typeDetails.from || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, from: e.target.value }))} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>To</Label>
-                        <Input value={typeDetails.to || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, to: e.target.value }))} />
-                      </div>
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>Reference</Label>
-                        <Input value={typeDetails.ref || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, ref: e.target.value }))} />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            ) : null}
-
-            {showCalcPanel ? (
-              <div className="rounded-[10px] border border-slate-200 bg-background p-3 dark:border-slate-800">
-                <div className="border-b border-slate-200 pb-2 text-xs font-extrabold uppercase tracking-[0.22em] text-slate-600 dark:border-slate-800 dark:text-slate-300">Currency Type / Exchange Rate / Amount</div>
-                <div className="mt-3 grid gap-3 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label>Amount</Label>
-                    <Input value={calcAmount} onChange={(e) => setCalcAmount(e.target.value)} type="number" step="0.0001" min="0" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Price / Rate</Label>
-                    <Input value={calcPrice} onChange={(e) => setCalcPrice(e.target.value)} type="number" step="0.0001" min="0" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Operation</Label>
-                    <select
-                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={calcOp}
-                      onChange={(e) => setCalcOp(e.target.value as any)}
-                    >
-                      <option value="mul">*</option>
-                      <option value="div">/</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="space-y-2">
-              <Label>Attachment</Label>
-              <Input
-                type="file"
-                disabled={!selectedCounterLedger || !countryBranchId}
-                onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)}
-              />
-              <div className="text-xs text-muted-foreground">
-                Attachment upload will be connected to storage in the next step.
-              </div>
-            </div>
-
-            <div className="space-y-2 rounded-[10px] border border-slate-200 bg-background p-3 dark:border-slate-800">
-              <Label>Remarks / Details</Label>
-              <Input value={narration} onChange={(e) => setNarration(e.target.value)} placeholder="e.g. Cash paid for office expense" />
-            </div>
-          </div>
-        ) : null}
-
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden rounded-[14px] border-slate-200 bg-card shadow-[0_6px_16px_rgba(15,23,42,.04)] dark:border-slate-800">
-          <CardHeader className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 py-2 dark:border-slate-800 dark:from-slate-900 dark:to-blue-950">
-            <CardTitle className="text-sm font-black uppercase tracking-[0.35px]">Live Payment Report</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 p-3">
-            <div className="rounded-lg border bg-muted/20 p-4 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scope</span>
-                <span className="text-xs text-muted-foreground">{loadingScope ? "Loading..." : session?.user?.email ?? "-"}</span>
-              </div>
-              <div className="mt-3 space-y-1 text-sm">
-                <div>
-                  <b>{t(lang, "roz.country")}:</b> <span className="text-muted-foreground">{selectedCountry?.name ?? "-"}</span>
-                </div>
-                <div>
-                  <b>{t(lang, "roz.branch")}:</b>{" "}
-                  <span className="text-muted-foreground">{mainBranches.find((b) => b.id === countryBranchId)?.name ?? "-"}</span>
-                </div>
-                <div>
-                  <b>City Branch:</b>{" "}
-                  <span className="text-muted-foreground">{cityBranches.find((b) => b.id === cityBranchId)?.city_name ?? "-"}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-lg border bg-muted/10 p-4">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date</div>
-                <div className="mt-1 font-semibold">{entryDate}</div>
-              </div>
-              <div className="rounded-lg border bg-muted/10 p-4">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount</div>
-                <div className="mt-1 font-semibold">{amount ? `${fmtAmount(amount)} ${currency.toUpperCase()}` : "-"}</div>
-                <div className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">USD Rate</div>
-                <div className="mt-1 font-semibold">{exchangeRate}</div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border bg-muted/10 p-4 text-sm">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ledger Summary</div>
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold">{selectedCounterLedger?.ledgerName || selectedCounterLedger?.accountName || "-"}</div>
-                    <div className="text-xs text-muted-foreground">{t(lang, "roz.ledger")}</div>
-                  </div>
-                  <div className={cn("text-right text-xs font-semibold", computed ? "text-foreground" : "text-muted-foreground")}>
-                    {computed ? (
-                      <>
-                        <div>D: {fmtAmount(computed?.counter.debit ?? 0)}</div>
-                        <div>C: {fmtAmount(computed?.counter.credit ?? 0)}</div>
-                      </>
-                    ) : (
-                      "-"
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-3 border-t pt-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold">{selectedCashLedger?.ledgerName || selectedCashLedger?.accountName || "-"}</div>
-                    <div className="text-xs text-muted-foreground">Cash/Bank</div>
-                  </div>
-                  <div className={cn("text-right text-xs font-semibold", computed ? "text-foreground" : "text-muted-foreground")}>
-                    {computed ? (
-                      <>
-                        <div>D: 0.00</div>
-                        <div>C: 0.00</div>
-                      </>
-                    ) : (
-                      "-"
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border bg-muted/10 p-4 text-sm">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t(lang, "roz.narration")}</div>
-              <div className="mt-2 text-muted-foreground">{narration.trim() || "-"}</div>
-            </div>
-
-            {lastEntryId ? (
-              <div className="rounded-lg border bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
-                Entry saved: <span className="font-semibold">{lastEntryId}</span>
-              </div>
-            ) : null}
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                const payload = {
-                  countryId,
-                  countryBranchId,
-                  cityBranchId,
-                  entryDate,
-                  attachmentName: attachmentFile?.name ?? null,
-                  paymentType,
-                  paymentMode,
-                  currency,
-                  exchangeRate,
-                  finalPayment,
-                  narration,
-                  referenceNo
-                };
-                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `cash-entry-${entryDate || "draft"}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
-              <Download className="h-4 w-4" aria-hidden />
-              Export Draft (JSON)
-            </Button>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {addOptionOpen ? (
@@ -2455,7 +1945,6 @@ export function CashEntryForm({
           </div>
         </SimpleModal>
       ) : null}
-      </div>
     </div>
   );
 }
@@ -2560,9 +2049,9 @@ function MiniMetric({ label, value, tone }: { label: string; value: string; tone
   );
 }
 
-function FieldBlock({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+function FieldBlock({ label, required, children, className }: { label: string; required?: boolean; children: ReactNode; className?: string }) {
   return (
-    <label className="block min-w-0">
+    <label className={cn("block min-w-0", className)}>
       <span className="mb-1.5 block text-xs font-black text-slate-900 dark:text-slate-100">
         {label}
         {required ? <span className="text-red-600"> *</span> : null}
@@ -2587,9 +2076,8 @@ function ReportBox({ title, rows }: { title?: string; rows: Array<[string, strin
             ) : null}
             <span className="break-words font-semibold">{value || "-"}</span>
           </div>
-        ))}
+          ))}
       </div>
     </div>
   );
 }
-

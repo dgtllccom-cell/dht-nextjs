@@ -1,13 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import { SimpleModal } from "@/components/ui/simple-modal";
 import { apiGet } from "@/lib/api/client";
+import { CustomerForm } from "@/features/customers/components/customer-form";
 
 type OwnerCustomerRow = {
   id: string;
@@ -17,6 +14,7 @@ type OwnerCustomerRow = {
   mobile: string | null;
   whatsapp: string | null;
   email: string | null;
+  address?: string | null;
 };
 
 type OwnerProfileRow = {
@@ -40,6 +38,12 @@ function normalize(value: string) {
 
 function toOwnerOption(label: string, keywords?: string): SearchSelectOption {
   return { value: label, label, keywords };
+}
+
+function guessOriginalLanguage(): "en" | "ar" | "ur" | "fa" | "ps" {
+  const lang = (typeof document !== "undefined" ? document.documentElement.lang : "en") || "en";
+  if (lang === "ar" || lang === "ur" || lang === "fa" || lang === "ps") return lang;
+  return "en";
 }
 
 export function BranchOwnerPicker({
@@ -119,70 +123,53 @@ export function BranchOwnerPicker({
       />
 
       {openCreate ? (
-        <OwnerQuickCreateModal
+        <SimpleModal
+          title="New Owner — Customer Master"
           onClose={() => setOpenCreate(false)}
-          onCreated={(ownerName) => {
-            const option = toOwnerOption(ownerName, ownerName);
-            setOptions((current) => {
-              if (current.some((item) => normalize(item.value) === normalize(option.value))) return current;
-              return [option, ...current];
-            });
-            onValueChange(ownerName);
-            setOpenCreate(false);
-          }}
-        />
+          className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        >
+          <CustomerForm
+            lang={guessOriginalLanguage()}
+            mode="embedded"
+            onSave={(newCustomerId) => {
+              (async () => {
+                try {
+                  const res = await apiGet<{ customer: OwnerCustomerRow }>(`/api/erp/customers/${encodeURIComponent(newCustomerId)}`);
+                  if (res.customer) {
+                    const label = res.customer.company_name
+                      ? `${res.customer.customer_name} (${res.customer.company_name})`
+                      : res.customer.customer_name;
+                    const option = toOwnerOption(
+                      label,
+                      [
+                        res.customer.customer_name,
+                        res.customer.company_name,
+                        res.customer.contact_person,
+                        res.customer.mobile,
+                        res.customer.whatsapp,
+                        res.customer.email
+                      ]
+                        .filter(Boolean)
+                        .join(" ")
+                    );
+                    setOptions((current) => {
+                      if (current.some((item) => normalize(item.value) === normalize(option.value))) return current;
+                      return [option, ...current];
+                    });
+                    onValueChange(label);
+                  }
+                } catch {
+                  // Fallback: reload list
+                  loadList().catch(() => null);
+                } finally {
+                  setOpenCreate(false);
+                }
+              })();
+            }}
+          />
+        </SimpleModal>
       ) : null}
     </>
   );
 }
 
-function OwnerQuickCreateModal({
-  onClose,
-  onCreated
-}: {
-  onClose: () => void;
-  onCreated: (ownerName: string) => void;
-}) {
-  const [name, setName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  async function save() {
-    setMessage(null);
-    const cleaned = name.trim();
-    if (cleaned.length < 2) {
-      setMessage("Enter an Owner name (min 2 chars).");
-      return;
-    }
-    setSaving(true);
-    try {
-      onCreated(cleaned);
-    } catch (e: any) {
-      setMessage(e?.message || "Save failed");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <SimpleModal title="New Owner" onClose={onClose} className="max-w-lg">
-      {message ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">{message}</div> : null}
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label>Owner Name *</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Owner name" />
-        </div>
-
-        <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={save} disabled={saving || name.trim().length < 2}>
-            <Plus className="h-4 w-4" aria-hidden />
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </div>
-      </div>
-    </SimpleModal>
-  );
-}

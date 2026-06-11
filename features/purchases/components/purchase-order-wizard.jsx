@@ -32,18 +32,19 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CustomerPicker } from "@/features/customers/components/customer-picker";
+import { CompanyPicker } from "@/features/companies/components/company-picker";
 
-// Constants & Dropdowns matching database options
-const COUNTRY_OPTIONS = ["Iran", "Vietnam", "USA", "Pakistan", "India", "UAE", "Afghanistan"];
+// ── Non-location constants (static values, not from master forms) ─────────────
 const CURRENCY_OPTIONS = ["USD", "AED", "PKR", "AFN", "INR"];
 const PAYMENT_TYPES = ["Advance Payment", "Invoice", "Final Payment", "Credit"];
 const LOADING_TYPES = ["By Sea", "By Road", "By Air"];
 const CONTAINER_TYPES = ["20 FT", "40 FT", "20 FT Reefer", "40 FT Reefer", "Non Reefer"];
 const QTY_TYPE_OPTIONS = ["BAGS", "CARTONS", "Loose", "KGS", "Ton"];
-const ORIGIN_OPTIONS = ["Iran", "Vietnam", "USA", "Pakistan", "India", "Turkey", "China"];
 const SIZE_OPTIONS = ["Large", "Medium", "Standard", "Small"];
 const BRAND_OPTIONS = ["Premium", "Choice", "Organic", "Standard"];
 const GOODS_OPTIONS = ["PISTACHIOS KERNEL", "CASHEW NUTS (W320)", "WALNUTS INSHELL", "ALMONDS", "HAZELNUTS"];
+// NOTE: COUNTRY_OPTIONS and ORIGIN_OPTIONS removed — countries now come from Location Master.
 
 const MOCK_ACCOUNTS = [
   { accountCode: "AE-AC-0001", accountName: "Dubai Purchase Account", cityBranchName: "Dubai Main Branch", ledgerCurrency: "AED" },
@@ -131,8 +132,10 @@ const DEFAULT_FORM = {
   paymentType: "Advance Payment",
   shipmentType: "By Ship",
   shippingMode: "By Sea",
-  supplierName: "Zahid Supplies LLC",
-  customerName: "Damaan Trading LLC",
+  supplierId: "",
+  supplierName: "",
+  customerId: "",
+  customerName: "",
   salesStatus: "Draft",
   remarks: "",
   orderReportRemarks: "",
@@ -403,6 +406,9 @@ export function PurchaseOrderWizard() {
   }, []);
 
   const isSuperAdmin = session?.scopes?.isSuperAdmin ?? false;
+
+  // Derived country options from master data (replaces old COUNTRY_OPTIONS hardcode)
+  const masterCountryOptions = useMemo(() => countries, [countries]);
 
   // Load existing purchase order if purchaseOrderNo is in URL query parameters
   useEffect(() => {
@@ -2105,6 +2111,39 @@ export function PurchaseOrderWizard() {
                     * All fields details are shown to the RIGHT Live Report.
                   </p>
 
+                  {/* Supplier & Customer — Master Form Pickers */}
+                  <div className="space-y-3 pt-2 border-t border-border">
+                    <div className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
+                      <User className="h-3 w-3" /> Parties (Master Forms)
+                    </div>
+                    <div className="space-y-2">
+                      <CustomerPicker
+                        label="Supplier / Seller"
+                        value={form.supplierId || ""}
+                        onValueChange={(id) => {
+                          setValue("supplierId", id);
+                        }}
+                        placeholder="Search supplier from master..."
+                      />
+                      {form.supplierId && (
+                        <p className="text-[9px] text-muted-foreground pl-1">Supplier linked from Customer Master.</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <CustomerPicker
+                        label="Customer / Buyer"
+                        value={form.customerId || ""}
+                        onValueChange={(id) => {
+                          setValue("customerId", id);
+                        }}
+                        placeholder="Search buyer from master..."
+                      />
+                      {form.customerId && (
+                        <p className="text-[9px] text-muted-foreground pl-1">Customer linked from Customer Master.</p>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex flex-col gap-1.5 pt-3 border-t border-border">
                     <Button
                       type="button"
@@ -2206,7 +2245,13 @@ export function PurchaseOrderWizard() {
                           onChange={(e) => setValue("origin", e.target.value)}
                           className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
                         >
-                          {ORIGIN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                          <option value="">Select Origin</option>
+                          {masterCountryOptions.map((c) => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                          {form.origin && !masterCountryOptions.some(c => c.name === form.origin) && (
+                            <option value={form.origin}>{form.origin}</option>
+                          )}
                         </select>
                       </div>
                     </div>
@@ -2575,13 +2620,16 @@ export function PurchaseOrderWizard() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
-                              <input
-                                type="text"
+                              <select
                                 value={form.loadingCountry || ""}
                                 onChange={(e) => setValue("loadingCountry", e.target.value)}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                                placeholder="e.g. Iran"
-                              />
+                              >
+                                <option value="">Select Country</option>
+                                {masterCountryOptions.map((c) => (
+                                  <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Port</label>
@@ -2606,13 +2654,16 @@ export function PurchaseOrderWizard() {
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
-                              <input
-                                type="text"
+                              <select
                                 value={form.receivedCountry || ""}
                                 onChange={(e) => setValue("receivedCountry", e.target.value)}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                                placeholder="e.g. Pakistan"
-                              />
+                              >
+                                <option value="">Select Country</option>
+                                {masterCountryOptions.map((c) => (
+                                  <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
@@ -2644,13 +2695,16 @@ export function PurchaseOrderWizard() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
-                              <input
-                                type="text"
+                              <select
                                 value={form.loadingCountry || ""}
                                 onChange={(e) => setValue("loadingCountry", e.target.value)}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                                placeholder="e.g. Afghanistan"
-                              />
+                              >
+                                <option value="">Select Country</option>
+                                {masterCountryOptions.map((c) => (
+                                  <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Border</label>
@@ -2675,13 +2729,16 @@ export function PurchaseOrderWizard() {
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
-                              <input
-                                type="text"
+                              <select
                                 value={form.receivedCountry || ""}
                                 onChange={(e) => setValue("receivedCountry", e.target.value)}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                                placeholder="e.g. Pakistan"
-                              />
+                              >
+                                <option value="">Select Country</option>
+                                {masterCountryOptions.map((c) => (
+                                  <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
@@ -2713,13 +2770,16 @@ export function PurchaseOrderWizard() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
-                              <input
-                                type="text"
+                              <select
                                 value={form.loadingCountry || ""}
                                 onChange={(e) => setValue("loadingCountry", e.target.value)}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                                placeholder="e.g. UAE"
-                              />
+                              >
+                                <option value="">Select Country</option>
+                                {masterCountryOptions.map((c) => (
+                                  <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Airport Name</label>
@@ -2756,13 +2816,16 @@ export function PurchaseOrderWizard() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
-                              <input
-                                type="text"
+                              <select
                                 value={form.receivedCountry || ""}
                                 onChange={(e) => setValue("receivedCountry", e.target.value)}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                                placeholder="e.g. USA"
-                              />
+                              >
+                                <option value="">Select Country</option>
+                                {masterCountryOptions.map((c) => (
+                                  <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Airport Name</label>

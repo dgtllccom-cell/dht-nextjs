@@ -14,6 +14,7 @@ import {
   type LocationHierarchyMeta,
   type LocationHierarchyValue
 } from "@/features/locations/components/location-hierarchy-select";
+import { apiPost } from "@/lib/api/client";
 import type { ContactTypeKey } from "@/features/contact-types/contact-type-api";
 
 type DynamicList = "contacts" | "registrations" | "ownerIds";
@@ -361,7 +362,7 @@ export function CompanyIncorporationForm({
     setTypeModal(null);
   }
 
-  function submitForm() {
+  async function submitForm() {
     if (!ready) {
       setMessage("Complete owner, company, business, location, zip code, and address first.");
       return;
@@ -405,36 +406,50 @@ export function CompanyIncorporationForm({
       }
     } else {
       // Creation mode: add new
-      const newCompany: CompanyIncorporationData & { id: string } = {
-        id: "co-" + crypto.randomUUID(),
-        ownerName,
-        companyName,
-        businessName,
-        countryId: location.countryId || undefined,
-        stateProvinceId: location.stateProvinceId || undefined,
-        cityId: location.cityId || undefined,
-        areaLocationId: location.areaId || undefined,
-        country,
-        state: stateName,
-        city,
-        zipCode,
-        address,
-        contacts: contacts.filter((row) => row.type && row.value),
-        registrations: registrations.filter((row) => row.type && row.value),
-        ownerIds: ownerIds.filter((row) => row.type && row.value)
-      };
+      try {
+        const lang = (typeof document !== "undefined" ? document.documentElement.lang : "en") || "en";
+        const originalLanguage = ["ar", "ur", "fa", "ps"].includes(lang) ? lang : "en";
 
-      const updated = [newCompany, ...savedCompanies];
-      setSavedCompanies(updated);
-      localStorage.setItem("incorporated_companies", JSON.stringify(updated));
+        const res = await apiPost<{ companyId: string }>("/api/erp/companies", {
+          name: companyName.trim(),
+          legalName: businessName.trim() || companyName.trim(),
+          baseCurrency: "USD",
+          originalLanguage
+        });
 
-      onSave?.(newCompany);
-      setMessage(`Saved company "${newCompany.companyName}" successfully.`);
-      
-      if (mode === "standalone") {
-        setTimeout(() => {
-          router.push("/dashboard/settings/company" as Route);
-        }, 1000);
+        const newCompany: CompanyIncorporationData & { id: string } = {
+          id: res.companyId,
+          ownerName,
+          companyName,
+          businessName,
+          countryId: location.countryId || undefined,
+          stateProvinceId: location.stateProvinceId || undefined,
+          cityId: location.cityId || undefined,
+          areaLocationId: location.areaId || undefined,
+          country,
+          state: stateName,
+          city,
+          zipCode,
+          address,
+          contacts: contacts.filter((row) => row.type && row.value),
+          registrations: registrations.filter((row) => row.type && row.value),
+          ownerIds: ownerIds.filter((row) => row.type && row.value)
+        };
+
+        const updated = [newCompany, ...savedCompanies];
+        setSavedCompanies(updated);
+        localStorage.setItem("incorporated_companies", JSON.stringify(updated));
+
+        onSave?.(newCompany);
+        setMessage(`Saved company "${newCompany.companyName}" successfully.`);
+        
+        if (mode === "standalone") {
+          setTimeout(() => {
+            router.push("/dashboard/settings/company" as Route);
+          }, 1000);
+        }
+      } catch (err: any) {
+        setMessage(err?.message || "Failed to save company to database.");
       }
     }
   }

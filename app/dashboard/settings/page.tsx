@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { Building2, MapPin, Settings, SlidersHorizontal } from "lucide-react";
+import { Building2, Landmark, MapPin, Settings, SlidersHorizontal } from "lucide-react";
 
 const settingsItems = [
   {
@@ -14,6 +14,12 @@ const settingsItems = [
     description: "Country, state, city, zip code, currency, and status master data.",
     href: "/dashboard/settings/location-setup" as Route,
     icon: MapPin
+  },
+  {
+    title: "Bank Master Form",
+    description: "Create banks once and use them everywhere — accounts, payments, receipts, ledger, purchases, and reports.",
+    href: "/dashboard/settings/bank" as Route,
+    icon: Landmark
   },
   {
     title: "Management",

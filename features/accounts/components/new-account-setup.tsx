@@ -2,35 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle,
   BookOpen,
-  Building2,
   CheckCircle2,
   ClipboardList,
-  Eye,
-  FileText,
-  Hash,
-  Landmark,
-  Mail,
-  Phone,
-  ReceiptText,
-  Save,
-  Search,
-  UserRound,
-  Warehouse
+  Save
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { listCountries, type LocationCountry } from "@/features/locations/location-api";
 import { apiPost } from "@/lib/api/client";
-import { CustomerForm } from "@/features/customers/components/customer-form";
-import { CompanyIncorporationForm } from "@/features/companies/components/company-incorporation-form";
+import { CustomerPicker } from "@/features/customers/components/customer-picker";
+import { CompanyPicker } from "@/features/companies/components/company-picker";
+import { BankPicker } from "@/features/banks/components/bank-picker";
 import { rtlLanguages, type SupportedLanguage } from "@/lib/i18n/languages";
 import { getLabel } from "./translations";
-import { cn } from "@/lib/utils";
 import { AccountLiveReportPanel } from "./account-live-report-panel";
 import { openAccountA4ReportWindow } from "@/lib/reports/open-account-a4-report-window";
 
@@ -228,7 +215,7 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
   const [saving, setSaving] = useState(false);
   const [lastCreated, setLastCreated] = useState<AccountCreateResponse | null>(null);
 
-  // Master record links
+  // Master record links — IDs come from Master Form pickers
   const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null);
   const [linkedCustomerName, setLinkedCustomerName] = useState("");
   const [linkedCompanyId, setLinkedCompanyId] = useState<string | null>(null);
@@ -242,71 +229,42 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
 
   // Fetch full customer details when linkedCustomerId changes
   useEffect(() => {
-    if (!linkedCustomerId) {
-      setCustomerDetail(null);
-      return;
-    }
+    if (!linkedCustomerId) { setCustomerDetail(null); return; }
     let cancelled = false;
     fetch(`/api/erp/customers/${linkedCustomerId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && json?.ok && json?.data) {
-          setCustomerDetail(json.data);
-        }
+        if (!cancelled && json?.ok && json?.data) setCustomerDetail(json.data);
       })
-      .catch((err) => console.error("Error fetching customer details:", err));
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => null);
+    return () => { cancelled = true; };
   }, [linkedCustomerId]);
 
   // Fetch company details when linkedCompanyId changes
   useEffect(() => {
-    if (!linkedCompanyId) {
-      setCompanyDetail(null);
-      return;
-    }
+    if (!linkedCompanyId) { setCompanyDetail(null); return; }
     let cancelled = false;
     fetch(`/api/erp/companies/${linkedCompanyId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && json?.ok && json?.company) {
-          setCompanyDetail(json.company);
-        }
+        if (!cancelled && json?.ok && json?.company) setCompanyDetail(json.company);
       })
-      .catch((err) => console.error("Error fetching company details:", err));
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => null);
+    return () => { cancelled = true; };
   }, [linkedCompanyId]);
 
   // Fetch bank details when linkedBankId changes
   useEffect(() => {
-    if (!linkedBankId) {
-      setBankDetail(null);
-      return;
-    }
+    if (!linkedBankId) { setBankDetail(null); return; }
     let cancelled = false;
     fetch(`/api/erp/companies/${linkedBankId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && json?.ok && json?.company) {
-          setBankDetail(json.company);
-        }
+        if (!cancelled && json?.ok && json?.company) setBankDetail(json.company);
       })
-      .catch((err) => console.error("Error fetching bank details:", err));
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => null);
+    return () => { cancelled = true; };
   }, [linkedBankId]);
-
-  // Search states (reused across steps)
-  const [masterSearch, setMasterSearch] = useState("");
-  const [masterResults, setMasterResults] = useState<{ id: string; name: string }[]>([]);
-  const [masterSearchOpen, setMasterSearchOpen] = useState(false);
-  const [masterSearchLoading, setMasterSearchLoading] = useState(false);
-  const [showMasterModal, setShowMasterModal] = useState(false);
-  const [masterModalType, setMasterModalType] = useState<"customer" | "company" | "bank" | null>(null);
 
   // Fetch report records
   async function fetchReport() {
@@ -322,38 +280,6 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
   }
 
   useEffect(() => { fetchReport(); }, []);
-
-  // Fetch master records based on active step
-  useEffect(() => {
-    const query = masterSearch.trim();
-    if (!query) { setMasterResults([]); return; }
-
-    const targetType =
-      currentStep === 2 ? "Customer" : currentStep === 3 ? "Company" : currentStep === 4 ? "Bank" : "";
-    if (!targetType) return;
-
-    const endpoint =
-      targetType === "Customer"
-        ? `/api/erp/customers?limit=20&search=${encodeURIComponent(query)}`
-        : `/api/erp/companies?limit=20&search=${encodeURIComponent(query)}`; // Banks are companies in this module
-
-    let cancelled = false;
-    setMasterSearchLoading(true);
-    fetch(endpoint)
-      .then((r) => r.json())
-      .then((json) => {
-        if (cancelled) return;
-        const rows: { id: string; name: string }[] =
-          targetType === "Customer"
-            ? (json.customers ?? []).map((c: any) => ({ id: c.id, name: c.customer_name }))
-            : (json.companies ?? []).map((c: any) => ({ id: c.id, name: c.company_name ?? c.companyName }));
-        setMasterResults(rows);
-      })
-      .catch(() => { if (!cancelled) setMasterResults([]); })
-      .finally(() => { if (!cancelled) setMasterSearchLoading(false); });
-
-    return () => { cancelled = true; };
-  }, [masterSearch, currentStep]);
 
   // Load countries
   useEffect(() => {
@@ -701,7 +627,7 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
             </div>
           )}
 
-          {/* Step 2: Customer Details */}
+          {/* Step 2: Customer Details — Master Form Picker */}
           {currentStep === 2 && (
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
               <div className="flex items-center gap-2.5 border-b pb-3">
@@ -709,67 +635,41 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
                 <h2 className="text-sm font-bold text-slate-900">Step 2: Customer Details</h2>
               </div>
 
-              {linkedCustomerId ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-emerald-800">Linked Customer Profile</h3>
-                    <Button variant="outline" size="sm" onClick={() => { setLinkedCustomerId(null); setLinkedCustomerName(""); setMasterSearch(""); }} className="h-7 text-xs text-emerald-700 border-emerald-300 bg-white">
-                      Disconnect
-                    </Button>
-                  </div>
-                  <div className="text-sm">
-                    <div><b>Name:</b> {linkedCustomerName}</div>
-                    <div className="text-slate-500 font-mono text-[10px] mt-1"><b>ID:</b> {linkedCustomerId}</div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <Label htmlFor="customerSearch">Search Existing Customer</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <Input
-                      id="customerSearch"
-                      value={masterSearch}
-                      onChange={(e) => { setMasterSearch(e.target.value); setMasterSearchOpen(true); }}
-                      placeholder="Type customer name to search..."
-                      className="pl-9"
-                    />
-                  </div>
+              <p className="text-xs text-muted-foreground">
+                Search and select an existing customer from the <b>Customer Master</b>. Use <b>+ New Customer</b> to create one — it will be saved to the master database and immediately available here and everywhere else in the ERP.
+              </p>
 
-                  {masterSearchOpen && masterSearch && (
-                    <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
-                      {masterResults.length > 0 ? (
-                        masterResults.map((r) => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs border-b last:border-0"
-                            onClick={() => {
-                              setLinkedCustomerId(r.id);
-                              setLinkedCustomerName(r.name);
-                              setMasterSearchOpen(false);
-                              if (!accountName) setAccountName(r.name);
-                            }}
-                          >
-                            {r.name}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="p-3 text-xs text-slate-500 flex items-center justify-between">
-                          <span>No customer found matching "{masterSearch}"</span>
-                          <Button size="sm" type="button" onClick={() => { setMasterModalType("customer"); setShowMasterModal(true); }} className="h-7 text-xs">
-                            + New Customer
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+              {/* Master Form Picker — single source of truth */}
+              <CustomerPicker
+                label="Customer (Master)"
+                value={linkedCustomerId ?? ""}
+                onValueChange={(id) => {
+                  setLinkedCustomerId(id || null);
+                  if (!id) { setLinkedCustomerName(""); return; }
+                  // Populate account name from customer selection if not already set
+                  fetch(`/api/erp/customers/${id}`)
+                    .then((r) => r.json())
+                    .then((json) => {
+                      const name = json?.customer?.customer_name ?? json?.data?.customer_name ?? "";
+                      setLinkedCustomerName(name);
+                      if (!accountName && name) setAccountName(name);
+                    })
+                    .catch(() => null);
+                }}
+                placeholder="Search existing customers..."
+              />
 
-                  <div className="pt-2">
-                    <button type="button" onClick={() => { setMasterModalType("customer"); setShowMasterModal(true); }} className="text-xs text-primary font-bold hover:underline">
-                      + Add New Customer to Master Forms
-                    </button>
-                  </div>
+              {linkedCustomerId && (
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-xs">
+                  <span className="text-emerald-700 font-semibold">✓ Linked:</span>
+                  <span className="text-emerald-800">{linkedCustomerName || linkedCustomerId}</span>
+                  <button
+                    type="button"
+                    className="ml-auto text-rose-600 hover:underline"
+                    onClick={() => { setLinkedCustomerId(null); setLinkedCustomerName(""); }}
+                  >
+                    Disconnect
+                  </button>
                 </div>
               )}
 
@@ -782,7 +682,7 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
             </div>
           )}
 
-          {/* Step 3: Company Details */}
+          {/* Step 3: Company Details — Master Form Picker */}
           {currentStep === 3 && (
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
               <div className="flex items-center gap-2.5 border-b pb-3">
@@ -790,67 +690,41 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
                 <h2 className="text-sm font-bold text-slate-900">Step 3: Company Details</h2>
               </div>
 
-              {linkedCompanyId ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-emerald-800">Linked Company Profile</h3>
-                    <Button variant="outline" size="sm" onClick={() => { setLinkedCompanyId(null); setLinkedCompanyName(""); setMasterSearch(""); }} className="h-7 text-xs text-emerald-700 border-emerald-300 bg-white">
-                      Disconnect
-                    </Button>
-                  </div>
-                  <div className="text-sm">
-                    <div><b>Name:</b> {linkedCompanyName}</div>
-                    <div className="text-slate-500 font-mono text-[10px] mt-1"><b>ID:</b> {linkedCompanyId}</div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <Label htmlFor="companySearch">Search Existing Company</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <Input
-                      id="companySearch"
-                      value={masterSearch}
-                      onChange={(e) => { setMasterSearch(e.target.value); setMasterSearchOpen(true); }}
-                      placeholder="Type company name to search..."
-                      className="pl-9"
-                    />
-                  </div>
+              <p className="text-xs text-muted-foreground">
+                Search and select a company from the <b>Company Master</b>. Use <b>+ New Company</b> to create a new one — it will be available immediately throughout the ERP.
+              </p>
 
-                  {masterSearchOpen && masterSearch && (
-                    <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
-                      {masterResults.length > 0 ? (
-                        masterResults.map((r) => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs border-b last:border-0"
-                            onClick={() => {
-                              setLinkedCompanyId(r.id);
-                              setLinkedCompanyName(r.name);
-                              setMasterSearchOpen(false);
-                              if (!accountName) setAccountName(r.name);
-                            }}
-                          >
-                            {r.name}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="p-3 text-xs text-slate-500 flex items-center justify-between">
-                          <span>No company found matching "{masterSearch}"</span>
-                          <Button size="sm" type="button" onClick={() => { setMasterModalType("company"); setShowMasterModal(true); }} className="h-7 text-xs">
-                            + New Company
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+              {/* Master Form Picker — single source of truth */}
+              <CompanyPicker
+                label="Company (Master)"
+                value={linkedCompanyId ?? ""}
+                onValueChange={(id) => {
+                  setLinkedCompanyId(id || null);
+                  if (!id) { setLinkedCompanyName(""); return; }
+                  fetch(`/api/erp/companies/${id}`)
+                    .then((r) => r.json())
+                    .then((json) => {
+                      const name = json?.company?.name ?? json?.company?.legal_name ?? "";
+                      setLinkedCompanyName(name);
+                      if (!accountName && name) setAccountName(name);
+                    })
+                    .catch(() => null);
+                }}
+                placeholder="Search existing companies..."
+                createButtonPlacement="both"
+              />
 
-                  <div className="pt-2">
-                    <button type="button" onClick={() => { setMasterModalType("company"); setShowMasterModal(true); }} className="text-xs text-primary font-bold hover:underline">
-                      + Add New Company to Master Forms
-                    </button>
-                  </div>
+              {linkedCompanyId && (
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-xs">
+                  <span className="text-emerald-700 font-semibold">✓ Linked:</span>
+                  <span className="text-emerald-800">{linkedCompanyName || linkedCompanyId}</span>
+                  <button
+                    type="button"
+                    className="ml-auto text-rose-600 hover:underline"
+                    onClick={() => { setLinkedCompanyId(null); setLinkedCompanyName(""); }}
+                  >
+                    Disconnect
+                  </button>
                 </div>
               )}
 
@@ -863,7 +737,7 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
             </div>
           )}
 
-          {/* Step 4: Bank Details */}
+          {/* Step 4: Bank Details — Master Form Picker */}
           {currentStep === 4 && (
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
               <div className="flex items-center gap-2.5 border-b pb-3">
@@ -871,67 +745,41 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
                 <h2 className="text-sm font-bold text-slate-900">Step 4: Bank Details</h2>
               </div>
 
-              {linkedBankId ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-emerald-800">Linked Bank Profile</h3>
-                    <Button variant="outline" size="sm" onClick={() => { setLinkedBankId(null); setLinkedBankName(""); setMasterSearch(""); }} className="h-7 text-xs text-emerald-700 border-emerald-300 bg-white">
-                      Disconnect
-                    </Button>
-                  </div>
-                  <div className="text-sm">
-                    <div><b>Name:</b> {linkedBankName}</div>
-                    <div className="text-slate-500 font-mono text-[10px] mt-1"><b>ID:</b> {linkedBankId}</div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <Label htmlFor="bankSearch">Search Existing Bank</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <Input
-                      id="bankSearch"
-                      value={masterSearch}
-                      onChange={(e) => { setMasterSearch(e.target.value); setMasterSearchOpen(true); }}
-                      placeholder="Type bank name to search..."
-                      className="pl-9"
-                    />
-                  </div>
+              <p className="text-xs text-muted-foreground">
+                Search and select a bank from the <b>Bank Master</b> (banks are registered as companies). Use <b>+ New Bank</b> to create one — it is saved once and reused throughout the entire ERP.
+              </p>
 
-                  {masterSearchOpen && masterSearch && (
-                    <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
-                      {masterResults.length > 0 ? (
-                        masterResults.map((r) => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs border-b last:border-0"
-                            onClick={() => {
-                              setLinkedBankId(r.id);
-                              setLinkedBankName(r.name);
-                              setMasterSearchOpen(false);
-                              if (!accountName) setAccountName(r.name);
-                            }}
-                          >
-                            {r.name}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="p-3 text-xs text-slate-555 flex items-center justify-between">
-                          <span>No bank found matching "{masterSearch}"</span>
-                          <Button size="sm" type="button" onClick={() => { setMasterModalType("bank"); setShowMasterModal(true); }} className="h-7 text-xs">
-                            + New Bank
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+              {/* Master Form Picker — single source of truth */}
+              <BankPicker
+                label="Bank (Master)"
+                value={linkedBankId ?? ""}
+                onValueChange={(id) => {
+                  setLinkedBankId(id || null);
+                  if (!id) { setLinkedBankName(""); return; }
+                  fetch(`/api/erp/companies/${id}`)
+                    .then((r) => r.json())
+                    .then((json) => {
+                      const name = json?.company?.name ?? json?.company?.legal_name ?? "";
+                      setLinkedBankName(name);
+                      if (!accountName && name) setAccountName(name);
+                    })
+                    .catch(() => null);
+                }}
+                placeholder="Search existing banks..."
+                createButtonPlacement="both"
+              />
 
-                  <div className="pt-2">
-                    <button type="button" onClick={() => { setMasterModalType("bank"); setShowMasterModal(true); }} className="text-xs text-primary font-bold hover:underline">
-                      + Add New Bank to Master Forms
-                    </button>
-                  </div>
+              {linkedBankId && (
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-xs">
+                  <span className="text-emerald-700 font-semibold">✓ Linked:</span>
+                  <span className="text-emerald-800">{linkedBankName || linkedBankId}</span>
+                  <button
+                    type="button"
+                    className="ml-auto text-rose-600 hover:underline"
+                    onClick={() => { setLinkedBankId(null); setLinkedBankName(""); }}
+                  >
+                    Disconnect
+                  </button>
                 </div>
               )}
 
@@ -1079,67 +927,7 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
         </div>
       </div>
 
-      {/* ── Master Record Overlay Modal ────────────────────────────────────── */}
-      {showMasterModal && masterModalType && (
-        <div className="fixed inset-0 z-[70] flex flex-col bg-slate-50 overflow-y-auto">
-          <div className="w-full max-w-6xl mx-auto bg-white min-h-screen shadow-xl border-x">
-            <div className="flex items-center justify-between border-b bg-white px-8 py-5 sticky top-0 z-10 shadow-sm">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Master Forms</p>
-                <h2 className="text-xl font-bold text-slate-900 mt-1">
-                  {masterModalType === "customer" ? "New Customer — Customer Master" : masterModalType === "bank" ? "New Bank — Bank Master" : "New Company — Company Master"}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowMasterModal(false)}
-                className="rounded-full p-2 bg-slate-100 hover:bg-slate-200 transition-colors"
-                aria-label="Close modal"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-8">
-              {masterModalType === "customer" ? (
-                <CustomerForm
-                  lang={lang}
-                  mode="embedded"
-                  onSave={(customerId) => {
-                    setLinkedCustomerId(customerId);
-                    fetch(`/api/erp/customers/${customerId}`)
-                      .then((r) => r.json())
-                      .then((json) => {
-                        const name = json.customer?.customer_name ?? json.customer_name ?? "New Customer";
-                        setLinkedCustomerName(name);
-                        if (!accountName) setAccountName(name);
-                      })
-                      .catch(() => setLinkedCustomerName("New Customer"));
-                    setShowMasterModal(false);
-                  }}
-                />
-              ) : (
-                <CompanyIncorporationForm
-                  mode="embedded"
-                  onSave={(data) => {
-                    const companyId = (data as any).id ?? "";
-                    if (masterModalType === "bank") {
-                      setLinkedBankId(companyId);
-                      setLinkedBankName(data.companyName ?? "New Bank");
-                    } else {
-                      setLinkedCompanyId(companyId);
-                      setLinkedCompanyName(data.companyName ?? "New Company");
-                    }
-                    if (!accountName) setAccountName(data.companyName ?? "");
-                    setShowMasterModal(false);
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Master Form modals are handled inline by CustomerPicker / CompanyPicker / BankPicker */}
     </div>
   );
 }

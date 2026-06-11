@@ -6,7 +6,7 @@ export default async function CashEntryPage() {
   const lang = await getRequestLanguage();
 
   return (
-    <div className="relative left-1/2 w-full -translate-x-1/2 lg:w-[calc(100vw-15rem-3rem)]">
+    <div className="w-full px-2 py-4">
       <CashEntryForm
         lang={lang}
         pageTitle={t(lang, "nav.cash_entry")}

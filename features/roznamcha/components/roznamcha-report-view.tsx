@@ -21,6 +21,7 @@ import {
   type RoznamchaLineRow,
   type RoznamchaType
 } from "@/features/roznamcha/roznamcha-api";
+import { parseNarration } from "@/lib/accounting/narration-parser";
 
 type SessionInfo = {
   scopes: {
@@ -302,29 +303,6 @@ export function RoznamchaReportView({
     const csv = [headerRow, ...rows]
       .map((r) => r.map((c) => csvEscape(String(c ?? ""))).join(","))
       .join("\r\n");
-
-    const file = `roznamcha_${selectedHeader.voucher_no}_${selectedHeader.entry_date}.csv`.replace(/[^\w.-]+/g, "_");
-    downloadTextFile(file, csv, "text/csv");
-  }
-
-  function openSelectedReport(autoPrint: boolean, mode: "voucher" | "journal") {
-    if (!selectedHeader) return;
-    const rowsForPrint: { label: string; value: string }[] = [
-      { label: "Voucher Type", value: safeText(selectedHeader.type) },
-      { label: "Date", value: selectedHeader.entry_date },
-      { label: "Country", value: entryCountryName(selectedHeader) },
-      { label: "Branch", value: entryBranchName(selectedHeader) },
-      { label: "Voucher No", value: selectedHeader.voucher_no },
-      { label: "Journal No", value: selectedHeader.journal_no },
-      { label: "Narration", value: safeText(selectedHeader.narration) },
-      { label: "Status", value: safeText(selectedHeader.status) },
-      { label: "Debit", value: fmtNumber(selectedTotals?.debit ?? 0) },
-      { label: "Credit", value: fmtNumber(selectedTotals?.credit ?? 0) }
-    ];
-
-    const maxLines = mode === "journal" ? 12 : 6;
-    selectedLines.slice(0, maxLines).forEach((line, index) => {
-      rowsForPrint.push({
         label: `Line ${index + 1}`,
         value: [
           line.payment_entry_type,
