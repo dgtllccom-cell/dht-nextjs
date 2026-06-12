@@ -71,9 +71,27 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
   // Temporary local session (for initial Super Admin bootstrapping)
   const temp = await readTempSession();
   if (temp) {
+    let resolvedUserId = temp.userId;
+    if (temp.userId.startsWith("00000000-") && isSupabaseConfigured()) {
+      try {
+        const supabase = await createServerSupabaseClient();
+        const { data: firstProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (firstProfile?.id) {
+          resolvedUserId = firstProfile.id;
+        }
+      } catch (e) {
+        console.error("Failed to resolve profile ID for temp session:", e);
+      }
+    }
+
     const perms = [...new Set(temp.roles.flatMap((role) => enterpriseRolePermissions[role] ?? []))];
     return {
-      userId: temp.userId,
+      userId: resolvedUserId,
       email: temp.email,
       fullName: temp.fullName,
       preferredLanguage: temp.preferredLanguage,
