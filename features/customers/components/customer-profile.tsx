@@ -30,10 +30,12 @@ type CustomerRow = {
 
 export function CustomerProfile({
   lang,
-  customerId
+  customerId,
+  isDrawer = false
 }: {
   lang: SupportedLanguage;
   customerId: string;
+  isDrawer?: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -178,6 +180,135 @@ export function CustomerProfile({
       alert("No document files uploaded for this customer.");
     }
   };
+
+  if (isDrawer) {
+    return (
+      <div className="bg-white text-slate-900 p-2 relative select-text flex flex-col justify-between dark:bg-slate-900 dark:text-slate-100" dir={isRtl ? "rtl" : "ltr"}>
+        {/* Subtle Watermark */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.02] overflow-hidden select-none">
+          <Building2 className="w-[180px] h-[180px] text-slate-900 dark:text-slate-100" />
+        </div>
+        <div className="space-y-5">
+          {/* Header branding */}
+          <div className="border-b-2 border-teal-600 pb-2.5 flex items-center justify-between dark:border-teal-500">
+            <div>
+              <h2 className="text-sm font-extrabold text-teal-800 tracking-tight dark:text-teal-400">DAMAAN GROUP</h2>
+              <p className="text-[8px] text-slate-500 uppercase font-bold tracking-widest mt-0.5 dark:text-slate-400">Enterprise Registry</p>
+            </div>
+            <div className="text-right">
+              <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[9px] font-bold text-teal-700 border border-teal-200 uppercase dark:bg-teal-950/30 dark:text-teal-300 dark:border-teal-900">
+                {parsedMeta.status}
+              </span>
+              <p className="text-[9px] text-slate-500 font-mono mt-0.5 dark:text-slate-400">{parsedMeta.customerAccountNumber}</p>
+            </div>
+          </div>
+
+          {/* Content Grids */}
+          <div className="space-y-3">
+            {/* Personal Section */}
+            <div className="border rounded-xl p-3 bg-slate-50/50 space-y-1.5 dark:bg-slate-900/40 dark:border-slate-800">
+              <h3 className="text-[9px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1 dark:text-teal-400">Personal Details</h3>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Customer Code</span>
+                  <span className="font-bold text-slate-800 font-mono dark:text-slate-200">{parsedMeta.customerAccountNumber}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Customer Type</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.customerType}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Full Name</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{customer.customer_name}</span>
+                </div>
+                <div className="flex justify-between pb-0.5">
+                  <span className="text-slate-500">Representative</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{parsedMeta.fatherName || "-"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Location Section */}
+            <div className="border rounded-xl p-3 bg-slate-50/50 space-y-1.5 dark:bg-slate-900/40 dark:border-slate-800">
+              <h3 className="text-[9px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1 dark:text-teal-400">Location</h3>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Country</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.country || "-"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">State / Province</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.stateProvince || "-"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">City & Code</span>
+                  <span className="font-bold text-slate-800 font-mono dark:text-slate-200">{[parsedMeta.city, parsedMeta.cityCode].filter(v => v && v !== "-").join(" - ") || "-"}</span>
+                </div>
+                <div className="flex justify-between pb-0.5">
+                  <span className="text-slate-500">Address</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 text-right truncate max-w-[180px]">{customer.address || "-"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Contacts */}
+          <div className="space-y-1.5">
+            <h3 className="text-[9px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1 dark:text-teal-400">Contacts</h3>
+            <div className="border rounded-lg overflow-hidden dark:border-slate-800">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800">
+                  <tr>
+                    <th className="px-3 py-1">Type</th>
+                    <th className="px-3 py-1 font-mono">Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y dark:divide-slate-800">
+                  {parsedMeta.contacts.map((contact, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
+                      <td className="px-3 py-1 font-bold text-slate-700 dark:text-slate-300">{contact.type}</td>
+                      <td className="px-3 py-1 font-mono text-slate-900 dark:text-slate-100">{contact.value || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Documents */}
+          <div className="space-y-1.5">
+            <h3 className="text-[9px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1 dark:text-teal-400">Documents</h3>
+            <div className="border rounded-lg overflow-hidden dark:border-slate-800">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800">
+                  <tr>
+                    <th className="px-3 py-1">Type</th>
+                    <th className="px-3 py-1 font-mono">Number</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y dark:divide-slate-800">
+                  {parsedMeta.documents.map((doc, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
+                      <td className="px-3 py-1 font-bold text-slate-700 dark:text-slate-300">{doc.type}</td>
+                      <td className="px-3 py-1 font-mono text-slate-900 dark:text-slate-100">{doc.number || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Remarks */}
+          {parsedMeta.remarks && (
+            <div className="space-y-1 border rounded-lg p-2.5 bg-slate-50/50 dark:bg-slate-900/40 dark:border-slate-800">
+              <h4 className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Remarks / Registry Notes</h4>
+              <p className="text-xs text-slate-700 leading-relaxed font-medium dark:text-slate-300">{parsedMeta.remarks}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-800 text-slate-100" dir={isRtl ? "rtl" : "ltr"}>

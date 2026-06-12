@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Menu } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { SidebarNode } from "@/lib/navigation/sidebar";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
@@ -38,6 +38,9 @@ export function DashboardFrame({
            pathname === "/dashboard/purchase/purchase-confirm";
   }, [pathname]);
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
   const filteredNodes = useMemo(() => filterSidebarTree(nodes, roles, permissions ?? null), [nodes, roles, permissions]);
   const roleLabel = useMemo(() => {
     if (!roles || roles.length === 0) return null;
@@ -62,16 +65,81 @@ export function DashboardFrame({
     return labels[roles[0]] ?? null;
   }, [roles]);
 
+  // Command palette search database
+  const searchItems = useMemo(() => {
+    return [
+      { title: "Dashboard Overview", category: "Navigation", href: "/dashboard", keywords: "home main landing dashboard overview" },
+      { title: "Super Admin Dashboard", category: "Navigation", href: "/dashboard/super-admin", keywords: "super admin dashboard summary stats" },
+      { title: "Country Admin Dashboard", category: "Navigation", href: "/dashboard/country", keywords: "country admin dashboard summary stats" },
+      { title: "City Branch Dashboard", category: "Navigation", href: "/dashboard/city", keywords: "city branch dashboard summary stats" },
+      
+      { title: "Customers Directory List", category: "Modules", href: "/dashboard/settings/customers", keywords: "customers directory clients list accounts" },
+      { title: "Add New Customer Profile", category: "Actions", href: "/dashboard/settings/customers/setup", keywords: "create add new customer account client profile" },
+      
+      { title: "Country Branch Setup", category: "Modules", href: "/dashboard/new-entry/branch-entry/country-branch", keywords: "country branch office setup creation edit" },
+      { title: "City Branch Setup", category: "Modules", href: "/dashboard/new-entry/branch-entry/city-branch", keywords: "city branch office setup creation edit" },
+      { title: "Super Admin Branch Registry", category: "Modules", href: "/dashboard/new-entry/branches/super-admin", keywords: "super admin branch registry setup" },
+      
+      { title: "User Registration / Management", category: "Modules", href: "/dashboard/new-entry/users/registration", keywords: "register user employee create edit staff role assignment" },
+      { title: "User Journal Log Report", category: "Modules", href: "/dashboard/new-entry/users/journal-report", keywords: "user journal log activity report auditing" },
+      
+      { title: "Daily Exchange Rate Manager", category: "Modules", href: "/dashboard/reports/exchange-rate", keywords: "daily exchange rate usd foreign currency update converter settings" },
+      { title: "Credit & Debit Entries (Cash Entry)", category: "Modules", href: "/dashboard/roznamcha/cash-entry", keywords: "cash entry debit credit roznamcha entries post transaction" },
+      { title: "Roznamcha All Report Ledger", category: "Modules", href: "/dashboard/roznamcha/all", keywords: "roznamcha all report transaction logs ledger postings" },
+      
+      { title: "Accounts Master General Report", category: "Modules", href: "/dashboard/accounts", keywords: "accounts master general report setup balance" },
+      { title: "Create New Account Item", category: "Actions", href: "/dashboard/accounts/setup", keywords: "create add account category chart of accounts asset liability equity" },
+      { title: "Ledger Statement General Report", category: "Modules", href: "/dashboard/ledger/general-report", keywords: "ledger general statement report balance credit debit logs" },
+      
+      { title: "Purchase Order Advance Payment", category: "Modules", href: "/dashboard/journal/purchase-order-payment/advance", keywords: "purchase order advance payment entries history" },
+      { title: "Purchase Order Remaining Payment", category: "Modules", href: "/dashboard/journal/purchase-order-payment/remaining", keywords: "purchase order remaining payment balance entries history" },
+      
+      { title: "Settings - Location Nodes Setup", category: "Settings", href: "/dashboard/settings/location", keywords: "settings location setup country state city area" },
+      { title: "Settings - Enterprise Company Profile", category: "Settings", href: "/dashboard/settings/company", keywords: "settings company setup legal profile tax registry" }
+    ];
+  }, []);
+
+  // Keyboard shortcut listener for Ctrl+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      } else if (e.key === "Escape") {
+        setSearchOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const filteredSearchItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return searchItems.slice(0, 7);
+    return searchItems.filter(
+      (item) =>
+        item.title.toLowerCase().includes(q) ||
+        item.category.toLowerCase().includes(q) ||
+        item.keywords.toLowerCase().includes(q)
+    );
+  }, [searchQuery, searchItems]);
+
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-slate-50/50 text-foreground dark:bg-slate-950">
+      {/* Premium Desktop Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 inset-s-0 hidden w-60 border-e bg-card lg:flex lg:flex-col transition-all duration-200",
+        "fixed inset-y-0 inset-s-0 hidden w-64 border-e border-slate-200/80 bg-white/95 backdrop-blur-md lg:flex lg:flex-col transition-all duration-300 shadow-sm z-30 dark:border-slate-800/80 dark:bg-slate-900/95",
         sidebarCollapsed && "lg:hidden"
       )}>
-        <div className="border-b px-5 py-5 flex items-center justify-between gap-2">
+        <div className="border-b border-slate-100 px-6 py-5 flex items-center justify-between gap-2 dark:border-slate-800">
           <Link href="/dashboard" className="block flex-1 min-w-0">
-            <p className="text-2xl font-semibold tracking-tight text-primary">DAMAAN</p>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground truncate">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary font-bold text-white text-sm shadow-md shadow-primary/20">
+                D
+              </span>
+              <p className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100">DAMAAN</p>
+            </div>
+            <p className="mt-1 text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 truncate">
               Business Group ERP
             </p>
           </Link>
@@ -79,56 +147,71 @@ export function DashboardFrame({
             variant="ghost"
             size="icon"
             onClick={() => setSidebarCollapsed(true)}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+            className="h-8 w-8 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 shrink-0 rounded-lg"
             aria-label="Collapse sidebar"
           >
             <Menu className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex-1 overflow-y-auto p-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin">
           <SidebarNav nodes={filteredNodes} lang={lang} />
         </div>
-        <div className="border-t p-4">
-          <div className="rounded-md bg-muted p-3">
-            <p className="text-sm font-semibold">ERP Foundation</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Multi-country, multi-currency, multi-branch accounting platform.
+        <div className="border-t border-slate-100 p-4 dark:border-slate-800">
+          <div className="rounded-xl bg-slate-50/70 p-3.5 border border-slate-100 dark:bg-slate-950/40 dark:border-slate-800/50">
+            <p className="text-[11px] font-bold text-slate-800 dark:text-slate-300 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              ERP Core Engine
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+              Multi-country branches, accounts & exchange matrices are active.
             </p>
           </div>
         </div>
       </aside>
 
+      {/* Mobile Drawer Menu */}
       {mobileOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in"
             aria-label="Close navigation"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="absolute inset-y-0 inset-s-0 w-60 border-e bg-card shadow-xl">
-            <div className="border-b px-5 py-5">
+          <div className="absolute inset-y-0 inset-s-0 w-64 border-e border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-2xl flex flex-col animate-in slide-in-from-left duration-300">
+            <div className="border-b px-6 py-5 flex items-center justify-between dark:border-slate-800">
               <Link href="/dashboard" className="block" onClick={() => setMobileOpen(false)}>
-                <p className="text-2xl font-semibold tracking-tight text-primary">DAMAAN</p>
-                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-                  Business Group ERP
-                </p>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary font-bold text-white text-sm">
+                    D
+                  </span>
+                  <p className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">DAMAAN</p>
+                </div>
               </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileOpen(false)}
+                className="h-8 w-8 text-slate-400"
+              >
+                <Menu className="h-4 w-4" />
+              </Button>
             </div>
-            <div className="h-[calc(100vh-82px)] overflow-y-auto p-3">
+            <div className="flex-1 overflow-y-auto p-4">
               <SidebarNav nodes={filteredNodes} lang={lang} onNavigate={() => setMobileOpen(false)} />
             </div>
           </div>
         </div>
       ) : null}
 
-      <div className={cn("transition-all duration-200", sidebarCollapsed ? "lg:ps-0" : "lg:ps-60")}>
-        <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
-          <div className={cn("flex items-center gap-3 px-4 lg:px-6 transition-all duration-200", isWizardPath ? "h-14" : "h-11")}>
+      <div className={cn("transition-all duration-300 min-h-screen flex flex-col", sidebarCollapsed ? "lg:ps-0" : "lg:ps-64")}>
+        {/* Sticky Premium Layout Header */}
+        <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/80 backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-950/80">
+          <div className={cn("flex items-center gap-4 px-4 lg:px-6 transition-all duration-200", isWizardPath ? "h-16" : "h-14")}>
             <Button
               variant="outline"
               size="icon"
-              className="lg:hidden"
+              className="lg:hidden h-9 w-9 rounded-lg"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation"
             >
@@ -139,7 +222,7 @@ export function DashboardFrame({
               <Button
                 variant="outline"
                 size="icon"
-                className="hidden lg:flex"
+                className="hidden lg:flex h-9 w-9 rounded-lg"
                 onClick={() => setSidebarCollapsed(false)}
                 aria-label="Expand sidebar"
               >
@@ -147,36 +230,137 @@ export function DashboardFrame({
               </Button>
             )}
 
-            {isWizardPath ? (
-              <div id="navbar-portal-target" className="flex-1 flex items-center justify-between gap-4 min-w-0 h-full py-1" />
-            ) : (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">Enterprise ERP / FMS</p>
-                <p className="hidden truncate text-xs text-muted-foreground sm:block">
-                  Multi-country branch management & accounting
-                </p>
-              </div>
-            )}
+            {/* Smart Search trigger */}
+            <div className="hidden md:block w-72">
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-100/50 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <Search className="h-3.5 w-3.5" />
+                  <span>Search modules, actions...</span>
+                </span>
+                <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-slate-200 bg-white px-1.5 font-mono text-[9px] font-bold text-slate-400 dark:border-slate-700 dark:bg-slate-800">
+                  Ctrl K
+                </kbd>
+              </button>
+            </div>
 
-            <div className="ms-auto flex items-center gap-3">
+            <div className="md:hidden">
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                className="h-9 w-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="ms-auto flex items-center gap-4">
               <PreferencesControls />
-              <div className={cn("hidden text-end text-sm sm:block")}>
-                <p className="font-medium">{userName || "User"}</p>
-                <div className="mt-0.5 flex items-center justify-end gap-2 text-xs">
+              <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
+              <div className={cn("hidden text-end text-xs sm:block")}>
+                <p className="font-bold text-slate-800 dark:text-slate-200">{userName || "User"}</p>
+                <div className="mt-0.5 flex items-center justify-end gap-1.5">
                   {roleLabel ? (
-                    <span className="inline-flex items-center rounded-full border bg-muted px-2 py-0.5 font-semibold text-foreground">
+                    <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary dark:bg-primary/20">
                       {roleLabel}
                     </span>
                   ) : null}
-                  <span className="text-muted-foreground">{userEmail}</span>
+                  <span className="text-[10px] text-slate-400 font-mono font-medium">{userEmail}</span>
                 </div>
               </div>
             </div>
           </div>
         </header>
 
-        <main className="w-full p-4 lg:py-6 lg:ps-4 lg:pe-6">{children}</main>
+        {/* Main Work Area */}
+        <main className="w-full flex-1 p-4 lg:p-6 bg-slate-50/30 dark:bg-slate-950/20">{children}</main>
       </div>
+
+      {/* Global Command Palette search Modal Overlay */}
+      {searchOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 backdrop-blur-sm p-4 sm:p-10 pt-16">
+          <div
+            className="absolute inset-0 bg-transparent"
+            onClick={() => setSearchOpen(false)}
+          />
+          <div className="relative w-full max-w-xl rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Search Input */}
+            <div className="flex items-center border-b px-4 py-3 dark:border-slate-800">
+              <Search className="h-4 w-4 text-slate-400 mr-3 shrink-0" />
+              <input
+                type="text"
+                className="w-full bg-transparent text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none"
+                placeholder="Type to search modules, reports or actions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                className="text-xs font-semibold text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 px-2 py-1 rounded"
+              >
+                ESC
+              </button>
+            </div>
+
+            {/* Results */}
+            <div className="max-h-[360px] overflow-y-auto p-2">
+              <div className="text-[10px] font-bold text-slate-400 px-3 py-1.5 uppercase tracking-wider">
+                {searchQuery ? "Matching Results" : "Quick Actions / Navigation"}
+              </div>
+              <div className="space-y-0.5">
+                {filteredSearchItems.map((item, idx) => (
+                  <Link
+                    key={idx}
+                    href={item.href}
+                    onClick={() => {
+                      setSearchOpen(false);
+                      setSearchQuery("");
+                    }}
+                    className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 group transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-semibold",
+                        item.category === "Actions"
+                          ? "bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:border-emerald-900/30 dark:text-emerald-400"
+                          : item.category === "Settings"
+                            ? "bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
+                            : "bg-primary/5 border-primary/10 text-primary dark:bg-primary/15"
+                      )}>
+                        {item.category === "Actions" ? "+" : item.title.substring(0, 1)}
+                      </span>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors">
+                          {item.title}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{item.category}</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity ltr:mr-2 rtl:ml-2">
+                      Jump to &rarr;
+                    </span>
+                  </Link>
+                ))}
+
+                {filteredSearchItems.length === 0 && (
+                  <div className="py-6 text-center text-xs text-slate-400 font-medium">
+                    No matching modules or actions found. Try another term.
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="border-t border-slate-100/80 px-4 py-2 text-[10px] text-slate-400 bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-900/30 flex justify-between font-medium">
+              <span>Use &uarr;&darr; keys to navigate</span>
+              <span>Press enter to select</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

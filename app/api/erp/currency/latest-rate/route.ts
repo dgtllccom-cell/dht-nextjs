@@ -4,6 +4,10 @@ import { apiOk, handleApiError } from "@/lib/api/response";
 import { requireErpSession } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+import { SupabaseApprovalsRepository } from "@/lib/api/approval-repository";
+import { ApprovalService } from "@/lib/services/approval-service";
+import crypto from "crypto";
+
 function toRate(value: unknown) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : 1;
@@ -124,6 +128,32 @@ export async function POST(request: NextRequest) {
       entered_by: actorId,
       updated_at: new Date().toISOString()
     };
+
+    if (!session.isSuperAdmin) {
+      const targetId = existing?.id || crypto.randomUUID();
+      const repo = new SupabaseApprovalsRepository();
+      const service = new ApprovalService(repo);
+
+      const approval = await service.requestApproval(session, {
+        resource: "daily_usd_rates",
+        action: "update",
+        targetTable: "daily_usd_rates",
+        targetId,
+        countryId,
+        countryBranchId: null,
+        cityBranchId: null,
+        reason: `Exchange rate update request via currency monitoring. Buying: ${buyingRate}, Selling: ${sellingRate}`,
+        beforeData: existing || null,
+        afterData: payload
+      });
+
+      return apiOk({
+        status: "pending",
+        message: "Exchange rate update request has been submitted to the Approval Queue for Admin approval.",
+        approvalRequestId: approval.id,
+        requestNo: approval.requestNo
+      });
+    }
 
     let saved;
     if (existing?.id) {

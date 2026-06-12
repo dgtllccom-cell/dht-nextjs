@@ -3,7 +3,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Pencil, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import { BranchRecordProfile, type BranchProfileSection } from "@/features/branc
 import { BranchReportActionsMenu } from "@/features/branches/components/branch-report-actions-menu";
 import { downloadCsv } from "@/features/branches/components/branch-report-export";
 import { PermissionAssignmentSection } from "@/features/users/components/permission-assignment-section";
+import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { apiGet } from "@/lib/api/client";
 import { getPermissionKeysForTemplate } from "@/lib/permissions/catalog";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
@@ -162,6 +163,7 @@ function asIso3(country: LocationCountry | null) {
 export function CountryBranchSetup() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("editId") ?? "";
+  const [drawerBranchData, setDrawerBranchData] = useState<any>(null);
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
@@ -459,7 +461,7 @@ export function CountryBranchSetup() {
   const liveBranchData = useMemo(() => {
     const active = existingMainBranch;
     const phoneVal = contacts.find((row) => row.type.toLowerCase().includes("phone"))?.value || "";
-    const emailVal = contacts.find((row) => row.type.toLowerCase().includes("email"))?.value || active?.email || "";
+    const emailVal = contacts.find((row) => row.type.toLowerCase().includes("email"))?.value || "";
     const whatsappVal = contacts.find((row) => row.type.toLowerCase().includes("whatsapp"))?.value || "";
 
     return {
@@ -601,6 +603,78 @@ export function CountryBranchSetup() {
       message: `Editing Existing Branch\nBranch Name: ${row.name}\nBranch Code: ${row.code}`
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function viewSavedBranch(row: CountryBranchRow) {
+    const phoneVal = normalizeContacts(row.contacts).find((c) => c.type.toLowerCase().includes("phone") || c.type.toLowerCase().includes("mobile"))?.value || "";
+    const emailVal = normalizeContacts(row.contacts).find((c) => c.type.toLowerCase().includes("email"))?.value || "";
+    const whatsappVal = normalizeContacts(row.contacts).find((c) => c.type.toLowerCase().includes("whatsapp"))?.value || "";
+
+    const payload = {
+      serialNumber: row.id.slice(0, 4).toUpperCase(),
+      branchStatus: row.status || "ACTIVE",
+      branchCode: row.code || "-",
+      branchType: "MAIN",
+      country: previewCountry || row.name.split(" ")[0] || "Country",
+      currency: row.local_currency || currency || "USD",
+      
+      parentBranch: {
+        name: "ACCOUNTS.DGT.LLC Headquarters",
+        code: "SUPER-HQ-001",
+        type: "SUPER_ADMIN",
+        status: "ACTIVE",
+        currency: "USD"
+      },
+
+      branchName: row.name,
+      createdDate: row.created_at ? new Date(row.created_at).toLocaleDateString() : undefined,
+      updatedDate: row.updated_at ? new Date(row.updated_at).toLocaleDateString() : undefined,
+      createdBy: "Super Admin",
+      updatedBy: "Super Admin",
+      establishedOn: "-",
+      taxRegNo: "-",
+      ntnGstNo: "-",
+
+      city: locationMeta.city?.name || "-",
+      cityCode: locationMeta.city?.code || "-",
+      stateProvince: locationMeta.state?.name || "-",
+      areaRegion: locationMeta.area?.name || "-",
+      zipCode: zip || "-",
+      fullAddress: row.address || "-",
+
+      ownerName: row.owner_name || "-",
+      ownerCode: "OWN-0001",
+      fatherHusbandName: "-",
+      cnicId: "-",
+      nationality: "Pakistani",
+      designation: "Country Admin",
+      ownershipType: "Individual",
+      ownershipPercent: "100%",
+      ownerPhone: phoneVal || "-",
+      ownerWhatsApp: whatsappVal || "-",
+      ownerEmail: emailVal || "-",
+      ownerAltEmail: "-",
+      ownerLandline: "-",
+      ownerWebsite: "-",
+
+      companyName: previewCompany || "-",
+      companyCode: companyCode || "-",
+      companyType: "Private Limited",
+      companyRegNo: "-",
+      companyIncDate: "-",
+      companyTaxRegNo: "-",
+      companyNtnGstNo: "-",
+      companyStatus: "Active",
+      companyPhone: phoneVal || "-",
+      companyEmail: emailVal || "-",
+      companyWebsite: "-",
+      companyOfficeAddress: row.address || "-",
+
+      allowedPermissions: Array.isArray(row.permission_grants) ? row.permission_grants : [],
+      remarks: "Saved country main branch details registry."
+    };
+
+    setDrawerBranchData(payload);
   }
 
   useEffect(() => {
@@ -1114,6 +1188,8 @@ export function CountryBranchSetup() {
               <BranchReportActionsMenu
                 ariaLabel="Country branch actions"
                 disabled={!hasAny}
+                onView={viewReport}
+                onEdit={editReport}
                 onPrint={printReport}
                 onPdf={() => openReport(true)}
                 onEmail={emailReport}
@@ -1212,10 +1288,16 @@ export function CountryBranchSetup() {
                                   <span className="text-muted-foreground">{" - "}</span>
                                   <span className="text-muted-foreground">{b.name}</span>
                                 </span>
-                                <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => beginEditCountryBranch(b)}>
-                                  <Pencil className="h-3.5 w-3.5" aria-hidden />
-                                  Edit
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => viewSavedBranch(b)}>
+                                    <Eye className="h-3.5 w-3.5" aria-hidden />
+                                    View
+                                  </Button>
+                                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => beginEditCountryBranch(b)}>
+                                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                                    Edit
+                                  </Button>
+                                </div>
                               </li>
                             ))}
                             {filteredCountryBranches.length > 6 ? (
@@ -1234,7 +1316,21 @@ export function CountryBranchSetup() {
           />
         </div>
       </div>
+
+      <DetailDrawer
+        isOpen={drawerBranchData !== null}
+        onClose={() => setDrawerBranchData(null)}
+        title="Country Branch Details"
+        subtitle="Verification certificate and branch permissions"
+      >
+        {drawerBranchData && (
+          <BranchLiveReportPanel
+            title="Saved Country Branch"
+            status={drawerBranchData.branchStatus}
+            branchData={drawerBranchData}
+          />
+        )}
+      </DetailDrawer>
     </div>
   );
 }
-

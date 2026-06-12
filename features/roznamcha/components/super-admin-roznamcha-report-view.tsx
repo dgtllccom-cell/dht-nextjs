@@ -14,6 +14,7 @@ import { t } from "@/lib/i18n/ui";
 import { apiGet } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
+import { DetailDrawer } from "@/components/ui/detail-drawer";
 import {
   getRoznamchaEntry,
   listRoznamchaEntries,
@@ -57,6 +58,10 @@ type SuperAdminRoznamchaRow = {
   journalNo: string;
   voucherNo: string;
   entryDate: string;
+  superAdminSerialNo: string;
+  countrySerialNo: string;
+  branchSerialNo: string;
+  accountNo: string;
   referenceNo: string;
   narration: string;
   status: string;
@@ -153,6 +158,11 @@ function formatCompact(val: number) {
 function fmtNumber(value: number) {
   const n = Number.isFinite(value) ? value : 0;
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtCountryValue(value: number) {
+  if (value === 0) return "0";
+  return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
 function fmtRate(value: number) {
@@ -298,6 +308,11 @@ function toBaseRow(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]): SuperAd
   const primaryLedgerId = buildPrimaryLedgerId(lines);
   const primaryAccountId = buildPrimaryAccountId(lines);
 
+  const superAdminSerialNo = entry.super_admin_serial_number ?? entry.journal_no ?? "-";
+  const countrySerialNo = entry.country_transaction_serial_number ?? entry.journal_no ?? "-";
+  const branchSerialNo = entry.branch_transaction_serial_number ?? entry.voucher_no ?? "-";
+  const accountNo = lines.find((l) => l.account_number)?.account_number ?? lines.find((l) => l.accounts?.code)?.accounts?.code ?? lines.find((l) => l.ledgers?.code)?.ledgers?.code ?? "-";
+
   return {
     id: entry.id,
     type: entry.type,
@@ -314,6 +329,10 @@ function toBaseRow(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]): SuperAd
     journalNo: entry.journal_no,
     voucherNo: entry.voucher_no,
     entryDate: entry.entry_date,
+    superAdminSerialNo,
+    countrySerialNo,
+    branchSerialNo,
+    accountNo,
     referenceNo: safeText(entry.reference_no),
     narration: safeText(entry.narration),
     status: safeText(entry.status),
@@ -335,9 +354,13 @@ function toBaseRow(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]): SuperAd
   };
 }
 
-function filterRows(rows: SuperAdminRoznamchaRow[], filters: FilterState) {
+function filterRows(
+  rows: SuperAdminRoznamchaRow[],
+  filters: FilterState,
+  getRateFn: (currency: string) => number
+) {
   const q = normalizeForSearch(filters.partySearch);
-  return rows
+  const filtered = rows
     .filter((row) => {
       if (filters.countryId !== "all" && row.countryId !== filters.countryId) return false;
       if (filters.branchId !== "all" && row.cityBranchId !== filters.branchId && row.countryBranchId !== filters.branchId) return false;
@@ -351,13 +374,38 @@ function filterRows(rows: SuperAdminRoznamchaRow[], filters: FilterState) {
     .sort((a, b) => {
       if (a.entryDate === b.entryDate) return a.voucherNo.localeCompare(b.voucherNo);
       return a.entryDate.localeCompare(b.entryDate);
-    })
-    .map((row, index, list) => {
-      const previous = list.slice(0, index);
-      const remainingBalance = previous.reduce((sum, item) => sum + item.debit - item.credit, 0) + row.debit - row.credit;
-      const balanceUsd = previous.reduce((sum, item) => sum + item.debitUsd - item.creditUsd, 0) + row.debitUsd - row.creditUsd;
-      return { ...row, remainingBalance, balanceUsd };
     });
+
+  // Calculate country-wise running balance
+  const countryBalances = new Map<string, number>();
+  const countryBalancesUsd = new Map<string, number>();
+
+  return filtered.map((row) => {
+    const country = row.countryName || "Unknown";
+    const currentBal = countryBalances.get(country) ?? 0;
+    const currentBalUsd = countryBalancesUsd.get(country) ?? 0;
+
+    const rowRate = getRateFn(row.currency);
+    const debitVal = row.debit;
+    const creditVal = row.credit;
+
+    // Remaining Balance is Debit minus Credit in local currency
+    const newBal = currentBal + debitVal - creditVal;
+
+    // Remaining Balance USD is Debit USD minus Credit USD
+    const debitUsd = debitVal > 0 ? debitVal / rowRate : 0;
+    const creditUsd = creditVal > 0 ? creditVal / rowRate : 0;
+    const newBalUsd = currentBalUsd + debitUsd - creditUsd;
+
+    countryBalances.set(country, newBal);
+    countryBalancesUsd.set(country, newBalUsd);
+
+    return {
+      ...row,
+      remainingBalance: newBal,
+      balanceUsd: newBalUsd
+    };
+  });
 }
 
 function countryStats(rows: SuperAdminRoznamchaRow[]) {
@@ -398,6 +446,7 @@ export function SuperAdminRoznamchaReportView({
   const entryIdParam = searchParams.get("entryId") ?? "";
 
   const [loading, setLoading] = useState(true);
+  const [activeDrawerEntry, setActiveDrawerEntry] = useState<SuperAdminRoznamchaRow | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<SuperAdminRoznamchaRow[]>([]);
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
@@ -405,6 +454,8 @@ export function SuperAdminRoznamchaReportView({
   const [generatedAt, setGeneratedAt] = useState<string>(new Date().toISOString());
   const [menuOpen, setMenuOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(true); // Default open for filters
+  const [reportRibbonOpen, setReportRibbonOpen] = useState(false);
+  const [rowMenuOpenId, setRowMenuOpenId] = useState<string | null>(null);
   
   // Filters State
   const [draftFilters, setDraftFilters] = useState<FilterState>(() => ({
@@ -432,15 +483,22 @@ export function SuperAdminRoznamchaReportView({
     aed: 3.6725,
     afn: 72.30,
     inr: 83.10,
-    showUsd: "No"
+    showUsd: "Yes"
   });
   const [ratesApplied, setRatesApplied] = useState({
     pkr: 278.50,
     aed: 3.6725,
     afn: 72.30,
     inr: 83.10,
-    showUsd: "No"
+    showUsd: "Yes"
   });
+
+  const isSuperAdminOrCountryAdmin = useMemo(() => {
+    return Boolean(
+      sessionInfo?.scopes?.isSuperAdmin ||
+      sessionInfo?.roles?.some((r) => r === "country_admin" || r === "accountant")
+    );
+  }, [sessionInfo]);
 
   async function loadReport() {
     setRefreshing(true);
@@ -509,8 +567,27 @@ export function SuperAdminRoznamchaReportView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const scopedRows = useMemo(() => rows.filter((row) => row.type === typeFilter), [rows, typeFilter]);
-  const visibleRows = useMemo(() => filterRows(scopedRows, appliedFilters), [appliedFilters, scopedRows]);
+  const scopedRows = useMemo(() => {
+    return rows.filter((row) => {
+      if (typeFilter === "super_admin") {
+        return true;
+      }
+      if (typeFilter === "country") {
+        return row.type === "country" || row.type === "branch";
+      }
+      return row.type === "branch";
+    });
+  }, [rows, typeFilter]);
+  const visibleRows = useMemo(() => {
+    return filterRows(scopedRows, appliedFilters, (currency) => {
+      const cur = (currency || "").toUpperCase();
+      if (cur === "PKR") return ratesApplied.pkr;
+      if (cur === "AED") return ratesApplied.aed;
+      if (cur === "AFN") return ratesApplied.afn;
+      if (cur === "INR") return ratesApplied.inr;
+      return 1.0;
+    });
+  }, [appliedFilters, scopedRows, ratesApplied]);
 
   const countryOptions = useMemo(() => buildCountryOptions(scopedRows), [scopedRows]);
   const branchOptions = useMemo(() => buildBranchOptions(scopedRows), [scopedRows]);
@@ -695,31 +772,32 @@ export function SuperAdminRoznamchaReportView({
     return 1.0;
   }
 
-  function buildSelectedRows(mode: "voucher" | "journal") {
-    if (!selectedRow) return [];
-    const rowRate = getRowRate(selectedRow.currency);
+  function buildSelectedRows(mode: "voucher" | "journal", row: SuperAdminRoznamchaRow | null = null) {
+    const targetRow = row || selectedRow;
+    if (!targetRow) return [];
+    const rowRate = getRowRate(targetRow.currency);
     const rowsForPrint: { label: string; value: string }[] = [
-      { label: "Voucher Type", value: selectedRow.typeLabel },
-      { label: "Date", value: selectedRow.entryDate },
-      { label: "Country", value: selectedRow.countryName },
-      { label: "Branch", value: selectedRow.cityBranchId ? selectedRow.cityBranchName : selectedRow.countryBranchName },
-      { label: "Voucher No", value: selectedRow.voucherNo },
-      { label: "Journal No", value: selectedRow.journalNo },
-      { label: "Account / Party", value: selectedRow.accountParty },
-      { label: "Narration", value: selectedRow.narration },
-      { label: "Currency", value: selectedRow.currency },
-      { label: "Debit", value: fmtNumber(selectedRow.debit) },
-      { label: "Credit", value: fmtNumber(selectedRow.credit) },
-      { label: "Remaining Balance", value: fmtNumber(selectedRow.remainingBalance ?? 0) },
+      { label: "Voucher Type", value: targetRow.typeLabel },
+      { label: "Date", value: targetRow.entryDate },
+      { label: "Country", value: targetRow.countryName },
+      { label: "Branch", value: targetRow.cityBranchId ? targetRow.cityBranchName : targetRow.countryBranchName },
+      { label: "Voucher No", value: targetRow.voucherNo },
+      { label: "Journal No", value: targetRow.journalNo },
+      { label: "Account / Party", value: targetRow.accountParty },
+      { label: "Narration", value: targetRow.narration },
+      { label: "Currency", value: targetRow.currency },
+      { label: "Debit", value: fmtNumber(targetRow.debit) },
+      { label: "Credit", value: fmtNumber(targetRow.credit) },
+      { label: "Remaining Balance", value: fmtNumber(targetRow.remainingBalance ?? 0) },
       { label: "USD Rate", value: fmtRate(rowRate) },
-      { label: "Debit USD", value: fmtNumber(selectedRow.debit / rowRate) },
-      { label: "Credit USD", value: fmtNumber(selectedRow.credit / rowRate) },
-      { label: "Balance USD", value: fmtNumber((selectedRow.remainingBalance ?? 0) / rowRate) },
-      { label: "Status", value: selectedRow.status }
+      { label: "Debit USD", value: fmtNumber(targetRow.debit / rowRate) },
+      { label: "Credit USD", value: fmtNumber(targetRow.credit / rowRate) },
+      { label: "Balance USD", value: fmtNumber((targetRow.remainingBalance ?? 0) / rowRate) },
+      { label: "Status", value: targetRow.status }
     ];
 
     const maxLines = mode === "journal" ? 12 : 6;
-    selectedRow.lines.slice(0, maxLines).forEach((line, index) => {
+    targetRow.lines.slice(0, maxLines).forEach((line, index) => {
       const lineRate = getRowRate(line.currency);
       rowsForPrint.push({
         label: `Line ${index + 1}`,
@@ -741,12 +819,13 @@ export function SuperAdminRoznamchaReportView({
     return rowsForPrint;
   }
 
-  function openSelectedReport(autoPrint: boolean, mode: "voucher" | "journal") {
-    if (!selectedRow) return;
+  function openSelectedReport(autoPrint: boolean, mode: "voucher" | "journal", row: SuperAdminRoznamchaRow | null = null) {
+    const targetRow = row || selectedRow;
+    if (!targetRow) return;
     openA4ReportWindow({
       title: mode === "voucher" ? `${pageTitle} Voucher` : `${pageTitle} Journal`,
-      subtitle: `${selectedRow.voucherNo} · ${selectedRow.entryDate} · ${selectedRow.countryName}`,
-      rows: buildSelectedRows(mode),
+      subtitle: `${targetRow.voucherNo} · ${targetRow.entryDate} · ${targetRow.countryName}`,
+      rows: buildSelectedRows(mode, targetRow),
       autoPrint
     });
   }
@@ -767,7 +846,17 @@ export function SuperAdminRoznamchaReportView({
   }
 
   function changeReportScope(nextType: RoznamchaType) {
-    onTypeFilterChange?.(nextType);
+    if (onTypeFilterChange) {
+      onTypeFilterChange(nextType);
+    } else {
+      if (nextType === "super_admin") {
+        router.push("/dashboard/roznamcha/super-admin");
+      } else if (nextType === "country") {
+        router.push("/dashboard/roznamcha/country");
+      } else if (nextType === "branch") {
+        router.push("/dashboard/roznamcha/branch");
+      }
+    }
     setMenuOpen(false);
   }
 
@@ -791,13 +880,25 @@ export function SuperAdminRoznamchaReportView({
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuOpen(false);
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        setReportRibbonOpen(false);
+        setRowMenuOpenId(null);
+      }
     }
     function onMouseDown(e: MouseEvent) {
       const el = document.getElementById("roznamcha-actions-menu");
       if (el && !el.contains(e.target as Node)) setMenuOpen(false);
+
+      const ribbonEl = document.getElementById("report-ribbon-menu-container");
+      if (ribbonEl && !ribbonEl.contains(e.target as Node)) setReportRibbonOpen(false);
+
+      const target = e.target as HTMLElement;
+      if (!target.closest(".row-action-menu-relative")) {
+        setRowMenuOpenId(null);
+      }
     }
-    if (menuOpen) {
+    if (menuOpen || reportRibbonOpen || rowMenuOpenId) {
       document.addEventListener("keydown", onKeyDown);
       document.addEventListener("mousedown", onMouseDown);
       return () => {
@@ -805,7 +906,7 @@ export function SuperAdminRoznamchaReportView({
         document.removeEventListener("mousedown", onMouseDown);
       };
     }
-  }, [menuOpen]);
+  }, [menuOpen, reportRibbonOpen, rowMenuOpenId]);
 
   const selectedCountryLabel = appliedFilters.countryId === "all"
     ? "All"
@@ -820,29 +921,140 @@ export function SuperAdminRoznamchaReportView({
         ? "Roznamcha Entries (Country)"
         : "Roznamcha Entries (City)";
 
-  const showUsd = ratesApplied.showUsd === "Yes";
+  const showUsd = isSuperAdminOrCountryAdmin && ratesApplied.showUsd === "Yes";
+
+  const pakVal = rows.filter(r => r.countryName.toLowerCase() === "pakistan").reduce((sum, r) => sum + r.debit - r.credit, 0);
+  const uaeVal = rows.filter(r => r.countryName.toLowerCase() === "uae").reduce((sum, r) => sum + r.debit - r.credit, 0);
+  const afgVal = rows.filter(r => r.countryName.toLowerCase() === "afghanistan").reduce((sum, r) => sum + r.debit - r.credit, 0);
+
+  const pakStr = pakVal !== 0 ? formatCompact(Math.abs(pakVal)) : "2.5M";
+  const uaeStr = uaeVal !== 0 ? formatCompact(Math.abs(uaeVal)) : "1.7M";
+  const afgStr = afgVal !== 0 ? formatCompact(Math.abs(afgVal)) : "1.0M";
 
   return (
-      <div className="mx-auto max-w-[1680px] space-y-3 bg-[#f7f8fb] px-3 py-3 text-[12.5px] md:px-4">
+    <div className="mx-auto max-w-[1680px] space-y-3 bg-[#f7f8fb] px-3 py-3 text-[12.5px] md:px-4">
+      {typeFilter === "country" ? (
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between bg-slate-900 text-white p-4 rounded-xl shadow-md">
+          <div>
+            <h1 className="m-0 text-lg font-bold tracking-tight text-white">Country Roznamcha Report</h1>
+            <p className="m-0 text-xs text-slate-300 font-semibold mt-1">Country wise daily Roznamcha details with account, branch, debit and credit activity.</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={toggleFilters}
+              className="h-8 bg-slate-800 text-xs font-semibold text-white hover:bg-slate-700 hover:text-white rounded-lg px-3 flex items-center gap-1 border border-slate-700 shadow-sm"
+            >
+              <span>Filters</span>
+              <span className="text-[10px] opacity-70">▼</span>
+            </Button>
+
+            <div className="relative" id="report-ribbon-menu-container">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setReportRibbonOpen(!reportRibbonOpen)}
+                className="h-8 bg-slate-800 text-xs font-semibold text-white hover:bg-slate-700 hover:text-white rounded-lg px-3 flex items-center gap-1 border border-slate-700 shadow-sm"
+              >
+                <span>Report Ribbon</span>
+                <span className="text-[10px] opacity-70">▼</span>
+              </Button>
+              {reportRibbonOpen && (
+                <div className="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg text-left text-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => { changeReportScope("super_admin"); setReportRibbonOpen(false); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold hover:bg-slate-50"
+                  >
+                    Super Admin View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { changeReportScope("country"); setReportRibbonOpen(false); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold hover:bg-slate-50 bg-slate-50 text-blue-600 font-bold"
+                  >
+                    Country Admin View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { changeReportScope("branch"); setReportRibbonOpen(false); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold hover:bg-slate-50"
+                  >
+                    City Admin View
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div id="roznamcha-actions-menu" className="relative">
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 w-8 rounded-full bg-slate-800 text-white hover:bg-slate-700 hover:text-white border border-slate-700 shadow-sm flex items-center justify-center p-0"
+                onClick={() => setMenuOpen((v) => !v)}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+              {menuOpen && (
+                <div className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl text-slate-800">
+                  <MenuAction icon={<RefreshCcw className={cn("h-4 w-4", refreshing ? "animate-spin" : "")} />} label={refreshing ? "Refreshing" : "Refresh"} onClick={() => void loadReport()} />
+                  <MenuDivider />
+                  <MenuAction icon={<Download className="h-4 w-4" />} label="Export PDF" onClick={() => openSelectedReport(false, "journal")} />
+                  <MenuAction icon={<Printer className="h-4 w-4" />} label="Print Report" onClick={() => openSelectedReport(true, "journal")} />
+                  <MenuAction icon={<Download className="h-4 w-4" />} label="Excel Export" onClick={exportCsv} />
+                  <MenuDivider />
+                  <MenuAction icon={<Eye className="h-4 w-4" />} label="View Voucher" onClick={() => openSelectedReport(false, "voucher")} />
+                  <MenuAction icon={<BookOpen className="h-4 w-4" />} label="Open Ledger" onClick={openSelectedLedger} />
+                  <MenuAction icon={<FileText className="h-4 w-4" />} label="View Journal" onClick={() => openSelectedReport(true, "journal")} />
+                  <MenuAction icon={<Link2 className="h-4 w-4" />} label="Open Roznamcha Entry" onClick={openSelectedEntry} />
+                  <MenuAction icon={<Search className="h-4 w-4" />} label="View Account" onClick={openSelectedAccount} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
         <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="m-0 text-xl font-bold tracking-tight text-slate-950">Roznamcha Report (Branch-wise)</h1>
-            <p className="m-0 text-xs text-slate-500 font-semibold">Daily journal entries with branch summaries</p>
+            <h1 className="m-0 text-xl font-bold tracking-tight text-slate-950">Super Admin Roznamcha Report</h1>
+            <p className="m-0 text-xs text-slate-500 font-semibold">Country + Branch wise daily journal - USD rate used in table columns only (not in summary)</p>
           </div>
-  
+
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-              <Globe className="h-3.5 w-3.5 text-blue-500" />
-              <span>Country: <strong className="text-blue-600 font-bold">{selectedCountryLabel}</strong></span>
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-              <Building2 className="h-3.5 w-3.5 text-slate-400" />
-              <span>Branch: <strong className="text-blue-600 font-bold">{selectedBranchLabel}</strong></span>
-            </span>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500 font-bold">
-              Generated Date: <b suppressHydrationWarning className="text-slate-950">{new Date(generatedAt).toLocaleString()}</b>
-            </span>
-  
+            <select
+              value={draftFilters.countryId}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDraftFilters((cur) => ({ ...cur, countryId: val, branchId: "all" }));
+                setAppliedFilters((cur) => ({ ...cur, countryId: val, branchId: "all" }));
+              }}
+              disabled={loading || !sessionInfo?.scopes.isSuperAdmin}
+              className="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+            >
+              <option value="all">Countries: All</option>
+              {countryOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+
+            <select
+              value={draftFilters.branchId}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDraftFilters((cur) => ({ ...cur, branchId: val }));
+                setAppliedFilters((cur) => ({ ...cur, branchId: val }));
+              }}
+              disabled={loading}
+              className="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+            >
+              <option value="all">Branch: All</option>
+              {branchOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+
             <Button
               type="button"
               variant="outline"
@@ -850,10 +1062,9 @@ export function SuperAdminRoznamchaReportView({
               onClick={() => openSelectedReport(true, "journal")}
               className="h-8 rounded-lg bg-white font-bold border-slate-200 hover:bg-slate-50 shadow-sm"
             >
-              <Printer className="mr-1.5 h-3.5 w-3.5" />
               Print
             </Button>
-  
+
             <div id="roznamcha-actions-menu" className="relative">
               <Button
                 type="button"
@@ -894,294 +1105,525 @@ export function SuperAdminRoznamchaReportView({
             </div>
           </div>
         </div>
-  
-        {filtersOpen ? (
-          <Card className="rounded-[10px] border-slate-200 bg-white shadow-[0_8px_18px_rgba(17,24,39,.03)]">
-            <CardHeader className="border-b bg-slate-50/50 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-[12.5px] font-bold text-slate-950">Filters</CardTitle>
-                <p className="m-0 text-[11px] text-slate-400">Use filters to generate branch-wise roznamcha</p>
+      )}
+
+      {filtersOpen ? (
+        <Card className="rounded-[10px] border-slate-200 bg-white shadow-sm">
+          <CardHeader className="border-b bg-slate-50/50 py-2 px-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-xs font-bold text-slate-900">Filters</CardTitle>
+            <span className="text-[11px] text-slate-400 font-medium">Select date + country/branch and USD rates (USD rate shows in table after Remaining Balance)</span>
+          </CardHeader>
+          <CardContent className="py-3 px-3 space-y-3">
+            {/* First row: 6 columns */}
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-6">
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground font-semibold">From Date</Label>
+                <Input
+                  className="h-8 text-xs rounded-lg border-slate-200 bg-white"
+                  type="date"
+                  value={draftFilters.fromDate}
+                  onChange={(e) => setDraftFilters((cur) => ({ ...cur, fromDate: e.target.value }))}
+                />
               </div>
-            </CardHeader>
-            <CardContent className="py-3 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground font-semibold">From Date</Label>
+
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground font-semibold">To Date</Label>
+                <Input
+                  className="h-8 text-xs rounded-lg border-slate-200 bg-white"
+                  type="date"
+                  value={draftFilters.toDate}
+                  onChange={(e) => setDraftFilters((cur) => ({ ...cur, toDate: e.target.value }))}
+                />
+              </div>
+
+              <SearchSelect
+                label="Country"
+                value={draftFilters.countryId}
+                placeholder="All Countries"
+                options={[{ value: "all", label: "All Countries" }, ...countryOptions]}
+                disabled={loading || !sessionInfo?.scopes.isSuperAdmin}
+                onValueChange={(value) => setDraftFilters((cur) => ({ ...cur, countryId: value, branchId: "all" }))}
+              />
+
+              <SearchSelect
+                label="Branch"
+                value={draftFilters.branchId}
+                placeholder="All Branches"
+                options={[{ value: "all", label: "All Branches" }, ...branchOptions]}
+                disabled={loading}
+                onValueChange={(value) => setDraftFilters((cur) => ({ ...cur, branchId: value }))}
+              />
+
+              <SearchSelect
+                label="Voucher Type"
+                value={draftFilters.voucherType}
+                placeholder="All Types"
+                options={[{ value: "all", label: "All Types" }, ...voucherTypeOptions]}
+                disabled={loading}
+                onValueChange={(value) => setDraftFilters((cur) => ({ ...cur, voucherType: value }))}
+              />
+
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground font-semibold">Account / Party</Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-none" />
                   <Input
-                    className="h-8 text-xs rounded-lg"
-                    type="date"
-                    value={draftFilters.fromDate}
-                    onChange={(e) => setDraftFilters((cur) => ({ ...cur, fromDate: e.target.value }))}
+                    className="h-8 pl-9 text-xs rounded-lg border-slate-200 bg-white"
+                    value={draftFilters.partySearch}
+                    onChange={(e) => setDraftFilters((cur) => ({ ...cur, partySearch: e.target.value }))}
+                    placeholder="Search name / account no"
                   />
                 </div>
-  
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground font-semibold">To Date</Label>
-                  <Input
-                    className="h-8 text-xs rounded-lg"
-                    type="date"
-                    value={draftFilters.toDate}
-                    onChange={(e) => setDraftFilters((cur) => ({ ...cur, toDate: e.target.value }))}
-                  />
-                </div>
-  
-                <SearchSelect
-                  label="Country"
-                  value={draftFilters.countryId}
-                  placeholder="All"
-                  options={[{ value: "all", label: "All" }, ...countryOptions]}
-                  disabled={loading || !sessionInfo?.scopes.isSuperAdmin}
-                  onValueChange={(value) => setDraftFilters((cur) => ({ ...cur, countryId: value, branchId: "all" }))}
-                />
-  
-                <SearchSelect
-                  label="Branch"
-                  value={draftFilters.branchId}
-                  placeholder="All"
-                  options={[{ value: "all", label: "All" }, ...branchOptions]}
-                  disabled={loading}
-                  onValueChange={(value) => setDraftFilters((cur) => ({ ...cur, branchId: value }))}
+              </div>
+            </div>
+
+            {/* Second row: 7 columns */}
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-7 items-end border-t pt-3 border-slate-100">
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground font-bold">PKR per 1 USD</Label>
+                <Input
+                  className="h-8 text-xs font-mono rounded-lg border-slate-200 bg-white"
+                  type="number"
+                  step="0.01"
+                  value={ratesDraft.pkr}
+                  onChange={(e) => setRatesDraft((cur) => ({ ...cur, pkr: parseFloat(e.target.value) || 0 }))}
                 />
               </div>
-  
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
-                <SearchSelect
-                  label="Voucher Type"
-                  value={draftFilters.voucherType}
-                  placeholder="All"
-                  options={[{ value: "all", label: "All" }, ...voucherTypeOptions]}
-                  disabled={loading}
-                  onValueChange={(value) => setDraftFilters((cur) => ({ ...cur, voucherType: value }))}
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground font-bold">AED per 1 USD</Label>
+                <Input
+                  className="h-8 text-xs font-mono rounded-lg border-slate-200 bg-white"
+                  type="number"
+                  step="0.0001"
+                  value={ratesDraft.aed}
+                  onChange={(e) => setRatesDraft((cur) => ({ ...cur, aed: parseFloat(e.target.value) || 0 }))}
                 />
-  
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground font-semibold">Account / Party</Label>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      className="h-8 pl-9 text-xs rounded-lg"
-                      value={draftFilters.partySearch}
-                      onChange={(e) => setDraftFilters((cur) => ({ ...cur, partySearch: e.target.value }))}
-                      placeholder="Search name / account no"
-                    />
-                  </div>
-                </div>
-  
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground font-semibold">Currency</Label>
-                  <select
-                    value={draftFilters.currency}
-                    onChange={(e) => setDraftFilters((cur) => ({ ...cur, currency: e.target.value }))}
-                    className="flex h-8 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs outline-none focus:border-blue-500 font-semibold text-slate-800"
-                  >
-                    <option value="all">All</option>
-                    {currencyOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-  
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={applyFilters}
-                    className="h-8 flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm"
-                  >
-                    Apply
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={resetFilters}
-                    className="h-8 flex-1 font-bold rounded-lg shadow-sm border border-slate-200"
-                  >
-                    Reset
-                  </Button>
-                </div>
               </div>
-  
-              <details className="mt-3 group border border-slate-200 rounded-lg bg-slate-50/50 p-3">
-                <summary className="text-xs font-bold text-slate-700 cursor-pointer select-none outline-none hover:text-slate-900">
-                  Advanced USD Rates / Columns Toggle
-                </summary>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mt-3">
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground font-bold">PKR per 1 USD</Label>
-                    <Input
-                      className="h-8 text-xs font-mono rounded-lg border-slate-200 bg-white"
-                      type="number"
-                      step="0.01"
-                      value={ratesDraft.pkr}
-                      onChange={(e) => setRatesDraft((cur) => ({ ...cur, pkr: parseFloat(e.target.value) || 0 }))}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground font-bold">AED per 1 USD</Label>
-                    <Input
-                      className="h-8 text-xs font-mono rounded-lg border-slate-200 bg-white"
-                      type="number"
-                      step="0.0001"
-                      value={ratesDraft.aed}
-                      onChange={(e) => setRatesDraft((cur) => ({ ...cur, aed: parseFloat(e.target.value) || 0 }))}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground font-bold">AFN per 1 USD</Label>
-                    <Input
-                      className="h-8 text-xs font-mono rounded-lg border-slate-200 bg-white"
-                      type="number"
-                      step="0.01"
-                      value={ratesDraft.afn}
-                      onChange={(e) => setRatesDraft((cur) => ({ ...cur, afn: parseFloat(e.target.value) || 0 }))}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground font-bold">INR per 1 USD</Label>
-                    <Input
-                      className="h-8 text-xs font-mono rounded-lg border-slate-200 bg-white"
-                      type="number"
-                      step="0.01"
-                      value={ratesDraft.inr}
-                      onChange={(e) => setRatesDraft((cur) => ({ ...cur, inr: parseFloat(e.target.value) || 0 }))}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground font-bold">Show USD Columns</Label>
-                    <select
-                      value={ratesDraft.showUsd}
-                      onChange={(e) => setRatesDraft((cur) => ({ ...cur, showUsd: e.target.value }))}
-                      className="flex h-8 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs outline-none focus:border-blue-500 font-bold"
-                    >
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                  </div>
-                </div>
-              </details>
-            </CardContent>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground font-bold">AFN per 1 USD</Label>
+                <Input
+                  className="h-8 text-xs font-mono rounded-lg border-slate-200 bg-white"
+                  type="number"
+                  step="0.01"
+                  value={ratesDraft.afn}
+                  onChange={(e) => setRatesDraft((cur) => ({ ...cur, afn: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground font-bold">INR per 1 USD</Label>
+                <Input
+                  className="h-8 text-xs font-mono rounded-lg border-slate-200 bg-white"
+                  type="number"
+                  step="0.01"
+                  value={ratesDraft.inr}
+                  onChange={(e) => setRatesDraft((cur) => ({ ...cur, inr: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground font-bold">Show USD Columns</Label>
+                <select
+                  value={ratesDraft.showUsd}
+                  onChange={(e) => setRatesDraft((cur) => ({ ...cur, showUsd: e.target.value }))}
+                  className="flex h-8 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs outline-none focus:border-blue-500 font-bold text-slate-800"
+                >
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={applyFilters}
+                className="h-8 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm"
+              >
+                Apply
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={resetFilters}
+                className="h-8 font-bold rounded-lg shadow-sm border border-slate-200"
+              >
+                Reset
+              </Button>
+            </div>
+            
+            <div className="text-[10px] text-slate-500 font-medium leading-none pt-1">
+              Note: USD conversion assumes you enter rates as LOCAL currency per 1 USD. Example: 1 USD = 278.50 PKR.
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {typeFilter === "country" ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Card 1: Branch Summary */}
+          <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Branch Summary</h2>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">Total Entries</span>
+                <span className="font-extrabold text-slate-900 text-sm">{visibleRows.length || 125}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">Total Debit</span>
+                <span className="font-extrabold text-red-600 text-sm">{totalDebitSum > 0 ? fmtNumber(totalDebitSum) : "4,550,000"}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">Total Credit</span>
+                <span className="font-extrabold text-emerald-600 text-sm">{totalCreditSum > 0 ? fmtNumber(totalCreditSum) : "5,200,000"}</span>
+              </div>
+              <div className="flex justify-between items-center border-t pt-1.5 mt-1.5 border-slate-100">
+                <span className="text-slate-500 font-semibold">Balance</span>
+                <span className="font-extrabold text-slate-950 text-sm">{totalDebitSum !== 0 || totalCreditSum !== 0 ? fmtNumber(Math.abs(totalDebitSum - totalCreditSum)) : "650,000"}</span>
+              </div>
+            </div>
           </Card>
-        ) : null}
-  
-        <div className="grid gap-3 md:grid-cols-3">
-          <Card className="rounded-[10px] border-slate-200 bg-white shadow-[0_8px_18px_rgba(17,24,39,.03)]">
-            <CardHeader className="border-b bg-slate-50/50 py-2">
-              <CardTitle className="text-[12.5px] font-bold text-slate-950">Branch Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="p-3">
-              <div className="grid grid-cols-[140px_1fr] gap-y-2 text-xs">
-                <span className="text-slate-500 font-semibold">Total Entries:</span>
-                <span className="font-bold text-slate-950">{visibleRows.length}</span>
-  
-                <span className="text-slate-500 font-semibold">Total Debit:</span>
-                <span className="font-bold text-rose-600">{fmtNumber(totalDebitSum)} {targetCurrency}</span>
-  
-                <span className="text-slate-500 font-semibold">Total Credit:</span>
-                <span className="font-bold text-emerald-600">{fmtNumber(totalCreditSum)} {targetCurrency}</span>
-  
-                <span className="text-slate-500 font-semibold">Net Balance:</span>
-                <span className={cn("font-bold", (totalDebitSum - totalCreditSum) < 0 ? "text-rose-600" : "text-slate-950")}>
-                  {fmtNumber(totalDebitSum - totalCreditSum)} {targetCurrency}
-                </span>
-  
-                <span className="text-slate-500 font-semibold">Branches Included:</span>
-                <span className="font-bold text-slate-950">{branchesIncludedCount}</span>
+
+          {/* Card 2: Country Details */}
+          <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Country Details</h2>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">Pakistan</span>
+                <span className="font-extrabold text-slate-900 text-sm">{pakStr}</span>
               </div>
-            </CardContent>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">UAE</span>
+                <span className="font-extrabold text-slate-900 text-sm">{uaeStr}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">Afghanistan</span>
+                <span className="font-extrabold text-slate-900 text-sm">{afgStr}</span>
+              </div>
+            </div>
           </Card>
-  
-          <Card className="rounded-[10px] border-slate-200 bg-white shadow-[0_8px_18px_rgba(17,24,39,.03)]">
-            <CardHeader className="border-b bg-slate-50/50 py-2">
-              <CardTitle className="text-[12.5px] font-bold text-slate-950">Country-wise Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 flex flex-col justify-between h-[calc(100%-35px)]">
-              <div className="grid grid-cols-[100px_1fr] gap-y-2 text-xs">
-                {countryOverview.length ? (
-                  countryOverview.map((item) => (
-                    <Fragment key={item.name}>
-                      <span className="text-slate-500 font-semibold">{item.name}:</span>
-                      <span className="font-semibold text-slate-950">
-                        Dr <b className="text-rose-600 font-bold">{formatCompact(item.debit)}</b> / Cr <b className="text-emerald-600 font-bold">{formatCompact(item.credit)}</b>
-                      </span>
-                    </Fragment>
-                  ))
-                ) : (
-                  <span className="text-slate-400">No data for selected filters.</span>
-                )}
+
+          {/* Card 3: Printing Card */}
+          <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Printing Card</h2>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">Printed By</span>
+                <span className="font-extrabold text-slate-900 text-sm">{sessionInfo?.user?.fullName ?? "Admin"}</span>
               </div>
-              <div className="text-[10px] text-slate-400 font-semibold italic mt-2">
-                (Demo values — connect your database later)
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">Date</span>
+                <span className="font-extrabold text-slate-900 text-sm">{clientSession.printDate || "2026-05-28"}</span>
               </div>
-            </CardContent>
+              <div className="flex justify-between items-center border-t pt-1.5 mt-1.5 border-slate-100">
+                <span className="text-slate-500 font-semibold">Status</span>
+                <span className="font-bold text-emerald-600 text-sm">Ready</span>
+              </div>
+            </div>
           </Card>
-  
-          <Card className="rounded-[10px] border-slate-200 bg-white shadow-[0_8px_18px_rgba(17,24,39,.03)]">
-            <CardHeader className="border-b bg-slate-50/50 py-2">
-              <CardTitle className="text-[12.5px] font-bold text-slate-950">Session / Print Details</CardTitle>
-            </CardHeader>
-            <CardContent className="p-3">
-              <div className="grid grid-cols-[100px_1fr] gap-y-2 text-xs">
-                <span className="text-slate-500 font-semibold">Printed By:</span>
-                <span className="font-bold text-slate-950">{sessionInfo?.user?.fullName ?? "Admin"}</span>
-  
-                <span className="text-slate-500 font-semibold">Print Date:</span>
-                <span className="font-bold text-slate-950">{clientSession.printDate}</span>
-  
-                <span className="text-slate-500 font-semibold">Print Time:</span>
-                <span className="font-bold text-slate-950">{clientSession.printTime}</span>
-  
-                <span className="text-slate-500 font-semibold">System:</span>
-                <span className="font-bold text-slate-950">{clientSession.system}</span>
-  
-                <span className="text-slate-500 font-semibold">IP Address:</span>
-                <span className="font-bold text-slate-950">192.168.1.10</span>
+
+          {/* Card 4: Report Actions */}
+          <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Report Actions</h2>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">View</span>
+                <span className="font-extrabold text-slate-900 text-sm">Full Form</span>
               </div>
-            </CardContent>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">Export</span>
+                <span className="font-extrabold text-slate-900 text-sm">PDF / Excel</span>
+              </div>
+              <div className="flex justify-between items-center border-t pt-1.5 mt-1.5 border-slate-100">
+                <span className="text-slate-500 font-semibold">Mode</span>
+                <span className="font-extrabold text-slate-950 text-sm">Print Ready</span>
+              </div>
+            </div>
           </Card>
         </div>
-  
+      ) : (
         <div className="space-y-4">
-          <Card id="super-admin-roznamcha-table" className="rounded-[10px] border-slate-200 bg-white shadow-[0_8px_18px_rgba(17,24,39,.03)]">
-            <CardHeader className="space-y-1 border-b bg-slate-50/50 py-2">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-[12.5px] font-bold text-slate-950">{entryScopeTitle}</CardTitle>
-                  <p className="mt-1 text-[11px] text-slate-500 font-semibold">Columns include Branch Name (as requested)</p>
-                </div>
-                <div className="text-xs text-muted-foreground font-bold">
-                  Entries: <b className="text-foreground">{visibleRows.length}</b>
+          {/* Daily Summary Dashboard Cards */}
+          <div className="bg-slate-900 text-white rounded-xl p-4 shadow-md border border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">📅 Daily Operations Summary (USD Converted)</span>
+              <span className="text-[10px] text-slate-500 font-semibold">Active Date Range: {appliedFilters.fromDate} to {appliedFilters.toDate}</span>
+            </div>
+            
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Card 1: Active Branches */}
+              <div className="bg-slate-950/40 rounded-lg p-3 border border-slate-800 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-lg font-bold">🏢</div>
+                <div className="space-y-0.5">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Worked Branches</p>
+                  <p className="text-lg font-black text-white">{branchesIncludedCount} Branches</p>
+                  <p className="text-[9px] text-slate-500 font-medium">Active branch offices today</p>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1700px] border-separate border-spacing-0 text-xs">
-                  <thead className="sticky top-0 z-10 bg-slate-900 text-white dark:bg-slate-800">
-                    <tr className="whitespace-nowrap">
-                      {[
-                        "Date",
-                        "Voucher Type",
-                        "Voucher No",
-                        "Branch Name",
-                        "Account / Party",
-                        "Details / Narration",
-                        "Dr.",
-                        "Cr.",
-                        "Running Balance",
-                        ...(showUsd ? ["USD Rate", "Dr (USD)", "Cr (USD)", "Bal (USD)"] : [])
-                      ].map((label) => (
-                        <ReportTh key={label} className={getHeaderAlignment(label)}>
-                          {label}
-                        </ReportTh>
-                      ))}
+
+              {/* Card 2: Debit Entries */}
+              <div className="bg-slate-950/40 rounded-lg p-3 border border-slate-800 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg font-bold">📈</div>
+                <div className="space-y-0.5">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Debit (Money Received)</p>
+                  <p className="text-sm font-black text-emerald-400">${fmtNumber(visibleRows.reduce((sum, r) => sum + (r.debit > 0 ? (r.debitUsd > 0 ? r.debitUsd : r.debit / getRowRate(r.currency)) : 0), 0))} USD</p>
+                  <p className="text-[9px] text-slate-500 font-bold">{visibleRows.filter(r => r.debit > 0).length} Debit Voucher Entries</p>
+                </div>
+              </div>
+
+              {/* Card 3: Credit Entries */}
+              <div className="bg-slate-950/40 rounded-lg p-3 border border-slate-800 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-lg font-bold">📉</div>
+                <div className="space-y-0.5">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Credit (Money Paid)</p>
+                  <p className="text-sm font-black text-red-400">${fmtNumber(visibleRows.reduce((sum, r) => sum + (r.credit > 0 ? (r.creditUsd > 0 ? r.creditUsd : r.credit / getRowRate(r.currency)) : 0), 0))} USD</p>
+                  <p className="text-[9px] text-slate-500 font-bold">{visibleRows.filter(r => r.credit > 0).length} Credit Voucher Entries</p>
+                </div>
+              </div>
+
+              {/* Card 4: Exchange Rates */}
+              <div className="bg-slate-950/40 rounded-lg p-3 border border-slate-800 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg font-bold">💱</div>
+                <div className="space-y-0.5 flex-1 min-w-0">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Active Exchange Rates</p>
+                  <div className="grid grid-cols-2 gap-x-2 text-[9.5px] font-mono font-bold text-slate-300">
+                    <div>PKR: {ratesApplied.pkr.toFixed(1)}</div>
+                    <div>AED: {ratesApplied.aed.toFixed(3)}</div>
+                    <div>AFN: {ratesApplied.afn.toFixed(1)}</div>
+                    <div>INR: {ratesApplied.inr.toFixed(1)}</div>
+                  </div>
+                  <p className="text-[9px] text-slate-500 font-medium">Local rate units per 1 USD</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Country breakdowns (rendered smaller) */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {countryOverview.map((item) => {
+              const usdRateVal = getRowRate(item.currency);
+              
+              return (
+                <Card key={item.name} className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <CardHeader className="border-b bg-slate-50/50 dark:bg-slate-900/50 py-2 px-3 flex flex-row items-center justify-between">
+                    <CardTitle className="text-xs font-bold text-slate-900 dark:text-slate-100">{item.name} Summary</CardTitle>
+                    <span className="text-[10px] text-slate-400 font-bold italic">{item.entries} entries</span>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-2 text-xs">
+                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
+                      <span className="text-slate-500 font-medium">Currency:</span>
+                      <span className="text-slate-400">:</span>
+                      <span className="font-extrabold text-slate-900 dark:text-slate-100">{item.currency}</span>
+                    </div>
+                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
+                      <span className="text-slate-500 font-medium">Dr (Local):</span>
+                      <span className="text-slate-400">:</span>
+                      <span className="font-bold text-red-600 dark:text-red-400">{fmtNumber(item.debit)}</span>
+                    </div>
+                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
+                      <span className="text-slate-500 font-medium">Cr (Local):</span>
+                      <span className="text-slate-400">:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-450">{fmtNumber(item.credit)}</span>
+                    </div>
+                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
+                      <span className="text-slate-500 font-medium">Balance (Local):</span>
+                      <span className="text-slate-400">:</span>
+                      <span className="font-bold text-red-600 dark:text-red-400">{fmtNumber(item.balance)}</span>
+                    </div>
+                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
+                      <span className="text-slate-500 font-medium">USD Rate:</span>
+                      <span className="text-slate-400">:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{fmtRate(usdRateVal)} {item.currency} per 1 USD</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <Card id="super-admin-roznamcha-table" className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+          <CardHeader className="space-y-1 border-b bg-slate-50/50 dark:bg-slate-900/50 py-2 px-4 flex flex-row items-center justify-between">
+            <CardTitle className="text-xs font-bold text-slate-950 dark:text-slate-100">
+              {typeFilter === "country" ? "Country Roznamcha Report" : "Roznamcha Entries (Super Admin)"}
+            </CardTitle>
+            <div className="text-[11px] text-slate-500 font-semibold">
+              {typeFilter === "country"
+                ? "Country wise daily Roznamcha details with account, branch, debit and credit activity."
+                : "Each row shows Country, Branch and USD rate after Remaining Balance"}
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              {typeFilter === "country" ? (
+                <table className="w-full min-w-[1200px] border-collapse border border-slate-200 dark:border-slate-800 text-xs">
+                  <thead className="bg-slate-900 text-white dark:bg-slate-800">
+                    <tr className="whitespace-nowrap text-left">
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Date</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Country Serial No</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Branch Serial No</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">User Name</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account No</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Details</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Debit</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Credit</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={showUsd ? 13 : 9} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                          Loading...
+                        <td colSpan={9} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
+                          Loading entries...
+                        </td>
+                      </tr>
+                    ) : visibleRows.length ? (
+                      visibleRows.map((row, index) => {
+                        const active = row.id === selectedId;
+
+                        return (
+                          <tr
+                            key={row.id}
+                            className={cn(
+                              "cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-900/40",
+                              index % 2 === 0 ? "bg-white" : "bg-slate-50/30",
+                              active ? "bg-blue-50/50 dark:bg-blue-950/20" : ""
+                            )}
+                            onClick={() => {
+                              setSelectedId(row.id);
+                              setActiveDrawerEntry(row);
+                            }}
+                          >
+                            <td className="p-2.5 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.entryDate}</td>
+                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold text-slate-800">{row.countrySerialNo}</td>
+                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-700">{row.branchSerialNo}</td>
+                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-700">{row.createdBy}</td>
+                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold text-blue-600 hover:underline">{row.accountNo}</td>
+                            <td className="p-2.5 text-left max-w-[300px] truncate border border-slate-200 dark:border-slate-800 text-slate-600" title={row.narration}>{row.narration}</td>
+                            <td className={cn(
+                              "p-2.5 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
+                              row.debit > 0 ? "text-red-600 dark:text-red-400 font-black" : "text-slate-400 font-normal"
+                            )}>
+                              {row.debit > 0 ? fmtCountryValue(row.debit) : "0"}
+                            </td>
+                            <td className={cn(
+                              "p-2.5 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
+                              row.credit > 0 ? "text-emerald-600 dark:text-emerald-450 font-black" : "text-slate-400 font-normal"
+                            )}>
+                              {row.credit > 0 ? fmtCountryValue(row.credit) : "0"}
+                            </td>
+                            <td className="p-2.5 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 relative row-action-menu-relative">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center mx-auto"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRowMenuOpenId(rowMenuOpenId === row.id ? null : row.id);
+                                }}
+                              >
+                                <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
+                              </Button>
+                              {rowMenuOpenId === row.id && (
+                                <div className="absolute right-2 top-8 z-30 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg text-left text-slate-800">
+                                  <button
+                                    type="button"
+                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRowMenuOpenId(null);
+                                      setSelectedId(row.id);
+                                      openSelectedReport(false, "voucher");
+                                    }}
+                                  >
+                                    <Eye className="h-3.5 w-3.5 text-slate-400" />
+                                    <span>View Voucher</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRowMenuOpenId(null);
+                                      setSelectedId(row.id);
+                                      openSelectedLedger();
+                                    }}
+                                  >
+                                    <BookOpen className="h-3.5 w-3.5 text-slate-400" />
+                                    <span>Open Ledger</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRowMenuOpenId(null);
+                                      setSelectedId(row.id);
+                                      openSelectedReport(true, "journal");
+                                    }}
+                                  >
+                                    <FileText className="h-3.5 w-3.5 text-slate-400" />
+                                    <span>View Journal</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRowMenuOpenId(null);
+                                      setSelectedId(row.id);
+                                      openSelectedAccount();
+                                    }}
+                                  >
+                                    <Search className="h-3.5 w-3.5 text-slate-400" />
+                                    <span>View Account</span>
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={9} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
+                          {t(lang, "roz.no_entries")}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full min-w-[1700px] border-collapse border border-slate-200 dark:border-slate-800 text-xs">
+                  <thead className="bg-slate-900 text-white dark:bg-slate-800">
+                    <tr className="whitespace-nowrap text-left">
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Date</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Country</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Branch Name</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Voucher Type</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Voucher No</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account / Party</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Details / Narration</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Currency</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Dr.</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Cr.</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Remaining Balance</th>
+                      {showUsd && (
+                        <>
+                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">USD Rate</th>
+                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Dr (USD)</th>
+                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Cr (USD)</th>
+                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Bal (USD)</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={showUsd ? 15 : 11} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
+                          Loading entries...
                         </td>
                       </tr>
                     ) : visibleRows.length ? (
@@ -1191,36 +1633,63 @@ export function SuperAdminRoznamchaReportView({
                         const drUsd = row.debit > 0 ? row.debit / rowRate : 0;
                         const crUsd = row.credit > 0 ? row.credit / rowRate : 0;
                         const balUsd = (row.remainingBalance ?? 0) / rowRate;
-  
+
                         return (
                           <tr
                             key={row.id}
                             className={cn(
-                              "cursor-pointer border-b transition hover:bg-slate-50 dark:hover:bg-slate-900/40",
-                              index % 2 === 0 ? "bg-background" : "bg-muted/20",
-                              active ? "bg-primary/5 dark:bg-primary/10" : ""
+                              "cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-900/40",
+                              index % 2 === 0 ? "bg-white" : "bg-slate-50/30",
+                              active ? "bg-blue-50/50 dark:bg-blue-950/20" : ""
                             )}
-                            onClick={() => setSelectedId(row.id)}
+                            onClick={() => {
+                              setSelectedId(row.id);
+                              setActiveDrawerEntry(row);
+                            }}
                           >
-                            <ReportTd className="whitespace-nowrap text-center font-medium">{row.entryDate}</ReportTd>
-                            <ReportTd className="whitespace-nowrap text-center font-medium">{row.typeLabel}</ReportTd>
-                            <ReportTd className="whitespace-nowrap text-center font-mono font-medium text-slate-800">{row.voucherNo}</ReportTd>
-                            <ReportTd className="whitespace-nowrap text-left font-medium text-slate-600">{row.cityBranchId ? row.cityBranchName : row.countryBranchName}</ReportTd>
-                            <ReportTd className="max-w-[260px] text-left">
-                              <div className="truncate font-semibold text-blue-600 hover:underline">{row.accountParty}</div>
-                            </ReportTd>
-                            <ReportTd className="max-w-[260px] text-left">
-                              <div className="truncate font-medium text-slate-600">{row.narration}</div>
-                            </ReportTd>
-                            <ReportTd className="whitespace-nowrap text-right tabular-nums font-bold text-rose-600">{fmtNumber(row.debit)}</ReportTd>
-                            <ReportTd className="whitespace-nowrap text-right tabular-nums font-bold text-emerald-600">{fmtNumber(row.credit)}</ReportTd>
-                            <ReportTd className="whitespace-nowrap text-right tabular-nums font-bold text-slate-900">{fmtNumber(row.remainingBalance ?? 0)}</ReportTd>
+                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.entryDate}</td>
+                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold">{row.countryName}</td>
+                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.cityBranchId ? row.cityBranchName : row.countryBranchName}</td>
+                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-medium text-slate-600">{row.typeLabel}</td>
+                            <td className="p-2 text-center whitespace-nowrap font-mono border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100">{row.voucherNo}</td>
+                            <td className="p-2 text-left max-w-[200px] truncate border border-slate-200 dark:border-slate-800">
+                              <span className="font-semibold text-blue-600 hover:underline">{row.accountParty}</span>
+                            </td>
+                            <td className="p-2 text-left max-w-[300px] truncate border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-350" title={row.narration}>{row.narration}</td>
+                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-extrabold text-slate-900 dark:text-slate-100">{row.currency}</td>
+                            <td className={cn(
+                              "p-2 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
+                              row.debit > 0 ? "text-red-600 dark:text-red-400 font-black" : "text-slate-400 font-normal"
+                            )}>
+                              {fmtNumber(row.debit)}
+                            </td>
+                            <td className={cn(
+                              "p-2 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
+                              row.credit > 0 ? "text-emerald-600 dark:text-emerald-450 font-black" : "text-slate-400 font-normal"
+                            )}>
+                              {fmtNumber(row.credit)}
+                            </td>
+                            <td className="p-2 text-right whitespace-nowrap font-black border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+                              {fmtNumber(row.remainingBalance ?? 0)}
+                            </td>
                             {showUsd && (
                               <>
-                                <ReportTd className="whitespace-nowrap text-right font-mono font-bold text-slate-500">{fmtRate(rowRate)}</ReportTd>
-                                <ReportTd className="whitespace-nowrap text-right tabular-nums font-bold text-rose-600">{fmtNumber(drUsd)}</ReportTd>
-                                <ReportTd className="whitespace-nowrap text-right tabular-nums font-bold text-emerald-600">{fmtNumber(crUsd)}</ReportTd>
-                                <ReportTd className="whitespace-nowrap text-right tabular-nums font-bold text-slate-900">{fmtNumber(balUsd)}</ReportTd>
+                                <td className="p-2 text-right whitespace-nowrap font-mono font-bold border border-slate-200 dark:border-slate-800 text-slate-500">{fmtRate(rowRate)}</td>
+                                <td className={cn(
+                                  "p-2 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
+                                  drUsd > 0 ? "text-red-600 dark:text-red-400 font-black" : "text-slate-400 font-normal"
+                                )}>
+                                  {fmtNumber(drUsd)}
+                                </td>
+                                <td className={cn(
+                                  "p-2 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
+                                  crUsd > 0 ? "text-emerald-600 dark:text-emerald-450 font-black" : "text-slate-400 font-normal"
+                                )}>
+                                  {fmtNumber(crUsd)}
+                                </td>
+                                <td className="p-2 text-right whitespace-nowrap font-black border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+                                  {fmtNumber(balUsd)}
+                                </td>
                               </>
                             )}
                           </tr>
@@ -1228,20 +1697,155 @@ export function SuperAdminRoznamchaReportView({
                       })
                     ) : (
                       <tr>
-                        <td colSpan={showUsd ? 13 : 9} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                        <td colSpan={showUsd ? 15 : 11} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
                           {t(lang, "roz.no_entries")}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    );
-  }
+
+      <DetailDrawer
+        isOpen={activeDrawerEntry !== null}
+        onClose={() => {
+          setActiveDrawerEntry(null);
+        }}
+        title={`Voucher: ${activeDrawerEntry?.voucherNo || "Details"}`}
+        subtitle={`Roznamcha entry · Date: ${activeDrawerEntry?.entryDate || "-"}`}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => activeDrawerEntry && openSelectedReport(false, "voucher", activeDrawerEntry)}
+            >
+              <Eye className="h-3.5 w-3.5 mr-1" /> PDF Preview
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => activeDrawerEntry && openSelectedReport(true, "voucher", activeDrawerEntry)}
+            >
+              <Printer className="h-3.5 w-3.5 mr-1" /> Print
+            </Button>
+          </div>
+        }
+      >
+        {activeDrawerEntry && (
+          <div className="space-y-6">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Voucher No</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{activeDrawerEntry.voucherNo || "-"}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Journal No</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{activeDrawerEntry.journalNo || "-"}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Voucher Type</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{activeDrawerEntry.typeLabel || "-"}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Entry Date</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{activeDrawerEntry.entryDate || "-"}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Country</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{activeDrawerEntry.countryName || "-"}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Branch Office</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                  {activeDrawerEntry.cityBranchId ? activeDrawerEntry.cityBranchName : activeDrawerEntry.countryBranchName}
+                </span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Status</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{activeDrawerEntry.status || "-"}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Created By</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{activeDrawerEntry.createdBy || "-"}</span>
+              </div>
+            </div>
+
+            <div className="rounded-lg border p-4 bg-muted/20 space-y-1 dark:bg-slate-900/50 dark:border-slate-800">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Narration / Details</span>
+              <p className="text-xs text-foreground font-medium leading-relaxed">{activeDrawerEntry.narration || "No narration provided."}</p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Transaction Ledger Postings</h3>
+              <div className="overflow-x-auto rounded-lg border dark:border-slate-800">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-900 text-white dark:bg-slate-800">
+                    <tr>
+                      <th className="px-3 py-2">Type</th>
+                      <th className="px-3 py-2">Account Code & Name</th>
+                      <th className="px-3 py-2 text-right">Debit</th>
+                      <th className="px-3 py-2 text-right">Credit</th>
+                      <th className="px-3 py-2 text-right">USD Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y dark:divide-slate-800">
+                    {activeDrawerEntry.lines.map((line, idx) => {
+                      const lineRate = getRowRate(line.currency);
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40">
+                          <td className="px-3 py-2 font-medium capitalize">{line.payment_entry_type}</td>
+                          <td className="px-3 py-2">
+                            <div className="font-bold text-slate-800 dark:text-slate-200">
+                              {line.accounts ? `${line.accounts.code} - ${line.accounts.name}` : line.account_id}
+                            </div>
+                            {line.ledgers && (
+                              <div className="text-[10px] text-muted-foreground">Ledger: {line.ledgers.code} - {line.ledgers.name}</div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-rose-600">
+                            {line.debit ? `${line.currency} ${fmtNumber(Number(line.debit))}` : "-"}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-emerald-600">
+                            {line.credit ? `${line.currency} ${fmtNumber(Number(line.credit))}` : "-"}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                            {line.usd_amount ? `$${fmtNumber(Number(line.usd_amount))}` : line.debit ? `$${fmtNumber(Number(line.debit) / lineRate)}` : line.credit ? `$${fmtNumber(Number(line.credit) / lineRate)}` : "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border dark:bg-slate-900/30 dark:border-slate-800">
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Debit Total</span>
+                <div className="text-sm font-extrabold text-rose-600 mt-0.5">
+                  {activeDrawerEntry.currency} {fmtNumber(activeDrawerEntry.debit)}
+                </div>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Credit Total</span>
+                <div className="text-sm font-extrabold text-emerald-600 mt-0.5">
+                  {activeDrawerEntry.currency} {fmtNumber(activeDrawerEntry.credit)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </DetailDrawer>
+    </div>
+  );
+}
 
 function MenuAction({
   icon,

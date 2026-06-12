@@ -427,3 +427,48 @@ export const bankCreateSchema = z.object({
 });
 
 export const bankUpdateSchema = bankCreateSchema.partial();
+
+// ─── Missing Schemas ─────────────────────────────────────────────────────────
+
+export const accountUpdateSchema = scopeSchema.partial().extend({
+  branchId: optionalUuidSchema,
+  parentId: optionalUuidSchema,
+  code: z.string().trim().min(2).max(50).optional(),
+  name: z.string().trim().min(2).max(200).optional(),
+  kind: accountKindSchema.optional(),
+  currency: z.string().trim().length(3).transform((v) => v.toUpperCase()).optional(),
+  status: z.string().trim().max(80).optional(),
+  isControlAccount: z.coerce.boolean().optional(),
+  approvalRequestId: optionalUuidSchema
+});
+
+export const enterpriseAccountCreateSchema = scopeSchema.extend({
+  scope: ledgerScopeSchema,
+  parentId: optionalUuidSchema,
+  code: z.string().trim().min(2).max(120),
+  manualReferenceNumber: z.string().trim().max(120).optional().nullable(),
+  name: z.string().trim().min(2).max(200),
+  kind: accountKindSchema,
+  currency: z.string().trim().length(3).transform((v) => v.toUpperCase()),
+  openingBalance: z.coerce.number().finite().default(0),
+  isControlAccount: z.coerce.boolean().default(false)
+});
+
+export const enterpriseLedgerCreateSchema = scopeSchema.extend({
+  scope: ledgerScopeSchema,
+  enterpriseAccountId: optionalUuidSchema,
+  parentLedgerId: optionalUuidSchema,
+  code: z.string().trim().min(2).max(120),
+  name: z.string().trim().min(2).max(200),
+  currency: z.string().trim().length(3).transform((v) => v.toUpperCase()),
+  openingBalance: z.coerce.number().finite().default(0),
+  normalBalance: normalBalanceSchema
+});
+
+export const financialPeriodCreateSchema = scopeSchema.extend({
+  scope: ledgerScopeSchema,
+  periodName: z.string().trim().min(2).max(120),
+  startDate: z.string().date(),
+  endDate: z.string().date()
+});
+

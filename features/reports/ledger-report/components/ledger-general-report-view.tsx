@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
 import { t } from "@/lib/i18n/ui";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
+import { DetailDrawer } from "@/components/ui/detail-drawer";
 import {
   getLedgerStatement,
   type LedgerLookupRow,
@@ -210,6 +211,7 @@ export function LedgerReportView({
 }) {
   const [loading, setLoading] = useState(true);
   const [loadingStatement, setLoadingStatement] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [accountSearch, setAccountSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -698,7 +700,10 @@ export function LedgerReportView({
                           index % 2 === 0 ? "bg-background" : "bg-muted/20",
                           active ? "bg-primary/5 dark:bg-primary/10" : ""
                         )}
-                        onClick={() => void loadSelectedStatement(row.ledgerId)}
+                        onClick={() => {
+                          void loadSelectedStatement(row.ledgerId);
+                          setDrawerOpen(true);
+                        }}
                       >
                         <td className="px-3 py-2 font-medium text-slate-950 dark:text-slate-100">{row.accountName || row.ledgerName}</td>
                         <td className="px-3 py-2 font-mono">{row.accountCode || row.ledgerCode}</td>
@@ -746,6 +751,131 @@ export function LedgerReportView({
           </div>
         </CardContent>
       </Card>
+
+      <DetailDrawer
+        isOpen={drawerOpen}
+        onClose={() => {
+          setDrawerOpen(false);
+          setLedgerId("");
+          setStatement(null);
+          setSelectedLedger(null);
+        }}
+        title={`Ledger: ${selectedLedger?.accountName || selectedLedger?.ledgerName || "Details"}`}
+        subtitle={`Account No: ${selectedLedger?.accountCode || selectedLedger?.ledgerCode || "-"} · Currency: ${selectedLedger?.ledgerCurrency || "-"}`}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openPrint(false)}
+            >
+              PDF Export
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={exportReportCsv}
+            >
+              Excel Export
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openPrint(true)}
+            >
+              Print
+            </Button>
+          </div>
+        }
+      >
+        {loadingStatement ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-sm text-muted-foreground animate-pulse">Loading ledger statement lines...</div>
+          </div>
+        ) : statement?.lines ? (
+          <div className="space-y-6">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Branch</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{selectedLedger ? buildBranchLabel(selectedLedger) : "-"}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Category</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{fmtKind(selectedLedger?.accountKind)}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Status</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{selectedLedger?.status === "active" ? "Active" : "Inactive"}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Company</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">{selectedLedger?.companyName || "-"}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Statement Entries</h3>
+              <div className="overflow-x-auto rounded-lg border dark:border-slate-800">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-900 text-white dark:bg-slate-800">
+                    <tr>
+                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Voucher / Ref</th>
+                      <th className="px-3 py-2">Description</th>
+                      <th className="px-3 py-2 text-right">Debit</th>
+                      <th className="px-3 py-2 text-right">Credit</th>
+                      <th className="px-3 py-2 text-right">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y dark:divide-slate-800">
+                    {statement.lines.map((line, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40">
+                        <td className="px-3 py-2 whitespace-nowrap">{line.entryDate}</td>
+                        <td className="px-3 py-2 font-mono whitespace-nowrap">{line.referenceNo || line.sourceId.slice(0, 8)}</td>
+                        <td className="px-3 py-2 max-w-[200px] truncate" title={line.description}>{line.description || "-"}</td>
+                        <td className="px-3 py-2 text-right font-mono text-rose-600">
+                          {line.debit ? fmtNumber(line.debit) : "-"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-emerald-600">
+                          {line.credit ? fmtNumber(line.credit) : "-"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono font-bold">
+                          {fmtNumber(line.runningBalance)}
+                        </td>
+                      </tr>
+                    ))}
+                    {statement.lines.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-4 text-center text-muted-foreground italic">No entries for this period.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border dark:bg-slate-900/30 dark:border-slate-800">
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Debit Total</span>
+                <div className="text-sm font-extrabold text-rose-600 mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(statement.totals.debit)}</div>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Credit Total</span>
+                <div className="text-sm font-extrabold text-emerald-600 mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(statement.totals.credit)}</div>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Closing Balance</span>
+                <div className="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(statement.totals.balance)}</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">{t(lang, "ledger.select_account_hint")}</div>
+        )}
+      </DetailDrawer>
     </div>
   );
 }

@@ -134,32 +134,64 @@ export function BranchOwnerPicker({
             onSave={(newCustomerId) => {
               (async () => {
                 try {
-                  const res = await apiGet<{ customer: OwnerCustomerRow }>(`/api/erp/customers/${encodeURIComponent(newCustomerId)}`);
-                  if (res.customer) {
-                    const label = res.customer.company_name
-                      ? `${res.customer.customer_name} (${res.customer.company_name})`
-                      : res.customer.customer_name;
+                  // Wait a brief moment for database commit consistency
+                  await new Promise((resolve) => setTimeout(resolve, 150));
+
+                  // 1. Fetch list of customers to see if we find it
+                  const customersRes = await apiGet<{ customers: OwnerCustomerRow[] }>("/api/erp/customers?limit=250");
+                  const found = customersRes.customers?.find((c) => c.id === newCustomerId);
+
+                  let label = "";
+                  let rawCustomer: any = null;
+
+                  if (found) {
+                    rawCustomer = found;
+                    const customerName = found.customer_name || (found as any).customerName;
+                    const companyName = found.company_name || (found as any).companyName;
+                    label = companyName ? `${customerName} (${companyName})` : customerName;
+                  } else {
+                    // Fallback to fetch single customer
+                    const res = await apiGet<{ customer: OwnerCustomerRow }>(`/api/erp/customers/${encodeURIComponent(newCustomerId)}`);
+                    if (res.customer) {
+                      rawCustomer = res.customer;
+                      const customerName = res.customer.customer_name || (res.customer as any).customerName;
+                      const companyName = res.customer.company_name || (res.customer as any).companyName;
+                      label = companyName ? `${customerName} (${companyName})` : customerName;
+                    }
+                  }
+
+                  if (label && rawCustomer) {
+                    const customerName = rawCustomer.customer_name || rawCustomer.customerName || "";
+                    const companyName = rawCustomer.company_name || rawCustomer.companyName || "";
                     const option = toOwnerOption(
                       label,
                       [
-                        res.customer.customer_name,
-                        res.customer.company_name,
-                        res.customer.contact_person,
-                        res.customer.mobile,
-                        res.customer.whatsapp,
-                        res.customer.email
+                        customerName,
+                        companyName,
+                        rawCustomer.contact_person || rawCustomer.contactPerson,
+                        rawCustomer.mobile,
+                        rawCustomer.whatsapp,
+                        rawCustomer.email
                       ]
                         .filter(Boolean)
                         .join(" ")
                     );
+
+                    // Add new option immediately to local state
                     setOptions((current) => {
                       if (current.some((item) => normalize(item.value) === normalize(option.value))) return current;
                       return [option, ...current];
                     });
+                    
+                    // Trigger selection
                     onValueChange(label);
                   }
-                } catch {
-                  // Fallback: reload list
+
+                  // Reload full list to ensure data is synced
+                  await loadList();
+                } catch (err) {
+                  console.error("Error loading new owner customer details:", err);
+                  // Reload list as ultimate fallback
                   loadList().catch(() => null);
                 } finally {
                   setOpenCreate(false);

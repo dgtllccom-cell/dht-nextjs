@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Download, Eye, FileText, Link2, MoreVertical, Printer, RefreshCcw, Search } from "lucide-react";
+import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,7 @@ import {
   type RoznamchaType
 } from "@/features/roznamcha/roznamcha-api";
 import { parseNarration } from "@/lib/accounting/narration-parser";
+import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
 
 type SessionInfo = {
   scopes: {
@@ -193,7 +195,15 @@ export function RoznamchaReportView({
     const to = toDate;
     const needle = normalizeQuery(q);
     return entries
-      .filter((row) => row.type === typeFilter)
+      .filter((row) => {
+        if (typeFilter === "super_admin") {
+          return true;
+        }
+        if (typeFilter === "country") {
+          return row.type === "country" || row.type === "branch";
+        }
+        return row.type === "branch";
+      })
       .filter((row) => {
         if (countryId !== "all" && row.country_id !== countryId) return false;
         if (branchId !== "all" && entryBranchId(row) !== branchId) return false;
@@ -260,7 +270,6 @@ export function RoznamchaReportView({
   );
   const selectedAccountId = useMemo(() => selectedLines.find((line) => line.account_id)?.account_id ?? null, [selectedLines]);
 
-
   function exportCsv() {
     if (!selectedHeader) return;
 
@@ -303,35 +312,61 @@ export function RoznamchaReportView({
     const csv = [headerRow, ...rows]
       .map((r) => r.map((c) => csvEscape(String(c ?? ""))).join(","))
       .join("\r\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `roznamcha-entry-${selectedHeader.voucher_no}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function buildSelectedRows(mode: "voucher" | "journal") {
+    if (!selectedHeader) return [];
+
+    const rowsForPrint: { label: string; value: string }[] = [
+      { label: "Voucher Type", value: selectedHeader.type },
+      { label: "Date", value: selectedHeader.entry_date },
+      { label: "Country", value: entryCountryName(selectedHeader) },
+      { label: "Branch", value: entryBranchName(selectedHeader) },
+      { label: "Voucher No", value: selectedHeader.voucher_no },
+      { label: "Journal No", value: selectedHeader.journal_no },
+      { label: "Narration", value: selectedHeader.narration ?? "" },
+      { label: "Status", value: selectedHeader.status ?? "" }
+    ];
+
+    selectedLines.forEach((line, index) => {
+      rowsForPrint.push({
         label: `Line ${index + 1}`,
         value: [
           line.payment_entry_type,
           line.ledgers ? `${line.ledgers.code} - ${line.ledgers.name}` : "",
           line.accounts ? `${line.accounts.code} - ${line.accounts.name}` : "",
           line.description,
-          `Dr ${fmtNumber(Number(line.debit || 0))}`,
-          `Cr ${fmtNumber(Number(line.credit || 0))}`,
+          line.debit ? `Dr ${fmtNumber(Number(line.debit))}` : "",
+          line.credit ? `Cr ${fmtNumber(Number(line.credit))}` : "",
           line.currency,
-          `USD ${fmtNumber(Number(line.usd_amount || 0))}`
+          line.usd_amount ? `USD ${fmtNumber(Number(line.usd_amount))}` : ""
         ]
           .filter(Boolean)
           .join("  |  ")
       });
     });
 
-    const title = mode === "voucher" ? "Roznamcha Voucher" : "Roznamcha Journal";
-    const win = window.open("", "_blank", "width=1100,height=1400");
-    if (!win) return;
-    win.document.write(`<html><head><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:24px}table{width:100%;border-collapse:collapse}td{padding:6px 8px;border-bottom:1px solid #e5e7eb;vertical-align:top}.k{width:220px;font-weight:700;color:#475569}.h{font-size:20px;font-weight:700;margin-bottom:8px}.s{color:#64748b;margin-bottom:16px}</style></head><body>`);
-    win.document.write(`<div class="h">${title}</div><div class="s">${selectedHeader.voucher_no} · ${selectedHeader.entry_date} · ${entryCountryName(selectedHeader)}</div>`);
-    win.document.write(`<table>`);
-    for (const row of rowsForPrint) {
-      win.document.write(`<tr><td class="k">${row.label}</td><td>${row.value}</td></tr>`);
-    }
-    win.document.write(`</table>`);
-    win.document.write(`</body></html>`);
-    win.document.close();
-    if (autoPrint) win.print();
+    return rowsForPrint;
+  }
+
+  function openSelectedReport(autoPrint: boolean, mode: "voucher" | "journal") {
+    if (!selectedHeader) return;
+    openA4ReportWindow({
+      title: mode === "voucher" ? "Roznamcha Voucher" : "Roznamcha Journal",
+      subtitle: `${selectedHeader.voucher_no} · ${selectedHeader.entry_date} · ${entryCountryName(selectedHeader)}`,
+      rows: buildSelectedRows(mode),
+      autoPrint
+    });
   }
 
   function openSelectedLedger() {
@@ -541,6 +576,109 @@ export function RoznamchaReportView({
         </Card>
       </div>
 
+      <DetailDrawer
+        isOpen={selectedHeader !== null}
+        onClose={() => {
+          setSelectedHeader(null);
+          setSelectedId("");
+        }}
+        title={`Voucher: ${selectedHeader?.voucher_no || "Details"}`}
+        subtitle={`Roznamcha entry · Date: ${selectedHeader?.entry_date || "-"}`}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openSelectedReport(false, "voucher")}
+            >
+              <Eye className="h-3.5 w-3.5 mr-1" /> PDF Preview
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openSelectedReport(true, "voucher")}
+            >
+              <Printer className="h-3.5 w-3.5 mr-1" /> Print
+            </Button>
+          </div>
+        }
+      >
+        {selectedHeader && (
+          <div className="space-y-6">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <KV k="Voucher No" v={selectedHeader.voucher_no || "-"} />
+              <KV k="Journal No" v={selectedHeader.journal_no || "-"} />
+              <KV k="Voucher Type" v={selectedHeader.type || "-"} />
+              <KV k="Entry Date" v={selectedHeader.entry_date || "-"} />
+              <KV k="Country" v={entryCountryName(selectedHeader)} />
+              <KV k="Branch Office" v={entryBranchName(selectedHeader)} />
+              <KV k="Status" v={selectedHeader.status || "-"} />
+              <KV k="Created By" v={selectedHeader.profiles?.full_name || "-"} />
+            </div>
+
+            <div className="rounded-lg border p-4 bg-muted/20 space-y-1 dark:bg-slate-900/50 dark:border-slate-800">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Narration / Details</span>
+              <p className="text-xs text-foreground font-medium leading-relaxed">{selectedHeader.narration || "No narration provided."}</p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Transaction Ledger Postings</h3>
+              <div className="overflow-x-auto rounded-lg border dark:border-slate-800">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-900 text-white dark:bg-slate-800">
+                    <tr>
+                      <th className="px-3 py-2">Type</th>
+                      <th className="px-3 py-2">Account Code & Name</th>
+                      <th className="px-3 py-2 text-right">Debit</th>
+                      <th className="px-3 py-2 text-right">Credit</th>
+                      <th className="px-3 py-2 text-right">USD Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y dark:divide-slate-800">
+                    {selectedLines.map((line, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40">
+                        <td className="px-3 py-2 font-medium capitalize">{line.payment_entry_type}</td>
+                        <td className="px-3 py-2">
+                          <div className="font-bold text-slate-800 dark:text-slate-200">
+                            {line.accounts ? `${line.accounts.code} - ${line.accounts.name}` : line.account_id}
+                          </div>
+                          {line.ledgers && (
+                            <div className="text-[10px] text-muted-foreground">Ledger: {line.ledgers.code} - {line.ledgers.name}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-rose-600">
+                          {line.debit ? `${line.currency} ${fmtNumber(Number(line.debit))}` : "-"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-emerald-600">
+                          {line.credit ? `${line.currency} ${fmtNumber(Number(line.credit))}` : "-"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                          {line.usd_amount ? `$${fmtNumber(Number(line.usd_amount))}` : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {selectedTotals && (
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border dark:bg-slate-900/30 dark:border-slate-800">
+                <div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Debit Total</span>
+                  <div className="text-sm font-extrabold text-rose-600 mt-0.5">${fmtNumber(selectedTotals.debit)}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Credit Total</span>
+                  <div className="text-sm font-extrabold text-emerald-600 mt-0.5">${fmtNumber(selectedTotals.credit)}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </DetailDrawer>
     </div>
   );
 }

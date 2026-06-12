@@ -57,26 +57,25 @@ async function resolveUsdAmount(admin: any, input: {
   const amount = toNumber(input.amount);
   if (!amount) return { usdRate: 1, usdAmount: 0 };
 
-  const currency = String(input.currency || "USD").toUpperCase();
   let countryCurrency: string | null = null;
   if (input.countryId) {
-    const { data, error } = await admin
+    const { data: country, error } = await admin
       .from("countries")
       .select("currency_code")
       .eq("id", input.countryId)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    countryCurrency = data?.currency_code ? String(data.currency_code).toUpperCase() : null;
+    countryCurrency = country?.currency_code ? String(country.currency_code).toUpperCase() : null;
   }
 
-  // If the currency is USD itself, the rate to USD is 1
-  if (currency === "USD") {
+  // If the country native currency is USD itself, the rate to USD is 1
+  if (countryCurrency === "USD") {
     return { usdRate: 1, usdAmount: Math.round(amount * 10000) / 10000 };
   }
 
   // Fetch the Super Admin daily USD rates for this country and entryDate.
-  // Daily USD rates are stored as: how many units of local currency (PKR) equals 1 USD.
-  // credit_rate is for money paid (credit), debit_rate is for money received (debit).
+  // Daily USD rates are stored as: how many units of local currency (e.g. PKR, AED) equals 1 USD.
+  // debit_rate is for money received (debit), credit_rate is for money paid (credit).
   let usdRate = 1;
   if (input.countryId) {
     // 1. Try to find the rate on the specific entry date
@@ -118,21 +117,11 @@ async function resolveUsdAmount(admin: any, input: {
 
   if (usdRate <= 0) usdRate = 1;
 
-  // If the currency is local currency (e.g. PKR), the conversion is: local_amount / usd_rate
-  if (!countryCurrency || currency === countryCurrency) {
-    return {
-      usdRate,
-      usdAmount: Math.round((amount / usdRate) * 10000) / 10000
-    };
-  }
-
-  // If it's a third currency (e.g. AED), the amount is in AED.
-  // The line's input rate converts AED to local currency (PKR) by multiplying: PKR = AED * input.rate
-  // Then we convert the local PKR to USD by dividing by the USD rate: USD = PKR / usd_rate
-  const localAmount = amount * (input.rate || 1);
+  // Since all line debits/credits are stored in the country's local currency,
+  // we convert the local currency amount to USD by dividing by the active daily USD rate.
   return {
     usdRate,
-    usdAmount: Math.round((localAmount / usdRate) * 10000) / 10000
+    usdAmount: Math.round((amount / usdRate) * 10000) / 10000
   };
 }
 
@@ -435,7 +424,7 @@ export async function GET(request: NextRequest) {
       .select(
         // Disambiguate profiles embedding (created_by vs approved_by) by pinning to the FK.
         // We keep the `profiles` key in the response for backward compatibility with the UI types.
-        "id, type, country_id, countries(name,currency_code), country_branch_id, country_branches(name,code), city_branch_id, city_branches(name,code), journal_no, voucher_no, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, entry_date, payment_method_id, reference_no, narration, status, created_by, profiles!roznamcha_entries_created_by_fkey(full_name), approved_by, approved_at, posted_at, created_at, updated_at"
+        "id, type, country_id, countries(name,currency_code), country_branch_id, country_branches(name,code), city_branch_id, city_branches(name,code), journal_no, voucher_no, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, entry_date, payment_method_id, reference_no, narration, status, created_by, profiles!roznamcha_entries_created_by_fkey(full_name), approved_by, approved_at, posted_at, created_at, updated_at, roznamcha_lines(id, payment_entry_type, debit, credit, currency, ledger_id, ledgers(name), account_number, usd_rate, usd_amount)"
       )
       .is("deleted_at", null)
       .order("entry_date", { ascending: false });
@@ -544,6 +533,7 @@ export async function POST(request: NextRequest) {
       postingPlan
     });
   } catch (error) {
+    console.error("ROZNAMCHA_POST_ERROR:", error);
     return handleApiError(error);
   }
 }

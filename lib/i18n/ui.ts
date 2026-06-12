@@ -424,7 +424,7 @@ const en: Dict = {
   "nav.sales_report": "Sales Report",
   "nav.purchase_report": "Purchase Report",
   "nav.exchange_rate_report": "Exchange Rate Report",
-  "nav.super_admin_exchange_rate": "Super Admin Exchange Rate",
+  "nav.super_admin_exchange_rate": "Daily Exchange Rate",
   "nav.audit_report": "Audit Report",
   "nav.profit_loss_report": "Profit/Loss Report",
   "nav.balance_sheet": "Balance Sheet",

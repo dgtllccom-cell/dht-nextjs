@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { Building2, Search, Eye, PencilLine, Printer, Trash2, Users, UserCheck, UserMinus, Plus, Mail, MessageSquare, MoreHorizontal, Phone, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DetailDrawer } from "@/components/ui/detail-drawer";
+import { CustomerProfile } from "./customer-profile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { apiGet, apiDelete } from "@/lib/api/client";
@@ -36,6 +38,7 @@ export function CustomerList({ lang }: { lang: SupportedLanguage }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [error, setError] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   
   // State to track which row action menu is open
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -517,7 +520,7 @@ export function CustomerList({ lang }: { lang: SupportedLanguage }) {
                   filteredCustomers.map((c, i) => (
                     <tr
                       key={c.id}
-                      onClick={() => router.push(`/dashboard/settings/customers/view?customerId=${c.id}` as Route)}
+                      onClick={() => setSelectedCustomerId(c.id)}
                       className="cursor-pointer hover:bg-slate-50/70 transition-colors"
                     >
                       <td className="px-5 py-3.5 font-semibold text-slate-500">{i + 1}</td>
@@ -671,7 +674,7 @@ export function CustomerList({ lang }: { lang: SupportedLanguage }) {
                                 <button
                                   onClick={() => {
                                     setOpenMenuId(null);
-                                    handlePrint(c);
+                                    setSelectedCustomerId(c.id);
                                   }}
                                   className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                                 >
@@ -728,6 +731,21 @@ export function CustomerList({ lang }: { lang: SupportedLanguage }) {
           </div>
         </CardContent>
       </Card>
+
+      <DetailDrawer
+        isOpen={selectedCustomerId !== null}
+        onClose={() => setSelectedCustomerId(null)}
+        title="Customer Profile Details"
+        subtitle="Enterprise record and contact verification"
+      >
+        {selectedCustomerId && (
+          <CustomerProfile
+            lang={lang}
+            customerId={selectedCustomerId}
+            isDrawer
+          />
+        )}
+      </DetailDrawer>
     </div>
   );
 }

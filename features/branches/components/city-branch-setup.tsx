@@ -3,7 +3,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Pencil, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { BranchRecordProfile, type BranchProfileSection } from "@/features/branc
 import { BranchReportActionsMenu } from "@/features/branches/components/branch-report-actions-menu";
 import { downloadCsv } from "@/features/branches/components/branch-report-export";
 import { PermissionAssignmentSection } from "@/features/users/components/permission-assignment-section";
+import { DetailDrawer } from "@/components/ui/detail-drawer";
 import {
   LocationHierarchySelect,
   type LocationHierarchyMeta,
@@ -186,6 +187,7 @@ function normalizeSearch(value: string) {
 export function CityBranchSetup() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("editId") ?? "";
+  const [drawerBranchData, setDrawerBranchData] = useState<any>(null);
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
@@ -692,6 +694,78 @@ export function CityBranchSetup() {
       message: `Editing Existing Branch\nBranch Name: ${row.name}\nBranch Code: ${row.code}`
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function viewSavedBranch(row: CityBranchRow) {
+    const phoneVal = normalizeContacts(row.contacts).find((c) => c.type.toLowerCase().includes("phone") || c.type.toLowerCase().includes("mobile"))?.value || "";
+    const emailVal = normalizeContacts(row.contacts).find((c) => c.type.toLowerCase().includes("email"))?.value || row.email || "";
+    const whatsappVal = normalizeContacts(row.contacts).find((c) => c.type.toLowerCase().includes("whatsapp"))?.value || "";
+
+    const payload = {
+      serialNumber: row.id.slice(0, 4).toUpperCase(),
+      branchStatus: row.status || "ACTIVE",
+      branchCode: row.code || "-",
+      branchType: "CITY",
+      country: locationMeta.country?.name || "Country",
+      currency: row.local_currency || currency || "USD",
+      
+      parentBranch: {
+        name: selectedMainBranch?.name || "Main Branch",
+        code: selectedMainBranch?.code || "MAIN",
+        type: "MAIN",
+        status: "ACTIVE",
+        currency: selectedMainBranch?.local_currency || "USD"
+      },
+
+      branchName: row.name,
+      createdDate: row.created_at ? new Date(row.created_at).toLocaleDateString() : undefined,
+      updatedDate: row.updated_at ? new Date(row.updated_at).toLocaleDateString() : undefined,
+      createdBy: "Super Admin",
+      updatedBy: "Super Admin",
+      establishedOn: "-",
+      taxRegNo: "-",
+      ntnGstNo: "-",
+
+      city: row.city_name || locationMeta.city?.name || "-",
+      cityCode: "-",
+      stateProvince: locationMeta.state?.name || "-",
+      areaRegion: locationMeta.area?.name || "-",
+      zipCode: zip || "-",
+      fullAddress: row.address || "-",
+
+      ownerName: row.owner_name || "-",
+      ownerCode: "OWN-0001",
+      fatherHusbandName: "-",
+      cnicId: "-",
+      nationality: "Pakistani",
+      designation: "City Branch Manager",
+      ownershipType: "Individual",
+      ownershipPercent: "100%",
+      ownerPhone: phoneVal || "-",
+      ownerWhatsApp: whatsappVal || "-",
+      ownerEmail: emailVal || "-",
+      ownerAltEmail: "-",
+      ownerLandline: "-",
+      ownerWebsite: "-",
+
+      companyName: previewCompany || "-",
+      companyCode: companyCode || "-",
+      companyType: "Private Limited",
+      companyRegNo: "-",
+      companyIncDate: "-",
+      companyTaxRegNo: "-",
+      companyNtnGstNo: "-",
+      companyStatus: "Active",
+      companyPhone: phoneVal || "-",
+      companyEmail: emailVal || "-",
+      companyWebsite: "-",
+      companyOfficeAddress: row.address || "-",
+
+      allowedPermissions: Array.isArray(row.permission_grants) ? row.permission_grants : [],
+      remarks: "Saved city branch details registry."
+    };
+
+    setDrawerBranchData(payload);
   }
 
   useEffect(() => {
@@ -1418,10 +1492,16 @@ export function CityBranchSetup() {
                                 <span className="text-muted-foreground">{" - "}</span>
                                 <span className="text-muted-foreground">{b.name}</span>
                               </span>
-                              <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => beginEditCityBranch(b)}>
-                                <Pencil className="h-3.5 w-3.5" aria-hidden />
-                                Edit
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => viewSavedBranch(b)}>
+                                  <Eye className="h-3.5 w-3.5" aria-hidden />
+                                  View
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => beginEditCityBranch(b)}>
+                                  <Pencil className="h-3.5 w-3.5" aria-hidden />
+                                  Edit
+                                </Button>
+                              </div>
                             </li>
                           ))}
                           {filteredExistingCityBranches.length > 6 ? (
@@ -1439,7 +1519,21 @@ export function CityBranchSetup() {
           />
         </div>
       </div>
+
+      <DetailDrawer
+        isOpen={drawerBranchData !== null}
+        onClose={() => setDrawerBranchData(null)}
+        title="City Branch Details"
+        subtitle="Verification certificate and branch permissions"
+      >
+        {drawerBranchData && (
+          <BranchLiveReportPanel
+            title="Saved City Branch"
+            status={drawerBranchData.branchStatus}
+            branchData={drawerBranchData}
+          />
+        )}
+      </DetailDrawer>
     </div>
   );
 }
-

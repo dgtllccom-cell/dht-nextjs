@@ -6,12 +6,14 @@ import {
   Building2,
   CheckCircle2,
   ClipboardList,
+  Eye,
   MapPin,
   Pencil,
   Plus,
   Save,
   Trash2
 } from "lucide-react";
+import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -260,6 +262,7 @@ function ChipList({
 export function SuperAdminBranchSetup() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("editId") ?? "";
+  const [drawerBranchData, setDrawerBranchData] = useState<any>(null);
   const [contactTypes, setContactTypes] = useState(initialContactTypes);
 
   const [location, setLocation] = useState<LocationHierarchyValue>({
@@ -569,6 +572,70 @@ export function SuperAdminBranchSetup() {
     setContacts(normalizeContacts(row.contacts));
     setMessage(`Editing: ${row.code}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function viewSavedBranch(row: DbSuperAdminBranchRow) {
+    const phoneVal = normalizeContacts(row.contacts).find((c) => c.type.toLowerCase().includes("phone") || c.type.toLowerCase().includes("mobile"))?.value || "";
+    const emailVal = normalizeContacts(row.contacts).find((c) => c.type.toLowerCase().includes("email"))?.value || row.email || "";
+    const whatsappVal = normalizeContacts(row.contacts).find((c) => c.type.toLowerCase().includes("whatsapp"))?.value || "";
+
+    const payload = {
+      serialNumber: row.id.slice(0, 4).toUpperCase(),
+      branchStatus: "Active",
+      branchCode: row.code || "-",
+      branchType: "SUPER_ADMIN",
+      country: row.countries?.name || countryName || "Country",
+      currency: row.currency || currency || "USD",
+      
+      branchName: row.name,
+      createdDate: row.created_at ? new Date(row.created_at).toLocaleDateString() : undefined,
+      updatedDate: undefined,
+      createdBy: "Super Admin",
+      updatedBy: "Super Admin",
+      establishedOn: "-",
+      taxRegNo: "-",
+      ntnGstNo: "-",
+
+      city: row.cities?.name || cityName || "-",
+      cityCode: "-",
+      stateProvince: row.states_provinces?.name || stateName || "-",
+      areaRegion: "-",
+      zipCode: "-",
+      fullAddress: row.address || "-",
+
+      ownerName: row.owner_name || "-",
+      ownerCode: "OWN-0001",
+      fatherHusbandName: "-",
+      cnicId: "-",
+      nationality: "Pakistani",
+      designation: "Super Admin",
+      ownershipType: "Individual",
+      ownershipPercent: "100%",
+      ownerPhone: phoneVal || "-",
+      ownerWhatsApp: whatsappVal || "-",
+      ownerEmail: emailVal || "-",
+      ownerAltEmail: "-",
+      ownerLandline: "-",
+      ownerWebsite: "-",
+
+      companyName: row.companies?.name || companyName || "-",
+      companyCode: row.company_id ? compactCode(row.company_id, "CMP") : "-",
+      companyType: "Private Limited",
+      companyRegNo: "-",
+      companyIncDate: "-",
+      companyTaxRegNo: "-",
+      companyNtnGstNo: "-",
+      companyStatus: "Active",
+      companyPhone: phoneVal || "-",
+      companyEmail: emailVal || "-",
+      companyWebsite: "-",
+      companyOfficeAddress: row.address || "-",
+
+      allowedPermissions: ["settings.access", "branch.super_admin", "settings.system"],
+      remarks: "Super Admin main headquarters."
+    };
+
+    setDrawerBranchData(payload);
   }
 
   function emailReport() {
@@ -1080,10 +1147,16 @@ export function SuperAdminBranchSetup() {
                                 {entry.company} · {entry.country} · {entry.city}
                               </p>
                             </div>
-                            <Button type="button" size="sm" variant="outline" disabled={!row} onClick={() => row && beginEditBranch(row)}>
-                              <Pencil className="h-3.5 w-3.5" aria-hidden />
-                              Edit
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button type="button" size="sm" variant="outline" disabled={!row} onClick={() => row && viewSavedBranch(row)}>
+                                <Eye className="h-3.5 w-3.5" aria-hidden />
+                                View
+                              </Button>
+                              <Button type="button" size="sm" variant="outline" disabled={!row} onClick={() => row && beginEditBranch(row)}>
+                                <Pencil className="h-3.5 w-3.5" aria-hidden />
+                                Edit
+                              </Button>
+                            </div>
                           </div>
                         );
                       })
@@ -1116,7 +1189,21 @@ export function SuperAdminBranchSetup() {
           </div>
         </Modal>
       ) : null}
+
+      <DetailDrawer
+        isOpen={drawerBranchData !== null}
+        onClose={() => setDrawerBranchData(null)}
+        title="Super Admin Branch Details"
+        subtitle="Verification certificate and branch permissions"
+      >
+        {drawerBranchData && (
+          <BranchLiveReportPanel
+            title="Saved Super Admin Branch"
+            status={drawerBranchData.branchStatus}
+            branchData={drawerBranchData}
+          />
+        )}
+      </DetailDrawer>
     </div>
   );
 }
-

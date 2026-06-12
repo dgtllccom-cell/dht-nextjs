@@ -118,3 +118,49 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     return handleApiError(error);
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await requireErpSession();
+    const params = await context.params;
+    const id = uuidSchema.parse(params.id);
+
+    const supabase = createSupabaseAdminClient() as any;
+
+    const { data: header, error: headerError } = await supabase
+      .from("roznamcha_entries")
+      .select("country_id, country_branch_id, city_branch_id")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (headerError) throw new Error(headerError.message);
+    if (!header) {
+      return apiOk({ success: false, message: "Entry not found" });
+    }
+
+    authorizeApiScope(session, {
+      resource: "roznamcha",
+      action: "post",
+      countryId: (header.country_id as string | null) ?? null,
+      countryBranchId: (header.country_branch_id as string | null) ?? null,
+      cityBranchId: (header.city_branch_id as string | null) ?? null
+    });
+
+    const { data, error } = await supabase.rpc("reverse_roznamcha_entry", {
+      p_original_entry_id: id,
+      p_reason: "Deleted or edited from cash entry page",
+      p_approval_request_id: null
+    });
+
+    if (error) throw new Error(error.message);
+
+    return apiOk({ success: true, reversalId: data });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+

@@ -15,6 +15,10 @@ type ApprovalRow = {
   target_id: string;
   country_id: string | null;
   city_branch_id: string | null;
+  after_data?: any;
+  before_data?: any;
+  action?: string;
+  requested_by?: string;
 };
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -27,7 +31,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const supabase = await createApiSupabaseClient();
     const currentResult = await supabase
       .from("approval_requests")
-      .select("id, request_no, status, target_table, target_id, country_id, city_branch_id")
+      .select("id, request_no, status, target_table, target_id, country_id, city_branch_id, after_data, before_data, action, requested_by")
       .eq("id", approvalRequestId)
       .single();
 
@@ -79,6 +83,68 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       cityBranchId: body.cityBranchId ?? current.city_branch_id,
       note: body.note
     });
+
+    if (nextStatus === "approved" && current.target_table === "daily_usd_rates") {
+      const payload = current.after_data as any;
+      if (payload) {
+        // Query if daily_usd_rates row with current.target_id exists
+        const { data: existingRate } = await supabase
+          .from("daily_usd_rates")
+          .select("id")
+          .eq("id", current.target_id)
+          .maybeSingle();
+
+        let savedRate;
+        if (existingRate?.id) {
+          const { data, error } = await supabase
+            .from("daily_usd_rates")
+            .update({
+              ...payload,
+              approved_by: session.userId,
+              approved_at: new Date().toISOString(),
+              approval_request_id: current.id
+            })
+            .eq("id", current.target_id)
+            .select("*")
+            .single();
+          if (error) throw new Error(error.message);
+          savedRate = data;
+        } else {
+          const { data, error } = await supabase
+            .from("daily_usd_rates")
+            .insert({
+              id: current.target_id,
+              ...payload,
+              approved_by: session.userId,
+              approved_at: new Date().toISOString(),
+              approval_request_id: current.id
+            })
+            .select("*")
+            .single();
+          if (error) throw new Error(error.message);
+          savedRate = data;
+        }
+
+        // Also insert into exchange_rate_history
+        const { error: histError } = await supabase.from("exchange_rate_history").insert({
+          country_id: payload.country_id,
+          from_currency: "LOCAL",
+          to_currency: "USD",
+          old_rate: (current.before_data as any)?.selling_rate ?? null,
+          new_rate: payload.selling_rate,
+          effective_date: payload.rate_date,
+          changed_by: current.requested_by,
+          reason: "USD rate approved from approval queue."
+        });
+        if (histError) throw new Error(histError.message);
+      }
+
+      // Unlock the record lock
+      await service.unlockRecord(session, {
+        recordTable: current.target_table,
+        recordId: current.target_id
+      });
+    }
 
     if (nextStatus === "rejected" || nextStatus === "cancelled") {
       await service.unlockRecord(session, {

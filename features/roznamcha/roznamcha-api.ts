@@ -25,6 +25,9 @@ export type RoznamchaEntryRow = {
   approved_by: string | null;
   approved_at: string | null;
   posted_at: string | null;
+  super_admin_serial_number?: string | null;
+  country_transaction_serial_number?: string | null;
+  branch_transaction_serial_number?: string | null;
   created_at: string;
   updated_at: string;
 };

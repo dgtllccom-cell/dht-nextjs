@@ -110,6 +110,10 @@ export const enterpriseRolePermissions: Record<EnterpriseRole, string[]> = {
     "email_management:update",
     "currency_rates:create",
     "currency_rates:read",
+    "currency_rates:update",
+    "approvals:create",
+    "approvals:read",
+    "approvals:approve",
     "financial_periods:create",
     "financial_periods:read",
     "financial_periods:update"
@@ -193,6 +197,10 @@ export const enterpriseRolePermissions: Record<EnterpriseRole, string[]> = {
     "email_management:create",
     "email_management:read",
     "email_management:update",
+    "currency_rates:create",
+    "currency_rates:read",
+    "approvals:create",
+    "approvals:read",
     "reports:read"
   ],
   city_branch_admin: [
@@ -244,6 +252,10 @@ export const enterpriseRolePermissions: Record<EnterpriseRole, string[]> = {
     "email_management:create",
     "email_management:read",
     "email_management:update",
+    "currency_rates:create",
+    "currency_rates:read",
+    "approvals:create",
+    "approvals:read",
     "reports:read"
   ],
   accountant: [
@@ -286,6 +298,12 @@ export const enterpriseRolePermissions: Record<EnterpriseRole, string[]> = {
     "record_transfers:read",
     "inter_branch_transfers:create",
     "inter_branch_transfers:read",
+    "currency_rates:create",
+    "currency_rates:read",
+    "currency_rates:update",
+    "approvals:create",
+    "approvals:read",
+    "approvals:approve",
     "reports:read"
   ],
   cashier: ["roznamcha:create", "roznamcha:read", "transactions:create", "transactions:read", "customers:create", "customers:read"],

@@ -62,8 +62,10 @@ function SidebarNodeItem({
     <div>
       <div
         className={cn(
-          "group flex items-center justify-between rounded-md text-[12px] transition-colors",
-          isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          "group flex items-center justify-between rounded-lg text-[12.5px] transition-all duration-200 py-0.5",
+          isActive
+            ? "bg-primary/10 text-primary font-bold shadow-sm active-nav-item dark:bg-primary/15"
+            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60"
         )}
       >
         {href ? (
@@ -71,11 +73,11 @@ function SidebarNodeItem({
             href={href}
             onClick={onNavigate}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 py-1 pe-2 ps-3",
+              "flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pe-2 ps-3.5 transition-transform duration-200 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5",
               depth > 0 ? "ps-7" : ""
             )}
           >
-            <SidebarIcon name={node.iconKey} className="text-primary" />
+            <SidebarIcon name={node.iconKey} className={cn("transition-colors", isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300")} />
             <span className="truncate text-start">{t(lang, node.labelKey)}</span>
           </Link>
         ) : (
@@ -83,11 +85,11 @@ function SidebarNodeItem({
             type="button"
             onClick={() => (hasChildren ? onToggle(node.key) : undefined)}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 py-1 pe-2 ps-3 text-start",
+              "flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pe-2 ps-3.5 text-start transition-transform duration-200 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5",
               depth > 0 ? "ps-7" : ""
             )}
           >
-            <SidebarIcon name={node.iconKey} className="text-primary" />
+            <SidebarIcon name={node.iconKey} className={cn("transition-colors", isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300")} />
             <span className="truncate">{t(lang, node.labelKey)}</span>
           </button>
         )}
@@ -96,11 +98,11 @@ function SidebarNodeItem({
           <button
             type="button"
             onClick={() => onToggle(node.key)}
-            className="me-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+            className="me-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-slate-200 dark:hover:bg-slate-700/60 hover:text-foreground transition-colors"
             aria-label="Toggle submenu"
             aria-expanded={isOpen}
           >
-            <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen ? "rotate-180" : "rotate-0")} />
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", isOpen ? "rotate-180" : "rotate-0")} />
           </button>
         ) : null}
       </div>

@@ -243,7 +243,7 @@ export const sidebarTree: SidebarNode[] = [
             key: "journal-super-admin-exchange-rate",
             labelKey: "nav.super_admin_exchange_rate",
             href: "/dashboard/reports/exchange-rate" as Route,
-            roles: ["super_admin"]
+            roles: ["super_admin", "country_admin"]
           }
         ]
       },

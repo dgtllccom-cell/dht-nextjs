@@ -142,3 +142,56 @@ body {
   background-color: transparent !important;
   box-shadow: none !important;
 }
+
+/* 2024/2025 Premium Design Tokens */
+.premium-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.premium-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -10px hsl(var(--primary) / 0.08), 0 4px 12px -5px hsl(var(--primary) / 0.03);
+}
+
+/* Glassmorphism utility */
+.premium-glass {
+  background: hsl(var(--background) / 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.35);
+}
+
+/* Smooth active animations */
+.active-nav-item {
+  position: relative;
+}
+.active-nav-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 3px;
+  background-color: hsl(var(--primary));
+  border-radius: 0 4px 4px 0;
+}
+[dir="rtl"] .active-nav-item::before {
+  left: auto;
+  right: 0;
+  border-radius: 4px 0 0 4px;
+}
+
