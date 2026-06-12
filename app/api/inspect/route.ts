@@ -262,16 +262,537 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, logs });
     }
 
-    // Default GET inspect data (existing code)
-    const profiles = await sql`
-      SELECT * FROM public.profiles
-    `;
-    const roleAssignments = await sql`
-      SELECT * FROM public.user_role_assignments
-    `;
-    const authUsers = await sql`
-      SELECT id, email, raw_user_meta_data FROM auth.users
-    `;
+    if (action === "seed") {
+      const logs: string[] = [];
+      try {
+        logs.push("Loading existing locations into memory...");
+        const countriesList = await sql`SELECT id, name, phone_code FROM public.countries WHERE deleted_at IS NULL`;
+        const statesList = await sql`SELECT id, country_id, name FROM public.states_provinces WHERE deleted_at IS NULL`;
+        const districtsList = await sql`SELECT id, state_province_id, name FROM public.districts WHERE deleted_at IS NULL`;
+        const citiesList = await sql`SELECT id, country_id, name, district_id, state_province_id FROM public.cities WHERE deleted_at IS NULL`;
+        const areasList = await sql`SELECT id, city_id, name FROM public.areas_locations WHERE deleted_at IS NULL`;
+
+        const cByName = new Map(countriesList.map(c => [c.name, c.id]));
+        
+        for (const [name, code] of [
+          ["Pakistan", "+92"],
+          ["Afghanistan", "+93"],
+          ["United Arab Emirates", "+971"],
+          ["UAE / Dubai", "+971"]
+        ]) {
+          const id = cByName.get(name);
+          if (id) {
+            const countryRow = countriesList.find(c => c.id === id);
+            if (!countryRow?.phone_code) {
+              await sql`UPDATE public.countries SET phone_code = ${code} WHERE id = ${id}`;
+              logs.push(`Updated phone code for ${name} to ${code}`);
+            }
+          }
+        }
+
+        const stateKey = (countryId: string, name: string) => `${countryId}:${name.trim().toLowerCase()}`;
+        const districtKey = (stateId: string, name: string) => `${stateId}:${name.trim().toLowerCase()}`;
+        const cityKey = (countryId: string, name: string) => `${countryId}:${name.trim().toLowerCase()}`;
+        const areaKey = (cityId: string, name: string) => `${cityId}:${name.trim().toLowerCase()}`;
+
+        const statesMap = new Map(statesList.map(s => [stateKey(s.country_id, s.name), s.id]));
+        const districtsMap = new Map(districtsList.map(d => [districtKey(d.state_province_id, d.name), d.id]));
+        const citiesMap = new Map(citiesList.map(c => [cityKey(c.country_id, c.name), c.id]));
+        const areasMap = new Map(areasList.map(a => [areaKey(a.city_id, a.name), a.id]));
+
+        let createdStates = 0;
+        let createdDistricts = 0;
+        let createdCities = 0;
+        let createdAreas = 0;
+
+        async function getOrCreateState(countryId: string, name: string, code: string) {
+          const key = stateKey(countryId, name);
+          if (statesMap.has(key)) return statesMap.get(key)!;
+          const [inserted] = await sql`
+            INSERT INTO public.states_provinces (country_id, name, code)
+            VALUES (${countryId}, ${name}, ${code})
+            RETURNING id
+          `;
+          statesMap.set(key, inserted.id);
+          createdStates++;
+          return inserted.id;
+        }
+
+        async function getOrCreateDistrict(countryId: string, stateId: string, name: string, code: string) {
+          const key = districtKey(stateId, name);
+          if (districtsMap.has(key)) return districtsMap.get(key)!;
+          const [inserted] = await sql`
+            INSERT INTO public.districts (country_id, state_province_id, name, code)
+            VALUES (${countryId}, ${stateId}, ${name}, ${code})
+            RETURNING id
+          `;
+          districtsMap.set(key, inserted.id);
+          createdDistricts++;
+          return inserted.id;
+        }
+
+        async function getOrCreateCity(countryId: string, stateId: string, districtId: string, name: string, code: string, zipCode: string) {
+          const key = cityKey(countryId, name);
+          if (citiesMap.has(key)) {
+            const existingId = citiesMap.get(key)!;
+            const cRow = citiesList.find(c => c.id === existingId);
+            if (cRow && (!cRow.district_id || !cRow.state_province_id)) {
+              await sql`
+                UPDATE public.cities 
+                SET state_province_id = coalesce(state_province_id, ${stateId}),
+                    district_id = coalesce(district_id, ${districtId}),
+                    code = coalesce(code, ${code}),
+                    zip_code = coalesce(zip_code, ${zipCode})
+                WHERE id = ${existingId}
+              `;
+            }
+            return existingId;
+          }
+          const [inserted] = await sql`
+            INSERT INTO public.cities (country_id, state_province_id, district_id, name, code, zip_code)
+            VALUES (${countryId}, ${stateId}, ${districtId}, ${name}, ${code}, ${zipCode})
+            RETURNING id
+          `;
+          citiesMap.set(key, inserted.id);
+          createdCities++;
+          return inserted.id;
+        }
+
+        async function getOrCreateArea(countryId: string, stateId: string, districtId: string, cityId: string, name: string, code: string) {
+          const key = areaKey(cityId, name);
+          if (areasMap.has(key)) return areasMap.get(key)!;
+          const [inserted] = await sql`
+            INSERT INTO public.areas_locations (country_id, state_province_id, district_id, city_id, name, code)
+            VALUES (${countryId}, ${stateId}, ${districtId}, ${cityId}, ${name}, ${code})
+            RETURNING id
+          `;
+          areasMap.set(key, inserted.id);
+          createdAreas++;
+          return inserted.id;
+        }
+
+        const pakId = cByName.get("Pakistan");
+        if (pakId) {
+          const pakData = [
+            {
+              state: "Punjab", code: "PUN",
+              districts: [
+                {
+                  name: "Lahore District", code: "LHR",
+                  cities: [
+                    {
+                      name: "Lahore", code: "LHE", zip: "54000",
+                      areas: ["Lahore Cantt", "Model Town", "Raiwind", "Shalimar"]
+                    }
+                  ]
+                },
+                {
+                  name: "Faisalabad District", code: "FSD",
+                  cities: [
+                    {
+                      name: "Faisalabad", code: "FSD", zip: "38000",
+                      areas: ["Faisalabad City", "Jaranwala", "Sammundri"]
+                    }
+                  ]
+                },
+                {
+                  name: "Rawalpindi District", code: "RWP",
+                  cities: [
+                    {
+                      name: "Rawalpindi", code: "RWP", zip: "46000",
+                      areas: ["Rawalpindi Cantt", "Gujar Khan", "Taxila"]
+                    }
+                  ]
+                },
+                {
+                  name: "Multan District", code: "MUX",
+                  cities: [
+                    {
+                      name: "Multan", code: "MUX", zip: "60000",
+                      areas: ["Multan City", "Jalalpur Pirwala", "Shujabad"]
+                    }
+                  ]
+                },
+                {
+                  name: "Gujranwala District", code: "GUJ",
+                  cities: [
+                    {
+                      name: "Gujranwala", code: "GUJ", zip: "52250",
+                      areas: ["Gujranwala City", "Kamoke", "Wazirabad"]
+                    }
+                  ]
+                },
+                {
+                  name: "Sialkot District", code: "SKT",
+                  cities: [
+                    {
+                      name: "Sialkot", code: "SKT", zip: "51310",
+                      areas: ["Sialkot City", "Daska", "Pasrur"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Sindh", code: "SIN",
+              districts: [
+                {
+                  name: "Karachi District", code: "KHI",
+                  cities: [
+                    {
+                      name: "Karachi", code: "KHI", zip: "74000",
+                      areas: ["Clifton", "Gulshan-e-Iqbal", "North Nazimabad", "Saddar"]
+                    }
+                  ]
+                },
+                {
+                  name: "Hyderabad District", code: "HYD",
+                  cities: [
+                    {
+                      name: "Hyderabad", code: "HYD", zip: "71000",
+                      areas: ["Latifabad", "Qasimabad", "Hyderabad City"]
+                    }
+                  ]
+                },
+                {
+                  name: "Sukkur District", code: "SKR",
+                  cities: [
+                    {
+                      name: "Sukkur", code: "SKZ", zip: "65200",
+                      areas: ["Sukkur City", "Rohri", "Pano Aqil"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Balochistan", code: "BAL",
+              districts: [
+                {
+                  name: "Quetta District", code: "QTA",
+                  cities: [
+                    {
+                      name: "Quetta", code: "QTA", zip: "87300",
+                      areas: ["Quetta Cantt", "Sariab", "Quetta City"]
+                    }
+                  ]
+                },
+                {
+                  name: "Gwadar District", code: "GWD",
+                  cities: [
+                    {
+                      name: "Gwadar", code: "GWA", zip: "91200",
+                      areas: ["Gwadar Port Area", "Pasni", "Ormara"]
+                    }
+                  ]
+                },
+                {
+                  name: "Chaman District", code: "CHM",
+                  cities: [
+                    {
+                      name: "Chaman", code: "CHM", zip: "86000",
+                      areas: ["Chaman City"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Khyber Pakhtunkhwa (KPK)", code: "KPK",
+              districts: [
+                {
+                  name: "Peshawar District", code: "PES",
+                  cities: [
+                    {
+                      name: "Peshawar", code: "PEW", zip: "25000",
+                      areas: ["Peshawar Cantt", "Hayatabad", "Peshawar City"]
+                    }
+                  ]
+                },
+                {
+                  name: "Swat District", code: "SWA",
+                  cities: [
+                    {
+                      name: "Mingora", code: "MIN", zip: "19130",
+                      areas: ["Babuzai", "Kabal", "Barikot"]
+                    }
+                  ]
+                },
+                {
+                  name: "Mardan District", code: "MRD",
+                  cities: [
+                    {
+                      name: "Mardan", code: "MRD", zip: "23200",
+                      areas: ["Mardan City", "Takht-i-Bahi"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Gilgit-Baltistan", code: "GIL",
+              districts: [
+                {
+                  name: "Gilgit District", code: "GIL",
+                  cities: [
+                    {
+                      name: "Gilgit", code: "GIL", zip: "15100",
+                      areas: ["Gilgit City Area", "Danyore"]
+                    }
+                  ]
+                },
+                {
+                  name: "Skardu District", code: "SKA",
+                  cities: [
+                    {
+                      name: "Skardu", code: "SKA", zip: "16100",
+                      areas: ["Skardu City Area", "Shigar"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ];
+
+          for (const s of pakData) {
+            const stateId = await getOrCreateState(pakId, s.state, s.code);
+            for (const d of s.districts) {
+              const districtId = await getOrCreateDistrict(pakId, stateId, d.name, d.code);
+              for (const c of d.cities) {
+                const cityId = await getOrCreateCity(pakId, stateId, districtId, c.name, c.code, c.zip);
+                for (const a of c.areas) {
+                  await getOrCreateArea(pakId, stateId, districtId, cityId, a, c.zip);
+                }
+              }
+            }
+          }
+        }
+
+        const afgId = cByName.get("Afghanistan");
+        if (afgId) {
+          const afgData = [
+            {
+              state: "Kabul", code: "KAB",
+              districts: [
+                {
+                  name: "Kabul District", code: "KAB",
+                  cities: [
+                    {
+                      name: "Kabul", code: "KAB", zip: "1001",
+                      areas: ["Kabul Downtown", "Bagrami", "Paghman", "Deh Sabz"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Kandahar", code: "KAN",
+              districts: [
+                {
+                  name: "Kandahar District", code: "KAN",
+                  cities: [
+                    {
+                      name: "Kandahar", code: "KAN", zip: "3701",
+                      areas: ["Kandahar City Center", "Spin Boldak", "Panjwaye", "Arghandab"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Herat", code: "HER",
+              districts: [
+                {
+                  name: "Herat District", code: "HER",
+                  cities: [
+                    {
+                      name: "Herat", code: "HER", zip: "3001",
+                      areas: ["Herat City Center", "Guzara", "Karukh", "Ghorian"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Balkh (Mazar-e-Sharif)", code: "BAL",
+              districts: [
+                {
+                  name: "Mazar-e-Sharif District", code: "MAZ",
+                  cities: [
+                    {
+                      name: "Mazar-e-Sharif", code: "MAZ", zip: "1701",
+                      areas: ["Mazar Center", "Balkh District", "Dehdadi"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Nangarhar (Jalalabad)", code: "NAN",
+              districts: [
+                {
+                  name: "Jalalabad District", code: "JAL",
+                  cities: [
+                    {
+                      name: "Jalalabad", code: "JAL", zip: "2601",
+                      areas: ["Jalalabad Center", "Behsud", "Surkh Rod"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ];
+
+          for (const s of afgData) {
+            const stateId = await getOrCreateState(afgId, s.state, s.code);
+            for (const d of s.districts) {
+              const districtId = await getOrCreateDistrict(afgId, stateId, d.name, d.code);
+              for (const c of d.cities) {
+                const cityId = await getOrCreateCity(afgId, stateId, districtId, c.name, c.code, c.zip);
+                for (const a of c.areas) {
+                  await getOrCreateArea(afgId, stateId, districtId, cityId, a, c.zip);
+                }
+              }
+            }
+          }
+        }
+
+        const uaeIds = [cByName.get("United Arab Emirates"), cByName.get("UAE / Dubai")].filter(Boolean) as string[];
+        if (uaeIds.length > 0) {
+          const uaeData = [
+            {
+              state: "Dubai", code: "DXB",
+              districts: [
+                {
+                  name: "Dubai District", code: "DUB",
+                  cities: [
+                    {
+                      name: "Dubai", code: "DUB", zip: "00000",
+                      areas: ["Deira", "Bur Dubai", "Al Rigga", "Al Nahda", "Al Qusais", "Karama", "Satwa", "Business Bay", "Jumeirah", "Al Barsha", "International City", "Dubai Marina"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Abu Dhabi", code: "AUH",
+              districts: [
+                {
+                  name: "Abu Dhabi District", code: "ABU",
+                  cities: [
+                    {
+                      name: "Abu Dhabi", code: "AUH", zip: "00000",
+                      areas: ["Mussafah", "Khalifa City", "Abu Dhabi Center"]
+                    },
+                    {
+                      name: "Al Ain", code: "AIN", zip: "00000",
+                      areas: ["Al Ain Downtown"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Sharjah", code: "SHJ",
+              districts: [
+                {
+                  name: "Sharjah District", code: "SHJ",
+                  cities: [
+                    {
+                      name: "Sharjah", code: "SHJ", zip: "00000",
+                      areas: ["Al Nahda Sharjah", "Al Majaz", "Khor Fakkan", "Kalba"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Ajman", code: "AJM",
+              districts: [
+                {
+                  name: "Ajman District", code: "AJM",
+                  cities: [
+                    {
+                      name: "Ajman", code: "AJM", zip: "00000",
+                      areas: ["Ajman Downtown", "Al Nuaimia"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Umm Al Quwain", code: "UAQ",
+              districts: [
+                {
+                  name: "Umm Al Quwain District", code: "UAQ",
+                  cities: [
+                    {
+                      name: "Umm Al Quwain", code: "UAQ", zip: "00000",
+                      areas: ["UAQ Center"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Ras Al Khaimah", code: "RAK",
+              districts: [
+                {
+                  name: "Ras Al Khaimah District", code: "RAK",
+                  cities: [
+                    {
+                      name: "Ras Al Khaimah", code: "RAK", zip: "00000",
+                      areas: ["RAK Center", "Al Hamra"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              state: "Fujairah", code: "FUJ",
+              districts: [
+                {
+                  name: "Fujairah District", code: "FUJ",
+                  cities: [
+                    {
+                      name: "Fujairah", code: "FUJ", zip: "00000",
+                      areas: ["Fujairah Center", "Dibba"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ];
+
+          for (const uaeId of uaeIds) {
+            for (const s of uaeData) {
+              const stateId = await getOrCreateState(uaeId, s.state, s.code);
+              for (const d of s.districts) {
+                const districtId = await getOrCreateDistrict(uaeId, stateId, d.name, d.code);
+                for (const c of d.cities) {
+                  const cityId = await getOrCreateCity(uaeId, stateId, districtId, c.name, c.code, c.zip);
+                  for (const a of c.areas) {
+                    await getOrCreateArea(uaeId, stateId, districtId, cityId, a, c.zip);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        logs.push(`Successfully checked and inserted missing rows. Created: ${createdStates} states, ${createdDistricts} districts, ${createdCities} cities, ${createdAreas} areas.`);
+      } catch (err: any) {
+        logs.push(`Seed error: ${err.message}`);
+      }
+
+      await sql.end();
+      return NextResponse.json({ success: true, logs });
+    }
+
+    // Default diagnostics return
+    const profiles = await sql`SELECT * FROM public.profiles`;
+    const roleAssignments = await sql`SELECT * FROM public.user_role_assignments`;
+    const authUsers = await sql`SELECT id, email, raw_user_meta_data FROM auth.users`;
 
     const countryBranches = await sql`
       SELECT cb.id, cb.name, cb.code, cb.local_currency, c.name as country_name
@@ -287,9 +808,11 @@ export async function GET(request: NextRequest) {
       WHERE cb.deleted_at IS NULL
     `;
 
-    const accountsCount = await sql`SELECT count(*)::int as count FROM public.accounts`;
-    const enterpriseAccountsCount = await sql`SELECT count(*)::int as count FROM public.enterprise_accounts`;
-    const entriesCount = await sql`SELECT count(*)::int as count FROM public.roznamcha_entries`;
+    const countries = await sql`SELECT count(*)::int as count FROM public.countries WHERE deleted_at IS NULL`;
+    const states = await sql`SELECT count(*)::int as count FROM public.states_provinces WHERE deleted_at IS NULL`;
+    const districts = await sql`SELECT count(*)::int as count FROM public.districts WHERE deleted_at IS NULL`;
+    const cities = await sql`SELECT count(*)::int as count FROM public.cities WHERE deleted_at IS NULL`;
+    const areas = await sql`SELECT count(*)::int as count FROM public.areas_locations WHERE deleted_at IS NULL`;
 
     await sql.end();
 
@@ -300,9 +823,11 @@ export async function GET(request: NextRequest) {
       countryBranches,
       cityBranches,
       counts: {
-        accounts: accountsCount[0].count,
-        enterpriseAccounts: enterpriseAccountsCount[0].count,
-        entries: entriesCount[0].count
+        countries: countries[0].count,
+        states: states[0].count,
+        districts: districts[0].count,
+        cities: cities[0].count,
+        areas: areas[0].count
       }
     });
   } catch (error: any) {

@@ -77,6 +77,7 @@ type BankFormState = {
   accountStatus: string;
   countryId: string;
   stateProvinceId: string;
+  districtId: string;
   cityId: string;
   fullAddress: string;
   phone: string;
@@ -101,6 +102,7 @@ const emptyForm: BankFormState = {
   accountStatus: "Active",
   countryId: "",
   stateProvinceId: "",
+  districtId: "",
   cityId: "",
   fullAddress: "",
   phone: "",
@@ -127,6 +129,7 @@ export function BankForm({
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
+    districtId: "",
     cityId: ""
   });
   const [saving, setSaving] = useState(false);
@@ -137,14 +140,22 @@ export function BankForm({
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function handleLocationChange(next: LocationHierarchyValue, _meta: LocationHierarchyMeta) {
+  function handleLocationChange(next: LocationHierarchyValue, meta: LocationHierarchyMeta) {
     setLocation(next);
-    setForm((prev) => ({
-      ...prev,
-      countryId: next.countryId,
-      stateProvinceId: next.stateProvinceId,
-      cityId: next.cityId
-    }));
+    setForm((prev) => {
+      let phoneVal = prev.phone;
+      if (meta.country?.phone_code && !prev.phone.trim()) {
+        phoneVal = meta.country.phone_code + " ";
+      }
+      return {
+        ...prev,
+        countryId: next.countryId,
+        stateProvinceId: next.stateProvinceId,
+        districtId: next.districtId,
+        cityId: next.cityId,
+        phone: phoneVal
+      };
+    });
   }
 
   const isReady =
@@ -181,6 +192,7 @@ export function BankForm({
         accountStatus: form.accountStatus,
         countryId: form.countryId || null,
         stateProvinceId: form.stateProvinceId || null,
+        districtId: form.districtId || null,
         cityId: form.cityId || null,
         fullAddress: form.fullAddress || null,
         phone: form.phone || null,
@@ -206,6 +218,7 @@ export function BankForm({
         account_status: form.accountStatus,
         country_id: form.countryId || null,
         state_province_id: form.stateProvinceId || null,
+        district_id: form.districtId || null,
         city_id: form.cityId || null,
         full_address: form.fullAddress || null,
         phone: form.phone || null,
@@ -229,7 +242,7 @@ export function BankForm({
 
   function handleReset() {
     setForm(emptyForm);
-    setLocation({ countryId: "", stateProvinceId: "", cityId: "" });
+    setLocation({ countryId: "", stateProvinceId: "", districtId: "", cityId: "" });
     setSavedBank(null);
     setMessage(null);
   }

@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
         accountStatus: body.accountStatus,
         countryId: body.countryId ?? null,
         stateProvinceId: body.stateProvinceId ?? null,
+        districtId: body.districtId ?? null,
         cityId: body.cityId ?? null,
         fullAddress: body.fullAddress ?? null,
         phone: body.phone ?? null,

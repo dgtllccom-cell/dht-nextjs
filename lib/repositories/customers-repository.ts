@@ -4,6 +4,7 @@ export type CustomerRow = {
   id: string;
   country_id: string;
   state_province_id: string | null;
+  district_id: string | null;
   city_id: string | null;
   area_location_id: string | null;
   customer_name: string;
@@ -49,7 +50,7 @@ export class CustomersRepository {
     let query = supabase
       .from("customers")
       .select(
-        "id, country_id, state_province_id, city_id, area_location_id, customer_name, company_name, contact_person, mobile, whatsapp, email, address, notes, original_language_code, is_active, created_at, updated_at"
+        "id, country_id, state_province_id, district_id, city_id, area_location_id, customer_name, company_name, contact_person, mobile, whatsapp, email, address, notes, original_language_code, is_active, created_at, updated_at"
       )
       .is("deleted_at", null)
       .order("customer_name", { ascending: true });
@@ -80,7 +81,7 @@ export class CustomersRepository {
     const { data, error } = await supabase
       .from("customers")
       .select(
-        "id, country_id, state_province_id, city_id, area_location_id, customer_name, company_name, contact_person, mobile, whatsapp, email, address, notes, original_language_code, is_active, created_at, updated_at"
+        "id, country_id, state_province_id, district_id, city_id, area_location_id, customer_name, company_name, contact_person, mobile, whatsapp, email, address, notes, original_language_code, is_active, created_at, updated_at"
       )
       .eq("id", id)
       .is("deleted_at", null)
@@ -117,6 +118,7 @@ export class CustomersRepository {
   async create(input: {
     countryId: string;
     stateProvinceId?: string | null;
+    districtId?: string | null;
     cityId?: string | null;
     areaLocationId?: string | null;
     customerName: string;
@@ -133,6 +135,7 @@ export class CustomersRepository {
     const { data, error } = await supabase.rpc("create_customer", {
       p_country_id: input.countryId,
       p_state_province_id: input.stateProvinceId ?? null,
+      p_district_id: input.districtId ?? null,
       p_city_id: input.cityId ?? null,
       p_area_location_id: input.areaLocationId ?? null,
       p_customer_name: input.customerName,
@@ -181,6 +184,7 @@ export class CustomersRepository {
     id: string,
     input: Partial<{
       stateProvinceId: string | null;
+      districtId: string | null;
       cityId: string | null;
       areaLocationId: string | null;
       customerName: string;
@@ -198,6 +202,7 @@ export class CustomersRepository {
     const supabase = createSupabaseAdminClient() as any;
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if ("stateProvinceId" in input) patch.state_province_id = input.stateProvinceId;
+    if ("districtId" in input) patch.district_id = input.districtId;
     if ("cityId" in input) patch.city_id = input.cityId;
     if ("areaLocationId" in input) patch.area_location_id = input.areaLocationId;
     if ("customerName" in input) patch.customer_name = input.customerName;

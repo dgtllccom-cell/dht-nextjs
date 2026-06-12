@@ -21,6 +21,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:inspect-test": "node C:\\Users\\dgtll\\.gemini\\antigravity-ide\\brain\\c9e44d00-ce6b-4f96-9db4-9800e3765d28\\scratch\\inspect-db.js",
+    "db:check-locations": "node check-locations.js",
     "db:list-users": "node C:\\Users\\dgtll\\.gemini\\antigravity-ide\\brain\\c9e44d00-ce6b-4f96-9db4-9800e3765d28\\scratch\\list-users.js"
   },
   "dependencies": {

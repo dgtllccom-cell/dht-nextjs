@@ -18,6 +18,7 @@ export type BankRecord = {
   account_status: string;
   country_id: string | null;
   state_province_id: string | null;
+  district_id: string | null;
   city_id: string | null;
   full_address: string | null;
   phone: string | null;
@@ -65,6 +66,7 @@ export async function createBank(data: {
   accountStatus?: string;
   countryId?: string | null;
   stateProvinceId?: string | null;
+  districtId?: string | null;
   cityId?: string | null;
   fullAddress?: string | null;
   phone?: string | null;

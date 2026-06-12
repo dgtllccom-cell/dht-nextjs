@@ -268,11 +268,13 @@ export function SuperAdminBranchSetup() {
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
+    districtId: "",
     cityId: ""
   });
   const [locationMeta, setLocationMeta] = useState<LocationHierarchyMeta>({
     country: null,
     state: null,
+    district: null,
     city: null,
     area: null
   });
@@ -298,6 +300,7 @@ export function SuperAdminBranchSetup() {
 
   const countryName = locationMeta.country?.name ?? "";
   const stateName = locationMeta.state?.name ?? "";
+  const districtName = locationMeta.district?.name ?? "";
   const cityName = locationMeta.city?.name ?? "";
   const zip = locationMeta.city?.zip_code ?? "";
 
@@ -310,6 +313,7 @@ export function SuperAdminBranchSetup() {
   const hasAny = useMemo(() => Boolean(
     location.countryId ||
       location.stateProvinceId ||
+      location.districtId ||
       location.cityId ||
       currency ||
       address ||
@@ -317,6 +321,24 @@ export function SuperAdminBranchSetup() {
       owner ||
       contacts.length
   ), [location, currency, address, companyId, owner, contacts]);
+
+  // Prefill phone prefix in contacts
+  useEffect(() => {
+    if (locationMeta.country?.phone_code) {
+      const code = locationMeta.country.phone_code;
+      setContacts((prev) => {
+        if (prev.length === 0) {
+          return [{ id: `Mobile Number-${code}-${Date.now()}`, type: "Mobile Number", value: code + " " }];
+        }
+        return prev.map((c) => {
+          if (["Mobile Number", "Phone Number", "WhatsApp Number"].includes(c.type) && !c.value.trim()) {
+            return { ...c, value: code + " " };
+          }
+          return c;
+        });
+      });
+    }
+  }, [locationMeta.country]);
 
   const reportRows = useMemo(
     () => [
@@ -532,8 +554,8 @@ export function SuperAdminBranchSetup() {
 
   function resetForm() {
     setEditingBranchId("");
-    setLocation({ countryId: "", stateProvinceId: "", cityId: "" });
-    setLocationMeta({ country: null, state: null, city: null, area: null });
+    setLocation({ countryId: "", stateProvinceId: "", districtId: "", cityId: "" });
+    setLocationMeta({ country: null, state: null, district: null, city: null, area: null });
     setCurrency("USD");
     setAddress("");
     setCompanyId("");
@@ -562,9 +584,10 @@ export function SuperAdminBranchSetup() {
     setLocation({
       countryId: row.country_id ?? "",
       stateProvinceId: row.state_province_id ?? "",
+      districtId: row.district_id ?? "",
       cityId: row.city_id ?? ""
     });
-    setLocationMeta({ country: null, state: null, city: null, area: null });
+    setLocationMeta({ country: null, state: null, district: null, city: null, area: null });
     setCurrency(row.currency || "USD");
     setAddress(row.address || "");
     setCompanyId(row.company_id || "");
@@ -831,6 +854,7 @@ export function SuperAdminBranchSetup() {
           code: branchCode,
           countryId: location.countryId || undefined,
           stateProvinceId: location.stateProvinceId || undefined,
+          districtId: location.districtId || undefined,
           cityId: location.cityId || undefined,
           currencyCode: currency || undefined,
           address: address.trim() || undefined,
@@ -1098,6 +1122,7 @@ export function SuperAdminBranchSetup() {
                   { label: "Country Code", value: locationMeta.country?.iso2 || locationMeta.country?.iso3 || "-" },
                   { label: "State", value: stateName || "-" },
                   { label: "State Code", value: locationMeta.state?.code || "-" },
+                  { label: "District", value: districtName || "-" },
                   { label: "City", value: cityName || "-" },
                   { label: "City Code", value: locationMeta.city?.code || "-" },
                   { label: "Branch Name", value: companyName ? `${companyName} Super Admin Branch` : "Super Admin Branch" },

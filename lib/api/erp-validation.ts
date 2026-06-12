@@ -270,6 +270,7 @@ export const customerRegistrationInputSchema = z.object({
 export const customerCreateSchema = scopeSchema.extend({
   countryId: uuidSchema,
   stateProvinceId: optionalUuidSchema,
+  districtId: optionalUuidSchema,
   cityId: optionalUuidSchema,
   areaLocationId: optionalUuidSchema,
   customerName: z.string().trim().min(2).max(200),
@@ -286,7 +287,7 @@ export const customerCreateSchema = scopeSchema.extend({
   contacts: z.array(customerContactInputSchema).default([]),
   registrations: z.array(customerRegistrationInputSchema).default([])
 });
-export const customerUpdateSchema = customerCreateSchema.partial().extend({
+export const customerUpdateSchema = customerCreateSchema.partial().extend({
   countryId: uuidSchema
 });
 
@@ -349,6 +350,7 @@ export const productTranslationInputSchema = z.object({
 export const productCreateSchema = scopeSchema.extend({
   countryId: uuidSchema,
   stateProvinceId: optionalUuidSchema,
+  districtId: optionalUuidSchema,
   cityId: optionalUuidSchema,
   countryBranchId: optionalUuidSchema,
   cityBranchId: optionalUuidSchema,
@@ -417,6 +419,7 @@ export const bankCreateSchema = z.object({
   accountStatus: z.enum(["Active", "Inactive", "Frozen", "Closed"]).default("Active"),
   countryId: optionalUuidSchema,
   stateProvinceId: optionalUuidSchema,
+  districtId: optionalUuidSchema,
   cityId: optionalUuidSchema,
   fullAddress: z.string().trim().max(500).nullable().optional(),
   phone: z.string().trim().max(50).nullable().optional(),
@@ -471,4 +474,3 @@ export const financialPeriodCreateSchema = scopeSchema.extend({
   startDate: z.string().date(),
   endDate: z.string().date()
 });
-

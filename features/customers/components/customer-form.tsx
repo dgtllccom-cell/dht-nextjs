@@ -21,6 +21,7 @@ type CustomerRow = {
   id: string;
   country_id: string;
   state_province_id: string | null;
+  district_id: string | null;
   city_id: string | null;
   area_location_id: string | null;
   customer_name: string;
@@ -61,11 +62,13 @@ export function CustomerForm({
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
+    districtId: "",
     cityId: ""
   });
   const [locationMeta, setLocationMeta] = useState<LocationHierarchyMeta>({
     country: null,
     state: null,
+    district: null,
     city: null,
     area: null
   });
@@ -106,6 +109,7 @@ export function CustomerForm({
         setLocation({
           countryId: c.country_id || "",
           stateProvinceId: c.state_province_id || "",
+          districtId: c.district_id || "",
           cityId: c.city_id || ""
         });
 
@@ -163,6 +167,7 @@ export function CustomerForm({
 
   const country = locationMeta.country?.name ?? "";
   const stateName = locationMeta.state?.name ?? "";
+  const districtName = locationMeta.district?.name ?? "";
   const city = locationMeta.city?.name ?? "";
 
   // Auto-fill City Code when city selects
@@ -170,7 +175,22 @@ export function CustomerForm({
     if (locationMeta.city?.zip_code) {
       setCityCode(locationMeta.city.zip_code);
     }
-  }, [locationMeta]);
+  }, [locationMeta.city]);
+
+  // Auto-fill Country phone prefix when country selects
+  useEffect(() => {
+    if (locationMeta.country?.phone_code) {
+      const code = locationMeta.country.phone_code;
+      setContacts((prev) =>
+        prev.map((c) => {
+          if (["Mobile", "WhatsApp", "Landline", "Office"].includes(c.type) && !c.value.trim()) {
+            return { ...c, value: code + " " };
+          }
+          return c;
+        })
+      );
+    }
+  }, [locationMeta.country]);
 
   const ready = Boolean(
     (customerType === "Business" ? businessName.trim() : true) &&
@@ -181,9 +201,9 @@ export function CustomerForm({
   );
 
   const previewLocation = useMemo(() => {
-    const parts = [city, stateName, country].filter(Boolean);
+    const parts = [city, districtName, stateName, country].filter(Boolean);
     return parts.length ? parts.join(" \u00b7 ") : "-";
-  }, [city, stateName, country]);
+  }, [city, districtName, stateName, country]);
 
   // Submit/Save
   const submitForm = async () => {
@@ -203,6 +223,7 @@ export function CustomerForm({
       businessName: customerType === "Business" ? businessName : "",
       country,
       stateProvince: stateName,
+      district: districtName,
       city,
       cityCode,
       contacts: contacts.map(c => ({
@@ -226,6 +247,7 @@ export function CustomerForm({
     const payload = {
       countryId: location.countryId,
       stateProvinceId: location.stateProvinceId || null,
+      districtId: location.districtId || null,
       cityId: location.cityId || null,
       areaLocationId: null,
       customerName: customerType === "Business" ? businessName.trim() : `${firstName} ${lastName}`.trim(),

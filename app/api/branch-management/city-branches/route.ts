@@ -11,10 +11,10 @@ function isUuid(value: string) {
 }
 
 const cityBranchSelect =
-  "id,country_id,country_branch_id,city_name,name,code,local_currency,status,state_province_id,city_id,area_location_id,address,phone,email,whatsapp_number,company_id,owner_name,contacts,documents,permission_template,permission_grants,created_at,updated_at";
+  "id,country_id,country_branch_id,city_name,name,code,local_currency,status,state_province_id,district_id,city_id,area_location_id,address,phone,email,whatsapp_number,company_id,owner_name,contacts,documents,permission_template,permission_grants,created_at,updated_at";
 
 const cityBranchFallbackSelect =
-  "id,country_id,country_branch_id,city_name,name,code,local_currency,status,state_province_id,city_id,area_location_id,address,phone,email,whatsapp_number,company_id,owner_name,contacts,documents,created_at,updated_at";
+  "id,country_id,country_branch_id,city_name,name,code,local_currency,status,state_province_id,district_id,city_id,area_location_id,address,phone,email,whatsapp_number,company_id,owner_name,contacts,documents,created_at,updated_at";
 
 function isMissingOptionalColumn(message: string) {
   return /permission_template|permission_grants/i.test(message);
@@ -178,6 +178,7 @@ export async function POST(request: Request) {
       local_currency: parsed.data.currencyCode.trim().toUpperCase(),
       status: "active",
       state_province_id: parsed.data.stateProvinceId ?? null,
+      district_id: parsed.data.districtId ?? null,
       city_id: parsed.data.cityId ?? null,
       area_location_id: parsed.data.areaLocationId ?? null,
       address: parsed.data.address?.trim() ? parsed.data.address.trim() : null,
@@ -303,6 +304,7 @@ export async function PUT(request: Request) {
       local_currency: parsed.data.currencyCode.trim().toUpperCase(),
       status: "active",
       state_province_id: parsed.data.stateProvinceId ?? null,
+      district_id: parsed.data.districtId ?? null,
       city_id: parsed.data.cityId ?? null,
       area_location_id: parsed.data.areaLocationId ?? null,
       address: parsed.data.address?.trim() ? parsed.data.address.trim() : null,

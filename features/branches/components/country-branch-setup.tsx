@@ -43,6 +43,7 @@ type CountryBranchRow = {
   permission_template?: string | null;
   permission_grants?: string[] | null;
   state_province_id?: string | null;
+  district_id?: string | null;
   city_id?: string | null;
   address?: string | null;
   created_at?: string | null;
@@ -167,12 +168,14 @@ export function CountryBranchSetup() {
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
+    districtId: "",
     cityId: "",
     areaId: ""
   });
   const [locationMeta, setLocationMeta] = useState<LocationHierarchyMeta>({
     country: null,
     state: null,
+    district: null,
     city: null,
     area: null
   });
@@ -308,7 +311,7 @@ export function CountryBranchSetup() {
 
   const zip = locationMeta.city?.zip_code ?? "";
   const previewCountry = locationMeta.country?.name || "-";
-  const previewLocation = [locationMeta.state?.name, locationMeta.city?.name, zip].filter(Boolean).join(" / ") || "-";
+  const previewLocation = [locationMeta.state?.name, locationMeta.district?.name, locationMeta.city?.name, zip].filter(Boolean).join(" / ") || "-";
   const previewCompany = company?.name || "-";
   const companyCode = company?.id ? compactCode(company.id, "CMP") : "-";
 
@@ -492,6 +495,7 @@ export function CountryBranchSetup() {
       city: locationMeta.city?.name || "-",
       cityCode: locationMeta.city?.code || "-",
       stateProvince: locationMeta.state?.name || "-",
+      district: locationMeta.district?.name || "-",
       areaRegion: locationMeta.area?.name || "-",
       zipCode: zip || "-",
       fullAddress: active?.address || fullAddress || "-",
@@ -585,10 +589,11 @@ export function CountryBranchSetup() {
     setLocation({
       countryId: row.country_id,
       stateProvinceId: row.state_province_id ?? "",
+      districtId: row.district_id ?? "",
       cityId: row.city_id ?? "",
       areaId: ""
     });
-    setLocationMeta({ country: null, state: null, city: null, area: null });
+    setLocationMeta({ country: null, state: null, district: null, city: null, area: null });
     setBranchType("MAIN");
     setBranchCode(row.code || "");
     setCurrency(row.local_currency || "");
@@ -638,6 +643,7 @@ export function CountryBranchSetup() {
       city: locationMeta.city?.name || "-",
       cityCode: locationMeta.city?.code || "-",
       stateProvince: locationMeta.state?.name || "-",
+      district: locationMeta.district?.name || "-",
       areaRegion: locationMeta.area?.name || "-",
       zipCode: zip || "-",
       fullAddress: row.address || "-",
@@ -791,6 +797,21 @@ export function CountryBranchSetup() {
     const defaultCurrency = meta.country?.currency_code?.toUpperCase() || "";
     setCurrency(defaultCurrency);
 
+    if (meta.country?.phone_code) {
+      const code = meta.country.phone_code;
+      setContacts((prev) => {
+        if (prev.length === 0) {
+          return [{ type: "Mobile", value: code + " " }];
+        }
+        return prev.map((c) => {
+          if (["Mobile", "Phone", "WhatsApp"].includes(c.type) && !c.value.trim()) {
+            return { ...c, value: code + " " };
+          }
+          return c;
+        });
+      });
+    };
+
     if (!isUuid(next.countryId)) return;
 
     const existing = await loadExistingMainBranch(next.countryId);
@@ -871,6 +892,7 @@ export function CountryBranchSetup() {
           name: branchName,
           code: branchCode,
           stateProvinceId: location.stateProvinceId || undefined,
+          districtId: location.districtId || undefined,
           cityId: location.cityId || undefined,
           address: fullAddress.trim() || undefined,
           phone: phone || undefined,
@@ -920,8 +942,8 @@ export function CountryBranchSetup() {
 
   function onReset() {
     setBanner(null);
-    setLocation({ countryId: "", stateProvinceId: "", cityId: "", areaId: "" });
-    setLocationMeta({ country: null, state: null, city: null, area: null });
+    setLocation({ countryId: "", stateProvinceId: "", districtId: "", cityId: "", areaId: "" });
+    setLocationMeta({ country: null, state: null, district: null, city: null, area: null });
     setCurrency("");
     setFullAddress("");
     setCompanyId("");
@@ -1217,6 +1239,7 @@ export function CountryBranchSetup() {
                   { label: "Country Code", value: locationMeta.country?.iso2 || locationMeta.country?.iso3 || "-" },
                   { label: "State", value: locationMeta.state?.name || "-" },
                   { label: "State Code", value: locationMeta.state?.code || "-" },
+                  { label: "District", value: locationMeta.district?.name || "-" },
                   { label: "City", value: locationMeta.city?.name || "-" },
                   { label: "City Code", value: locationMeta.city?.code || "-" },
                   { label: "Branch Name", value: locationMeta.country?.name ? `${locationMeta.country.name} Main Branch` : "-" },

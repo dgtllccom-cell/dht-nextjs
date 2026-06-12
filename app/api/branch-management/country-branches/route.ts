@@ -11,10 +11,10 @@ function isUuid(value: string) {
 }
 
 const countryBranchSelect =
-  "id,country_id,name,code,local_currency,is_main,status,state_province_id,city_id,address,phone,email,whatsapp_number,company_id,owner_name,contacts,documents,permission_template,permission_grants,created_at,updated_at";
+  "id,country_id,name,code,local_currency,is_main,status,state_province_id,district_id,city_id,address,phone,email,whatsapp_number,company_id,owner_name,contacts,documents,permission_template,permission_grants,created_at,updated_at";
 
 const countryBranchFallbackSelect =
-  "id,country_id,name,code,local_currency,is_main,status,state_province_id,city_id,address,phone,email,whatsapp_number,company_id,owner_name,contacts,documents,created_at,updated_at";
+  "id,country_id,name,code,local_currency,is_main,status,state_province_id,district_id,city_id,address,phone,email,whatsapp_number,company_id,owner_name,contacts,documents,created_at,updated_at";
 
 function isMissingOptionalColumn(message: string) {
   return /permission_template|permission_grants/i.test(message);
@@ -158,6 +158,7 @@ export async function POST(request: Request) {
       is_main: true,
       status: "active",
       state_province_id: parsed.data.stateProvinceId ?? null,
+      district_id: parsed.data.districtId ?? null,
       city_id: parsed.data.cityId ?? null,
       address: parsed.data.address?.trim() ? parsed.data.address.trim() : null,
       phone: parsed.data.phone?.trim() ? parsed.data.phone.trim() : null,
@@ -265,6 +266,7 @@ export async function PUT(request: Request) {
       is_main: true,
       status: "active",
       state_province_id: parsed.data.stateProvinceId ?? null,
+      district_id: parsed.data.districtId ?? null,
       city_id: parsed.data.cityId ?? null,
       address: parsed.data.address?.trim() ? parsed.data.address.trim() : null,
       phone: parsed.data.phone?.trim() ? parsed.data.phone.trim() : null,

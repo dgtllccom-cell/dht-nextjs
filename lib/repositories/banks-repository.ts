@@ -16,6 +16,7 @@ export type BankRow = {
   account_status: string;
   country_id: string | null;
   state_province_id: string | null;
+  district_id: string | null;
   city_id: string | null;
   full_address: string | null;
   phone: string | null;
@@ -44,7 +45,7 @@ export class BanksRepository {
     let query = supabase
       .from("banks")
       .select(
-        "id, bank_type, account_type, bank_name, branch_name, branch_code, branch_code_type, short_name, account_title, account_number, iban_number, currency, account_status, country_id, state_province_id, city_id, full_address, phone, email, swift_bic, website, remarks, is_active, created_at, updated_at"
+        "id, bank_type, account_type, bank_name, branch_name, branch_code, branch_code_type, short_name, account_title, account_number, iban_number, currency, account_status, country_id, state_province_id, district_id, city_id, full_address, phone, email, swift_bic, website, remarks, is_active, created_at, updated_at"
       )
       .is("deleted_at", null)
       .eq("is_active", true)
@@ -78,7 +79,7 @@ export class BanksRepository {
     const { data, error } = await supabase
       .from("banks")
       .select(
-        "id, bank_type, account_type, bank_name, branch_name, branch_code, branch_code_type, short_name, account_title, account_number, iban_number, currency, account_status, country_id, state_province_id, city_id, full_address, phone, email, swift_bic, website, remarks, is_active, created_at, updated_at"
+        "id, bank_type, account_type, bank_name, branch_name, branch_code, branch_code_type, short_name, account_title, account_number, iban_number, currency, account_status, country_id, state_province_id, district_id, city_id, full_address, phone, email, swift_bic, website, remarks, is_active, created_at, updated_at"
       )
       .eq("id", id)
       .is("deleted_at", null)
@@ -102,6 +103,7 @@ export class BanksRepository {
     accountStatus: string;
     countryId?: string | null;
     stateProvinceId?: string | null;
+    districtId?: string | null;
     cityId?: string | null;
     fullAddress?: string | null;
     phone?: string | null;
@@ -128,6 +130,7 @@ export class BanksRepository {
         account_status: input.accountStatus,
         country_id: input.countryId ?? null,
         state_province_id: input.stateProvinceId ?? null,
+        district_id: input.districtId ?? null,
         city_id: input.cityId ?? null,
         full_address: input.fullAddress ?? null,
         phone: input.phone ?? null,
@@ -158,6 +161,7 @@ export class BanksRepository {
     accountStatus: string;
     countryId: string | null;
     stateProvinceId: string | null;
+    districtId: string | null;
     cityId: string | null;
     fullAddress: string | null;
     phone: string | null;
@@ -183,6 +187,7 @@ export class BanksRepository {
     if ("accountStatus" in input) patch.account_status = input.accountStatus;
     if ("countryId" in input) patch.country_id = input.countryId;
     if ("stateProvinceId" in input) patch.state_province_id = input.stateProvinceId;
+    if ("districtId" in input) patch.district_id = input.districtId;
     if ("cityId" in input) patch.city_id = input.cityId;
     if ("fullAddress" in input) patch.full_address = input.fullAddress;
     if ("phone" in input) patch.phone = input.phone;

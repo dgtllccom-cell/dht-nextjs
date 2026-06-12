@@ -32,10 +32,20 @@ type StateRow = {
   is_active: boolean;
 };
 
+type DistrictRow = {
+  id: string;
+  country_id: string;
+  state_province_id: string;
+  name: string;
+  code: string | null;
+  is_active: boolean;
+};
+
 type CityRow = {
   id: string;
   country_id: string;
   state_province_id: string | null;
+  district_id: string | null;
   name: string;
   code: string | null;
   zip_code: string | null;
@@ -46,16 +56,28 @@ type ZipRow = {
   id: string;
   country_id: string;
   state_province_id: string | null;
+  district_id: string | null;
   city_id: string;
   name: string;
   code: string | null;
   is_active: boolean;
 };
 
-type ModalMode = "add-country" | "edit-country" | "add-state" | "edit-state" | "add-city" | "edit-city" | "add-zip" | "edit-zip";
+type ModalMode =
+  | "add-country"
+  | "edit-country"
+  | "add-state"
+  | "edit-state"
+  | "add-district"
+  | "edit-district"
+  | "add-city"
+  | "edit-city"
+  | "add-zip"
+  | "edit-zip";
 
-const MAX_STATES_PER_COUNTRY = 10;
-const MAX_CITIES_PER_STATE = 50;
+const MAX_STATES_PER_COUNTRY = 15;
+const MAX_DISTRICTS_PER_STATE = 40;
+const MAX_CITIES_PER_DISTRICT = 100;
 
 function normalizeText(value: string) {
   return value.trim().replace(/\s+/g, " ");
@@ -118,15 +140,17 @@ function SpecGroup({ items }: { items: string[] }) {
 
 export function LocationManagementWizard() {
   const [banner, setBanner] = useState<string | null>(null);
-  const [loading, setLoading] = useState({ countries: false, states: false, cities: false, zips: false });
+  const [loading, setLoading] = useState({ countries: false, states: false, districts: false, cities: false, zips: false });
 
   const [countries, setCountries] = useState<CountryRow[]>([]);
   const [states, setStates] = useState<StateRow[]>([]);
+  const [districts, setDistricts] = useState<DistrictRow[]>([]);
   const [cities, setCities] = useState<CityRow[]>([]);
   const [zips, setZips] = useState<ZipRow[]>([]);
 
   const [countryId, setCountryId] = useState("");
   const [stateId, setStateId] = useState("");
+  const [districtId, setDistrictId] = useState("");
   const [cityId, setCityId] = useState("");
   const [zipId, setZipId] = useState("");
   const [modal, setModal] = useState<ModalMode | null>(null);
@@ -134,10 +158,13 @@ export function LocationManagementWizard() {
 
   const selectedCountry = useMemo(() => countries.find((row) => row.id === countryId) ?? null, [countries, countryId]);
   const selectedState = useMemo(() => states.find((row) => row.id === stateId) ?? null, [states, stateId]);
+  const selectedDistrict = useMemo(() => districts.find((row) => row.id === districtId) ?? null, [districts, districtId]);
   const selectedCity = useMemo(() => cities.find((row) => row.id === cityId) ?? null, [cities, cityId]);
   const selectedZip = useMemo(() => zips.find((row) => row.id === zipId) ?? null, [zips, zipId]);
+
   const stateLimitReached = Boolean(countryId && states.length >= MAX_STATES_PER_COUNTRY);
-  const cityLimitReached = Boolean(stateId && cities.length >= MAX_CITIES_PER_STATE);
+  const districtLimitReached = Boolean(stateId && districts.length >= MAX_DISTRICTS_PER_STATE);
+  const cityLimitReached = Boolean(districtId && cities.length >= MAX_CITIES_PER_DISTRICT);
 
   const [draft, setDraft] = useState({
     countryName: "",
@@ -147,6 +174,8 @@ export function LocationManagementWizard() {
     language: "en",
     stateName: "",
     stateCode: "",
+    districtName: "",
+    districtCode: "",
     cityName: "",
     cityCode: "",
     cityZip: "",
@@ -163,6 +192,7 @@ export function LocationManagementWizard() {
     [countries]
   );
   const stateOptions = useMemo(() => states.map((row) => option(row.id, row.code ? `${row.name} (${row.code})` : row.name, `${row.name} ${row.code ?? ""}`)), [states]);
+  const districtOptions = useMemo(() => districts.map((row) => option(row.id, row.code ? `${row.name} (${row.code})` : row.name, `${row.name} ${row.code ?? ""}`)), [districts]);
   const cityOptions = useMemo(
     () => cities.map((row) => option(row.id, row.code ? `${row.name} (${row.code})` : row.name, `${row.name} ${row.code ?? ""} ${row.zip_code ?? ""}`)),
     [cities]
@@ -195,10 +225,25 @@ export function LocationManagementWizard() {
     }
   }
 
-  async function loadCities(nextCountryId: string, nextStateId: string, q?: string) {
+  async function loadDistricts(nextStateId: string, q?: string) {
+    setLoading((cur) => ({ ...cur, districts: true }));
+    try {
+      const qp = new URLSearchParams({ stateProvinceId: nextStateId });
+      const query = normalizeText(q ?? "");
+      if (query) qp.set("q", query);
+      const res = await apiGet<{ districts: DistrictRow[] }>(`/api/erp/locations/districts?${qp.toString()}`);
+      setDistricts(res.districts ?? []);
+    } finally {
+      setLoading((cur) => ({ ...cur, districts: false }));
+    }
+  }
+
+  async function loadCities(nextCountryId: string, nextStateId: string, nextDistrictId: string, q?: string) {
     setLoading((cur) => ({ ...cur, cities: true }));
     try {
-      const qp = new URLSearchParams({ countryId: nextCountryId, stateProvinceId: nextStateId });
+      const qp = new URLSearchParams({ countryId: nextCountryId });
+      if (nextStateId) qp.set("stateProvinceId", nextStateId);
+      if (nextDistrictId) qp.set("districtId", nextDistrictId);
       const query = normalizeText(q ?? "");
       if (query) qp.set("q", query);
       const res = await apiGet<{ cities: CityRow[] }>(`/api/erp/locations/cities?${qp.toString()}`);
@@ -227,21 +272,33 @@ export function LocationManagementWizard() {
 
   useEffect(() => {
     setStateId("");
+    setDistrictId("");
     setCityId("");
     setZipId("");
     setStates([]);
+    setDistricts([]);
     setCities([]);
     setZips([]);
     if (countryId) loadStates(countryId).catch((e: any) => setBanner(e?.message || "Failed to load states"));
   }, [countryId]);
 
   useEffect(() => {
+    setDistrictId("");
+    setCityId("");
+    setZipId("");
+    setDistricts([]);
+    setCities([]);
+    setZips([]);
+    if (stateId) loadDistricts(stateId).catch((e: any) => setBanner(e?.message || "Failed to load districts"));
+  }, [stateId]);
+
+  useEffect(() => {
     setCityId("");
     setZipId("");
     setCities([]);
     setZips([]);
-    if (countryId && stateId) loadCities(countryId, stateId).catch((e: any) => setBanner(e?.message || "Failed to load cities"));
-  }, [countryId, stateId]);
+    if (countryId && stateId && districtId) loadCities(countryId, stateId, districtId).catch((e: any) => setBanner(e?.message || "Failed to load cities"));
+  }, [countryId, stateId, districtId]);
 
   useEffect(() => {
     setZipId("");
@@ -252,11 +309,15 @@ export function LocationManagementWizard() {
   function openModal(mode: ModalMode) {
     setBanner(null);
     if (mode === "add-state" && stateLimitReached) {
-      setBanner(`This country already has ${MAX_STATES_PER_COUNTRY} States / Provinces. You cannot add more states under the selected country.`);
+      setBanner(`This country already has ${MAX_STATES_PER_COUNTRY} States / Provinces.`);
+      return;
+    }
+    if (mode === "add-district" && districtLimitReached) {
+      setBanner(`This State / Province already has ${MAX_DISTRICTS_PER_STATE} Districts.`);
       return;
     }
     if (mode === "add-city" && cityLimitReached) {
-      setBanner(`This State / Province already has ${MAX_CITIES_PER_STATE} Cities. You cannot add more cities under the selected state.`);
+      setBanner(`This District already has ${MAX_CITIES_PER_DISTRICT} Cities.`);
       return;
     }
     if (mode === "edit-country" && selectedCountry) {
@@ -274,6 +335,8 @@ export function LocationManagementWizard() {
       });
     } else if (mode === "edit-state" && selectedState) {
       setDraft({ ...draft, stateName: selectedState.name, stateCode: selectedState.code ?? "", isActive: selectedState.is_active });
+    } else if (mode === "edit-district" && selectedDistrict) {
+      setDraft({ ...draft, districtName: selectedDistrict.name, districtCode: selectedDistrict.code ?? "", isActive: selectedDistrict.is_active });
     } else if (mode === "edit-city" && selectedCity) {
       setDraft({ ...draft, cityName: selectedCity.name, cityCode: selectedCity.code ?? "", cityZip: selectedCity.zip_code ?? "", isActive: selectedCity.is_active });
     } else if (mode === "edit-zip" && selectedZip) {
@@ -287,6 +350,8 @@ export function LocationManagementWizard() {
         language: selectedCountry?.default_language_code ?? "en",
         stateName: "",
         stateCode: "",
+        districtName: "",
+        districtCode: "",
         cityName: "",
         cityCode: "",
         cityZip: "",
@@ -364,11 +429,31 @@ export function LocationManagementWizard() {
         });
         setStates((cur) => cur.map((row) => (row.id === res.state.id ? res.state : row)));
       }
+      if (modal === "add-district") {
+        if (districtLimitReached) throw new Error(`Maximum ${MAX_DISTRICTS_PER_STATE} Districts are allowed per State.`);
+        const res = await apiPost<{ district: DistrictRow }>("/api/erp/locations/districts", {
+          countryId,
+          stateProvinceId: stateId,
+          name: draft.districtName,
+          code: draft.districtCode || null
+        });
+        setDistricts((cur) => [res.district, ...cur.filter((row) => row.id !== res.district.id)]);
+        setDistrictId(res.district.id);
+      }
+      if (modal === "edit-district" && selectedDistrict) {
+        const res = await apiPatch<{ district: DistrictRow }>(`/api/erp/locations/districts/${selectedDistrict.id}`, {
+          name: draft.districtName,
+          code: draft.districtCode || null,
+          isActive: draft.isActive
+        });
+        setDistricts((cur) => cur.map((row) => (row.id === res.district.id ? res.district : row)));
+      }
       if (modal === "add-city") {
-        if (cityLimitReached) throw new Error(`Maximum ${MAX_CITIES_PER_STATE} Cities are allowed per State / Province.`);
+        if (cityLimitReached) throw new Error(`Maximum ${MAX_CITIES_PER_DISTRICT} Cities are allowed per District.`);
         const res = await apiPost<{ city: CityRow }>("/api/erp/locations/cities", {
           countryId,
           stateProvinceId: stateId,
+          districtId,
           name: draft.cityName,
           code: draft.cityCode || null,
           zipCode: draft.cityZip || null
@@ -381,7 +466,8 @@ export function LocationManagementWizard() {
           name: draft.cityName,
           code: draft.cityCode || null,
           zipCode: draft.cityZip || null,
-          isActive: draft.isActive
+          isActive: draft.isActive,
+          districtId
         });
         setCities((cur) => cur.map((row) => (row.id === res.city.id ? res.city : row)));
       }
@@ -389,6 +475,7 @@ export function LocationManagementWizard() {
         const res = await apiPost<{ area: ZipRow }>("/api/erp/locations/areas", {
           countryId,
           stateProvinceId: stateId,
+          districtId,
           cityId,
           name: draft.areaName,
           code: draft.zipCode || null
@@ -412,10 +499,10 @@ export function LocationManagementWizard() {
     }
   }
 
-  const path = [selectedCountry?.name, selectedState?.name, selectedCity?.name, selectedZip?.code].filter(Boolean).join(" -> ");
+  const path = [selectedCountry?.name, selectedState?.name, selectedDistrict?.name, selectedCity?.name, selectedZip?.code].filter(Boolean).join(" -> ");
   const hierarchyLabel = selectedCountry
-    ? `You can add up to ${MAX_STATES_PER_COUNTRY} States in ${selectedCountry.name}. Each State can have up to ${MAX_CITIES_PER_STATE} Cities.`
-    : `Select a Country to manage up to ${MAX_STATES_PER_COUNTRY} States, ${MAX_CITIES_PER_STATE} Cities per State, and unlimited Zip Codes per City.`;
+    ? `You can add up to ${MAX_STATES_PER_COUNTRY} States in ${selectedCountry.name}. Each State can have up to ${MAX_DISTRICTS_PER_STATE} Districts and ${MAX_CITIES_PER_DISTRICT} Cities per District.`
+    : `Select a Country to manage up to ${MAX_STATES_PER_COUNTRY} States, ${MAX_DISTRICTS_PER_STATE} Districts, ${MAX_CITIES_PER_DISTRICT} Cities, and unlimited Zip/Tehsil Codes.`;
 
   return (
     <div className="space-y-4">
@@ -423,7 +510,7 @@ export function LocationManagementWizard() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Settings / Management</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Location Management</h1>
-          <p className="text-sm text-muted-foreground">Centralized Country to State/Province to City to Zip Code hierarchy for the full ERP.</p>
+          <p className="text-sm text-muted-foreground">Centralized Country to State/Province to District to City to Zip Code hierarchy for the full ERP.</p>
         </div>
         <div className="rounded-full border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground">
           {path || "Select hierarchy"}
@@ -495,7 +582,7 @@ export function LocationManagementWizard() {
                   countryId
                     ? states.length
                       ? `${states.length}/${MAX_STATES_PER_COUNTRY} States available under ${selectedCountry?.name ?? "selected country"}`
-                      : `No State saved under ${selectedCountry?.name ?? "selected country"} yet. Click + New State below.`
+                      : `No State saved under ${selectedCountry?.name ?? "selected country"} yet. Click + New State.`
                     : `Maximum ${MAX_STATES_PER_COUNTRY} States per Country`
                 }
                 reached={stateLimitReached}
@@ -503,10 +590,42 @@ export function LocationManagementWizard() {
             </PickerCard>
 
             <PickerCard
+              icon={Map}
+              title="3. District"
+              selected={selectedDistrict?.name ?? ""}
+              meta={selectedDistrict ? `${selectedDistrict.code ?? "-"} · Parent: ${selectedState?.name ?? "-"}` : "Select state first"}
+              active={selectedDistrict?.is_active}
+              canEdit={Boolean(selectedDistrict)}
+              onEdit={() => openModal("edit-district")}
+            >
+              <SearchSelect
+                label={loading.districts ? "District (Loading...)" : "District"}
+                value={districtId}
+                options={districtOptions}
+                placeholder={stateId ? "Search district" : "Select state first"}
+                disabled={!stateId || loading.districts}
+                onValueChange={setDistrictId}
+                createLabel={districtLimitReached ? `Max ${MAX_DISTRICTS_PER_STATE} Districts Reached` : "+ New District"}
+                createButtonPlacement="below"
+                onCreateNew={() => openModal("add-district")}
+              />
+              <LimitNote
+                text={
+                  stateId
+                    ? districts.length
+                      ? `${districts.length}/${MAX_DISTRICTS_PER_STATE} Districts available under ${selectedState?.name ?? "selected state"}`
+                      : `No District saved under ${selectedState?.name ?? "selected state"} yet. Click + New District.`
+                    : `Maximum ${MAX_DISTRICTS_PER_STATE} Districts per State`
+                }
+                reached={districtLimitReached}
+              />
+            </PickerCard>
+
+            <PickerCard
               icon={MapPin}
-              title="3. City"
+              title="4. City"
               selected={selectedCity?.name ?? ""}
-              meta={selectedCity ? `${selectedCity.code ?? "-"} · Parent: ${selectedState?.name ?? "-"}` : "Select state first"}
+              meta={selectedCity ? `${selectedCity.code ?? "-"} · Parent: ${selectedDistrict?.name ?? "-"}` : "Select district first"}
               active={selectedCity?.is_active}
               canEdit={Boolean(selectedCity)}
               onEdit={() => openModal("edit-city")}
@@ -515,20 +634,20 @@ export function LocationManagementWizard() {
                 label={loading.cities ? "City (Loading...)" : "City"}
                 value={cityId}
                 options={cityOptions}
-                placeholder={stateId ? "Search city" : "Select state first"}
-                disabled={!countryId || !stateId || loading.cities}
+                placeholder={districtId ? "Search city" : "Select district first"}
+                disabled={!districtId || loading.cities}
                 onValueChange={setCityId}
-                createLabel={cityLimitReached ? `Max ${MAX_CITIES_PER_STATE} Cities Reached` : "+ New City"}
+                createLabel={cityLimitReached ? `Max ${MAX_CITIES_PER_DISTRICT} Cities Reached` : "+ New City"}
                 createButtonPlacement="below"
                 onCreateNew={() => openModal("add-city")}
               />
               <LimitNote
                 text={
-                  stateId
+                  districtId
                     ? cities.length
-                      ? `${cities.length}/${MAX_CITIES_PER_STATE} Cities available under ${selectedState?.name ?? "selected state"}`
-                      : `No City saved under ${selectedState?.name ?? "selected state"} yet. Click + New City below.`
-                    : `Maximum ${MAX_CITIES_PER_STATE} Cities per State`
+                      ? `${cities.length}/${MAX_CITIES_PER_DISTRICT} Cities available under ${selectedDistrict?.name ?? "selected district"}`
+                      : `No City saved under ${selectedDistrict?.name ?? "selected district"} yet. Click + New City.`
+                    : `Maximum ${MAX_CITIES_PER_DISTRICT} Cities per District`
                 }
                 reached={cityLimitReached}
               />
@@ -536,7 +655,7 @@ export function LocationManagementWizard() {
 
             <PickerCard
               icon={Search}
-              title="4. Zip / Postal Code"
+              title="5. Zip / Postal Code (Tehsil / Area)"
               selected={selectedZip?.code ?? ""}
               meta={selectedZip ? `${selectedZip.name} · Parent: ${selectedCity?.name ?? "-"}` : "Select city first"}
               active={selectedZip?.is_active}
@@ -559,7 +678,7 @@ export function LocationManagementWizard() {
                   cityId
                     ? zips.length
                       ? `${zips.length} Zip Codes available under ${selectedCity?.name ?? "selected city"}. Unlimited allowed.`
-                      : `No Zip Code saved under ${selectedCity?.name ?? "selected city"} yet. Click + New Zip Code below.`
+                      : `No Zip Code saved under ${selectedCity?.name ?? "selected city"} yet. Click + New Zip Code.`
                     : "Unlimited Zip Codes per City"
                 }
               />
@@ -574,16 +693,19 @@ export function LocationManagementWizard() {
           <CardContent className="space-y-3">
             <div className="rounded-xl border bg-muted/10 p-3">
               <div className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Complete Hierarchy</div>
-                <div className="rounded-lg border bg-background px-3 py-2 text-sm font-semibold">{path || "Country to State to City to Zip Code"}</div>
+              <div className="rounded-lg border bg-background px-3 py-2 text-sm font-semibold">{path || "Country to State to District to City to Zip Code"}</div>
             </div>
             <div className="rounded-xl border p-3">
               <DetailLine label="Country" value={selectedCountry?.name ?? ""} />
               <DetailLine label="Country Code" value={selectedCountry?.iso2 ?? ""} />
               <DetailLine label="Total States" value={countryId ? `${states.length} (Max ${MAX_STATES_PER_COUNTRY})` : `Max ${MAX_STATES_PER_COUNTRY}`} />
-              <DetailLine label="Total Cities (Per State)" value={stateId ? `${cities.length} (Max ${MAX_CITIES_PER_STATE})` : `Max ${MAX_CITIES_PER_STATE}`} />
+              <DetailLine label="Total Districts" value={stateId ? `${districts.length} (Max ${MAX_DISTRICTS_PER_STATE})` : `Max ${MAX_DISTRICTS_PER_STATE}`} />
+              <DetailLine label="Total Cities (Per District)" value={districtId ? `${cities.length} (Max ${MAX_CITIES_PER_DISTRICT})` : `Max ${MAX_CITIES_PER_DISTRICT}`} />
               <DetailLine label="Total Zip Codes (Per City)" value={cityId ? `${zips.length} (Unlimited)` : "Unlimited"} />
               <DetailLine label="State" value={selectedState?.name ?? ""} />
               <DetailLine label="State Code" value={selectedState?.code ?? ""} />
+              <DetailLine label="District" value={selectedDistrict?.name ?? ""} />
+              <DetailLine label="District Code" value={selectedDistrict?.code ?? ""} />
               <DetailLine label="City" value={selectedCity?.name ?? ""} />
               <DetailLine label="City Code" value={selectedCity?.code ?? ""} />
               <DetailLine label="Zip Code" value={selectedZip?.code ?? selectedCity?.zip_code ?? ""} />
@@ -596,7 +718,11 @@ export function LocationManagementWizard() {
               </div>
               <div className="flex items-center gap-2">
                 <Info className="h-3.5 w-3.5" />
-                <span>Maximum {MAX_CITIES_PER_STATE} Cities per State / Province.</span>
+                <span>Maximum {MAX_DISTRICTS_PER_STATE} Districts per State / Province.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Info className="h-3.5 w-3.5" />
+                <span>Maximum {MAX_CITIES_PER_DISTRICT} Cities per District.</span>
               </div>
               <div className="flex items-center gap-2">
                 <Info className="h-3.5 w-3.5" />
@@ -617,10 +743,10 @@ export function LocationManagementWizard() {
           <div className="grid gap-3 text-sm md:grid-cols-3">
             <SpecGroup
               items={[
-                "Multi-Level Hierarchy: Country to State to City to Zip Code",
+                "6-Level Hierarchy: Country to State to District to City to Tehsil to Postal Code",
                 `Maximum ${MAX_STATES_PER_COUNTRY} States / Provinces per Country`,
-                `Maximum ${MAX_CITIES_PER_STATE} Cities per State / Province`,
-                "Unlimited Zip Codes per City"
+                `Maximum ${MAX_DISTRICTS_PER_STATE} Districts per State / Province`,
+                `Maximum ${MAX_CITIES_PER_DISTRICT} Cities per District`
               ]}
             />
             <SpecGroup
@@ -633,7 +759,7 @@ export function LocationManagementWizard() {
             />
             <SpecGroup
               items={[
-                "Multi-country support",
+                "Multi-country support (Pakistan +92, Afghanistan +93, UAE +971)",
                 "Multi-branch support",
                 "Role-based permissions",
                 "Reusable across Branches, Accounts, Ledgers, Roznamcha and Reports"
@@ -650,6 +776,7 @@ export function LocationManagementWizard() {
           saving={saving}
           selectedCountry={selectedCountry}
           selectedState={selectedState}
+          selectedDistrict={selectedDistrict}
           selectedCity={selectedCity}
           onChange={updateDraft}
           onClose={() => setModal(null)}
@@ -709,6 +836,7 @@ function LocationModal({
   saving,
   selectedCountry,
   selectedState,
+  selectedDistrict,
   selectedCity,
   onChange,
   onClose,
@@ -723,6 +851,8 @@ function LocationModal({
     language: string;
     stateName: string;
     stateCode: string;
+    districtName: string;
+    districtCode: string;
     cityName: string;
     cityCode: string;
     cityZip: string;
@@ -736,6 +866,7 @@ function LocationModal({
   saving: boolean;
   selectedCountry: CountryRow | null;
   selectedState: StateRow | null;
+  selectedDistrict: DistrictRow | null;
   selectedCity: CityRow | null;
   onChange: (key: keyof typeof draft, value: string | boolean) => void;
   onClose: () => void;
@@ -743,9 +874,11 @@ function LocationModal({
 }) {
   const isCountry = mode.includes("country");
   const isState = mode.includes("state");
+  const isDistrict = mode.includes("district");
   const isCity = mode.includes("city");
   const isZip = mode.includes("zip");
   const isEdit = mode.startsWith("edit");
+
   const title =
     mode === "add-country"
       ? "Add New Country"
@@ -755,13 +888,17 @@ function LocationModal({
           ? "Add New State / Province"
           : mode === "edit-state"
             ? "Edit State / Province"
-            : mode === "add-city"
-              ? "Add New City"
-              : mode === "edit-city"
-                ? "Edit City"
-                : mode === "add-zip"
-                  ? "Add New Zip Code"
-                  : "Edit Zip Code";
+            : mode === "add-district"
+              ? "Add New District"
+              : mode === "edit-district"
+                ? "Edit District"
+                : mode === "add-city"
+                  ? "Add New City"
+                  : mode === "edit-city"
+                    ? "Edit City"
+                    : mode === "add-zip"
+                      ? "Add New Zip Code"
+                      : "Edit Zip Code";
 
   return (
     <SimpleModal title={title} onClose={onClose} className="max-w-xl">
@@ -787,16 +924,24 @@ function LocationModal({
           </div>
         ) : null}
 
+        {isDistrict ? (
+          <div className="space-y-3">
+            <ReadOnly label="Parent State / Province" value={selectedState?.name ?? ""} />
+            <Field label="District Name" value={draft.districtName} onChange={(v) => onChange("districtName", v)} placeholder="Quetta District" />
+            <Field label="District Code (optional)" value={draft.districtCode} onChange={(v) => onChange("districtCode", v)} placeholder="QTA" />
+          </div>
+        ) : null}
+
         {isCity ? (
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
-              <ReadOnly label="Parent Country" value={selectedCountry?.name ?? ""} />
-              <ReadOnly label="Parent State" value={selectedState?.name ?? ""} />
+              <ReadOnly label="Parent State / Province" value={selectedState?.name ?? ""} />
+              <ReadOnly label="Parent District" value={selectedDistrict?.name ?? ""} />
             </div>
-            <Field label="City Name" value={draft.cityName} onChange={(v) => onChange("cityName", v)} placeholder="Quetta" />
+            <Field label="City Name" value={draft.cityName} onChange={(v) => onChange("cityName", v)} placeholder="Chaman" />
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label="City Code" value={draft.cityCode} onChange={(v) => onChange("cityCode", v)} placeholder="QTA" />
-              <Field label="Default Zip Code" value={draft.cityZip} onChange={(v) => onChange("cityZip", v)} placeholder="87300" />
+              <Field label="City Code (optional)" value={draft.cityCode} onChange={(v) => onChange("cityCode", v)} placeholder="CHM" />
+              <Field label="Default Zip Code (optional)" value={draft.cityZip} onChange={(v) => onChange("cityZip", v)} placeholder="86000" />
             </div>
           </div>
         ) : null}
@@ -805,7 +950,7 @@ function LocationModal({
           <div className="space-y-3">
             <ReadOnly label="Parent City" value={selectedCity?.name ?? ""} />
             <Field label="Zip / Postal Code" value={draft.zipCode} onChange={(v) => onChange("zipCode", v)} placeholder="87300" />
-            <Field label="Area Name" value={draft.areaName} onChange={(v) => onChange("areaName", v)} placeholder="Quetta Cantt" />
+            <Field label="Area / Tehsil Name" value={draft.areaName} onChange={(v) => onChange("areaName", v)} placeholder="Quetta Cantt" />
           </div>
         ) : null}
 

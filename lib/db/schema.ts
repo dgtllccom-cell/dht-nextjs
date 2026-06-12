@@ -87,6 +87,7 @@ export const countries = pgTable(
     currencyCode: text("currency_code").notNull(),
     reportingCurrency: text("reporting_currency").default("USD").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
+    phoneCode: text("phone_code"),
     ...timestamps
   },
   (table) => ({

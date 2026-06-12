@@ -33,7 +33,8 @@ import {
   Users,
   Power,
   Loader2,
-  Lock
+  Lock,
+  Trash2
 } from "lucide-react";
 import { apiGet } from "@/lib/api/client";
 import type { SearchSelectOption } from "@/components/ui/search-select";
@@ -365,6 +366,34 @@ export function UserJournalReport() {
   // Trigger edit — navigate to dedicated full-screen edit page
   const triggerEdit = (row: UserJournalRow) => {
     router.push(`/dashboard/users/edit/${row.userId}`);
+  };
+
+  const handleDeleteUser = async (userId: string, userCode: string, fullName: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete user ${userCode} (${fullName})? This will release their email address for re-registration.`)) {
+      return;
+    }
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/erp/users?userId=${encodeURIComponent(userId)}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json?.error?.message || json?.error || "Failed to delete user.");
+      }
+
+      // Update local state and cache
+      if (data) {
+        const updatedRows = data.rows.filter((row) => row.userId !== userId);
+        const nextData = { ...data, rows: updatedRows };
+        setData(nextData);
+        if (userJournalCache) userJournalCache.data = nextData;
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to delete user.");
+    } finally {
+      setUpdatingUserId(null);
+    }
   };
 
   function applyFilters() {
@@ -705,6 +734,13 @@ export function UserJournalReport() {
                                   onClick={() => { setActiveActionUserId(null); handleToggleStatus(row.userId, row.status); }}
                                 >
                                   <Power className="h-3.5 w-3.5 text-emerald-500" /> Toggle Status
+                                </button>
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-semibold flex items-center gap-1.5 text-red-600"
+                                  onClick={() => { setActiveActionUserId(null); handleDeleteUser(row.userId, row.userCode, row.fullName); }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" /> Delete User
                                 </button>
                               </div>
                             )}

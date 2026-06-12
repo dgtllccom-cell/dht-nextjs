@@ -470,3 +470,90 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await requireErpSession();
+    const userId = request.nextUrl.searchParams.get("userId");
+    if (!userId) {
+      throw new Error("userId is required.");
+    }
+
+    const isCountryManager = session.roles.some((r) => r === "country_admin" || r === "main_branch_admin");
+    if (!session.isSuperAdmin && !isCountryManager) {
+      throw new Error("Not authorized to delete users.");
+    }
+
+    const admin = createSupabaseAdminClient() as any;
+
+    const { data: targetAssignment } = await admin
+      .from("user_role_assignments")
+      .select("country_id, role")
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (!session.isSuperAdmin && targetAssignment) {
+      if (targetAssignment.role === "super_admin" || targetAssignment.role === "country_admin") {
+        throw new Error("Only Super Admin can delete Super Admin or Country Admin users.");
+      }
+      if (targetAssignment.country_id && !session.countryIds.includes(targetAssignment.country_id)) {
+        throw new Error("Not authorized to delete users outside of your country.");
+      }
+    }
+
+    const { data: authUserRes, error: getAuthError } = await admin.auth.admin.getUserById(userId);
+    if (getAuthError || !authUserRes?.user) {
+      throw new Error(getAuthError?.message ?? "Auth user not found.");
+    }
+
+    const originalEmail = authUserRes.user.email;
+    const dummyEmail = `deleted_${Date.now()}_${originalEmail}`;
+
+    const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+      email: dummyEmail,
+      user_metadata: {
+        ...(authUserRes.user.user_metadata ?? {}),
+        original_email: originalEmail,
+        deleted_at: new Date().toISOString()
+      }
+    });
+    if (authError) throw new Error(authError.message);
+
+    const now = new Date().toISOString();
+
+    const { error: profileError } = await admin
+      .from("profiles")
+      .update({ deleted_at: now, updated_at: now })
+      .eq("id", userId);
+    if (profileError) throw new Error(profileError.message);
+
+    const { error: assignmentError } = await admin
+      .from("user_role_assignments")
+      .update({ deleted_at: now, updated_at: now, is_active: false })
+      .eq("user_id", userId);
+    if (assignmentError) throw new Error(assignmentError.message);
+
+    try {
+      await admin
+        .from("user_permission_sets")
+        .update({ deleted_at: now, updated_at: now })
+        .eq("user_id", userId);
+    } catch (e) {
+      // ignore
+    }
+
+    await auditApiAction(request, {
+      action: "users.delete.api",
+      entityTable: "profiles",
+      entityId: userId,
+      before: {
+        email: originalEmail
+      }
+    });
+
+    return apiOk({ success: true });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+

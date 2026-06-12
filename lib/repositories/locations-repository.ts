@@ -35,10 +35,20 @@ export type StateRow = {
   is_active: boolean;
 };
 
+export type DistrictRow = {
+  id: string;
+  country_id: string;
+  state_province_id: string;
+  name: string;
+  code: string | null;
+  is_active: boolean;
+};
+
 export type CityRow = {
   id: string;
   country_id: string;
   state_province_id: string | null;
+  district_id: string | null;
   name: string;
   code: string | null;
   zip_code: string | null;
@@ -49,6 +59,7 @@ export type AreaRow = {
   id: string;
   country_id: string;
   state_province_id: string | null;
+  district_id: string | null;
   city_id: string;
   name: string;
   code: string | null;
@@ -191,9 +202,29 @@ export class LocationsRepository {
     return (data ?? []) as StateRow[];
   }
 
+  async listDistricts(input: { stateProvinceId: string; query?: string | null; limit?: number }) {
+    const supabase = createSupabaseAdminClient() as any;
+    const limit = Math.min(Math.max(input.limit ?? 200, 1), 500);
+    const q = (input.query ?? "").trim();
+
+    let query = supabase
+      .from("districts")
+      .select("id, country_id, state_province_id, name, code, is_active")
+      .eq("state_province_id", input.stateProvinceId)
+      .is("deleted_at", null)
+      .order("name", { ascending: true });
+
+    if (q) query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%`);
+
+    const { data, error } = await query.limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as DistrictRow[];
+  }
+
   async listCities(input: {
     countryId: string;
     stateProvinceId?: string | null;
+    districtId?: string | null;
     query?: string | null;
     limit?: number;
   }) {
@@ -203,13 +234,16 @@ export class LocationsRepository {
 
     let query = supabase
       .from("cities")
-      .select("id, country_id, state_province_id, name, code, zip_code, is_active")
+      .select("id, country_id, state_province_id, district_id, name, code, zip_code, is_active")
       .eq("country_id", input.countryId)
       .is("deleted_at", null)
       .order("name", { ascending: true });
 
-    if (input.stateProvinceId === null) query = query.is("state_province_id", null);
+    if (input.districtId === null) query = query.is("district_id", null);
+    else if (input.districtId) query = query.eq("district_id", input.districtId);
+    else if (input.stateProvinceId === null) query = query.is("state_province_id", null);
     else if (input.stateProvinceId) query = query.eq("state_province_id", input.stateProvinceId);
+
     if (q) query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%,zip_code.ilike.%${q}%`);
 
     const { data, error } = await query.limit(limit);
@@ -224,7 +258,7 @@ export class LocationsRepository {
 
     let query = supabase
       .from("areas_locations")
-      .select("id, country_id, state_province_id, city_id, name, code, is_active")
+      .select("id, country_id, state_province_id, district_id, city_id, name, code, is_active")
       .eq("city_id", input.cityId)
       .is("deleted_at", null)
       .order("name", { ascending: true });
@@ -240,7 +274,7 @@ export class LocationsRepository {
     const supabase = createSupabaseAdminClient() as any;
     const { data, error } = await supabase
       .from("cities")
-      .select("id, country_id, state_province_id, name, code, zip_code, is_active")
+      .select("id, country_id, state_province_id, district_id, name, code, zip_code, is_active")
       .eq("id", cityId)
       .is("deleted_at", null)
       .single();
@@ -340,9 +374,105 @@ export class LocationsRepository {
     return data as StateRow;
   }
 
+  async createDistrict(input: {
+    countryId: string;
+    stateProvinceId: string;
+    name: string;
+    code?: string | null;
+    createdBy?: string | null;
+  }) {
+    const supabase = createSupabaseAdminClient() as any;
+    const normalizedName = input.name.trim();
+    const normalizedCode = input.code ? input.code.trim() : null;
+
+    const { data: existingDistrict, error: existingDistrictError } = await supabase
+      .from("districts")
+      .select("id, country_id, state_province_id, name, code, is_active")
+      .eq("state_province_id", input.stateProvinceId)
+      .is("deleted_at", null)
+      .ilike("name", normalizedName)
+      .maybeSingle();
+
+    if (existingDistrictError) throw new Error(existingDistrictError.message);
+    if (existingDistrict?.id) {
+      if (normalizedCode && !existingDistrict.code) {
+        const { data: updatedDistrict, error: updateError } = await supabase
+          .from("districts")
+          .update({ code: normalizedCode, updated_at: new Date().toISOString() })
+          .eq("id", existingDistrict.id)
+          .is("deleted_at", null)
+          .select("id, country_id, state_province_id, name, code, is_active")
+          .single();
+        if (updateError) throw new Error(updateError.message);
+        return updatedDistrict as DistrictRow;
+      }
+      return existingDistrict as DistrictRow;
+    }
+
+    const { data, error } = await supabase
+      .from("districts")
+      .insert({
+        country_id: input.countryId,
+        state_province_id: input.stateProvinceId,
+        name: normalizedName,
+        code: normalizedCode,
+        created_by: input.createdBy ?? null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select("id, country_id, state_province_id, name, code, is_active")
+      .single();
+
+    if (error) {
+      if (error.code === "23505" || error.message?.includes("districts_state_name_idx")) {
+        const { data: duplicateDistrict, error: duplicateError } = await supabase
+          .from("districts")
+          .select("id, country_id, state_province_id, name, code, is_active")
+          .eq("state_province_id", input.stateProvinceId)
+          .is("deleted_at", null)
+          .ilike("name", normalizedName)
+          .single();
+        if (!duplicateError && duplicateDistrict?.id) return duplicateDistrict as DistrictRow;
+      }
+      throw new Error(error.message);
+    }
+    return data as DistrictRow;
+  }
+
+  async getDistrictById(districtId: string) {
+    const supabase = createSupabaseAdminClient() as any;
+    const { data, error } = await supabase
+      .from("districts")
+      .select("id, country_id, state_province_id, name, code, is_active")
+      .eq("id", districtId)
+      .is("deleted_at", null)
+      .single();
+    if (error) throw new Error(error.message);
+    return data as DistrictRow;
+  }
+
+  async updateDistrict(input: { districtId: string; name?: string | null; code?: string | null; isActive?: boolean | null }) {
+    const supabase = createSupabaseAdminClient() as any;
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (input.name !== undefined) patch.name = input.name?.trim();
+    if (input.code !== undefined) patch.code = input.code ? input.code.trim() : null;
+    if (input.isActive !== undefined && input.isActive !== null) patch.is_active = Boolean(input.isActive);
+
+    const { data, error } = await supabase
+      .from("districts")
+      .update(patch)
+      .eq("id", input.districtId)
+      .is("deleted_at", null)
+      .select("id, country_id, state_province_id, name, code, is_active")
+      .single();
+    if (error) throw new Error(error.message);
+    return data as DistrictRow;
+  }
+
   async createCity(input: {
     countryId: string;
     stateProvinceId?: string | null;
+    districtId?: string | null;
     name: string;
     code?: string | null;
     zipCode?: string | null;
@@ -356,33 +486,35 @@ export class LocationsRepository {
     if (normalizedCode) {
       let duplicateCodeQuery = supabase
         .from("cities")
-        .select("id, name, code, state_province_id, zip_code")
+        .select("id, name, code, state_province_id, district_id, zip_code")
         .eq("country_id", input.countryId)
         .is("deleted_at", null)
         .eq("code", normalizedCode);
 
-      if (input.stateProvinceId === null) duplicateCodeQuery = duplicateCodeQuery.is("state_province_id", null);
+      if (input.districtId) duplicateCodeQuery = duplicateCodeQuery.eq("district_id", input.districtId);
+      else if (input.stateProvinceId === null) duplicateCodeQuery = duplicateCodeQuery.is("state_province_id", null);
       else if (input.stateProvinceId) duplicateCodeQuery = duplicateCodeQuery.eq("state_province_id", input.stateProvinceId);
 
       const { data: duplicateCode } = await duplicateCodeQuery.maybeSingle();
       if (duplicateCode?.id) {
-        throw new Error(`City code already exists for this state/province: ${normalizedCode}`);
+        throw new Error(`City code already exists for this state/district: ${normalizedCode}`);
       }
     }
 
     let duplicateNameQuery = supabase
-      .from("cities")
-      .select("id, name, code, state_province_id, zip_code")
-      .eq("country_id", input.countryId)
-      .is("deleted_at", null)
-      .eq("name", normalizedName);
+        .from("cities")
+        .select("id, name, code, state_province_id, district_id, zip_code")
+        .eq("country_id", input.countryId)
+        .is("deleted_at", null)
+        .eq("name", normalizedName);
 
-    if (input.stateProvinceId === null) duplicateNameQuery = duplicateNameQuery.is("state_province_id", null);
+    if (input.districtId) duplicateNameQuery = duplicateNameQuery.eq("district_id", input.districtId);
+    else if (input.stateProvinceId === null) duplicateNameQuery = duplicateNameQuery.is("state_province_id", null);
     else if (input.stateProvinceId) duplicateNameQuery = duplicateNameQuery.eq("state_province_id", input.stateProvinceId);
 
     const { data: duplicateName } = await duplicateNameQuery.maybeSingle();
     if (duplicateName?.id) {
-      throw new Error(`City already exists for the selected state/province: ${normalizedName}`);
+      throw new Error(`City already exists for the selected state/district: ${normalizedName}`);
     }
 
     const { data, error } = await supabase
@@ -390,6 +522,7 @@ export class LocationsRepository {
       .insert({
         country_id: input.countryId,
         state_province_id: input.stateProvinceId ?? null,
+        district_id: input.districtId ?? null,
         name: normalizedName,
         code: normalizedCode,
         zip_code: normalizedZipCode,
@@ -397,7 +530,7 @@ export class LocationsRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .select("id, country_id, state_province_id, name, code, zip_code, is_active")
+      .select("id, country_id, state_province_id, district_id, name, code, zip_code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as CityRow;
@@ -409,12 +542,13 @@ export class LocationsRepository {
     code?: string | null;
     zipCode?: string | null;
     isActive?: boolean | null;
+    districtId?: string | null;
     updatedBy?: string | null;
   }) {
     const supabase = createSupabaseAdminClient() as any;
     const { data: currentCity, error: currentCityError } = await supabase
       .from("cities")
-      .select("id, country_id, state_province_id")
+      .select("id, country_id, state_province_id, district_id")
       .eq("id", input.cityId)
       .is("deleted_at", null)
       .single();
@@ -426,20 +560,25 @@ export class LocationsRepository {
       updated_at: new Date().toISOString()
     };
 
+    const activeDistrictId = input.districtId !== undefined ? input.districtId : currentCity.district_id;
+
     if (input.code !== undefined && input.code) {
       const normalizedCode = input.code.trim().toUpperCase();
       let duplicateCodeQuery = supabase
         .from("cities")
-        .select("id, name, code, state_province_id, zip_code")
+        .select("id, name, code, state_province_id, district_id, zip_code")
         .eq("country_id", currentCity.country_id)
         .is("deleted_at", null)
         .eq("code", normalizedCode)
         .neq("id", input.cityId);
-      if (currentCity.state_province_id === null) duplicateCodeQuery = duplicateCodeQuery.is("state_province_id", null);
+
+      if (activeDistrictId) duplicateCodeQuery = duplicateCodeQuery.eq("district_id", activeDistrictId);
+      else if (currentCity.state_province_id === null) duplicateCodeQuery = duplicateCodeQuery.is("state_province_id", null);
       else duplicateCodeQuery = duplicateCodeQuery.eq("state_province_id", currentCity.state_province_id);
+
       const { data: duplicateCode } = await duplicateCodeQuery.maybeSingle();
       if (duplicateCode?.id) {
-        throw new Error(`City code already exists for this state/province: ${normalizedCode}`);
+        throw new Error(`City code already exists for this state/district: ${normalizedCode}`);
       }
       patch.code = normalizedCode;
     } else if (input.code !== undefined) {
@@ -451,22 +590,26 @@ export class LocationsRepository {
       if (normalizedName) {
         let duplicateNameQuery = supabase
           .from("cities")
-          .select("id, name, code, state_province_id, zip_code")
+          .select("id, name, code, state_province_id, district_id, zip_code")
           .eq("country_id", currentCity.country_id)
           .is("deleted_at", null)
           .eq("name", normalizedName)
           .neq("id", input.cityId);
-        if (currentCity.state_province_id === null) duplicateNameQuery = duplicateNameQuery.is("state_province_id", null);
+
+        if (activeDistrictId) duplicateNameQuery = duplicateNameQuery.eq("district_id", activeDistrictId);
+        else if (currentCity.state_province_id === null) duplicateNameQuery = duplicateNameQuery.is("state_province_id", null);
         else duplicateNameQuery = duplicateNameQuery.eq("state_province_id", currentCity.state_province_id);
+
         const { data: duplicateName } = await duplicateNameQuery.maybeSingle();
         if (duplicateName?.id) {
-          throw new Error(`City already exists for the selected state/province: ${normalizedName}`);
+          throw new Error(`City already exists for the selected state/district: ${normalizedName}`);
         }
       }
       patch.name = normalizedName;
     }
     if (input.zipCode !== undefined) patch.zip_code = await this.normalizeZipCodeForCountry(currentCity.country_id, input.zipCode);
     if (input.isActive !== undefined && input.isActive !== null) patch.is_active = Boolean(input.isActive);
+    if (input.districtId !== undefined) patch.district_id = input.districtId;
     if (input.updatedBy !== undefined) patch.updated_by = input.updatedBy;
 
     const { data, error } = await supabase
@@ -474,7 +617,7 @@ export class LocationsRepository {
       .update(patch)
       .eq("id", input.cityId)
       .is("deleted_at", null)
-      .select("id, country_id, state_province_id, name, code, zip_code, is_active")
+      .select("id, country_id, state_province_id, district_id, name, code, zip_code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as CityRow;
@@ -483,6 +626,7 @@ export class LocationsRepository {
   async createArea(input: {
     countryId: string;
     stateProvinceId?: string | null;
+    districtId?: string | null;
     cityId: string;
     name: string;
     code?: string | null;
@@ -495,6 +639,7 @@ export class LocationsRepository {
       .insert({
         country_id: input.countryId,
         state_province_id: input.stateProvinceId ?? null,
+        district_id: input.districtId ?? null,
         city_id: input.cityId,
         name: input.name.trim(),
         code: normalizedCode,
@@ -502,17 +647,18 @@ export class LocationsRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .select("id, country_id, state_province_id, city_id, name, code, is_active")
+      .select("id, country_id, state_province_id, district_id, city_id, name, code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as AreaRow;
   }
 
-  async updateArea(input: { areaId: string; name?: string | null; code?: string | null; isActive?: boolean | null }) {
+  async updateArea(input: { areaId: string; name?: string | null; code?: string | null; districtId?: string | null; isActive?: boolean | null }) {
     const supabase = createSupabaseAdminClient() as any;
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (input.name !== undefined) patch.name = input.name?.trim();
     if (input.code !== undefined) patch.code = input.code ? input.code.trim() : null;
+    if (input.districtId !== undefined) patch.district_id = input.districtId;
     if (input.isActive !== undefined && input.isActive !== null) patch.is_active = Boolean(input.isActive);
 
     const { data, error } = await supabase
@@ -520,7 +666,7 @@ export class LocationsRepository {
       .update(patch)
       .eq("id", input.areaId)
       .is("deleted_at", null)
-      .select("id, country_id, state_province_id, city_id, name, code, is_active")
+      .select("id, country_id, state_province_id, district_id, city_id, name, code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as AreaRow;

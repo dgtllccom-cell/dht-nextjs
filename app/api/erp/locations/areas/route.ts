@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       countryId: string;
       stateProvinceId?: string | null;
+      districtId?: string | null;
       cityId: string;
       name: string;
       code?: string | null;
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
     const area = await locationsRepository.createArea({
       countryId: body.countryId,
       stateProvinceId: body.stateProvinceId ?? null,
+      districtId: body.districtId ?? null,
       cityId: body.cityId,
       name: body.name,
       code: body.code ?? null,

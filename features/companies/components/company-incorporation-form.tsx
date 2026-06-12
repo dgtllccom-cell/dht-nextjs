@@ -31,10 +31,12 @@ export type CompanyIncorporationData = {
   businessName: string;
   countryId?: string;
   stateProvinceId?: string;
+  districtId?: string;
   cityId?: string;
   areaLocationId?: string;
   country: string;
   state: string;
+  district?: string;
   city: string;
   zipCode: string;
   address: string;
@@ -227,11 +229,13 @@ export function CompanyIncorporationForm({
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
+    districtId: "",
     cityId: ""
   });
   const [locationMeta, setLocationMeta] = useState<LocationHierarchyMeta>({
     country: null,
     state: null,
+    district: null,
     city: null,
     area: null
   });
@@ -278,11 +282,13 @@ export function CompanyIncorporationForm({
         setLocation({
           countryId: comp.countryId || "",
           stateProvinceId: comp.stateProvinceId || "",
+          districtId: comp.districtId || "",
           cityId: comp.cityId || ""
         });
         setLocationMeta({
           country: comp.country ? { id: comp.countryId || "", name: comp.country } as any : null,
           state: comp.state ? { id: comp.stateProvinceId || "", name: comp.state } as any : null,
+          district: comp.district ? { id: comp.districtId || "", name: comp.district } as any : null,
           city: comp.city ? { id: comp.cityId || "", name: comp.city, zip_code: comp.zipCode } as any : null,
           area: null
         });
@@ -292,8 +298,24 @@ export function CompanyIncorporationForm({
 
   const country = locationMeta.country?.name ?? "";
   const stateName = locationMeta.state?.name ?? "";
+  const districtName = locationMeta.district?.name ?? "";
   const city = locationMeta.city?.name ?? "";
   const zipCode = locationMeta.city?.zip_code ?? "";
+
+  // Auto-fill Country phone prefix when country selects
+  useEffect(() => {
+    if (locationMeta.country?.phone_code) {
+      const code = locationMeta.country.phone_code;
+      setContacts((prev) =>
+        prev.map((c) => {
+          if (["Mobile Number", "Office Number", "WhatsApp Number"].includes(c.type) && !c.value.trim()) {
+            return { ...c, value: code + " " };
+          }
+          return c;
+        })
+      );
+    }
+  }, [locationMeta.country]);
 
   const ready = Boolean(ownerName && companyName && businessName && country && stateName && city && zipCode && address);
 
@@ -308,6 +330,7 @@ export function CompanyIncorporationForm({
       businessName: businessName || "-",
       country: country || "-",
       state: stateName || "-",
+      district: districtName || "-",
       city: city || "-",
       zipCode: zipCode || "-",
       address: address || "-",
@@ -323,6 +346,7 @@ export function CompanyIncorporationForm({
     businessName,
     country,
     stateName,
+    districtName,
     city,
     zipCode,
     address,
@@ -379,10 +403,12 @@ export function CompanyIncorporationForm({
             businessName,
             countryId: location.countryId || undefined,
             stateProvinceId: location.stateProvinceId || undefined,
+            districtId: location.districtId || undefined,
             cityId: location.cityId || undefined,
             areaLocationId: location.areaId || undefined,
             country,
             state: stateName,
+            district: districtName,
             city,
             zipCode,
             address,
@@ -424,10 +450,12 @@ export function CompanyIncorporationForm({
           businessName,
           countryId: location.countryId || undefined,
           stateProvinceId: location.stateProvinceId || undefined,
+          districtId: location.districtId || undefined,
           cityId: location.cityId || undefined,
           areaLocationId: location.areaId || undefined,
           country,
           state: stateName,
+          district: districtName,
           city,
           zipCode,
           address,
@@ -625,7 +653,7 @@ export function CompanyIncorporationForm({
               <div className="border-t pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Location</p>
                 <p className="text-xs text-slate-700 font-semibold mt-0.5">
-                  {[previewData.city, previewData.state, previewData.country].filter(Boolean).join(", ") || "-"}
+                  {[previewData.city, previewData.district, previewData.state, previewData.country].filter(Boolean).join(", ") || "-"}
                 </p>
                 {previewData.zipCode && previewData.zipCode !== "-" && (
                   <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">Zip: {previewData.zipCode}</p>

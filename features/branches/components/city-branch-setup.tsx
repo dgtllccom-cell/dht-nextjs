@@ -51,6 +51,7 @@ type CityBranchRow = {
   local_currency: string;
   status: string;
   state_province_id?: string | null;
+  district_id?: string | null;
   city_id?: string | null;
   area_location_id?: string | null;
   company_id?: string | null;
@@ -191,12 +192,14 @@ export function CityBranchSetup() {
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
+    districtId: "",
     cityId: "",
     areaId: ""
   });
   const [locationMeta, setLocationMeta] = useState<LocationHierarchyMeta>({
     country: null,
     state: null,
+    district: null,
     city: null,
     area: null
   });
@@ -349,7 +352,7 @@ export function CityBranchSetup() {
   const zip = locationMeta.city?.zip_code ?? "";
   const previewCountry = locationMeta.country?.name || "-";
   const previewMainBranch = selectedMainBranch?.name || "-";
-  const previewLocation = [locationMeta.state?.name, locationMeta.city?.name, zip].filter(Boolean).join(" / ") || "-";
+  const previewLocation = [locationMeta.state?.name, locationMeta.district?.name, locationMeta.city?.name, zip].filter(Boolean).join(" / ") || "-";
   const previewCompany = company?.name || "-";
   const companyCode = company?.id ? compactCode(company.id, "CMP") : "-";
   const parentPermissionGrants = selectedMainBranch?.permission_grants?.length ? selectedMainBranch.permission_grants : undefined;
@@ -676,10 +679,11 @@ export function CityBranchSetup() {
     setLocation({
       countryId: row.country_id,
       stateProvinceId: row.state_province_id ?? "",
+      districtId: row.district_id ?? "",
       cityId: row.city_id ?? "",
       areaId: row.area_location_id ?? ""
     });
-    setLocationMeta({ country: null, state: null, city: null, area: null });
+    setLocationMeta({ country: null, state: null, district: null, city: null, area: null });
     setCurrency(row.local_currency || "");
     setFullAddress(row.address ?? "");
     setCompanyId(row.company_id ?? "");
@@ -902,6 +906,21 @@ export function CityBranchSetup() {
     setBranchName("");
     setBranchCode("");
 
+    if (meta.country?.phone_code) {
+      const code = meta.country.phone_code;
+      setContacts((prev) => {
+        if (prev.length === 0) {
+          return [{ type: "Mobile", value: code + " " }];
+        }
+        return prev.map((c) => {
+          if (["Mobile", "Phone", "WhatsApp"].includes(c.type) && !c.value.trim()) {
+            return { ...c, value: code + " " };
+          }
+          return c;
+        });
+      });
+    }
+
     if (!isUuid(next.countryId)) return;
     await loadMainBranches(next.countryId);
   }
@@ -1012,6 +1031,7 @@ export function CityBranchSetup() {
           countryBranchId,
           cityName: locationMeta.city.name,
           stateProvinceId: location.stateProvinceId || undefined,
+          districtId: location.districtId || undefined,
           cityId: location.cityId || undefined,
           areaLocationId: location.areaId || undefined,
           name: branchName,
@@ -1068,8 +1088,8 @@ export function CityBranchSetup() {
 
   function onReset() {
     setBanner(null);
-    setLocation({ countryId: "", stateProvinceId: "", cityId: "", areaId: "" });
-    setLocationMeta({ country: null, state: null, city: null, area: null });
+    setLocation({ countryId: "", stateProvinceId: "", districtId: "", cityId: "", areaId: "" });
+    setLocationMeta({ country: null, state: null, district: null, city: null, area: null });
     setCurrency("");
     setFullAddress("");
     setCountryBranchId("");
@@ -1402,6 +1422,7 @@ export function CityBranchSetup() {
                   { label: "Country Code", value: locationMeta.country?.iso2 || locationMeta.country?.iso3 || "-" },
                   { label: "State", value: locationMeta.state?.name || "-" },
                   { label: "State Code", value: locationMeta.state?.code || "-" },
+                  { label: "District", value: locationMeta.district?.name || "-" },
                   { label: "City", value: locationMeta.city?.name || "-" },
                   { label: "City Code", value: locationMeta.city?.code || "-" },
                   { label: "Location", value: previewLocation || "-" },

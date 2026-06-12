@@ -14,15 +14,18 @@ import {
   listCities,
   listCountries,
   listStates,
+  listDistricts,
   type LocationArea,
   type LocationCity,
   type LocationCountry,
-  type LocationState
+  type LocationState,
+  type LocationDistrict
 } from "@/features/locations/location-api";
 
 export type LocationHierarchyValue = {
   countryId: string;
   stateProvinceId: string;
+  districtId: string;
   cityId: string;
   areaId?: string;
 };
@@ -30,6 +33,7 @@ export type LocationHierarchyValue = {
 export type LocationHierarchyMeta = {
   country: LocationCountry | null;
   state: LocationState | null;
+  district: LocationDistrict | null;
   city: LocationCity | null;
   area: LocationArea | null;
 };
@@ -42,7 +46,8 @@ function toOptions<T extends { id: string; name: string }>(rows: T[]): SearchSel
       anyRow.iso2,
       anyRow.iso3,
       anyRow.currency_code,
-      anyRow.zip_code
+      anyRow.zip_code,
+      anyRow.phone_code
     ]
       .filter(Boolean)
       .join(" ");
@@ -56,6 +61,7 @@ export function LocationHierarchySelect({
   showArea = false,
   showCountry = true,
   showState = true,
+  showDistrict = true,
   showCity = true,
   allowManageLink = true,
   disabled = false
@@ -65,21 +71,24 @@ export function LocationHierarchySelect({
   showArea?: boolean;
   showCountry?: boolean;
   showState?: boolean;
+  showDistrict?: boolean;
   showCity?: boolean;
   allowManageLink?: boolean;
   disabled?: boolean;
 }) {
   const [countries, setCountries] = useState<LocationCountry[]>([]);
   const [states, setStates] = useState<LocationState[]>([]);
+  const [districts, setDistricts] = useState<LocationDistrict[]>([]);
   const [cities, setCities] = useState<LocationCity[]>([]);
   const [areas, setAreas] = useState<LocationArea[]>([]);
 
   const [loadingCountries, setLoadingCountries] = useState(false);
   const [loadingStates, setLoadingStates] = useState(false);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
   const [loadingAreas, setLoadingAreas] = useState(false);
 
-  const [openCreateType, setOpenCreateType] = useState<"country" | "state" | "city" | null>(null);
+  const [openCreateType, setOpenCreateType] = useState<"country" | "state" | "district" | "city" | null>(null);
 
   const selectedCountry = useMemo(
     () => countries.find((c) => c.id === value.countryId) ?? null,
@@ -88,6 +97,10 @@ export function LocationHierarchySelect({
   const selectedState = useMemo(
     () => states.find((s) => s.id === value.stateProvinceId) ?? null,
     [states, value.stateProvinceId]
+  );
+  const selectedDistrict = useMemo(
+    () => districts.find((d) => d.id === value.districtId) ?? null,
+    [districts, value.districtId]
   );
   const selectedCity = useMemo(
     () => cities.find((c) => c.id === value.cityId) ?? null,
@@ -117,6 +130,7 @@ export function LocationHierarchySelect({
   useEffect(() => {
     let cancelled = false;
     setStates([]);
+    setDistricts([]);
     setCities([]);
     setAreas([]);
     if (!value.countryId) return;
@@ -138,6 +152,28 @@ export function LocationHierarchySelect({
 
   useEffect(() => {
     let cancelled = false;
+    setDistricts([]);
+    setCities([]);
+    setAreas([]);
+    if (!value.stateProvinceId) return;
+
+    (async () => {
+      setLoadingDistricts(true);
+      try {
+        const rows = await listDistricts({ stateProvinceId: value.stateProvinceId });
+        if (!cancelled) setDistricts(rows);
+      } finally {
+        if (!cancelled) setLoadingDistricts(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [value.stateProvinceId]);
+
+  useEffect(() => {
+    let cancelled = false;
     setCities([]);
     setAreas([]);
     if (!value.countryId) return;
@@ -146,7 +182,11 @@ export function LocationHierarchySelect({
     (async () => {
       setLoadingCities(true);
       try {
-        const rows = await listCities({ countryId: value.countryId, stateProvinceId: value.stateProvinceId });
+        const rows = await listCities({
+          countryId: value.countryId,
+          stateProvinceId: value.stateProvinceId,
+          districtId: value.districtId || null
+        });
         if (!cancelled) setCities(rows);
       } finally {
         if (!cancelled) setLoadingCities(false);
@@ -156,7 +196,7 @@ export function LocationHierarchySelect({
     return () => {
       cancelled = true;
     };
-  }, [value.countryId, value.stateProvinceId]);
+  }, [value.countryId, value.stateProvinceId, value.districtId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,25 +222,32 @@ export function LocationHierarchySelect({
   const meta: LocationHierarchyMeta = {
     country: selectedCountry,
     state: selectedState,
+    district: selectedDistrict,
     city: selectedCity,
     area: selectedArea
   };
 
   useEffect(() => {
-    if (!value.countryId && !value.stateProvinceId && !value.cityId && !value.areaId) return;
+    if (!value.countryId && !value.stateProvinceId && !value.districtId && !value.cityId && !value.areaId) return;
     onChange(value, meta);
-    // Parent forms need the resolved labels after async option loading, especially in edit mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCountry, selectedState, selectedCity, selectedArea]);
+  }, [selectedCountry, selectedState, selectedDistrict, selectedCity, selectedArea]);
 
-  const row1Cols = Number(Boolean(showCountry)) + Number(Boolean(showState));
-  const row2Cols = Number(Boolean(showCity)) + Number(Boolean(showArea));
+  // Construct layouts based on shown columns
+  const firstRowItems = [];
+  if (showCountry) firstRowItems.push("country");
+  if (showState) firstRowItems.push("state");
+  if (showDistrict) firstRowItems.push("district");
+
+  const secondRowItems = [];
+  if (showCity) secondRowItems.push("city");
+  if (showArea) secondRowItems.push("area");
 
   return (
     <div className="space-y-3">
-      {row1Cols ? (
-        <div className={row1Cols === 1 ? "grid gap-3 md:grid-cols-1" : "grid gap-3 md:grid-cols-2"}>
-          {showCountry ? (
+      {firstRowItems.length > 0 ? (
+        <div className={`grid gap-3 md:grid-cols-${firstRowItems.length}`}>
+          {showCountry && (
             <div className="space-y-2">
               <SearchSelect
                 label={loadingCountries ? "Country (Loading...)" : "Country"}
@@ -209,10 +256,11 @@ export function LocationHierarchySelect({
                 disabled={disabled || loadingCountries}
                 options={toOptions(countries)}
                 onValueChange={(countryId) => {
-                  const next: LocationHierarchyValue = { countryId, stateProvinceId: "", cityId: "", areaId: "" };
+                  const next: LocationHierarchyValue = { countryId, stateProvinceId: "", districtId: "", cityId: "", areaId: "" };
                   onChange(next, {
                     country: countries.find((c) => c.id === countryId) ?? null,
                     state: null,
+                    district: null,
                     city: null,
                     area: null
                   });
@@ -232,9 +280,9 @@ export function LocationHierarchySelect({
                 </div>
               ) : null}
             </div>
-          ) : null}
+          )}
 
-          {showState ? (
+          {showState && (
             <SearchSelect
               label={loadingStates ? "State / Province (Loading...)" : "State / Province"}
               value={value.stateProvinceId}
@@ -242,10 +290,11 @@ export function LocationHierarchySelect({
               disabled={disabled || !value.countryId || loadingStates}
               options={toOptions(states)}
               onValueChange={(stateProvinceId) => {
-                const next: LocationHierarchyValue = { ...value, stateProvinceId, cityId: "", areaId: "" };
+                const next: LocationHierarchyValue = { ...value, stateProvinceId, districtId: "", cityId: "", areaId: "" };
                 onChange(next, {
                   ...meta,
                   state: states.find((s) => s.id === stateProvinceId) ?? null,
+                  district: null,
                   city: null,
                   area: null
                 });
@@ -254,18 +303,40 @@ export function LocationHierarchySelect({
               createButtonPlacement="both"
               onCreateNew={async () => setOpenCreateType("state")}
             />
-          ) : null}
+          )}
+
+          {showDistrict && (
+            <SearchSelect
+              label={loadingDistricts ? "District (Loading...)" : "District"}
+              value={value.districtId}
+              placeholder={value.stateProvinceId ? "Select district" : "Select state first"}
+              disabled={disabled || !value.stateProvinceId || loadingDistricts}
+              options={toOptions(districts)}
+              onValueChange={(districtId) => {
+                const next: LocationHierarchyValue = { ...value, districtId, cityId: "", areaId: "" };
+                onChange(next, {
+                  ...meta,
+                  district: districts.find((d) => d.id === districtId) ?? null,
+                  city: null,
+                  area: null
+                });
+              }}
+              createLabel="+ New District"
+              createButtonPlacement="both"
+              onCreateNew={async () => setOpenCreateType("district")}
+            />
+          )}
         </div>
       ) : null}
 
-      {row2Cols ? (
-        <div className={row2Cols === 1 ? "grid gap-3 md:grid-cols-1" : "grid gap-3 md:grid-cols-2"}>
-          {showCity ? (
+      {secondRowItems.length > 0 ? (
+        <div className={`grid gap-3 md:grid-cols-${secondRowItems.length}`}>
+          {showCity && (
             <SearchSelect
               label={loadingCities ? "City (Loading...)" : "City"}
               value={value.cityId}
-              placeholder={value.stateProvinceId ? "Select city" : "Select state first"}
-              disabled={disabled || !value.countryId || !value.stateProvinceId || loadingCities}
+              placeholder={value.districtId || value.stateProvinceId ? "Select city" : "Select state/district first"}
+              disabled={disabled || !value.countryId || (!value.stateProvinceId && !value.districtId) || loadingCities}
               options={toOptions(cities)}
               onValueChange={(cityId) => {
                 const next: LocationHierarchyValue = { ...value, cityId, areaId: "" };
@@ -275,13 +346,13 @@ export function LocationHierarchySelect({
               createButtonPlacement="both"
               onCreateNew={async () => setOpenCreateType("city")}
             />
-          ) : null}
+          )}
 
-          {showArea ? (
+          {showArea && (
             <SearchSelect
-              label={loadingAreas ? "Area / Location (Loading...)" : "Area / Location"}
+              label={loadingAreas ? "Tehsil / Area / Postal Code (Loading...)" : "Tehsil / Area / Postal Code"}
               value={value.areaId ?? ""}
-              placeholder={value.cityId ? "Select area" : "Select city first"}
+              placeholder={value.cityId ? "Select tehsil/area" : "Select city first"}
               disabled={disabled || !value.cityId || loadingAreas}
               options={toOptions(areas)}
               onValueChange={(areaId) => {
@@ -289,7 +360,7 @@ export function LocationHierarchySelect({
                 onChange(next, { ...meta, area: areas.find((a) => a.id === areaId) ?? null });
               }}
             />
-          ) : null}
+          )}
         </div>
       ) : null}
 
@@ -298,6 +369,7 @@ export function LocationHierarchySelect({
           type={openCreateType}
           countryId={value.countryId}
           stateProvinceId={value.stateProvinceId}
+          districtId={value.districtId}
           onClose={() => setOpenCreateType(null)}
           onCreated={(newId, item) => {
             if (openCreateType === "country") {
@@ -305,10 +377,11 @@ export function LocationHierarchySelect({
                 if (cur.some((c) => c.id === item.id)) return cur;
                 return [item, ...cur];
               });
-              const next: LocationHierarchyValue = { countryId: newId, stateProvinceId: "", cityId: "", areaId: "" };
+              const next: LocationHierarchyValue = { countryId: newId, stateProvinceId: "", districtId: "", cityId: "", areaId: "" };
               onChange(next, {
                 country: item,
                 state: null,
+                district: null,
                 city: null,
                 area: null
               });
@@ -317,10 +390,23 @@ export function LocationHierarchySelect({
                 if (cur.some((s) => s.id === item.id)) return cur;
                 return [item, ...cur];
               });
-              const next: LocationHierarchyValue = { ...value, stateProvinceId: newId, cityId: "", areaId: "" };
+              const next: LocationHierarchyValue = { ...value, stateProvinceId: newId, districtId: "", cityId: "", areaId: "" };
               onChange(next, {
                 ...meta,
                 state: item,
+                district: null,
+                city: null,
+                area: null
+              });
+            } else if (openCreateType === "district") {
+              setDistricts((cur) => {
+                if (cur.some((d) => d.id === item.id)) return cur;
+                return [item, ...cur];
+              });
+              const next: LocationHierarchyValue = { ...value, districtId: newId, cityId: "", areaId: "" };
+              onChange(next, {
+                ...meta,
+                district: item,
                 city: null,
                 area: null
               });
@@ -348,12 +434,14 @@ function LocationQuickCreateModal({
   type,
   countryId,
   stateProvinceId,
+  districtId,
   onClose,
   onCreated
 }: {
-  type: "country" | "state" | "city";
+  type: "country" | "state" | "district" | "city";
   countryId?: string;
   stateProvinceId?: string;
+  districtId?: string;
   onClose: () => void;
   onCreated: (newId: string, item: any) => void;
 }) {
@@ -366,11 +454,12 @@ function LocationQuickCreateModal({
   const [iso3, setIso3] = useState("");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [defaultLanguageCode, setDefaultLanguageCode] = useState("en");
+  const [phoneCode, setPhoneCode] = useState("");
   const [officialEmail, setOfficialEmail] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
 
-  // State/City-specific fields
+  // State/District/City-specific fields
   const [code, setCode] = useState("");
   const [zipCode, setZipCode] = useState("");
 
@@ -393,6 +482,7 @@ function LocationQuickCreateModal({
           iso3: iso3.trim() || null,
           currencyCode: currencyCode.trim(),
           defaultLanguageCode: defaultLanguageCode.trim() || null,
+          phoneCode: phoneCode.trim() || null,
           officialEmail: officialEmail.trim(),
           adminEmail: adminEmail.trim(),
           whatsappNumber: whatsappNumber.trim() || null
@@ -405,10 +495,19 @@ function LocationQuickCreateModal({
           code: code.trim() || null
         });
         onCreated(res.state.id, res.state);
+      } else if (type === "district") {
+        const res = await apiPost<{ district: LocationDistrict }>("/api/erp/locations/districts", {
+          countryId,
+          stateProvinceId,
+          name: name.trim(),
+          code: code.trim() || null
+        });
+        onCreated(res.district.id, res.district);
       } else if (type === "city") {
         const res = await apiPost<{ city: LocationCity }>("/api/erp/locations/cities", {
           countryId,
           stateProvinceId,
+          districtId: districtId || null,
           name: name.trim(),
           code: code.trim() || null,
           zipCode: zipCode.trim() || null
@@ -484,6 +583,17 @@ function LocationQuickCreateModal({
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Phone Code</Label>
+                <Input
+                  value={phoneCode}
+                  onChange={(e) => setPhoneCode(e.target.value)}
+                  placeholder="+1"
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Official Email *</Label>
               <Input
@@ -515,7 +625,7 @@ function LocationQuickCreateModal({
           </>
         )}
 
-        {(type === "state" || type === "city") && (
+        {(type === "state" || type === "district" || type === "city") && (
           <div className="space-y-2">
             <Label>Code</Label>
             <Input
@@ -550,4 +660,3 @@ function LocationQuickCreateModal({
     </SimpleModal>
   );
 }
-

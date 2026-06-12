@@ -6,6 +6,7 @@ import { multilingualService } from "@/lib/services/multilingual-service";
 export type CustomerInput = {
   countryId: string;
   stateProvinceId?: string | null;
+  districtId?: string | null;
   cityId?: string | null;
   areaLocationId?: string | null;
   customerName: string;
@@ -52,6 +53,7 @@ export class CustomersService {
     const customerId = await customersRepository.create({
       countryId: input.countryId,
       stateProvinceId: input.stateProvinceId ?? null,
+      districtId: input.districtId ?? null,
       cityId: input.cityId ?? null,
       areaLocationId: input.areaLocationId ?? null,
       customerName: input.customerName,
@@ -79,6 +81,7 @@ export class CustomersService {
   ) {
     await customersRepository.update(id, {
       stateProvinceId: "stateProvinceId" in input ? input.stateProvinceId ?? null : undefined,
+      districtId: "districtId" in input ? input.districtId ?? null : undefined,
       cityId: "cityId" in input ? input.cityId ?? null : undefined,
       areaLocationId: "areaLocationId" in input ? input.areaLocationId ?? null : undefined,
       customerName: "customerName" in input ? input.customerName ?? "" : undefined,
@@ -105,6 +108,7 @@ export class CustomersService {
       const snapshot: CustomerInput = {
         countryId: customer.country_id,
         stateProvinceId: customer.state_province_id,
+        districtId: customer.district_id,
         cityId: customer.city_id,
         areaLocationId: customer.area_location_id,
         customerName: input.customerName ?? customer.customer_name,
@@ -158,9 +162,6 @@ export class CustomersService {
 
     if (!values.length) return;
 
-    // NOTE: record_translations uses a partial unique index (WHERE deleted_at IS NULL),
-    // which PostgREST/Supabase upsert cannot target without an ON CONFLICT ... WHERE clause.
-    // So we do a safe update-then-insert per row.
     for (const row of values) {
       const { data: updated, error: updateError } = await supabase
         .from("record_translations")
@@ -198,4 +199,3 @@ export class CustomersService {
 }
 
 export const customersService = new CustomersService();
-

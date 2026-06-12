@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
       {
         countryId: body.countryId,
         stateProvinceId: body.stateProvinceId ?? null,
+        districtId: body.districtId ?? null,
         cityId: body.cityId ?? null,
         areaLocationId: body.areaLocationId ?? null,
         customerName: body.customerName,

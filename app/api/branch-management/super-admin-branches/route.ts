@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from("branches")
       .select(
-        "id,company_id,name,code,country_id,state_province_id,city_id,currency,address,phone,email,owner_name,contacts,documents,created_at,companies(name),countries(name),states_provinces(name),cities(name)"
+        "id,company_id,name,code,country_id,state_province_id,district_id,city_id,currency,address,phone,email,owner_name,contacts,documents,created_at,companies(name),countries(name),states_provinces(name),districts(name),cities(name)"
       )
       .eq("is_super_admin", true)
       .is("deleted_at", null)
@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       is_super_admin: true,
       country_id: parsed.data.countryId ?? null,
       state_province_id: parsed.data.stateProvinceId ?? null,
+      district_id: parsed.data.districtId ?? null,
       city_id: parsed.data.cityId ?? null,
       currency: parsed.data.currencyCode ?? null,
       address: parsed.data.address?.trim() ? parsed.data.address.trim() : null,
@@ -123,6 +124,7 @@ export async function PUT(request: Request) {
       is_super_admin: true,
       country_id: parsed.data.countryId ?? null,
       state_province_id: parsed.data.stateProvinceId ?? null,
+      district_id: parsed.data.districtId ?? null,
       city_id: parsed.data.cityId ?? null,
       currency: parsed.data.currencyCode ?? null,
       address: parsed.data.address?.trim() ? parsed.data.address.trim() : null,
