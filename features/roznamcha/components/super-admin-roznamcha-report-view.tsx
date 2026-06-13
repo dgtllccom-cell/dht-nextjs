@@ -826,7 +826,8 @@ export function SuperAdminRoznamchaReportView({
       title: mode === "voucher" ? `${pageTitle} Voucher` : `${pageTitle} Journal`,
       subtitle: `${targetRow.voucherNo} · ${targetRow.entryDate} · ${targetRow.countryName}`,
       rows: buildSelectedRows(mode, targetRow),
-      autoPrint
+      autoPrint,
+      lang
     });
   }
 
