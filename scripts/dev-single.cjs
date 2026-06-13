@@ -59,7 +59,8 @@ async function main() {
     }
   }
 
-  console.log(`[dev-single] Starting Next.js dev server on http://${hostname}:${port}`);
+  const displayHost = hostname === "0.0.0.0" ? "localhost" : hostname;
+  console.log(`[dev-single] Starting Next.js dev server on http://${displayHost}:${port}`);
   console.log(`[dev-single] Project dir: ${dir}`);
   console.log(`[dev-single] Next binary: ${path.dirname(require.resolve("next/package.json"))}`);
 
