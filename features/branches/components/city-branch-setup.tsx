@@ -639,11 +639,13 @@ export function CityBranchSetup() {
   ]);
 
   function openReport(autoPrint: boolean) {
+    const activeLang = typeof document !== "undefined" ? document.documentElement.lang : "en";
     openA4ReportWindow({
       title: "City Branch Report",
       subtitle: "Store Entry Preview (A4)",
       autoPrint,
-      branchData: liveBranchData
+      branchData: liveBranchData,
+      lang: activeLang
     });
   }
 

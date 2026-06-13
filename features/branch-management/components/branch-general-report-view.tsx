@@ -211,10 +211,12 @@ export function BranchGeneralReportView({
       const emailVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("email"))?.value || row.email || "";
       const whatsappVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("whatsapp"))?.value || "";
 
+      const activeLang = typeof document !== "undefined" ? document.documentElement.lang : "en";
       openA4ReportWindow({
         title: "Country Main Branch Report",
         subtitle: "Branch Profile Report (A4)",
         autoPrint: false,
+        lang: activeLang,
         branchData: {
           serialNumber: row.id.slice(0, 4).toUpperCase(),
           branchStatus: row.status || "Active",
@@ -293,10 +295,12 @@ export function BranchGeneralReportView({
       const emailVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("email"))?.value || row.email || "";
       const whatsappVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("whatsapp"))?.value || "";
 
+      const activeLang = typeof document !== "undefined" ? document.documentElement.lang : "en";
       openA4ReportWindow({
         title: "City Branch Report",
         subtitle: "Branch Profile Report (A4)",
         autoPrint: false,
+        lang: activeLang,
         branchData: {
           serialNumber: row.id.slice(0, 4).toUpperCase(),
           branchStatus: row.status || "Active",

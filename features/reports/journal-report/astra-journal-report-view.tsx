@@ -380,7 +380,8 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
         { label: "Total Debit", value: fmt(summary.debit) },
         { label: "Final Balance", value: fmt(summary.balance) }
       ],
-      autoPrint
+      autoPrint,
+      lang
     });
   }
 

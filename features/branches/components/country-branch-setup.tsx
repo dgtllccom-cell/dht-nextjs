@@ -549,11 +549,13 @@ export function CountryBranchSetup() {
   ]);
 
   function openReport(autoPrint: boolean) {
+    const activeLang = typeof document !== "undefined" ? document.documentElement.lang : "en";
     openA4ReportWindow({
       title: "Country Main Branch Report",
       subtitle: "Store Entry Preview (A4)",
       autoPrint,
-      branchData: liveBranchData
+      branchData: liveBranchData,
+      lang: activeLang
     });
   }
 

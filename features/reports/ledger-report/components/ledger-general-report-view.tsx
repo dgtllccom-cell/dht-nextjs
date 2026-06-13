@@ -393,7 +393,8 @@ export function LedgerReportView({
         { label: "Currency", value: selectedLedger?.ledgerCurrency ?? "-" },
         { label: "Branch", value: selectedLedger ? buildBranchLabel(selectedLedger) : "-" }
       ],
-      autoPrint
+      autoPrint,
+      lang
     });
   }
 
