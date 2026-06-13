@@ -365,7 +365,8 @@ export function RoznamchaReportView({
       title: mode === "voucher" ? "Roznamcha Voucher" : "Roznamcha Journal",
       subtitle: `${selectedHeader.voucher_no} · ${selectedHeader.entry_date} · ${entryCountryName(selectedHeader)}`,
       rows: buildSelectedRows(mode),
-      autoPrint
+      autoPrint,
+      lang
     });
   }
 

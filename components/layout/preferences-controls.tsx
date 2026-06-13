@@ -5,37 +5,41 @@ import { Globe2, Moon, Sun, LogOut, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supportedLanguages, type SupportedLanguage, rtlLanguages } from "@/lib/i18n/languages";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
-// Character maps for standard English QWERTY keyboard to native RTL script characters
+// Character maps for standard English QWERTY keyboard to native RTL script characters.
 const RTL_KEY_MAPS: Record<string, Record<string, string>> = {
   ar: {
     q: "ض", w: "ص", e: "ث", r: "ق", t: "ف", y: "غ", u: "ع", i: "ه", o: "خ", p: "ح", "[": "ج", "]": "د",
     a: "ش", s: "س", d: "ي", f: "ب", g: "ل", h: "ا", j: "ت", k: "ن", l: "م", ";": "ك", "'": "ط",
-    z: "ئ", x: "ء", c: "ؤ", v: "ر", b: "ل", n: "ى", m: "ة", ",": "و", ".": "ز", "/": "ظ",
-    Q: "َ", W: "ً", E: "ُ", R: "ٌ", T: "ل", Y: "إ", U: "`", I: "÷", O: "×", P: "؛",
-    A: "ِ", S: "ٍ", D: "إ", F: "ل", G: "أ", H: "آ", J: "ـ", K: "،", L: "/",
-    Z: "~", X: "ْ", C: "}", V: "{", B: "ل", N: "آ", M: "’", "<": "«", ">": "»", "?": "؟"
+    z: "ئ", x: "ء", c: "ؤ", v: "ر", b: "لا", n: "ى", m: "ة", ",": "و", ".": "ز", "/": "ظ",
+    Q: "َ", W: "ً", E: "ُ", R: "ٌ", T: "لإ", Y: "إ", U: "`", I: "÷", O: "×", P: "؛",
+    A: "ِ", S: "ٍ", D: "]", F: "[", G: "لأ", H: "أ", J: "ـ", K: "،", L: "/",
+    Z: "~", X: "ْ", C: "}", V: "{", B: "لآ", N: "آ", M: "'", "<": "«", ">": "»", "?": "؟"
   },
   ur: {
-    q: "ق", w: "و", e: "ع", r: "ر", t: "ت", y: "ے", u: "ا", i: "ی", o: "ہ", p: "پ",
-    a: "ا", s: "س", d: "د", f: "ف", g: "گ", h: "ح", j: "ج", k: "ک", l: "ل",
-    z: "ز", x: "ش", c: "چ", v: "ط", b: "ب", n: "ن", m: "م",
-    Q: "ض", W: "ص", E: "ث", R: "ڑ", T: "ٹ", Y: "ط", U: "ء", I: "ِ", O: "ُ", P: "ّ",
-    A: "آ", S: "ص", D: "ڈ", F: "ظ", G: "غ", H: "ھ", J: "ض", K: "خ", L: "خ",
-    Z: "ذ", X: "ژ", C: "ث", V: "ظ", B: "بھ", N: "ں", M: "ۂ",
-    ",": "،", ".": "۔", "?": "؟"
+    q: "ق", w: "و", e: "ع", r: "ر", t: "ت", y: "ے", u: "ء", i: "ی", o: "ہ", p: "پ", "[": "ح", "]": "ج",
+    a: "ا", s: "س", d: "د", f: "ف", g: "گ", h: "ھ", j: "ج", k: "ک", l: "ل", ";": "؛", "'": "ط",
+    z: "ز", x: "ش", c: "چ", v: "ط", b: "ب", n: "ن", m: "م", ",": "،", ".": "۔", "/": "ظ",
+    Q: "ض", W: "ص", E: "ث", R: "ڑ", T: "ٹ", Y: "ۓ", U: "ئ", I: "ٰ", O: "ۃ", P: "ُ",
+    A: "آ", S: "ص", D: "ڈ", F: "ّ", G: "غ", H: "ح", J: "جھ", K: "خ", L: "ل",
+    Z: "ذ", X: "ژ", C: "ث", V: "ظ", B: "بھ", N: "ں", M: "ں", "<": "،", ">": "۔", "?": "؟"
   },
   fa: {
-    q: "ض", w: "ص", e: "ث", r: "ق", t: "ف", y: "غ", u: "ع", i: "ه", o: "خ", p: "ح",
-    a: "ش", s: "س", d: "ی", f: "ب", g: "ل", h: "ا", j: "ت", k: "ن", l: "م",
-    z: "ظ", x: "ط", c: "ز", v: "ر", b: "ذ", n: "د", m: "پ",
-    ",": "و", ".": "۔", "?": "؟"
+    q: "ض", w: "ص", e: "ث", r: "ق", t: "ف", y: "غ", u: "ع", i: "ه", o: "خ", p: "ح", "[": "ج", "]": "چ",
+    a: "ش", s: "س", d: "ی", f: "ب", g: "ل", h: "ا", j: "ت", k: "ن", l: "م", ";": "ک", "'": "گ",
+    z: "ظ", x: "ط", c: "ز", v: "ر", b: "ذ", n: "د", m: "پ", ",": "و", ".": ".", "/": "/",
+    Q: "ْ", W: "ٌ", E: "ٍ", R: "ً", T: "ُ", Y: "ِ", U: "َ", I: "ّ", O: "]", P: "[",
+    A: "ؤ", S: "ئ", D: "ي", F: "إ", G: "أ", H: "آ", J: "ة", K: "»", L: "«",
+    Z: "ك", X: "ٓ", C: "ژ", V: "ٰ", B: "‌", N: "ٔ", M: "ء", "<": "،", ">": "۔", "?": "؟"
   },
   ps: {
-    q: "ض", w: "ص", e: "ث", r: "ق", t: "ټ", y: "غ", u: "ع", i: "ه", o: "خ", p: "ح",
-    a: "ښ", s: "س", d: "ي", f: "ب", g: "ل", h: "ا", j: "ت", k: "ن", l: "م",
-    z: "ځ", x: "څ", c: "چ", v: "ر", b: "ډ", n: "د", m: "پ",
-    ",": "و", ".": "۔", "?": "؟"
+    q: "ض", w: "ص", e: "ث", r: "ق", t: "ف", y: "غ", u: "ع", i: "ه", o: "خ", p: "ح", "[": "ج", "]": "چ",
+    a: "ښ", s: "س", d: "ي", f: "ب", g: "ل", h: "ا", j: "ت", k: "ن", l: "م", ";": "ک", "'": "ګ",
+    z: "ځ", x: "خ", c: "څ", v: "ر", b: "ب", n: "د", m: "پ", ",": "و", ".": "ز", "/": "ظ",
+    Q: "ډ", W: "ۍ", E: "ې", R: "ړ", T: "ټ", Y: "ے", U: "ء", I: "ئ", O: "ۀ", P: "ؤ",
+    A: "ش", S: "سی", D: "ډ", F: "ف", G: "ګ", H: "ح", J: "ج", K: "ک", L: "ڵ",
+    Z: "ذ", X: "ژ", C: "چ", V: "ط", B: "به", N: "ڼ", M: "م", "<": "،", ">": "۔", "?": "؟"
   }
 };
 
@@ -50,7 +54,7 @@ function getInitialLanguage(): SupportedLanguage {
   return supportedLanguages.some((l) => l.code === lang) ? lang : "en";
 }
 
-// Dynamically inject custom web fonts into document head
+// Dynamically inject custom web fonts into document head.
 function injectWebFonts(lang: SupportedLanguage) {
   if (typeof document === "undefined") return;
   const id = "google-fonts-rtl-injector";
@@ -86,14 +90,14 @@ export function PreferencesControls() {
 
   const languageOptions = useMemo(() => supportedLanguages, []);
 
-  // Run font injection on load and whenever language state updates
+  // Run font injection on load and whenever language state updates.
   useEffect(() => {
     if (mounted) {
       injectWebFonts(language);
     }
   }, [language, mounted]);
 
-  // Handle global key events for virtual layout mapping
+  // Handle global key events for virtual layout mapping.
   useEffect(() => {
     if (!keyboardMapperActive || !rtlLanguages.includes(language)) return;
 
@@ -103,7 +107,7 @@ export function PreferencesControls() {
       const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
       if (!isInput) return;
 
-      // Skip common modifiers/control keys
+      // Skip common modifiers/control keys.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key.length !== 1) return;
 
@@ -113,7 +117,7 @@ export function PreferencesControls() {
       const mappedChar = langMap[e.key];
       if (mappedChar === undefined) return;
 
-      // Block normal input typing and insert mapped Unicode character at cursor
+      // Block normal input typing and insert mapped Unicode character at cursor.
       e.preventDefault();
 
       const input = target as HTMLInputElement | HTMLTextAreaElement;
@@ -134,10 +138,13 @@ export function PreferencesControls() {
       }
 
       const nextCursor = start + mappedChar.length;
-      input.setSelectionRange(nextCursor, nextCursor);
-
-      // Force React state update
       input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.setSelectionRange(nextCursor, nextCursor);
+      requestAnimationFrame(() => {
+        if (document.activeElement === input) {
+          input.setSelectionRange(nextCursor, nextCursor);
+        }
+      });
     };
 
     window.addEventListener("keydown", handleKeyDown, true);
@@ -184,15 +191,16 @@ export function PreferencesControls() {
     document.cookie = `erp_lang=${encodeURIComponent(next)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
 
     if (next === "en") {
-      document.cookie = `googtrans=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
+      document.cookie = "googtrans=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
       document.cookie = `googtrans=; Path=/; Domain=${window.location.hostname}; Expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
     } else {
       document.cookie = `googtrans=/en/${next}; Path=/;`;
       document.cookie = `googtrans=/en/${next}; Path=/; Domain=${window.location.hostname};`;
     }
+
     setLanguage(next);
     injectWebFonts(next);
-    window.location.reload();
+    router.refresh();
   }
 
   async function handleLogout() {
