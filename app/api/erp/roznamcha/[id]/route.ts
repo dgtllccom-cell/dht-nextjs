@@ -60,7 +60,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
       .select(
         // Disambiguate profiles embedding (created_by vs approved_by) by pinning to the FK.
         // We keep the `profiles` key in the response for backward compatibility with the UI types.
-        "id, type, country_id, countries(name,currency_code), country_branch_id, country_branches(name,code), city_branch_id, city_branches(name,code), journal_no, voucher_no, entry_date, payment_method_id, payment_methods(name), reference_no, narration, status, created_by, profiles!roznamcha_entries_created_by_fkey(full_name), approved_by, approved_at, posted_at, created_at, updated_at"
+        "id, type, country_id, countries(name,currency_code), country_branch_id, country_branches(name,code), city_branch_id, city_branches(name,code), journal_no, voucher_no, entry_date, payment_method_id, payment_methods(name), reference_no, narration, status, created_by, profiles!roznamcha_entries_created_by_fkey(full_name), approved_by, approver_profile:profiles!roznamcha_entries_approved_by_fkey(full_name), approved_at, posted_at, created_at, updated_at"
       )
       .eq("id", id)
       .is("deleted_at", null)

@@ -88,6 +88,26 @@ export function CustomerForm({
   const [status, setStatus] = useState("Active");
   const [remarks, setRemarks] = useState("");
 
+  // Customer Account Details states
+  const [accountName, setAccountName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [manualReference, setManualReference] = useState("");
+  const [branchName, setBranchName] = useState("");
+  const [branchCode, setBranchCode] = useState("");
+  const [cityBranch, setCityBranch] = useState("");
+
+  // Customer Company Details states
+  const [companyName, setCompanyName] = useState("");
+  const [companyRegNo, setCompanyRegNo] = useState("");
+  const [companyTaxNo, setCompanyTaxNo] = useState("");
+  const [companyBusinessType, setCompanyBusinessType] = useState("Private Limited");
+  const [companyPhone, setCompanyPhone] = useState("");
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [companyCountry, setCompanyCountry] = useState("");
+  const [companyCity, setCompanyCity] = useState("");
+  const [companyState, setCompanyState] = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
+
   // Retrieve existing customer list to search edit candidate
   useEffect(() => {
     (async () => {
@@ -121,6 +141,26 @@ export function CustomerForm({
               if (parsed.cityCode) setCityCode(parsed.cityCode);
               if (parsed.status) setStatus(parsed.status);
               if (parsed.remarks) setRemarks(parsed.remarks);
+
+              // Load account fields
+              if (parsed.accountName) setAccountName(parsed.accountName);
+              if (parsed.accountNumber) setAccountNumber(parsed.accountNumber);
+              if (parsed.manualReference) setManualReference(parsed.manualReference);
+              if (parsed.branchName) setBranchName(parsed.branchName);
+              if (parsed.branchCode) setBranchCode(parsed.branchCode);
+              if (parsed.cityBranch) setCityBranch(parsed.cityBranch);
+
+              // Load company fields
+              if (parsed.companyName) setCompanyName(parsed.companyName);
+              if (parsed.companyRegNo) setCompanyRegNo(parsed.companyRegNo);
+              if (parsed.companyTaxNo) setCompanyTaxNo(parsed.companyTaxNo);
+              if (parsed.companyBusinessType) setCompanyBusinessType(parsed.companyBusinessType);
+              if (parsed.companyPhone) setCompanyPhone(parsed.companyPhone);
+              if (parsed.companyEmail) setCompanyEmail(parsed.companyEmail);
+              if (parsed.companyCountry) setCompanyCountry(parsed.companyCountry);
+              if (parsed.companyCity) setCompanyCity(parsed.companyCity);
+              if (parsed.companyState) setCompanyState(parsed.companyState);
+              if (parsed.companyAddress) setCompanyAddress(parsed.companyAddress);
 
               // Backwards compatibility for dynamic lists
               if (parsed.contacts && Array.isArray(parsed.contacts)) {
@@ -170,10 +210,64 @@ export function CustomerForm({
   const districtName = locationMeta.district?.name ?? "";
   const city = locationMeta.city?.name ?? "";
 
+  // Sync utilities for dynamic prefilling
+  useEffect(() => {
+    const fullName = customerType === "Business" ? businessName : `${firstName} ${lastName}`.trim();
+    if (fullName) {
+      setAccountName((prev) => prev || fullName);
+      if (customerType === "Business") {
+        setCompanyName((prev) => prev || fullName);
+      }
+    }
+  }, [customerType, businessName, firstName, lastName]);
+
+  useEffect(() => {
+    if (country) {
+      setCompanyCountry((prev) => prev || country);
+    }
+  }, [country]);
+
+  useEffect(() => {
+    if (city) {
+      setCompanyCity((prev) => prev || city);
+      setCityBranch((prev) => prev || city);
+    }
+  }, [city]);
+
+  useEffect(() => {
+    if (stateName) {
+      setCompanyState((prev) => prev || stateName);
+    }
+  }, [stateName]);
+
+  useEffect(() => {
+    if (address) {
+      setCompanyAddress((prev) => prev || address);
+    }
+  }, [address]);
+
+  useEffect(() => {
+    const emailVal = contacts.find(c => c.type === "Email")?.value || "";
+    if (emailVal) {
+      setCompanyEmail((prev) => prev || emailVal);
+    }
+  }, [contacts]);
+
+  useEffect(() => {
+    const phoneVal = contacts.find(c => ["Mobile", "WhatsApp", "Landline", "Office"].includes(c.type))?.value || "";
+    if (phoneVal) {
+      setCompanyPhone((prev) => prev || phoneVal);
+    }
+  }, [contacts]);
+
   // Auto-fill City Code when city selects
   useEffect(() => {
     if (locationMeta.city?.zip_code) {
       setCityCode(locationMeta.city.zip_code);
+    }
+    if (locationMeta.city?.name) {
+      setBranchName((prev) => prev || locationMeta.city!.name + " Branch");
+      setBranchCode((prev) => prev || locationMeta.city!.name.substring(0, 3).toUpperCase());
     }
   }, [locationMeta.city]);
 
@@ -236,7 +330,27 @@ export function CustomerForm({
         upload: d.upload
       })),
       status,
-      remarks
+      remarks,
+      
+      // Separate Account Details
+      accountName,
+      accountNumber,
+      manualReference,
+      branchName,
+      branchCode,
+      cityBranch,
+      
+      // Separate Company Details
+      companyName,
+      companyRegNo,
+      companyTaxNo,
+      companyBusinessType,
+      companyPhone,
+      companyEmail,
+      companyCountry,
+      companyCity,
+      companyState,
+      companyAddress
     };
 
     // Keep primary contacts mapped to standard columns for db-level searches
@@ -408,6 +522,113 @@ export function CustomerForm({
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-slate-700">{getLabel("fullAddress", lang)} *</Label>
                   <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Enter full address" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Customer Account Details Card */}
+            <Card className="rounded-xl border shadow-sm bg-white overflow-hidden">
+              <div className="border-b px-5 py-4 bg-slate-50 flex items-center gap-2">
+                <FileText className="h-4.5 w-4.5 text-teal-600" />
+                <h2 className="font-semibold text-slate-800 text-sm">Customer Account Details</h2>
+              </div>
+              <CardContent className="p-5 space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Account Name</Label>
+                  <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="Account Display Name" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                </div>
+                <div className="grid gap-3 grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Account Number</Label>
+                    <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="e.g. 100-200-301" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Manual Reference</Label>
+                    <Input value={manualReference} onChange={(e) => setManualReference(e.target.value)} placeholder="Manual Reference No." className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                </div>
+                <div className="grid gap-3 grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Branch Name</Label>
+                    <Input value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="e.g. Lahore Branch" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Branch Code</Label>
+                    <Input value={branchCode} onChange={(e) => setBranchCode(e.target.value)} placeholder="e.g. LHR" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">City Branch</Label>
+                    <Input value={cityBranch} onChange={(e) => setCityBranch(e.target.value)} placeholder="City Branch Location" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Customer Company Details Card */}
+            <Card className="rounded-xl border shadow-sm bg-white overflow-hidden">
+              <div className="border-b px-5 py-4 bg-slate-50 flex items-center gap-2">
+                <Building2 className="h-4.5 w-4.5 text-teal-600" />
+                <h2 className="font-semibold text-slate-800 text-sm">Customer Company Details</h2>
+              </div>
+              <CardContent className="p-5 space-y-4">
+                <div className="grid gap-3 grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Company Name</Label>
+                    <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Official Legal Entity Name" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Business Type</Label>
+                    <select
+                      value={companyBusinessType}
+                      onChange={(e) => setCompanyBusinessType(e.target.value)}
+                      className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20"
+                    >
+                      <option value="Sole Proprietorship">Sole Proprietorship</option>
+                      <option value="Partnership">Partnership</option>
+                      <option value="LLP">LLP</option>
+                      <option value="LLC">LLC</option>
+                      <option value="Private Limited">Private Limited</option>
+                      <option value="Public Limited">Public Limited</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid gap-3 grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Registration Number</Label>
+                    <Input value={companyRegNo} onChange={(e) => setCompanyRegNo(e.target.value)} placeholder="Company Registration Number" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Tax / NTN Number</Label>
+                    <Input value={companyTaxNo} onChange={(e) => setCompanyTaxNo(e.target.value)} placeholder="NTN or Tax ID Number" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                </div>
+                <div className="grid gap-3 grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Phone Number</Label>
+                    <Input value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} placeholder="Company Contact Phone" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Email Address</Label>
+                    <Input value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} placeholder="company@domain.com" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                </div>
+                <div className="grid gap-3 grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Country</Label>
+                    <Input value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value)} placeholder="Country name" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">State / Province</Label>
+                    <Input value={companyState} onChange={(e) => setCompanyState(e.target.value)} placeholder="State/Province name" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">City</Label>
+                    <Input value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} placeholder="City name" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Complete Address</Label>
+                  <Input value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} placeholder="Full company office address" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
                 </div>
               </CardContent>
             </Card>

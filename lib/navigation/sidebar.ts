@@ -18,7 +18,8 @@ export type SidebarIconKey =
   | "message-square"
   | "mail"
   | "bell"
-  | "palette";
+  | "palette"
+  | "search";
 
 export type SidebarNode = {
   key: string;
@@ -79,6 +80,12 @@ export const sidebarTree: SidebarNode[] = [
         roles: ["super_admin"]
       }
     ]
+  },
+  {
+    key: "search-portal",
+    labelKey: "nav.search_portal",
+    iconKey: "search",
+    href: "/dashboard/search" as Route
   },
   {
     key: "branch",
@@ -371,6 +378,13 @@ export const sidebarTree: SidebarNode[] = [
         ]
       }
     ]
+  },
+  {
+    key: "purchase-booking-register-main",
+    labelKey: "nav.purchase_booking_register",
+    iconKey: "clipboard-list",
+    href: "/dashboard/purchase/purchase-booking-journal-report" as Route,
+    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
   },
   {
     key: "sales",

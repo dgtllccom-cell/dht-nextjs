@@ -5,7 +5,12 @@ import {
   BookOpen,
   CheckCircle2,
   ClipboardList,
-  Save
+  Save,
+  Printer,
+  FileText,
+  FileSpreadsheet,
+  Mail,
+  MessageCircle
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -247,9 +252,36 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
     fetch(`/api/erp/companies/${linkedCompanyId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && json?.ok && json?.company) setCompanyDetail(json.company);
+        if (cancelled) return;
+        let comp = json?.company || {};
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem("incorporated_companies");
+          if (stored) {
+            try {
+              const list = JSON.parse(stored);
+              const found = list.find((c: any) => c.id === linkedCompanyId);
+              if (found) comp = { ...comp, ...found };
+            } catch (e) {}
+          }
+        }
+        if (json?.ok && json?.company) {
+          setCompanyDetail(comp);
+        } else if (comp.id) {
+          setCompanyDetail(comp);
+        }
       })
-      .catch(() => null);
+      .catch(() => {
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem("incorporated_companies");
+          if (stored) {
+            try {
+              const list = JSON.parse(stored);
+              const found = list.find((c: any) => c.id === linkedCompanyId);
+              if (found && !cancelled) setCompanyDetail(found);
+            } catch (e) {}
+          }
+        }
+      });
     return () => { cancelled = true; };
   }, [linkedCompanyId]);
 
@@ -257,10 +289,10 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
   useEffect(() => {
     if (!linkedBankId) { setBankDetail(null); return; }
     let cancelled = false;
-    fetch(`/api/erp/companies/${linkedBankId}`)
+    fetch(`/api/erp/banks/${linkedBankId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && json?.ok && json?.company) setBankDetail(json.company);
+        if (!cancelled && json?.ok && json?.data?.bank) setBankDetail(json.data.bank);
       })
       .catch(() => null);
     return () => { cancelled = true; };
@@ -392,6 +424,9 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
             : cityBranches.find((item) => item.id === branch)?.country_branch_id ?? mainBranches[0]?.id ?? null,
         cityBranchId: branchType === "City" ? branch : null,
         parentId: null,
+        customerId: linkedCustomerId,
+        companyId: linkedCompanyId,
+        bankId: linkedBankId,
         code: "AUTO",
         manualReferenceNumber: manualReferenceNumber.trim() || null,
         name: accountName.trim(),

@@ -240,6 +240,19 @@ export function CashEntryForm({
     debitRate?: number;
   } | null>(null);
 
+  const [pakistanRate, setPakistanRate] = useState<{
+    buyRate?: number;
+    sellRate?: number;
+    creditRate?: number;
+    debitRate?: number;
+    effectiveDate?: string | null;
+    lastUpdatedBy?: string;
+  } | null>(null);
+
+  const [activeCreator, setActiveCreator] = useState<string>("");
+  const [activeApprover, setActiveApprover] = useState<string>("");
+  const [activeStatus, setActiveStatus] = useState<string>("");
+
   const [paymentType, setPaymentType] = useState<"" | "bank" | "business" | "invoice" | "cash" | "transfer">("");
   const [paymentMode, setPaymentMode] = useState<"" | "DEBIT" | "CREDIT">("");
   const [finalPayment, setFinalPayment] = useState("");
@@ -636,6 +649,26 @@ export function CashEntryForm({
     };
   }, []);
 
+  // Fetch Pakistan daily USD rates
+  useEffect(() => {
+    if (!countries.length) return;
+    const pak = countries.find(c => c.name.toLowerCase() === "pakistan" || c.currency_code === "PKR");
+    if (!pak) return;
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          countryId: pak.id,
+          currency: "USD",
+          branchCurrency: "PKR"
+        });
+        const res = await apiGet<any>(`/api/erp/currency/latest-rate?${params.toString()}`);
+        setPakistanRate(res);
+      } catch (err) {
+        console.error("Failed to fetch Pakistan exchange rates", err);
+      }
+    })();
+  }, [countries]);
+
   // Load saved bank/method options (local cache until management setup tables are wired in).
   useEffect(() => {
     setSavedBanks(readLocalBankList(SAVED_BANKS_KEY));
@@ -879,6 +912,9 @@ export function CashEntryForm({
     setExchangeRate("1");
     setAttachmentFile(null);
     setSavedSerials(null);
+    setActiveCreator("");
+    setActiveApprover("");
+    setActiveStatus("");
   }
 
   function resetPaymentDraft() {
@@ -982,6 +1018,15 @@ export function CashEntryForm({
     writeLocalList(SAVED_METHODS_KEY, next);
     if (typeDetails.method === oldName) {
       setTypeDetails((prev) => ({ ...prev, method: cleanedNew }));
+    }
+  }
+
+  function deleteCustomMethod(name: string) {
+    const next = savedMethods.filter((m) => m !== name);
+    setSavedMethods(next);
+    writeLocalList(SAVED_METHODS_KEY, next);
+    if (typeDetails.method === name) {
+      setTypeDetails((prev) => ({ ...prev, method: "" }));
     }
   }
 
@@ -1160,6 +1205,10 @@ export function CashEntryForm({
       country: row.country_transaction_serial_number,
       branch: row.branch_transaction_serial_number
     });
+
+    setActiveCreator(row.profiles?.full_name || "Muhammad Asmatullah");
+    setActiveApprover(row.approver_profile?.full_name || (row.status === "approved" ? "Approved" : "Pending"));
+    setActiveStatus(row.status || "posted");
     
     setMessage(`Editing entry serials: ${[row.super_admin_serial_number, row.country_transaction_serial_number, row.branch_transaction_serial_number].filter(Boolean).join(" / ")}`);
     
@@ -1313,6 +1362,9 @@ export function CashEntryForm({
         country: res.countryTransactionSerialNumber,
         branch: res.branchTransactionSerialNumber
       });
+      setActiveCreator(session?.user?.fullName || "Muhammad Asmatullah");
+      setActiveApprover(res.balanced ? "System / Auto Approved" : "Pending");
+      setActiveStatus("posted");
       const serialText = [res.superAdminSerialNumber, res.countryTransactionSerialNumber, res.branchTransactionSerialNumber]
         .filter(Boolean)
         .join(" / ");
@@ -1706,31 +1758,47 @@ export function CashEntryForm({
                       </div>
                     </div>
 
-                    {/* Country specific exchange rates table */}
-                    <div className="border-t border-slate-100 pt-3 dark:border-slate-800">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 mb-2 font-black">
-                        🟢 {(selectedCountry?.name || "Pakistan").toUpperCase()} EXCHANGE RATES (Today)
+                    {/* Pakistan Exchange Rates Card */}
+                    <div className="border-t border-slate-100 pt-4 mt-4 dark:border-slate-800 space-y-3">
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-805 dark:text-emerald-400 flex items-center gap-1.5">
+                        🇵🇰 Pakistan Exchange Rates (Approved)
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50/50 p-3 rounded-lg border border-slate-100 dark:bg-slate-900/40 dark:border-slate-800">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Currency</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200">USD / PKR</span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Effective Date</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
+                            {pakistanRate?.effectiveDate || entryDate.split("-").reverse().join("/") || "Today"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Debit Rate (Buy)</span>
+                          <span className="font-extrabold text-emerald-700 dark:text-emerald-400 font-mono">
+                            {pakistanRate?.debitRate ? pakistanRate.debitRate.toFixed(4) : "278.2500"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Credit Rate (Sell)</span>
+                          <span className="font-extrabold text-emerald-700 dark:text-emerald-400 font-mono">
+                            {pakistanRate?.creditRate ? pakistanRate.creditRate.toFixed(4) : "279.7500"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Budget Rate</span>
+                          <span className="font-extrabold text-blue-700 dark:text-blue-400 font-mono">
+                            {pakistanRate?.buyRate ? ((pakistanRate.buyRate + (pakistanRate.sellRate || pakistanRate.buyRate)) / 2).toFixed(4) : "279.0000"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Last Updated By</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 truncate block max-w-[120px]" title={pakistanRate?.lastUpdatedBy || "System"}>
+                            {pakistanRate?.lastUpdatedBy || "System"}
+                          </span>
+                        </div>
                       </div>
-                      <table className="w-full text-xs text-left border border-slate-100 dark:border-slate-800">
-                        <thead>
-                          <tr className="bg-slate-50 dark:bg-slate-900 text-[10px] uppercase font-black text-slate-400">
-                            <th className="px-3 py-1.5 border-b">Currency</th>
-                            <th className="px-3 py-1.5 border-b text-right">Debit Rate</th>
-                            <th className="px-3 py-1.5 border-b text-right">Credit Rate</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="font-semibold text-slate-700 dark:text-slate-350">
-                            <td className="px-3 py-1.5">USD (US Dollar)</td>
-                            <td className="px-3 py-1.5 text-right font-mono">
-                              {((dailyUsdRates?.debitRate || dailyUsdRates?.buyingRate) ?? (branchCurrency === "PKR" ? 278.25 : branchCurrency === "AFN" ? 72.30 : 1)).toFixed(4)}
-                            </td>
-                            <td className="px-3 py-1.5 text-right font-mono">
-                              {((dailyUsdRates?.creditRate || dailyUsdRates?.sellingRate) ?? (branchCurrency === "PKR" ? 279.75 : branchCurrency === "AFN" ? 72.90 : 1)).toFixed(4)}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
                     </div>
                   </div>
 
@@ -1799,27 +1867,62 @@ export function CashEntryForm({
                       </div>
                     </div>
 
-                    {/* Triple Serial Sequence Table */}
-                    <div className="border-t border-slate-100 pt-3 dark:border-slate-800">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">
-                        ⚙️ Serial Numbers (Triple Sequence Tracking)
+                    {/* Transaction Information Card */}
+                    <div className="border-t border-slate-100 pt-4 mt-4 dark:border-slate-800 space-y-3">
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-400 flex items-center gap-1.5">
+                        📝 Transaction Information
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3 text-xs bg-blue-50/20 p-3 rounded-lg border border-blue-100/50 dark:bg-slate-900/40 dark:border-slate-800">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Journal Serial No.</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
+                            {savedSerials?.superAdmin || "—"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Country Serial No.</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
+                            {savedSerials?.country || "—"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Branch Serial No.</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
+                            {savedSerials?.branch || "—"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Transaction Date</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
+                            {entryDate.split("-").reverse().join("/")}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Created By</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 truncate block max-w-[120px]" title={activeCreator || session?.user?.fullName || "Current User"}>
+                            {activeCreator || session?.user?.fullName || "Current User"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Approved By</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 truncate block max-w-[120px]" title={activeApprover || "Pending"}>
+                            {activeApprover || "Pending"}
+                          </span>
+                        </div>
+                        <div className="col-span-2 space-y-0.5">
+                          <span className="font-bold text-slate-500 block text-[10px]">Approval Status</span>
+                          <span className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider border",
+                            activeStatus === "approved"
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400"
+                              : activeStatus === "cancelled"
+                              ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-800 dark:text-rose-400"
+                              : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-400"
+                          )}>
+                            {activeStatus || "Draft"}
+                          </span>
+                        </div>
                       </div>
-                      <table className="w-full text-xs text-left border border-slate-100 dark:border-slate-800">
-                        <thead>
-                          <tr className="bg-slate-50 dark:bg-slate-900 text-[10px] uppercase font-black text-slate-400">
-                            <th className="px-3 py-1.5 border-b text-center">Journal Serial No.</th>
-                            <th className="px-3 py-1.5 border-b text-center">Country Serial No.</th>
-                            <th className="px-3 py-1.5 border-b text-center">Branch Serial No.</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="font-semibold text-center text-slate-700 dark:text-slate-350">
-                            <td className="px-3 py-1.5 font-mono">{savedSerials?.superAdmin || "—"}</td>
-                            <td className="px-3 py-1.5 font-mono">{savedSerials?.country || "—"}</td>
-                            <td className="px-3 py-1.5 font-mono">{savedSerials?.branch || "—"}</td>
-                          </tr>
-                        </tbody>
-                      </table>
                     </div>
                   </div>
                 </div>

@@ -5,6 +5,14 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { auditApiAction } from "@/lib/api/audit";
 import { allPermissionGroupKeys } from "@/lib/permissions/catalog";
 import { linkEmailAccount } from "@/lib/api/email-link";
+import { translateToUrdu } from "@/lib/api/response";
+
+function formatError(message: string, isSuperAdmin: boolean) {
+  if (isSuperAdmin) {
+    return `بھائی اس میں یہ خرابی ہے: ${translateToUrdu(message)}`;
+  }
+  return message;
+}
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -142,8 +150,10 @@ export async function POST(request: Request) {
     if (existingMainBranch?.id) {
       return NextResponse.json(
         {
-          error:
+          error: formatError(
             "A main branch already exists for this country. Select this existing main branch when creating city branches, or choose another country to create its main branch.",
+            session.isSuperAdmin
+          ),
           existingBranch: existingMainBranch
         },
         { status: 409 }
@@ -178,7 +188,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.from("country_branches").insert(payload).select("id").single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+      return NextResponse.json({ error: formatError(error.message, session.isSuperAdmin) }, { status: 403 });
     }
 
     // Link/Upsert central email account
@@ -202,7 +212,9 @@ export async function POST(request: Request) {
     if (error instanceof ErpAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Server error" }, { status: 500 });
+    const isSuperAdmin = typeof session !== "undefined" && (session as any)?.isSuperAdmin;
+    const msg = error instanceof Error ? error.message : "Server error";
+    return NextResponse.json({ error: formatError(msg, isSuperAdmin) }, { status: 500 });
   }
 }
 
@@ -290,7 +302,7 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+      return NextResponse.json({ error: formatError(error.message, session.isSuperAdmin) }, { status: 403 });
     }
 
     // Link/Upsert central email account
@@ -314,6 +326,8 @@ export async function PUT(request: Request) {
     if (error instanceof ErpAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Server error" }, { status: 500 });
+    const isSuperAdmin = typeof session !== "undefined" && (session as any)?.isSuperAdmin;
+    const msg = error instanceof Error ? error.message : "Server error";
+    return NextResponse.json({ error: formatError(msg, isSuperAdmin) }, { status: 500 });
   }
 }

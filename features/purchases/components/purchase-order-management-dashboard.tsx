@@ -16,6 +16,8 @@ import {
   FileSpreadsheet,
   FileText,
   Landmark,
+  Mail,
+  MessageSquare,
   MoreVertical,
   PackageCheck,
   Printer,
@@ -29,6 +31,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
+import { DetailDrawer } from "@/components/ui/detail-drawer";
 
 type PurchaseReport = {
   id: string;
@@ -55,6 +59,12 @@ type PurchaseReport = {
   branchName: string;
   countryName: string;
   createdAt: string;
+  totalGrossWeight?: number;
+  totalNetWeight?: number;
+  purchaseAmount?: number;
+  finalAmount?: number;
+  form_data?: any;
+  supplier_company_id?: string;
   audit: {
     userName: string;
     userId: string;
@@ -202,6 +212,18 @@ function date(value: string | null | undefined) {
   return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString("en-GB");
 }
 
+function openReportWindow(report: PurchaseReport, autoPrint: boolean) {
+  openPurchaseA4ReportWindow({
+    title: "Purchase Booking Order",
+    subtitle: "DGT Accounts Purchase Registry",
+    purchaseData: {
+      ...report,
+      audit: report.audit || { userName: "Admin User", userId: "USR-001", branchCode: "QTA-001" }
+    },
+    autoPrint
+  });
+}
+
 function unique(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
@@ -293,6 +315,19 @@ function makeContainers(row: PurchaseReport) {
   }));
 }
 
+function StatusBadge({ label }: { label: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors",
+        statusClass(label)
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 function csvEscape(value: string) {
   if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;
@@ -300,38 +335,38 @@ function csvEscape(value: string) {
 
 function downloadCsv(rows: PurchaseReport[]) {
   const headers = [
-    "Serial No",
-    "PO Number",
-    "Date",
-    "Country",
-    "Branch",
-    "Supplier",
-    "Product",
-    "Quantity",
-    "Amount",
-    "Advance Payment",
-    "Remaining Payment",
-    "Containers",
-    "Shipment Status",
-    "Inventory Status",
-    "Final Status"
+    "Global Serial Number",
+    "Company Serial Number",
+    "Branch Serial Number",
+    "Booking Date",
+    "Created By (User Name)",
+    "Purchase Code",
+    "Sales Code",
+    "Goods Description",
+    "Origin Country",
+    "Total Quantity",
+    "Total Gross Weight",
+    "Total Net Weight",
+    "Purchase Amount",
+    "Final Amount",
+    "Status"
   ];
   const body = rows.map((row, index) =>
     [
       String(index + 1),
+      row.form_data?.form?.companyCode || "COM-" + (row.supplier_company_id?.slice(0, 4).toUpperCase() || "DGT"),
+      row.audit?.branchCode || "-",
+      date(row.bookingDate || row.purchaseDate || row.createdAt),
+      row.audit?.userName || "-",
       row.purchaseBookingOrderNumber,
-      date(row.purchaseDate),
-      row.countryName,
-      row.branchName,
-      row.supplierName,
-      row.productName,
+      row.form_data?.form?.salesOrderNo || "-",
+      row.goodsDescription || "-",
+      row.form_data?.goodsEntries?.[0]?.origin || row.countryName || "-",
       `${number(row.quantity)} ${row.unit}`,
-      `${money(row.totalPurchaseAmount)} ${row.currency}`,
-      `${money(advancePayment(row))} ${row.currency}`,
-      `${money(remainingPayment(row))} ${row.currency}`,
-      String(row.containerCount),
-      shipmentStatus(row),
-      inventoryStatus(row),
+      `${number(row.totalGrossWeight)} kg`,
+      `${number(row.totalNetWeight)} kg`,
+      `${money(row.purchaseAmount)} ${row.currency}`,
+      `${money(row.finalAmount)} ${row.form_data?.form?.secondaryCurrency?.split(" ")[0] || "PKR"}`,
       row.status
     ].map(csvEscape).join(",")
   );
@@ -339,7 +374,7 @@ function downloadCsv(rows: PurchaseReport[]) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `purchase-order-master-report-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.download = `purchase-transfer-master-report-${new Date().toISOString().slice(0, 10)}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -397,7 +432,7 @@ function PurchaseReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[];
   );
 }
 
-function PurchaseRowActionsMenu({ onSelect, onEdit }: { onSelect: () => void; onEdit: () => void }) {
+function PurchaseRowActionsMenu({ onSelect, onEdit, onPrint, onExportPdf }: { onSelect: () => void; onEdit: () => void; onPrint: () => void; onExportPdf: () => void }) {
   return (
     <details className="relative inline-block">
       <summary className="grid h-8 w-8 cursor-pointer list-none place-items-center rounded-lg border border-slate-200 bg-background hover:bg-muted dark:border-slate-800 [&::-webkit-details-marker]:hidden" aria-label="Row actions" title="Row actions">
@@ -411,8 +446,8 @@ function PurchaseRowActionsMenu({ onSelect, onEdit }: { onSelect: () => void; on
         <ActionItem icon={<Container />} label="Container Details" onClick={onSelect} />
         <ActionItem icon={<FileText />} label="Documents" onClick={onSelect} />
         <ActionItem icon={<ClipboardList />} label="Timeline" onClick={onSelect} />
-        <ActionItem icon={<Printer />} label="Print" onClick={() => window.print()} />
-        <ActionItem icon={<Download />} label="Export PDF" onClick={() => window.print()} />
+        <ActionItem icon={<Printer />} label="Print" onClick={onPrint} />
+        <ActionItem icon={<Download />} label="Export PDF" onClick={onExportPdf} />
       </div>
     </details>
   );
@@ -431,6 +466,8 @@ export function PurchaseOrderManagementDashboard() {
   const router = useRouter();
   const [reports, setReports] = useState<PurchaseReport[]>([]);
   const [selectedId, setSelectedId] = useState("");
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [transferring, setTransferring] = useState(false);
   const [loading, setLoading] = useState(true);
   const [warning, setWarning] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -447,6 +484,15 @@ export function PurchaseOrderManagementDashboard() {
     containerStatus: "all",
     dateRange: "all"
   });
+  const [transferDropdownOpen, setTransferDropdownOpen] = useState(false);
+  const [moreActionsDropdownOpen, setMoreActionsDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isDrawerOpen) {
+      setTransferDropdownOpen(false);
+      setMoreActionsDropdownOpen(false);
+    }
+  }, [isDrawerOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -510,6 +556,44 @@ export function PurchaseOrderManagementDashboard() {
       setSelectedId((current) => current || sortedSample[0]?.id || "");
     } finally { setLoading(false); }
   }
+
+  const handleTransfer = async () => {
+    if (!selected) return;
+    setTransferring(true);
+    try {
+      const updatedFormData = {
+        ...(selected.form_data || {}),
+        workflow: {
+          ...(selected.form_data?.workflow || {}),
+          lifecycleStatus: "Booking Confirmed",
+          paymentStatus: "Advance Paid"
+        }
+      };
+
+      const response = await fetch(`/api/erp/purchases/orders/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formData: updatedFormData,
+          ledgerPostingStatus: "Posted",
+          paymentStatus: "Partial"
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || "Transfer failed.");
+      }
+
+      setIsDrawerOpen(false);
+      await loadReports();
+      alert("Purchase Booking transferred and posted successfully!");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error transferring booking.");
+    } finally {
+      setTransferring(false);
+    }
+  };
 
   useEffect(() => { void loadReports(); }, []);
 
@@ -592,25 +676,133 @@ export function PurchaseOrderManagementDashboard() {
 
   return (
     <div className="space-y-6 text-slate-900 dark:text-slate-100">
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 p-6 text-white shadow-xl dark:border-slate-800">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-blue-400 border border-blue-500/20">Logistics ERP Master Console</span>
-              {!isSuperAdmin && <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-bold text-amber-400 border border-amber-500/20"><span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />Scoped Session Mode</span>}
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-12 items-center">
+          
+          {/* Left Column: Title & Description */}
+          <div className="lg:col-span-4 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-blue-600 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900">
+                Logistics ERP Master Console
+              </span>
+              {!isSuperAdmin && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Scoped Session Mode
+                </span>
+              )}
             </div>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Purchase Transfer Payment</h1>
-            <p className="mt-1.5 text-sm text-slate-400 max-w-2xl">SAP S/4HANA style linear tracking of bookings, payment stages, container loads, customs clearance, and ledger integrations.</p>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+              Purchase Transfer Payment
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed">
+              SAP S/4HANA style linear tracking of bookings, payment stages, container loads, customs clearance, and ledger integrations.
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 xl:justify-end">
-            <div className="relative min-w-[280px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Search PO#, Supplier, Brand..." className="h-10 w-full rounded-xl border border-slate-800 bg-slate-950/80 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none focus:border-blue-500 transition-all shadow-inner" />
+
+          {/* Middle Column: Summary Metrics Strips */}
+          <div className="lg:col-span-5 flex flex-col gap-2">
+            {/* Strip 1: 4 Metrics */}
+            <div className="grid grid-cols-4 gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+              {[
+                { label: "Booking Pending", value: lifecycleTotals.bookings, color: "text-amber-600 dark:text-amber-400" },
+                { label: "Confirmed PO", value: lifecycleTotals.confirmed, color: "text-blue-600 dark:text-blue-400" },
+                { label: "Total Containers", value: totals.totalContainers, color: "text-slate-700 dark:text-slate-300" },
+                { label: "Total Purchase", value: `${money(totals.totalAmount)}`, color: "text-slate-900 dark:text-white" }
+              ].map((item, idx) => (
+                <div key={idx} className="flex flex-col items-center justify-center text-center">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate w-full">
+                    {item.label}
+                  </span>
+                  <span className={cn("text-xs font-black mt-0.5", item.color)}>
+                    {item.value}
+                  </span>
+                </div>
+              ))}
             </div>
-            <Button size="sm" variant="outline" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} className="h-10 px-4 border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-200"><SlidersHorizontal className="mr-2 h-4 w-4" />Filter Matrix<ChevronDown className={cn("ml-1.5 h-4 w-4 transition", filtersOpen && "rotate-180")} /></Button>
-            <Button size="sm" variant="outline" onClick={resetFilters} className="h-10 px-4 border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-200"><RefreshCw className="mr-2 h-4 w-4" />Reset</Button>
-            <PurchaseReportActionsMenu rows={filtered} onExport={() => downloadCsv(filtered)} />
+
+            {/* Strip 2: 4 Metrics */}
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: "Remaining Due", value: `${money(totals.totalRemaining)}`, color: "text-rose-600 dark:text-rose-400" },
+                { label: "Transit Cargo", value: totals.inTransit, color: "text-sky-600 dark:text-sky-400" },
+                { label: "Warehouse Balance", value: lifecycleTotals.warehouse, color: "text-emerald-600 dark:text-emerald-400" },
+                { label: "Delivered Balance", value: lifecycleTotals.delivered, color: "text-teal-600 dark:text-teal-400" }
+              ].map((item, idx) => (
+                <div key={idx} className="flex flex-col items-center justify-center text-center">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate w-full">
+                    {item.label}
+                  </span>
+                  <span className={cn("text-xs font-black mt-0.5", item.color)}>
+                    {item.value}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
+
+          {/* Right Column: Controls Stacked Vertically */}
+          <div className="lg:col-span-3 flex flex-col gap-2">
+            {/* Dropdown (Selector on Top) */}
+            <div className="relative w-full">
+              <select
+                value={activeTab}
+                onChange={(event) => setActiveTab(event.target.value as LifecycleTab)}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition cursor-pointer dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
+                title="Select Stage"
+              >
+                {lifecycleTabs.map((tab) => {
+                  const count = tab === "Dashboard Overview"
+                    ? reports.length
+                    : tab === "Stock Management"
+                      ? reports.filter(r => stockStage(r)).length
+                      : reports.filter(r => lifecycleStage(r) === tab).length;
+                  return (
+                    <option key={tab} value={tab} className="text-slate-900 dark:text-slate-100 dark:bg-slate-950">
+                      {tab} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Search Input (Below Dropdown) */}
+            <div className="relative w-full">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Search PO#, Supplier..."
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500 transition shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:placeholder-slate-500"
+              />
+            </div>
+
+            {/* Actions (Filter, Reset, More actions) */}
+            <div className="flex items-center gap-1.5 w-full">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+                className="h-9 flex-1 px-2.5 text-[11px] font-bold border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-350"
+              >
+                <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5 text-slate-500" />
+                Filter Matrix
+                <ChevronDown className={cn("ml-1.5 h-3.5 w-3.5 transition text-slate-500", filtersOpen && "rotate-180")} />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={resetFilters}
+                className="h-9 px-2.5 text-[11px] font-bold border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-350"
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5 text-slate-500" />
+                Reset
+              </Button>
+              <PurchaseReportActionsMenu rows={filtered} onExport={() => downloadCsv(filtered)} />
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -643,32 +835,9 @@ export function PurchaseOrderManagementDashboard() {
         </section>
       ) : null}
 
-      {warning ? <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">{warning}</div> : null}
+      {warning ? <div className="rounded-xl border border-amber-350 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">{warning}</div> : null}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
-          {lifecycleTabs.map((tab) => {
-            const count = tab === "Dashboard Overview" ? reports.length : tab === "Stock Management" ? reports.filter(r => stockStage(r)).length : reports.filter(r => lifecycleStage(r) === tab).length;
-            return (
-              <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cn("whitespace-nowrap rounded-xl border px-4 py-2.5 text-xs font-extrabold transition-all flex items-center gap-2", activeTab === tab ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-500/25" : "border-slate-100 bg-slate-50/50 text-slate-600 hover:border-blue-300 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300")}>
-                {tab}
-                <span className={cn("inline-flex h-5 items-center justify-center rounded-md px-1.5 text-[10px] font-black leading-none", activeTab === tab ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700 dark:bg-slate-850 dark:text-slate-350")}>{count}</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
-        <DashboardCard icon={<ClipboardList className="h-5 w-5" />} label="Booking Pend" value={String(lifecycleTotals.bookings)} />
-        <DashboardCard icon={<CheckCircle2 className="h-5 w-5" />} label="Confirmed PO" value={String(lifecycleTotals.confirmed)} />
-        <DashboardCard icon={<Container className="h-5 w-5" />} label="Total Containers" value={String(totals.totalContainers)} />
-        <DashboardCard icon={<BadgeDollarSign className="h-5 w-5" />} label="Total Purchase" value={`${money(totals.totalAmount)}`} />
-        <DashboardCard icon={<WalletCards className="h-5 w-5" />} label="Remaining Due" value={`${money(totals.totalRemaining)}`} />
-        <DashboardCard icon={<Ship className="h-5 w-5" />} label="Transit Cargo" value={String(totals.inTransit)} />
-        <DashboardCard icon={<Landmark className="h-5 w-5" />} label="Warehouse Bal" value={String(lifecycleTotals.warehouse)} />
-        <DashboardCard icon={<Boxes className="h-5 w-5" />} label="Delivered Bal" value={String(lifecycleTotals.delivered)} />
-      </div>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <div className="flex flex-wrap items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
@@ -681,59 +850,414 @@ export function PurchaseOrderManagementDashboard() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1550px] text-sm">
             <thead className="bg-black text-xs font-bold uppercase tracking-wider text-white">
-              <tr>{["SR#", "Booking Order Number", "PO Number", "Date", "Country", "Branch Scope", "Supplier", "Goods Spec", "Qty Ordered", "Total Amount", "Total Payment", "Remaining Pay", "Containers", "Cargo Status", "Inventory Status", "Final Status", "Workflow Link"].map((header) => <th key={header} className="px-3.5 py-3.5 text-left border-b border-slate-800">{header}</th>)}</tr>
+              <tr>
+                {[
+                  "GS No.",
+                  "CS No.",
+                  "BS No.",
+                  "Booking Date",
+                  "Created By",
+                  "Purchase Code",
+                  "Sales Code",
+                  "Goods Desc.",
+                  "Origin",
+                  "Total Qty",
+                  "Total G. Wt",
+                  "Total N. Wt",
+                  "Purchase Amt",
+                  "Final Amt",
+                  "Status",
+                  "View"
+                ].map((header) => (
+                  <th key={header} className="px-3.5 py-3.5 text-left border-b border-slate-800 whitespace-nowrap">
+                    {header}
+                  </th>
+                ))}
+              </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
               {filtered.map((row, index) => {
                 const isPoSelected = selected?.id === row.id;
-                const containerCount = Number(row.containerCount || 0);
+                const companySerial = row.form_data?.form?.companyCode || "COM-" + (row.supplier_company_id?.slice(0, 4).toUpperCase() || "DGT");
+                const branchSerial = row.audit?.branchCode || "-";
+                const bookingDate = date(row.bookingDate || row.purchaseDate || row.createdAt);
+                const userName = row.audit?.userName || "-";
+                const salesCode = row.form_data?.form?.salesOrderNo || "-";
+                const originCountry = row.form_data?.goodsEntries?.[0]?.origin || row.countryName || "-";
+                const displayQty = `${number(row.quantity)} ${row.unit || ""}`;
+                const grossWeight = `${number(row.totalGrossWeight)} kg`;
+                const netWeight = `${number(row.totalNetWeight)} kg`;
+                const purchaseAmt = `${money(row.purchaseAmount)} ${row.currency}`;
+                const finalAmt = `${money(row.finalAmount)} ${row.form_data?.form?.secondaryCurrency?.split(" ")[0] || "PKR"}`;
+
                 return (
                   <tr key={row.id} onClick={() => setSelectedId(row.id)} className={cn("cursor-pointer transition hover:bg-blue-50/40 dark:hover:bg-blue-950/10", isPoSelected && "bg-blue-50/60 dark:bg-blue-950/20 font-medium")}>
-                    <td className="px-3.5 py-3.5 text-xs text-slate-400 font-mono">{index + 1}</td>
-                    <td className="px-3.5 py-3.5 font-mono text-xs">BK-{row.purchaseBookingOrderNumber.replace(/[^0-9]/g, "").slice(-6) || String(index + 1).padStart(6, "0")}</td>
-                    <td className="px-3.5 py-3.5 font-semibold text-blue-600 dark:text-blue-400">{row.purchaseBookingOrderNumber}</td>
-                    <td className="px-3.5 py-3.5 text-xs">{date(row.purchaseDate)}</td>
-                    <td className="px-3.5 py-3.5 font-semibold">{row.countryName}</td>
-                    <td className="px-3.5 py-3.5 text-xs"><div className="font-semibold">{row.branchName}</div><div className="text-[10px] text-slate-400">{row.audit?.branchCode}</div></td>
-                    <td className="px-3.5 py-3.5 text-xs font-semibold text-slate-700 dark:text-slate-300">{row.supplierName}</td>
-                    <td className="px-3.5 py-3.5 text-xs max-w-[150px] truncate" title={row.goodsDescription}>{row.productName}</td>
-                    <td className="px-3.5 py-3.5 text-xs font-semibold text-slate-700 dark:text-slate-300">{number(row.quantity)} {row.unit}</td>
-                    <td className="px-3.5 py-3.5 font-bold text-slate-800 dark:text-slate-100">{money(row.totalPurchaseAmount)} {row.currency}</td>
-                    <td className="px-3.5 py-3.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">{money(advancePayment(row))}</td>
-                    <td className="px-3.5 py-3.5 text-xs text-slate-600 dark:text-slate-400 font-semibold">{money(remainingPayment(row))}</td>
-                    <td className="px-3.5 py-3.5"><div className="flex items-center gap-1.5"><span className="font-bold text-slate-700 dark:text-slate-300">{containerCount}</span>{activeTab === "Container Loading" && <span className="text-[10px] text-slate-400">({loadedContainers} loaded)</span>}</div></td>
-                    <td className="px-3.5 py-3.5"><StatusBadge label={shipmentStatus(row)} /></td>
-                    <td className="px-3.5 py-3.5"><StatusBadge label={inventoryStatus(row)} /></td>
+                    <td className="px-3.5 py-3.5 text-xs font-mono">{index + 1}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-mono">{companySerial}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-mono">{branchSerial}</td>
+                    <td className="px-3.5 py-3.5 text-xs">{bookingDate}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-semibold">{userName}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-semibold text-blue-600 dark:text-blue-400">{row.purchaseBookingOrderNumber}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-mono">{salesCode}</td>
+                    <td className="px-3.5 py-3.5 text-xs max-w-[200px] truncate" title={row.goodsDescription}>{row.goodsDescription || row.productName}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-semibold">{originCountry}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-semibold">{displayQty}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-mono">{grossWeight}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-mono">{netWeight}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-bold text-slate-800 dark:text-slate-100">{purchaseAmt}</td>
+                    <td className="px-3.5 py-3.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">{finalAmt}</td>
                     <td className="px-3.5 py-3.5"><StatusBadge label={row.status} /></td>
                     <td className="px-3.5 py-3.5 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/dashboard/purchase/new-purchase-booking-order?purchaseOrderNo=${row.purchaseBookingOrderNumber}`);
-                          }}
-                          className="p-1 rounded hover:bg-muted text-primary transition"
-                          title="Edit Booking Order"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" />
-                        </button>
-                        <PurchaseRowActionsMenu
-                          onSelect={() => setSelectedId(row.id)}
-                          onEdit={() => router.push(`/dashboard/purchase/new-purchase-booking-order?purchaseOrderNo=${row.purchaseBookingOrderNumber}`)}
-                        />
-                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedId(row.id);
+                          setIsDrawerOpen(true);
+                        }}
+                        className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase rounded-md shadow-sm border-none"
+                      >
+                        View
+                      </Button>
                     </td>
                   </tr>
                 );
               })}
-              {!filtered.length ? <tr><td colSpan={17} className="px-4 py-16 text-center text-slate-500">No purchase order records match the selected dropdown filters.</td></tr> : null}
+              {!filtered.length ? <tr><td colSpan={16} className="px-4 py-16 text-center text-slate-500">No purchase order records match the selected dropdown filters.</td></tr> : null}
             </tbody>
           </table>
         </div>
       </section>
+
+      {selected && (
+        <DetailDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          title="Purchase Transfer Verification Screen"
+          subtitle={`Booking Ref: ${selected.purchaseBookingOrderNumber}`}
+          className="sm:max-w-none md:max-w-none w-screen h-screen"
+          actions={
+            <div className="flex flex-wrap items-center gap-1.5 mr-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsDrawerOpen(false)}
+                className="h-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 font-bold text-[10px] uppercase px-3 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800/80 mr-2"
+              >
+                ← Back to Report
+              </Button>
+
+              {/* Transfer Dropdown */}
+              <div className="relative">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setTransferDropdownOpen(!transferDropdownOpen);
+                    setMoreActionsDropdownOpen(false);
+                  }}
+                  className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase px-3 shadow-sm border-none flex items-center gap-1.5"
+                >
+                  Transfer
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+                {transferDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setTransferDropdownOpen(false)} />
+                    <div className="absolute right-0 z-50 mt-1.5 w-56 origin-top-right rounded-xl border border-slate-200 bg-white p-1 text-xs text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTransferDropdownOpen(false);
+                          handleTransfer();
+                        }}
+                        disabled={transferring || selected.status === "Posted"}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900 disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-450" />
+                        Transfer & Post
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTransferDropdownOpen(false);
+                          setIsDrawerOpen(false);
+                          router.push("/dashboard/purchase/purchase-loading-records");
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+                      >
+                        <Container className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                        Loading Process
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTransferDropdownOpen(false);
+                          setIsDrawerOpen(false);
+                          router.push("/dashboard/purchase/purchase-order-tracking");
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+                      >
+                        <BadgeDollarSign className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                        Payment Process
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* More Actions Dropdown */}
+              <div className="relative">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setMoreActionsDropdownOpen(!moreActionsDropdownOpen);
+                    setTransferDropdownOpen(false);
+                  }}
+                  className="h-8 w-8 p-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center rounded-lg"
+                  aria-label="More actions"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+                {moreActionsDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setMoreActionsDropdownOpen(false)} />
+                    <div className="absolute right-0 z-50 mt-1.5 w-56 origin-top-right rounded-xl border border-slate-200 bg-white p-1 text-xs text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMoreActionsDropdownOpen(false);
+                          openReportWindow(selected, false);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+                      >
+                        <FileText className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                        Generate Contract
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMoreActionsDropdownOpen(false);
+                          window.print();
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+                      >
+                        <Printer className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        Print
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMoreActionsDropdownOpen(false);
+                          openReportWindow(selected, false);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+                      >
+                        <Download className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                        Export PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMoreActionsDropdownOpen(false);
+                          alert("Email notification initiated for booking Ref: " + selected.purchaseBookingOrderNumber);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+                      >
+                        <Mail className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                        Email
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMoreActionsDropdownOpen(false);
+                          alert("WhatsApp notification initiated for booking Ref: " + selected.purchaseBookingOrderNumber);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-450" />
+                        WhatsApp
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          }
+        >
+          <div className="space-y-6 text-slate-800 dark:text-slate-200">
+            {/* Transfer Option & Routing */}
+            <div className="rounded-xl border border-emerald-250 bg-emerald-500/10 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20 animate-in fade-in duration-200">
+              <h3 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-450 mb-3 border-b pb-1.5">Transfer Option & Routing Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-slate-400 block uppercase text-[9px] font-bold">Transfer Status</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 mt-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    {selected.status === "Posted" ? "Fully Transferred & Posted" : "Approved & Ready for Transfer"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block uppercase text-[9px] font-bold">Transferred To (Destinations)</span>
+                  <div className="mt-1 space-y-1 text-xs text-slate-700 dark:text-slate-350">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-emerald-600 dark:text-emerald-450">●</span>
+                      <span>General Ledger: Debit Account <strong>{selected.purchaseAccountNumber}</strong> & Credit Account <strong>{selected.salesAccountNumber}</strong></span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-emerald-600 dark:text-emerald-450">●</span>
+                      <span>Journal Entries: Voucher Entry No. <strong>{selected.form_data?.form?.journalEntryNo || "JV-" + selected.purchaseBookingOrderNumber.replace(/[^0-9]/g, "").slice(-6)}</strong></span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-emerald-600 dark:text-emerald-450">●</span>
+                      <span>Logistics cargo loading module (<strong>{selected.containerCount} Containers</strong>)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Booking Information */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10">
+              <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3 border-b pb-1.5">Booking Information</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Booking Number</span><strong className="font-mono text-sm">{selected.purchaseBookingOrderNumber}</strong></div>
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Purchase Date</span><strong>{date(selected.purchaseDate)}</strong></div>
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Booking Date</span><strong>{date(selected.bookingDate || selected.createdAt)}</strong></div>
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">User Name</span><strong className="text-emerald-600 dark:text-emerald-450 uppercase">{selected.audit?.userName || "-"}</strong></div>
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Branch Name</span><strong>{selected.branchName}</strong></div>
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Country</span><strong>{selected.countryName}</strong></div>
+              </div>
+            </div>
+
+            {/* Supplier & Buyer Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Supplier Information */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10">
+                <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3 border-b pb-1.5">Supplier Information</h3>
+                <div className="space-y-2 text-xs">
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Supplier Name</span><strong className="text-sm">{selected.supplierName}</strong></div>
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Contact Person</span><strong>{selected.form_data?.form?.purchaseContactPerson || selected.form_data?.form?.supplierContactPerson || "-"}</strong></div>
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Mobile Number</span><strong className="font-mono">{selected.form_data?.form?.purchaseContact || selected.form_data?.form?.supplierMobile || selected.form_data?.form?.supplierContact || "-"}</strong></div>
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Email Address</span><strong>{selected.form_data?.form?.supplierEmail || "-"}</strong></div>
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Country</span><strong>{selected.form_data?.form?.supplierCountry || selected.countryName || "-"}</strong></div>
+                </div>
+              </div>
+
+              {/* Buyer Information */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10">
+                <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3 border-b pb-1.5">Buyer Information</h3>
+                <div className="space-y-2 text-xs">
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Buyer Name</span><strong className="text-sm">{selected.buyerName}</strong></div>
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Contact Person</span><strong>{selected.form_data?.form?.customerContactPerson || "-"}</strong></div>
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Mobile Number</span><strong className="font-mono">{selected.form_data?.form?.customerContact || "-"}</strong></div>
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Email Address</span><strong>{selected.form_data?.form?.customerEmail || "-"}</strong></div>
+                  <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Country</span><strong>{selected.form_data?.form?.customerCountry || selected.form_data?.form?.branchCountry || "-"}</strong></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Goods Details */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10">
+              <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3 border-b pb-1.5">Goods Details</h3>
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300 font-bold uppercase">
+                    <tr>
+                      <th className="p-2 border-b">Goods Name</th>
+                      <th className="p-2 border-b">Grade</th>
+                      <th className="p-2 border-b">Origin</th>
+                      <th className="p-2 border-b text-right">Quantity</th>
+                      <th className="p-2 border-b text-right">Gross Wt</th>
+                      <th className="p-2 border-b text-right">Net Wt</th>
+                      <th className="p-2 border-b text-right">Rate/KG</th>
+                      <th className="p-2 border-b text-right">Rate/Ton</th>
+                      <th className="p-2 border-b text-right">Amount</th>
+                      <th className="p-2 border-b text-right">Ex. Rate</th>
+                      <th className="p-2 border-b text-right">Final Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {(selected.form_data?.goodsEntries || []).map((item: any, idx: number) => {
+                      const qtyNo = Number(item.qtyNo || 0);
+                      const qtyKgs = Number(item.qtyKgs || 0);
+                      const grossWeight = Number(item.grossWeight || qtyNo * qtyKgs);
+                      const netWeight = Number(item.netWeight || grossWeight);
+                      const coursePrice = Number(item.coursePrice || 0);
+                      const amount = Number(item.totalAmount || netWeight * coursePrice);
+                      const exRate = Number(item.exchangeRate || selected.exchange_rate || 1);
+                      const finalAmount = Number(item.finalAmount || amount * exRate);
+
+                      const ratePerKg = item.priceType === "P/KGs" ? coursePrice : coursePrice / 1000;
+                      const ratePerTon = item.priceType === "P/Ton" ? coursePrice : coursePrice * 1000;
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                          <td className="p-2 font-medium">{item.goodsName || "-"}</td>
+                          <td className="p-2">{item.brand || item.size || "-"}</td>
+                          <td className="p-2">{item.origin || "-"}</td>
+                          <td className="p-2 text-right font-semibold">{number(qtyNo)} {item.qtyName}</td>
+                          <td className="p-2 text-right font-mono">{number(grossWeight)} kg</td>
+                          <td className="p-2 text-right font-mono">{number(netWeight)} kg</td>
+                          <td className="p-2 text-right font-mono">${money(ratePerKg)}</td>
+                          <td className="p-2 text-right font-mono">${money(ratePerTon)}</td>
+                          <td className="p-2 text-right font-mono font-semibold">${money(amount)}</td>
+                          <td className="p-2 text-right font-mono">{number(exRate)}</td>
+                          <td className="p-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-450">{money(finalAmount)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Payment & Shipment Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Payment Information */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10">
+                <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3 border-b pb-1.5">Payment Information</h3>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-slate-400">Payment Condition</span><strong className="text-slate-900 dark:text-white">{selected.form_data?.form?.paymentType || "-"}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Advance Payment %</span><strong className="text-slate-900 dark:text-white">{selected.form_data?.form?.advancePercent || 0}%</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Advance Payment Amount</span><strong className="text-emerald-600 dark:text-emerald-450">${money((Number(selected.purchaseAmount || 0) * Number(selected.form_data?.form?.advancePercent || 0)) / 100)}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Advance Due Date</span><strong className="text-slate-900 dark:text-white">{date(selected.form_data?.form?.advancePaymentDate)}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Remaining Balance %</span><strong className="text-slate-900 dark:text-white">{100 - Number(selected.form_data?.form?.advancePercent || 0)}%</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Remaining Balance Amount</span><strong className="text-slate-900 dark:text-white">${money(Number(selected.purchaseAmount || 0) - (Number(selected.purchaseAmount || 0) * Number(selected.form_data?.form?.advancePercent || 0)) / 100)}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Final Payment Due Date</span><strong className="text-slate-900 dark:text-white">{date(selected.form_data?.form?.paymentDate)}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Payment Status</span><strong><StatusBadge label={selected.paymentStatus} /></strong></div>
+                </div>
+              </div>
+
+              {/* Shipment Information */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10">
+                <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3 border-b pb-1.5">Shipment Information</h3>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-slate-400">Container Count</span><strong className="text-slate-900 dark:text-white">{selected.containerCount}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Container Numbers</span><strong className="text-slate-900 dark:text-white max-w-[180px] truncate" title={selected.form_data?.form?.containerNumbers || containers.map(c => c.containerNumber).join(", ") || "-"}>{selected.form_data?.form?.containerNumbers || containers.map(c => c.containerNumber).join(", ") || "-"}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Bill Number</span><strong className="text-slate-900 dark:text-white font-mono">{selected.form_data?.form?.billNo || "-"}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Vessel Name</span><strong className="text-slate-900 dark:text-white">{selected.form_data?.form?.vesselName || "-"}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Loading Port</span><strong className="text-slate-900 dark:text-white">{selected.form_data?.form?.loadingPort || "-"}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Destination Port</span><strong className="text-slate-900 dark:text-white">{selected.form_data?.form?.receivedPort || "-"}</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Transit Time</span><strong className="text-slate-900 dark:text-white">{selected.form_data?.form?.transitTime || "-"}</strong></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Accounting Information */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/20">
+              <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3 border-b pb-1.5">Accounting Information</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Journal Entry Number</span><strong className="font-mono">{selected.form_data?.form?.journalEntryNo || "Pending Posting"}</strong></div>
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Debit Account</span><strong className="font-mono">{selected.purchaseAccountNumber || "-"}</strong></div>
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Credit Account</span><strong className="font-mono">{selected.salesAccountNumber || "-"}</strong></div>
+                <div><span className="text-slate-400 block uppercase text-[9px] font-bold">Ledger Reference</span><strong className="font-mono">{selected.form_data?.form?.ledgerReference || "-"}</strong></div>
+              </div>
+            </div>
+          </div>
+        </DetailDrawer>
+      )}
     </div>
   );
 }
-
-

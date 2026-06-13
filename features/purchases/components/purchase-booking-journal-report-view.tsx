@@ -21,10 +21,14 @@ import {
   Search,
   ShipWheel,
   TrendingUp,
-  WalletCards
+  WalletCards,
+  Globe,
+  Clock3
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { DetailDrawer } from "@/components/ui/detail-drawer";
+import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
 
 type PurchaseReport = {
   id: string;
@@ -269,16 +273,38 @@ function formatDate(value: string | null | undefined) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-GB");
 }
 
+function formatShortDate(value: string | null | undefined) {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = months[date.getMonth()];
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+}
+
+function formatIsoDate(value: string | null | undefined) {
+  if (!value) return "N/A";
+  if (value === "-" || value === "N/A") return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function safeTerm(value: string) {
   return value.trim().toLowerCase();
 }
 
 function statusClass(status: string) {
   const normalized = status.toLowerCase();
-  if (normalized.includes("full") || normalized.includes("complete") || normalized.includes("confirmed")) return "border-emerald-400/40 bg-emerald-500/15 text-emerald-300";
-  if (normalized.includes("partial")) return "border-amber-400/40 bg-amber-500/15 text-amber-300";
-  if (normalized.includes("cancel")) return "border-red-400/40 bg-red-500/15 text-red-300";
-  return "border-sky-400/40 bg-sky-500/15 text-sky-300";
+  if (normalized.includes("full") || normalized.includes("complete") || normalized.includes("confirmed")) return "border-emerald-300 bg-emerald-50 text-emerald-700";
+  if (normalized.includes("partial")) return "border-amber-300 bg-amber-50 text-amber-700";
+  if (normalized.includes("cancel")) return "border-red-300 bg-red-50 text-red-700";
+  return "border-sky-300 bg-sky-50 text-sky-700";
 }
 
 function makeContainers(report: PurchaseReport | null): ContainerRow[] {
@@ -305,21 +331,82 @@ function makeContainers(report: PurchaseReport | null): ContainerRow[] {
 }
 
 function exportCsv(rows: PurchaseReport[], fileName: string) {
-  const headers = ["Date", "Booking No", "Supplier", "Country", "Goods", "Containers", "Quantity", "Currency", "Booking Amount", "Status"];
-  const csvRows = rows.map((row) =>
-    [
-      formatDate(row.purchaseDate),
-      row.purchaseBookingOrderNumber,
-      row.supplierName,
-      row.countryName,
-      row.productName,
-      row.containerCount,
-      `${row.quantity} ${row.unit}`,
-      row.currency,
-      row.totalPurchaseAmount,
-      row.status
-    ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-  );
+  const headers = [
+    "P#",
+    "Date",
+    "Branch",
+    "Allot",
+    "Good Name",
+    "ORIGIN",
+    "Warehouse",
+    "Invoice No.",
+    "Seller Acc.",
+    "Qty",
+    "KGs",
+    "P.TYPE",
+    "D.Terms",
+    "Route",
+    "Loading",
+    "Loading Date",
+    "Receiving",
+    "Receiving Date"
+  ];
+  const csvRows = rows.map((row, index) => {
+    const pNum = `P#${rows.length - index}`;
+    
+    const goods = row.form_data?.goodsEntries || [];
+    const allot = goods.map((g: any) => g.allotName).filter(Boolean).join("; ") || row.form_data?.form?.allotName || "N/A";
+    const goodName = goods.map((g: any) => g.goodsName).filter(Boolean).join("; ") || row.productName || "N/A";
+    const origin = goods.map((g: any) => g.origin).filter(Boolean).join("; ") || "N/A";
+    const warehouse = goods.map((g: any) => g.warehouse).filter(Boolean).join("; ") || "N/A";
+    const invoiceNo = row.form_data?.form?.billNo || row.form_data?.form?.invoiceNo || row.form_data?.form?.purchaseContractNo || row.purchaseContractNo || "N/A";
+    const sellerAcc = row.form_data?.form?.purchaseAccountName || row.supplierName || "-";
+    
+    const qty = goods.length > 0 ? goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0) : "N/A";
+    const kgs = goods.length > 0 ? goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || g.grossWeight || 0), 0) : "N/A";
+
+    const dateStr = formatShortDate(row.purchaseDate);
+    const branch = row.branchName || row.form_data?.form?.branchCode || "-";
+
+    const pTypeRaw = row.form_data?.form?.paymentType || row.paymentStatus || "";
+    let pType = "N/A";
+    if (pTypeRaw.toLowerCase().includes("advance")) pType = "Advance";
+    else if (pTypeRaw.toLowerCase().includes("credit")) pType = "Credit";
+    else if (pTypeRaw.toLowerCase().includes("full") || pTypeRaw.toLowerCase().includes("final")) pType = "Full";
+    else if (pTypeRaw) pType = pTypeRaw;
+
+    const dTerms = row.form_data?.form?.deliveryTerms || row.form_data?.form?.dTerms || row.form_data?.form?.incoterms || row.form_data?.form?.transportAgent || row.form_data?.form?.paymentDaysAndMethodDetails || "N/A";
+    
+    const routeRaw = row.form_data?.form?.shippingMode || row.form_data?.form?.shippingType || row.form_data?.form?.shipmentType || "";
+    const route = routeRaw.replace(/^By\s+/i, "") || "N/A";
+
+    const loadingLoc = row.form_data?.form?.loadingCountry || "N/A";
+    const loadingDate = formatIsoDate(row.form_data?.form?.loadingDate);
+    const receivingLoc = row.form_data?.form?.receivedCountry || "N/A";
+    const receivingDate = formatIsoDate(row.form_data?.form?.receivedDate);
+
+    return [
+      pNum,
+      dateStr,
+      branch,
+      allot,
+      goodName,
+      origin,
+      warehouse,
+      invoiceNo,
+      sellerAcc,
+      qty,
+      kgs,
+      pType,
+      dTerms,
+      route,
+      loadingLoc,
+      loadingDate,
+      receivingLoc,
+      receivingDate
+    ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",");
+  });
+
   const blob = new Blob([[headers.join(","), ...csvRows].join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -331,6 +418,18 @@ function exportCsv(rows: PurchaseReport[], fileName: string) {
 
 function printReport() {
   if (typeof window !== "undefined") window.print();
+}
+
+function openReportWindow(report: PurchaseReport, autoPrint: boolean) {
+  openPurchaseA4ReportWindow({
+    title: "Purchase Booking Order",
+    subtitle: "DGT Accounts Purchase Registry",
+    purchaseData: {
+      ...report,
+      audit: report.audit || { userName: "Admin User", userId: "USR-001", branchCode: "QTA-001" }
+    },
+    autoPrint
+  });
 }
 
 function ReportToolbar({
@@ -365,7 +464,7 @@ function ReportToolbar({
         </div>
         <div className="flex flex-1 flex-col gap-2 lg:max-w-5xl lg:flex-row lg:items-center lg:justify-end">
           <select
-            value={draftStatus}
+             value={draftStatus}
             onChange={(event) => onDraftChange(event.target.value)}
             className="h-9 min-w-[150px] rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground outline-none focus:border-primary"
             aria-label="Draft status"
@@ -476,7 +575,7 @@ function ReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[]; onExpor
   );
 }
 
-function RowActionsMenu({ onSelect, onEdit }: { onSelect: () => void; onEdit: () => void }) {
+function RowActionsMenu({ onSelect, onEdit, onPrint, onExportPdf }: { onSelect: () => void; onEdit: () => void; onPrint: () => void; onExportPdf: () => void }) {
   return (
     <details className="relative inline-block">
       <summary className="grid h-8 w-8 cursor-pointer list-none place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted [&::-webkit-details-marker]:hidden" aria-label="Row actions" title="Row actions">
@@ -490,8 +589,8 @@ function RowActionsMenu({ onSelect, onEdit }: { onSelect: () => void; onEdit: ()
         <MenuAction icon={<Boxes />} label="Container Details" onClick={onSelect} />
         <MenuAction icon={<ClipboardList />} label="Documents" onClick={onSelect} />
         <MenuAction icon={<ClipboardList />} label="Timeline" onClick={onSelect} />
-        <MenuAction icon={<Printer />} label="Print" onClick={printReport} />
-        <MenuAction icon={<Download />} label="Export PDF" onClick={printReport} />
+        <MenuAction icon={<Printer />} label="Print" onClick={onPrint} />
+        <MenuAction icon={<Download />} label="Export PDF" onClick={onExportPdf} />
       </div>
     </details>
   );
@@ -614,6 +713,43 @@ export function PurchaseBookingJournalReportView() {
   const [scope, setScope] = useState<ReportScope | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [transferring, setTransferring] = useState(false);
+
+  const handleTransfer = async () => {
+    if (!selected) return;
+    setTransferring(true);
+    try {
+      const updatedFormData = {
+        ...(selected.form_data || {}),
+        workflow: {
+          ...(selected.form_data?.workflow || {}),
+          lifecycleStatus: "Booking Confirmed",
+          paymentStatus: "Advance Paid"
+        }
+      };
+
+      const response = await fetch(`/api/erp/purchases/orders/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formData: updatedFormData
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || "Transfer failed.");
+      }
+
+      setIsDrawerOpen(false);
+      router.push("/dashboard/purchase/purchase-order");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error transferring booking.");
+    } finally {
+      setTransferring(false);
+    }
+  };
   const [searchText, setSearchText] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
@@ -1023,13 +1159,13 @@ export function PurchaseBookingJournalReportView() {
           <ReportSection number="D" title="DAILY REPORTS INTEGRATION" actions={<FilterActions onApply={() => undefined} onReset={() => undefined} />} filters={<DailyFilterRow filters={filters} setFilters={setFilters} suppliers={suppliers} currencies={currencies} />}>
             <DarkTable headers={["Daily Report", "Entries", "Daily Amount", "Linked Module", "Status", "Action"]}>
               {dailyReportRows.map((row) => (
-                <tr key={row.name} className="border-b border-slate-700/70 hover:bg-blue-500/10">
-                  <Td className="font-bold text-blue-300">{row.name}</Td>
-                  <Td center>{row.entries}</Td>
-                  <Td right>{formatMoney(row.amount)}</Td>
-                  <Td>{row.route}</Td>
+                <tr key={row.name} className="border-b border-slate-200 hover:bg-slate-50/80 transition">
+                  <Td className="font-bold text-blue-700">{row.name}</Td>
+                  <Td center className="text-slate-700">{row.entries}</Td>
+                  <Td right className="text-slate-800 font-mono">{formatMoney(row.amount)}</Td>
+                  <Td className="text-slate-605">{row.route}</Td>
                   <Td><StatusBadge status={row.status} /></Td>
-                  <Td><a className="font-bold text-blue-300 hover:text-blue-200" href={row.route}>Open Report</a></Td>
+                  <Td><a className="font-bold text-blue-600 hover:text-blue-500" href={row.route}>Open Report</a></Td>
                 </tr>
               ))}
             </DarkTable>
@@ -1066,13 +1202,13 @@ export function PurchaseBookingJournalReportView() {
           <ReportSection number="B" title="BRANCH SUMMARY" actions={<FilterActions onApply={() => undefined} onReset={() => setFilters((previous) => ({ ...previous, branch: "", country: "" }))} />} filters={<BranchFilterRow filters={filters} setFilters={setFilters} branches={branches} countries={countries} disabledCountry={!!lockedCountryName} disabledBranch={!!lockedBranchName} />}>
             <DarkTable headers={["Branch", "Country", "Bookings", "Branch-wise Containers", "Branch-wise Purchase Amount", "Outstanding Balance", "Status"]}>
               {branchSummary.map((row) => (
-                <tr key={`${row.country}-${row.branch}`} className="border-b border-slate-700/70 hover:bg-blue-500/10">
-                  <Td className="font-bold text-blue-300">{row.branch}</Td>
-                  <Td>{row.country}</Td>
-                  <Td center>{row.bookings}</Td>
-                  <Td center>{row.containers}</Td>
-                  <Td right>{formatMoney(row.amount)}</Td>
-                  <Td right className={row.outstanding > 0 ? "text-red-300" : "text-emerald-300"}>{formatMoney(row.outstanding)}</Td>
+                <tr key={`${row.country}-${row.branch}`} className="border-b border-slate-200 hover:bg-slate-50/80 transition">
+                  <Td className="font-bold text-blue-700">{row.branch}</Td>
+                  <Td className="text-slate-700">{row.country}</Td>
+                  <Td center className="text-slate-700">{row.bookings}</Td>
+                  <Td center className="text-slate-700">{row.containers}</Td>
+                  <Td right className="text-slate-800 font-mono">{formatMoney(row.amount)}</Td>
+                  <Td right className={`font-mono ${row.outstanding > 0 ? "text-red-650" : "text-emerald-650"}`}>{formatMoney(row.outstanding)}</Td>
                   <Td><StatusBadge status={row.outstanding > 0 ? "Outstanding" : "Clear"} /></Td>
                 </tr>
               ))}
@@ -1107,50 +1243,90 @@ export function PurchaseBookingJournalReportView() {
           </div>
 
           <DarkTable
-            headers={["Date", "Booking No", "Supplier / Wholesaler", "Country", "Goods", "Amount", "Current Step", "Next Step", "Payment Status", "Container Status", "Inventory Status", "Final Delivery", "Action"]}
+            headers={[
+              "P#",
+              "Type",
+              "Date",
+              "Branch",
+              "Allot",
+              "Good Name",
+              "ORIGIN",
+              "Warehouse",
+              "Invoice No.",
+              "Seller Acc.",
+              "Qty",
+              "KGs",
+              "P.TYPE",
+              "D.Terms",
+              "Route",
+              "Loading",
+              "Date",
+              "Receiving",
+              "Date"
+            ]}
           >
-            {registerRows.map((report) => {
-              const containers = makeContainers(report);
-              const confirmed = containers.filter((row) => row.status === "Confirmed").length;
-              const containerStatus: ContainerRow["status"] =
-                report.containerStatus?.toLowerCase().includes("cancel")
-                  ? "Cancelled"
-                  : report.containerStatus?.toLowerCase().includes("confirm") || confirmed
-                    ? "Confirmed"
-                    : "Pending";
+            {registerRows.map((report, index) => {
+              const pNum = `P#${registerRows.length - index}`;
+              
+              const goods = report.form_data?.goodsEntries || [];
+              const allot = goods.map((g: any) => g.allotName).filter(Boolean).join(", ") || report.form_data?.form?.allotName || "N/A";
+              const goodName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || report.productName || "N/A";
+              const origin = goods.map((g: any) => g.origin).filter(Boolean).join(", ") || "N/A";
+              const warehouse = goods.map((g: any) => g.warehouse).filter(Boolean).join(", ") || "N/A";
+              const invoiceNo = report.form_data?.form?.billNo || report.form_data?.form?.invoiceNo || report.form_data?.form?.purchaseContractNo || report.purchaseContractNo || "N/A";
+              const sellerAcc = report.form_data?.form?.purchaseAccountName || report.supplierName || "-";
+              
+              const qty = goods.length > 0 ? formatNumber(goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0)) : "N/A";
+              const kgs = goods.length > 0 ? formatNumber(goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || g.grossWeight || 0), 0)) : "N/A";
+
+              const hasGoods = goods.length > 0 && goodName !== "N/A";
+              const typeIcon = hasGoods ? (
+                <Clock3 className="h-3.5 w-3.5 text-emerald-400" />
+              ) : (
+                <Globe className="h-3.5 w-3.5 text-blue-400" />
+              );
+
+              const dateStr = formatShortDate(report.purchaseDate);
+              const branch = report.branchName || report.form_data?.form?.branchCode || "-";
+
+              const pTypeRaw = report.form_data?.form?.paymentType || report.paymentStatus || "";
+              let pType = "N/A";
+              if (pTypeRaw.toLowerCase().includes("advance")) pType = "Advance";
+              else if (pTypeRaw.toLowerCase().includes("credit")) pType = "Credit";
+              else if (pTypeRaw.toLowerCase().includes("full") || pTypeRaw.toLowerCase().includes("final")) pType = "Full";
+              else if (pTypeRaw) pType = pTypeRaw;
+
+              const dTerms = report.form_data?.form?.deliveryTerms || report.form_data?.form?.dTerms || report.form_data?.form?.incoterms || report.form_data?.form?.transportAgent || report.form_data?.form?.paymentDaysAndMethodDetails || "N/A";
+              
+              const routeRaw = report.form_data?.form?.shippingMode || report.form_data?.form?.shippingType || report.form_data?.form?.shipmentType || "";
+              const route = routeRaw.replace(/^By\s+/i, "") || "N/A";
+
+              const loadingLoc = report.form_data?.form?.loadingCountry || "N/A";
+              const loadingDate = formatIsoDate(report.form_data?.form?.loadingDate);
+              const receivingLoc = report.form_data?.form?.receivedCountry || "N/A";
+              const receivingDate = formatIsoDate(report.form_data?.form?.receivedDate);
+
               return (
-                <tr key={report.id} onClick={() => setSelectedId(report.id)} className="cursor-pointer border-b border-slate-700/70 hover:bg-blue-500/10">
-                  <Td>{formatDate(report.purchaseDate)}</Td>
-                  <Td className="font-bold text-blue-300">{report.purchaseBookingOrderNumber}</Td>
-                  <Td>{report.supplierName}</Td>
-                  <Td>{report.countryName}</Td>
-                  <Td>{report.productName}</Td>
-                  <Td right>{formatMoney(report.totalPurchaseAmount)} {report.currency}</Td>
-                  <Td><StatusBadge status={report.currentStep || report.status} /></Td>
-                  <Td>{report.nextStep || "-"}</Td>
-                  <Td><StatusBadge status={report.paymentStatus} /></Td>
-                  <Td><ContainerStatus status={containerStatus} /></Td>
-                  <Td>{report.inventoryStatus || "-"}</Td>
-                  <Td><StatusBadge status={report.deliveryStatus || report.finalDeliveryStatus || "Pending"} /></Td>
-                  <Td center>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/dashboard/purchase/new-purchase-booking-order?purchaseOrderNo=${report.purchaseBookingOrderNumber}`);
-                        }}
-                        className="p-1 rounded hover:bg-slate-800 text-blue-400 transition"
-                        title="Edit Booking Order"
-                      >
-                        <Edit3 className="h-3.5 w-3.5" />
-                      </button>
-                      <RowActionsMenu
-                        onSelect={() => setSelectedId(report.id)}
-                        onEdit={() => router.push(`/dashboard/purchase/new-purchase-booking-order?purchaseOrderNo=${report.purchaseBookingOrderNumber}`)}
-                      />
-                    </div>
-                  </Td>
+                <tr key={report.id} onClick={() => { setSelectedId(report.id); setIsDrawerOpen(true); }} className="cursor-pointer border-b border-slate-200 hover:bg-slate-50/80 transition">
+                  <Td center className="font-bold text-slate-400">{pNum}</Td>
+                  <Td center>{typeIcon}</Td>
+                  <Td className="font-semibold text-slate-800">{dateStr}</Td>
+                  <Td className="font-semibold text-slate-800">{branch}</Td>
+                  <Td className="font-mono text-slate-800">{allot}</Td>
+                  <Td className="font-semibold text-amber-700">{goodName}</Td>
+                  <Td className="text-slate-700">{origin}</Td>
+                  <Td className="text-slate-700">{warehouse}</Td>
+                  <Td className="font-mono font-bold text-blue-600">{invoiceNo}</Td>
+                  <Td className="font-bold text-slate-800">{sellerAcc}</Td>
+                  <Td right className="font-mono font-semibold text-emerald-650">{qty}</Td>
+                  <Td right className="font-mono font-semibold text-emerald-650">{kgs}</Td>
+                  <Td><StatusBadge status={pType} /></Td>
+                  <Td className="font-semibold text-slate-650 truncate max-w-[150px]">{dTerms}</Td>
+                  <Td className="font-semibold text-slate-605">{route}</Td>
+                  <Td className="text-slate-700">{loadingLoc}</Td>
+                  <Td center className="font-mono text-slate-500">{loadingDate}</Td>
+                  <Td className="text-slate-700">{receivingLoc}</Td>
+                  <Td center className="font-mono text-slate-500">{receivingDate}</Td>
                 </tr>
               );
             })}
@@ -1192,16 +1368,16 @@ export function PurchaseBookingJournalReportView() {
             <div className="min-w-0">
               <DarkTable headers={["SR #", "Container No", "BL No", "Truck No", "Loading Date", "Receiving Date", "Seal No", "Status", "Confirmed On"]}>
                 {filteredContainers.map((row, index) => (
-                  <tr key={row.id} className="border-b border-slate-700/70 hover:bg-blue-500/10">
-                    <Td center>{index + 1}</Td>
-                    <Td center>{row.containerNo}</Td>
-                    <Td center>{row.blNo}</Td>
-                    <Td center>{row.truckNo}</Td>
-                    <Td center>{formatDate(row.loadingDate)}</Td>
-                    <Td center>{formatDate(row.receivingDate)}</Td>
-                    <Td center>{row.sealNo}</Td>
+                  <tr key={row.id} className="border-b border-slate-200 hover:bg-slate-50/80 transition">
+                    <Td center className="text-slate-500">{index + 1}</Td>
+                    <Td center className="text-slate-850">{row.containerNo}</Td>
+                    <Td center className="text-slate-800 font-mono">{row.blNo}</Td>
+                    <Td center className="text-slate-700">{row.truckNo}</Td>
+                    <Td center className="text-slate-655 font-mono">{formatDate(row.loadingDate)}</Td>
+                    <Td center className="text-slate-655 font-mono">{formatDate(row.receivingDate)}</Td>
+                    <Td center className="text-slate-700">{row.sealNo}</Td>
                     <Td center><ContainerStatus status={row.status} /></Td>
-                    <Td center>{formatDate(row.confirmedOn)}</Td>
+                    <Td center className="text-slate-600 font-mono">{formatDate(row.confirmedOn)}</Td>
                   </tr>
                 ))}
               </DarkTable>
@@ -1248,16 +1424,16 @@ export function PurchaseBookingJournalReportView() {
                     : 0;
               const outstanding = Math.max(0, report.totalPurchaseAmount - paid);
               return (
-                <tr key={`${report.id}-financial`} className="border-b border-slate-700/70 hover:bg-blue-500/10">
-                  <Td>{formatDate(report.purchaseDate)}</Td>
-                  <Td className="font-bold text-blue-300">{report.purchaseBookingOrderNumber}</Td>
-                  <Td>{report.supplierName}</Td>
-                  <Td center>{report.currency}</Td>
-                  <Td right>{formatMoney(report.totalPurchaseAmount)}</Td>
-                  <Td right className="text-emerald-300">{formatMoney(paid)}</Td>
-                  <Td right className={outstanding > 0 ? "text-red-300" : ""}>{formatMoney(outstanding)}</Td>
+                <tr key={`${report.id}-financial`} className="border-b border-slate-200 hover:bg-slate-50/80 transition">
+                  <Td className="text-slate-650 font-mono">{formatDate(report.purchaseDate)}</Td>
+                  <Td className="font-bold text-blue-700 font-mono">{report.purchaseBookingOrderNumber}</Td>
+                  <Td className="text-slate-850">{report.supplierName}</Td>
+                  <Td center className="text-slate-700 font-mono">{report.currency}</Td>
+                  <Td right className="text-slate-850 font-mono">{formatMoney(report.totalPurchaseAmount)}</Td>
+                  <Td right className="text-emerald-700 font-mono">{formatMoney(paid)}</Td>
+                  <Td right className={`font-mono ${outstanding > 0 ? "text-red-655" : ""}`}>{formatMoney(outstanding)}</Td>
                   <Td><StatusBadge status={report.paymentStatus} /></Td>
-                  <Td>{report.paymentStatus || "-"}</Td>
+                  <Td className="text-slate-750">{report.paymentStatus || "-"}</Td>
                 </tr>
               );
             })}
@@ -1265,6 +1441,96 @@ export function PurchaseBookingJournalReportView() {
         </ReportSection>
           </>
         ) : null}
+
+        <DetailDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          title="Purchase Booking Details"
+          subtitle={selected?.purchaseBookingOrderNumber}
+          actions={
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                onClick={() => selected && openReportWindow(selected, false)}
+                className="bg-slate-700 hover:bg-slate-650 text-white font-bold text-xs"
+              >
+                PDF Preview
+              </Button>
+              <Button
+                type="button"
+                onClick={() => selected && openReportWindow(selected, true)}
+                className="bg-slate-700 hover:bg-slate-650 text-white font-bold text-xs"
+              >
+                Print
+              </Button>
+              <Button
+                type="button"
+                onClick={handleTransfer}
+                disabled={transferring}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+              >
+                {transferring ? "Transferring..." : "Transfer"}
+              </Button>
+            </div>
+          }
+        >
+          {selected && (
+            <div className="space-y-6 text-slate-800 dark:text-slate-200">
+              {/* General Info */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b pb-1.5 mb-2.5">General Information</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <div><span className="text-slate-400 block">Booking Number</span><strong className="font-mono text-slate-900 dark:text-white text-sm">{selected.purchaseBookingOrderNumber}</strong></div>
+                  <div><span className="text-slate-400 block">Date</span><strong className="text-slate-900 dark:text-white">{formatDate(selected.purchaseDate)}</strong></div>
+                  <div><span className="text-slate-400 block">Country</span><strong className="text-slate-900 dark:text-white">{selected.countryName}</strong></div>
+                  <div><span className="text-slate-400 block">Branch</span><strong className="text-slate-900 dark:text-white">{selected.branchName}</strong></div>
+                  <div className="col-span-2"><span className="text-slate-400 block">Supplier / Wholesaler</span><strong className="text-slate-900 dark:text-white">{selected.supplierName}</strong></div>
+                  <div className="col-span-2"><span className="text-slate-400 block">Buyer / Customer</span><strong className="text-slate-900 dark:text-white">{selected.buyerName}</strong></div>
+                </div>
+              </div>
+
+              {/* Accounts */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b pb-1.5 mb-2.5">Ledger Accounts</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 block">Purchase Account No</span>
+                    <strong className="font-mono text-slate-900 dark:text-white">{selected.purchaseAccountNumber}</strong>
+                    <span className="block text-[10px] text-slate-500 truncate">{selected.purchaseAccountName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Sales Account No</span>
+                    <strong className="font-mono text-slate-900 dark:text-white">{selected.salesAccountNumber}</strong>
+                    <span className="block text-[10px] text-slate-500 truncate">{selected.salesAccountName}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cargo / Weight */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b pb-1.5 mb-2.5">Cargo & Goods Details</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <div className="col-span-2"><span className="text-slate-400 block">Product / Goods</span><strong className="text-slate-900 dark:text-white">{selected.productName}</strong></div>
+                  <div className="col-span-2"><span className="text-slate-400 block">Description</span><p className="text-slate-750 dark:text-slate-300 leading-snug">{selected.goodsDescription}</p></div>
+                  <div><span className="text-slate-400 block">Quantity</span><strong className="text-slate-900 dark:text-white">{formatNumber(selected.quantity)} {selected.unit}</strong></div>
+                  <div><span className="text-slate-400 block">Container Count</span><strong className="text-slate-900 dark:text-white">{selected.containerCount}</strong></div>
+                  <div><span className="text-slate-400 block">Total Weight</span><strong className="text-slate-900 dark:text-white">{formatNumber(selected.totalWeight)} kg</strong></div>
+                </div>
+              </div>
+
+              {/* Financials */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b pb-1.5 mb-2.5">Financial & Workflow Summary</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <div><span className="text-slate-400 block">Total Purchase Amount</span><strong className="text-slate-900 dark:text-white text-sm font-mono">{formatMoney(selected.totalPurchaseAmount)} {selected.currency}</strong></div>
+                  <div><span className="text-slate-400 block">Currency</span><strong className="text-slate-900 dark:text-white font-mono">{selected.currency}</strong></div>
+                  <div><span className="text-slate-400 block">Current Step</span><span className="inline-block mt-0.5"><StatusBadge status={selected.currentStep || selected.status} /></span></div>
+                  <div><span className="text-slate-400 block">Payment Status</span><span className="inline-block mt-0.5"><StatusBadge status={selected.paymentStatus} /></span></div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DetailDrawer>
       </div>
     </div>
   );
@@ -1348,23 +1614,23 @@ function SummaryCard({ icon, label, value, accent }: { icon: React.ReactNode; la
 
 function DarkTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-auto rounded-xl border border-slate-700">
-      <table className="min-w-full border-collapse text-xs">
-        <thead className="sticky top-0 z-10 bg-slate-800 text-[10px] uppercase tracking-wide text-slate-300">
+    <div className="overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table className="min-w-full border-collapse text-xs text-slate-800">
+        <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600 border-b border-slate-200">
           <tr>
             {headers.map((header) => (
-              <th key={header} className="whitespace-nowrap border-r border-slate-700 px-3 py-3 text-left font-black last:border-r-0">{header}</th>
+              <th key={header} className="whitespace-nowrap border-r border-slate-200 px-3 py-3 text-left font-black last:border-r-0">{header}</th>
             ))}
           </tr>
         </thead>
-        <tbody className="bg-slate-950/30 text-slate-200">{children}</tbody>
+        <tbody className="bg-white text-slate-800 divide-y divide-slate-200">{children}</tbody>
       </table>
     </div>
   );
 }
 
 function Td({ children, className = "", center = false, right = false }: { children: React.ReactNode; className?: string; center?: boolean; right?: boolean }) {
-  return <td className={`whitespace-nowrap border-r border-slate-800 px-3 py-2.5 last:border-r-0 ${center ? "text-center" : ""} ${right ? "text-right" : ""} ${className}`}>{children}</td>;
+  return <td className={`whitespace-nowrap border-r border-slate-200 px-3 py-2.5 last:border-r-0 ${center ? "text-center" : ""} ${right ? "text-right" : ""} ${className}`}>{children}</td>;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -1372,7 +1638,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function ContainerStatus({ status }: { status: ContainerRow["status"] }) {
-  const className = status === "Confirmed" ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300" : status === "Cancelled" ? "border-red-400/40 bg-red-500/15 text-red-300" : "border-amber-400/40 bg-amber-500/15 text-amber-300";
+  const className = status === "Confirmed" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : status === "Cancelled" ? "border-red-300 bg-red-50 text-red-700" : "border-amber-300 bg-amber-50 text-amber-700";
   return <span className={`inline-flex rounded border px-2 py-0.5 text-[10px] font-black uppercase ${className}`}>{status}</span>;
 }
 

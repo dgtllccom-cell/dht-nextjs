@@ -222,9 +222,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     const needle = query.trim().toLowerCase();
     const draft = draftFilter.trim().toLowerCase();
     return orders.filter((row) => {
-      if (draft && !(row.payment_status ?? "").toLowerCase().includes(draft) && !(row.ledger_posting_status ?? "").toLowerCase().includes(draft)) return false;
+      // Filter out non-posted orders so they only show in payments when transferred
+      if (row.ledger_posting_status !== "Posted") return false;
+      if (draft && !(row.payment_status ?? "").toLowerCase().includes(draft)) return false;
       if (!needle) return true;
-      return [row.purchase_order_no, row.purchase_contract_no, row.payment_status, row.ledger_posting_status, row.currency_code]
+      return [row.purchase_order_no, row.purchase_contract_no, row.payment_status, row.currency_code]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle));
     });
@@ -315,38 +317,77 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           </div>
           <span className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted-foreground">Rows: {filtered.length}</span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1150px] text-sm">
-            <thead className="bg-slate-950 text-xs uppercase tracking-wide text-white">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <table className="min-w-full border-collapse text-xs text-slate-800">
+            <thead className="bg-slate-50 text-[10px] uppercase font-bold tracking-wide text-slate-650 border-b border-slate-200">
               <tr>
-                {["PO Number", "Contract", "Date", "Currency", "Order Total", "Advance", "Remaining", "Credit", "Payment Status", "Journal", "Action"].map((header) => (
-                  <th key={header} className="px-3 py-3 text-left">{header}</th>
+                {["SR#", "Admin S#", "Country S#", "Bill No", "Date", "Seller Acc", "Buyer Acc", "Goods Name", "Qty", "Gross Weight", "Net Weight", "Price", "Total Price", "Ex. Rate", "Final Amount", "Payment Condition", "Actions"].map((header, idx) => (
+                  <th key={idx} className="whitespace-nowrap border-r border-slate-200 px-3 py-3 text-left font-black last:border-r-0">{header}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {pageRows.map((row) => (
-                <tr
-                  key={row.id}
-                  onClick={() => setSelectedId(row.id)}
-                  className={cn("cursor-pointer border-b border-border transition hover:bg-muted/50", selected?.id === row.id && "bg-primary/10")}
-                >
-                  <td className="px-3 py-3 font-semibold text-primary">{row.purchase_order_no}</td>
-                  <td className="px-3 py-3">{row.purchase_contract_no ?? "-"}</td>
-                  <td className="px-3 py-3">{date(row.created_at)}</td>
-                  <td className="px-3 py-3">{row.currency_code ?? "-"}</td>
-                  <td className="px-3 py-3">{money(row.order_total, row.currency_code ?? "")}</td>
-                  <td className="px-3 py-3">{money(row.advance_paid, row.currency_code ?? "")}</td>
-                  <td className="px-3 py-3">{money(row.remaining_due, row.currency_code ?? "")}</td>
-                  <td className="px-3 py-3">{money(row.credit_amount, row.currency_code ?? "")}</td>
-                  <td className="px-3 py-3"><StatusBadge label={row.payment_status ?? "Pending"} /></td>
-                  <td className="px-3 py-3"><StatusBadge label={row.ledger_posting_status ?? "Pending"} /></td>
-                  <td className="px-3 py-3 text-center"><RowActions onSelect={() => setSelectedId(row.id)} /></td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-slate-200 bg-white text-slate-800">
+              {pageRows.map((row, index) => {
+                const goods = (row as any).form_data?.goodsEntries || [];
+                const form = (row as any).form_data?.form || {};
+                const totals = (row as any).form_data?.totals || {};
+
+                const billNo = form.billNo || "-";
+                const dateStr = date(form.purchaseDate || row.created_at);
+                const countrySerial = form.branchCode || "-";
+                
+                const purchaseAcc = form.purchaseAccountName ? `${form.purchaseAccountNo} (${form.purchaseAccountName})` : "-";
+                const salesAcc = form.salesAccountName ? `${form.salesAccountNo} (${form.salesAccountName})` : "-";
+
+                const goodsName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || form.goodsName || "-";
+                const qty = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0) : Number(form.qtyNo || 0);
+                const grossWeight = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
+                const netWeight = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
+
+                const price = goods.length ? (goods[0].coursePrice || 0) : Number(form.coursePrice || 0);
+                const totalPrice = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) : Number(form.totalAmount || 0);
+
+                const exchangeRate = row.exchange_rate || form.exchangeRate || 1;
+                const finalAmount = row.order_total || totals.grandFinal || 0;
+
+                const paymentType = form.paymentType || row.payment_status || "N/A";
+                const loadingCountry = form.loadingCountry || "N/A";
+                const loadingDate = form.loadingDate || "N/A";
+                const receivedCountry = form.receivedCountry || "N/A";
+                const receivedPort = form.receivedPort || "N/A";
+                const receivedDate = form.receivedDate || "N/A";
+
+                const transitSummary = `${paymentType} (Loading: ${loadingCountry} on ${loadingDate} -> Recv: ${receivedCountry} on ${receivedDate})`;
+
+                return (
+                  <tr
+                    key={row.id}
+                    onClick={() => setSelectedId(row.id)}
+                    className={cn("cursor-pointer border-b border-slate-200 hover:bg-slate-50/80 transition", selected?.id === row.id && "bg-blue-50/60")}
+                  >
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 font-semibold text-slate-800 last:border-r-0">{index + 1}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 font-bold text-blue-700 font-mono last:border-r-0">{row.purchase_order_no}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 font-semibold text-slate-800 font-mono last:border-r-0">{countrySerial}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 font-bold text-slate-800 font-mono last:border-r-0">{billNo}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-slate-700 last:border-r-0">{dateStr}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-slate-700 max-w-[180px] truncate last:border-r-0" title={purchaseAcc}>{purchaseAcc}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-slate-700 max-w-[180px] truncate last:border-r-0" title={salesAcc}>{salesAcc}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 font-semibold text-amber-700 max-w-[160px] truncate last:border-r-0" title={goodsName}>{goodsName}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-emerald-650 last:border-r-0">{qty.toLocaleString()}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-slate-700 last:border-r-0">{grossWeight.toLocaleString()}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-slate-800 font-bold last:border-r-0">{netWeight.toLocaleString()}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-slate-700 last:border-r-0">{money(price, row.currency_code ?? "")}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-slate-850 font-bold last:border-r-0">{money(totalPrice, row.currency_code ?? "")}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-slate-700 last:border-r-0">{exchangeRate.toFixed(2)}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-blue-700 font-black last:border-r-0">{money(finalAmount, "PKR")}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-slate-700 max-w-[280px] truncate text-[11px] font-medium last:border-r-0" title={transitSummary}>{transitSummary}</td>
+                    <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-center last:border-r-0"><RowActions onSelect={() => setSelectedId(row.id)} /></td>
+                  </tr>
+                );
+              })}
               {!pageRows.length && !loading ? (
                 <tr>
-                  <td colSpan={11} className="px-3 py-10 text-center text-muted-foreground">No purchase order payment records found.</td>
+                  <td colSpan={17} className="px-3 py-10 text-center text-muted-foreground">No purchase order payment records found.</td>
                 </tr>
               ) : null}
             </tbody>

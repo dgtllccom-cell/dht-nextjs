@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     let q = supabase
       .from("purchase_orders")
       .select(
-        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, payment_status, ledger_posting_status, created_at, updated_at"
+        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, payment_status, ledger_posting_status, form_data, created_at, updated_at"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -171,7 +171,8 @@ export async function POST(request: NextRequest) {
       currency_code: body.currencyCode,
       exchange_rate: body.exchangeRate,
       order_total: body.orderTotal,
-      form_data: body.formData ?? null
+      form_data: body.formData ?? null,
+      ledger_posting_status: body.ledgerPostingStatus || "Pending"
     };
 
     const inserted = await requireSupabaseData(

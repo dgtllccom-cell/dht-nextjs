@@ -74,7 +74,23 @@ export function CustomerProfile({
       contacts: [] as Array<{ type: string; value: string }>,
       documents: [] as Array<{ type: string; number: string; upload: string }>,
       status: "Active",
-      remarks: customer.notes || ""
+      remarks: customer.notes || "",
+      accountName: "",
+      accountNumber: "",
+      manualReference: "",
+      branchName: "",
+      branchCode: "",
+      cityBranch: "",
+      companyName: "",
+      companyRegNo: "",
+      companyTaxNo: "",
+      companyBusinessType: "Private Limited",
+      companyPhone: "",
+      companyEmail: "",
+      companyCountry: "",
+      companyCity: "",
+      companyState: "",
+      companyAddress: ""
     };
 
     if (customer.notes) {
@@ -205,48 +221,84 @@ export function CustomerProfile({
 
           {/* Content Grids */}
           <div className="space-y-3">
-            {/* Personal Section */}
+            {/* Customer Account Details Card */}
             <div className="border rounded-xl p-3 bg-slate-50/50 space-y-1.5 dark:bg-slate-900/40 dark:border-slate-800">
-              <h3 className="text-[9px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1 dark:text-teal-400">Personal Details</h3>
+              <h3 className="text-[9px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1 dark:text-teal-400">Customer Account Details</h3>
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
-                  <span className="text-slate-500">Customer Code</span>
+                  <span className="text-slate-500">Account Name</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{parsedMeta.accountName || customer.customer_name}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Account Number</span>
+                  <span className="font-bold text-slate-800 font-mono dark:text-slate-200">{parsedMeta.accountNumber || parsedMeta.customerAccountNumber}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Customer Number</span>
                   <span className="font-bold text-slate-800 font-mono dark:text-slate-200">{parsedMeta.customerAccountNumber}</span>
                 </div>
                 <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
-                  <span className="text-slate-500">Customer Type</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.customerType}</span>
+                  <span className="text-slate-500">Manual Reference</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.manualReference || "-"}</span>
                 </div>
                 <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
-                  <span className="text-slate-500">Full Name</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-100">{customer.customer_name}</span>
+                  <span className="text-slate-500">Branch Name</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.branchName || "-"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Branch Code</span>
+                  <span className="font-bold text-slate-800 font-mono dark:text-slate-200">{parsedMeta.branchCode || "-"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">City Branch</span>
+                  <span className="font-bold text-slate-850 dark:text-slate-200">{parsedMeta.cityBranch || parsedMeta.city || "-"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Country & State</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{[parsedMeta.country, parsedMeta.stateProvince].filter(Boolean).join(", ") || "-"}</span>
                 </div>
                 <div className="flex justify-between pb-0.5">
-                  <span className="text-slate-500">Representative</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-100">{parsedMeta.fatherName || "-"}</span>
+                  <span className="text-slate-500">Address</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 text-right truncate max-w-[180px]" title={customer.address || ""}>{customer.address || "-"}</span>
                 </div>
               </div>
             </div>
 
-            {/* Location Section */}
+            {/* Customer Company Details Card */}
             <div className="border rounded-xl p-3 bg-slate-50/50 space-y-1.5 dark:bg-slate-900/40 dark:border-slate-800">
-              <h3 className="text-[9px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1 dark:text-teal-400">Location</h3>
+              <h3 className="text-[9px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1 dark:text-teal-400">Customer Company Details</h3>
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
-                  <span className="text-slate-500">Country</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.country || "-"}</span>
+                  <span className="text-slate-500">Company Name</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{parsedMeta.companyName || customer.company_name || "-"}</span>
                 </div>
                 <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
-                  <span className="text-slate-500">State / Province</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.stateProvince || "-"}</span>
+                  <span className="text-slate-500">Registration Number</span>
+                  <span className="font-bold text-slate-800 font-mono dark:text-slate-200">{parsedMeta.companyRegNo || "-"}</span>
                 </div>
                 <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
-                  <span className="text-slate-500">City & Code</span>
-                  <span className="font-bold text-slate-800 font-mono dark:text-slate-200">{[parsedMeta.city, parsedMeta.cityCode].filter(v => v && v !== "-").join(" - ") || "-"}</span>
+                  <span className="text-slate-500">Tax / NTN Number</span>
+                  <span className="font-bold text-slate-800 font-mono dark:text-slate-200">{parsedMeta.companyTaxNo || "-"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Business Type</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.companyBusinessType || "-"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Phone Number</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.companyPhone || customer.mobile || "-"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Email Address</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{parsedMeta.companyEmail || customer.email || "-"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100/50 pb-1 dark:border-slate-800/50">
+                  <span className="text-slate-500">Location (City/State/Country)</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{[parsedMeta.companyCity || parsedMeta.city, parsedMeta.companyState || parsedMeta.stateProvince, parsedMeta.companyCountry || parsedMeta.country].filter(Boolean).join(", ") || "-"}</span>
                 </div>
                 <div className="flex justify-between pb-0.5">
-                  <span className="text-slate-500">Address</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-100 text-right truncate max-w-[180px]">{customer.address || "-"}</span>
+                  <span className="text-slate-500">Complete Address</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 text-right truncate max-w-[180px]" title={parsedMeta.companyAddress || customer.address || ""}>{parsedMeta.companyAddress || customer.address || "-"}</span>
                 </div>
               </div>
             </div>
@@ -425,54 +477,90 @@ export function CustomerProfile({
 
             {/* Content Grids */}
             <div className="grid gap-6 sm:grid-cols-2">
-              {/* Personal Section */}
+              {/* Customer Account Details Card */}
               <div className="border rounded-xl p-4 bg-slate-50/50 space-y-3 relative">
                 <div className="absolute top-3 right-3 text-teal-600/30">
                   <User className="h-6 w-6" />
                 </div>
-                <h3 className="text-[10px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1">Personal Details</h3>
+                <h3 className="text-[10px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1">Customer Account Details</h3>
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                    <span className="text-slate-500">Customer Code</span>
+                    <span className="text-slate-500">Account Name</span>
+                    <span className="font-bold text-slate-800">{parsedMeta.accountName || customer.customer_name}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Account Number</span>
+                    <span className="font-bold text-slate-800 font-mono">{parsedMeta.accountNumber || parsedMeta.customerAccountNumber}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Customer Number</span>
                     <span className="font-bold text-slate-800 font-mono">{parsedMeta.customerAccountNumber}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                    <span className="text-slate-500">Customer Type</span>
-                    <span className="font-bold text-slate-800">{parsedMeta.customerType}</span>
+                    <span className="text-slate-500">Manual Reference</span>
+                    <span className="font-bold text-slate-800">{parsedMeta.manualReference || "-"}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                    <span className="text-slate-500">Full Name</span>
-                    <span className="font-bold text-slate-900">{customer.customer_name}</span>
-                  </div>
-                  <div className="flex justify-between pb-0.5">
-                    <span className="text-slate-500">Father / Representative Name</span>
-                    <span className="font-bold text-slate-900">{parsedMeta.fatherName || "-"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Location Section */}
-              <div className="border rounded-xl p-4 bg-slate-50/50 space-y-3 relative">
-                <div className="absolute top-3 right-3 text-teal-600/30">
-                  <MapPin className="h-6 w-6" />
-                </div>
-                <h3 className="text-[10px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1">Location Address</h3>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                    <span className="text-slate-500">Country</span>
-                    <span className="font-bold text-slate-800">{parsedMeta.country || "-"}</span>
+                    <span className="text-slate-500">Branch Name</span>
+                    <span className="font-bold text-slate-800">{parsedMeta.branchName || "-"}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                    <span className="text-slate-500">State / Province</span>
-                    <span className="font-bold text-slate-800">{parsedMeta.stateProvince || "-"}</span>
+                    <span className="text-slate-500">Branch Code</span>
+                    <span className="font-bold text-slate-800 font-mono">{parsedMeta.branchCode || "-"}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                    <span className="text-slate-500">City & Code</span>
-                    <span className="font-bold text-slate-800 font-mono">{[parsedMeta.city, parsedMeta.cityCode].filter(v => v && v !== "-").join(" - ") || "-"}</span>
+                    <span className="text-slate-500">City Branch</span>
+                    <span className="font-bold text-slate-800">{parsedMeta.cityBranch || parsedMeta.city || "-"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Country & State</span>
+                    <span className="font-bold text-slate-800">{[parsedMeta.country, parsedMeta.stateProvince].filter(Boolean).join(", ") || "-"}</span>
                   </div>
                   <div className="flex justify-between pb-0.5">
                     <span className="text-slate-500">Address</span>
                     <span className="font-bold text-slate-900 text-right max-w-[150px] truncate" title={customer.address || ""}>{customer.address || "-"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer Company Details Card */}
+              <div className="border rounded-xl p-4 bg-slate-50/50 space-y-3 relative">
+                <div className="absolute top-3 right-3 text-teal-600/30">
+                  <Building2 className="h-6 w-6" />
+                </div>
+                <h3 className="text-[10px] font-bold text-teal-800 uppercase tracking-wider border-b pb-1">Customer Company Details</h3>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Company Name</span>
+                    <span className="font-bold text-slate-900">{parsedMeta.companyName || customer.company_name || "-"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Registration Number</span>
+                    <span className="font-bold text-slate-800 font-mono">{parsedMeta.companyRegNo || "-"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Tax / NTN Number</span>
+                    <span className="font-bold text-slate-800 font-mono">{parsedMeta.companyTaxNo || "-"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Business Type</span>
+                    <span className="font-bold text-slate-800">{parsedMeta.companyBusinessType || "-"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Phone Number</span>
+                    <span className="font-bold text-slate-800">{parsedMeta.companyPhone || customer.mobile || "-"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Email Address</span>
+                    <span className="font-bold text-slate-800">{parsedMeta.companyEmail || customer.email || "-"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-slate-500">Location (City/State/Country)</span>
+                    <span className="font-bold text-slate-800">{[parsedMeta.companyCity || parsedMeta.city, parsedMeta.companyState || parsedMeta.stateProvince, parsedMeta.companyCountry || parsedMeta.country].filter(Boolean).join(", ") || "-"}</span>
+                  </div>
+                  <div className="flex justify-between pb-0.5">
+                    <span className="text-slate-500">Complete Address</span>
+                    <span className="font-bold text-slate-900 text-right max-w-[150px] truncate" title={parsedMeta.companyAddress || customer.address || ""}>{parsedMeta.companyAddress || customer.address || "-"}</span>
                   </div>
                 </div>
               </div>

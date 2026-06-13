@@ -96,8 +96,15 @@ const initialCompanies: (CompanyIncorporationData & { id: string })[] = [
   }
 ];
 
+function safeUUID(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "row-" + Math.random().toString(36).substring(2, 11);
+}
+
 function newRow(): DynamicRow {
-  return { id: crypto.randomUUID(), type: "", value: "" };
+  return { id: safeUUID(), type: "", value: "" };
 }
 
 function selectClass() {

@@ -86,12 +86,14 @@ export type UiKey =
   | "nav.purchase_confirm"
   | "nav.purchase_loading_records"
   | "nav.purchase_booking_journal_report"
+  | "nav.purchase_booking_register"
   | "nav.local_purchase"
   | "nav.sales"
   | "nav.sales_order"
   | "nav.sales_confirm"
   | "nav.local_sales"
   | "nav.reports"
+  | "nav.search_portal"
   | "nav.daily_reports"
   | "nav.daily_payment_report"
   | "nav.roznamcha_report"
@@ -400,12 +402,14 @@ const en: Dict = {
   "nav.purchase_confirm": "Purchase Confirm",
   "nav.purchase_loading_records": "Purchase Loading Records",
   "nav.purchase_booking_journal_report": "Purchase Booking Journal Report",
+  "nav.purchase_booking_register": "Purchase Booking Register",
   "nav.local_purchase": "Local Purchase",
   "nav.sales": "Sales",
   "nav.sales_order": "Sales Order",
   "nav.sales_confirm": "Sales Confirm",
   "nav.local_sales": "Local Sales",
   "nav.reports": "Reports",
+  "nav.search_portal": "Global Search",
   "nav.daily_reports": "Daily Reports",
   "nav.daily_payment_report": "Daily Payment Report",
   "nav.roznamcha_report": "Roznamcha Report",
@@ -699,12 +703,14 @@ const ur: Dict = {
   "nav.purchase_confirm": "پرچیز کنفرم",
   "nav.purchase_loading_records": "پرچیز لوڈنگ ریکارڈز",
   "nav.purchase_booking_journal_report": "پرچیز بکنگ جرنل رپورٹ",
+  "nav.purchase_booking_register": "پرچیز بکنگ رجسٹر",
   "nav.local_purchase": "لوکل پرچیز",
   "nav.sales": "سیلز",
   "nav.sales_order": "سیلز آرڈر",
   "nav.sales_confirm": "سیلز کنفرم",
   "nav.local_sales": "لوکل سیلز",
   "nav.reports": "رپورٹس",
+  "nav.search_portal": "عمومی تلاش",
   "nav.daily_reports": "ڈیلی رپورٹس",
   "nav.daily_payment_report": "ڈیلی پیمنٹ رپورٹ",
   "nav.roznamcha_report": "روزنامچہ رپورٹ",
@@ -960,12 +966,14 @@ const ar: Dict = {
   "nav.purchase_confirm": "تأكيد الشراء",
   "nav.purchase_loading_records": "سجلات تحميل الشراء",
   "nav.purchase_booking_journal_report": "تقرير يومية حجز الشراء",
+  "nav.purchase_booking_register": "سجل حجز الشراء",
   "nav.local_purchase": "شراء محلي",
   "nav.sales": "المبيعات",
   "nav.sales_order": "أمر بيع",
   "nav.sales_confirm": "تأكيد البيع",
   "nav.local_sales": "بيع محلي",
   "nav.reports": "التقارير",
+  "nav.search_portal": "بحث عام",
   "nav.daily_reports": "تقارير يومية",
   "nav.daily_payment_report": "تقرير المدفوعات اليومية",
   "nav.roznamcha_report": "تقرير روزنامچہ",
@@ -1213,6 +1221,7 @@ const fa: Dict = {
   "nav.clearing_agent": "ترخیص",
   "nav.purchase_sale": "خرید و فروش",
   "nav.reports": "گزارش‌ها",
+  "nav.search_portal": "جستجوی سراسری",
   "nav.all_roznamcha_reports": "همه گزارش‌های روزنامچہ",
   "nav.ledger_reports": "گزارش‌های دفتر کل",
   "nav.ledger_journal_reports": "گزارش‌های ژورنال دفتر کل",
@@ -1408,6 +1417,7 @@ const ps: Dict = {
   "nav.all_roznamcha": "ټول روزنامچه",
   "nav.roznamcha_all_report": "د روزنامچه ټول راپور",
   "nav.reports": "راپورونه",
+  "nav.search_portal": "عمومي پلټنه",
   "nav.all_roznamcha_reports": "ټول روزنامچه راپورونه",
   "nav.ledger_reports": "د لېجر راپورونه",
   "nav.ledger_journal_reports": "د لېجر جرنل راپورونه",

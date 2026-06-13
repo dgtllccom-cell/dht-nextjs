@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Palette,
   ScrollText,
+  Search,
   Settings2,
   Users
 } from "lucide-react";
@@ -38,7 +39,8 @@ const iconMap: Record<SidebarIconKey, LucideIcon> = {
   "message-square": MessageSquare,
   mail: Mail,
   bell: Bell,
-  palette: Palette
+  palette: Palette,
+  search: Search
 };
 
 export function SidebarIcon({ name, className }: { name?: SidebarIconKey; className?: string }) {

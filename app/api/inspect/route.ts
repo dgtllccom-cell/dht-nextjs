@@ -14,6 +14,35 @@ export async function GET(request: NextRequest) {
     const sql = postgres(databaseUrl, { max: 1, prepare: false });
     const action = request.nextUrl.searchParams.get("action");
 
+    if (action === "test") {
+      const ea_columns = await sql`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'enterprise_accounts'
+      `;
+      const ledger_columns = await sql`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'ledgers'
+      `;
+      const check_constraints = await sql`
+        SELECT
+          conname AS constraint_name,
+          pg_get_constraintdef(oid) AS constraint_definition
+        FROM pg_constraint
+        WHERE conrelid = 'public.enterprise_accounts'::regclass
+          AND contype = 'c'
+      `;
+
+      await sql.end();
+      return NextResponse.json({
+        success: true,
+        ea_columns,
+        ledger_columns,
+        check_constraints
+      });
+    }
+
     if (action === "locks") {
       const locks = await sql`
         SELECT

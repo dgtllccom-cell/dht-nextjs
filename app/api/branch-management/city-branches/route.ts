@@ -5,6 +5,14 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { auditApiAction } from "@/lib/api/audit";
 import { allPermissionGroupKeys, constrainChildPermissions } from "@/lib/permissions/catalog";
 import { linkEmailAccount } from "@/lib/api/email-link";
+import { translateToUrdu } from "@/lib/api/response";
+
+function formatError(message: string, isSuperAdmin: boolean) {
+  if (isSuperAdmin) {
+    return `بھائی اس میں یہ خرابی ہے: ${translateToUrdu(message)}`;
+  }
+  return message;
+}
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -129,7 +137,7 @@ export async function POST(request: Request) {
 
     // Super Admin can create everywhere. Country/Main branch roles can create under their country scope.
     if (!session.isSuperAdmin && !session.countryIds.includes(parsed.data.countryId)) {
-      return NextResponse.json({ error: "Country scope is not allowed." }, { status: 403 });
+      return NextResponse.json({ error: formatError("Country scope is not allowed.", session.isSuperAdmin) }, { status: 403 });
     }
 
     const supabase = createSupabaseAdminClient() as any;
@@ -142,11 +150,11 @@ export async function POST(request: Request) {
       .single();
 
     if (mainBranchError || !mainBranch?.id) {
-      return NextResponse.json({ error: "Main branch not found." }, { status: 404 });
+      return NextResponse.json({ error: formatError("Main branch not found.", session.isSuperAdmin) }, { status: 404 });
     }
 
     if (String(mainBranch.country_id) !== parsed.data.countryId) {
-      return NextResponse.json({ error: "Main branch does not belong to selected country." }, { status: 400 });
+      return NextResponse.json({ error: formatError("Main branch does not belong to selected country.", session.isSuperAdmin) }, { status: 400 });
     }
 
     const permissionGrants = constrainToParentPermissions(mainBranch.permission_grants, parsed.data.permissionGrants);
@@ -163,7 +171,7 @@ export async function POST(request: Request) {
 
       if (existingByCityId?.id) {
         return NextResponse.json(
-          { error: "A City Branch already exists for this City under the selected Main Branch." },
+          { error: formatError("A City Branch already exists for this City under the selected Main Branch.", session.isSuperAdmin) },
           { status: 409 }
         );
       }
@@ -210,7 +218,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.from("city_branches").insert(payload).select("id").single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+      return NextResponse.json({ error: formatError(error.message, session.isSuperAdmin) }, { status: 403 });
     }
 
     // Link/Upsert central email account
@@ -235,7 +243,9 @@ export async function POST(request: Request) {
     if (error instanceof ErpAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Server error" }, { status: 500 });
+    const isSuperAdmin = typeof session !== "undefined" && (session as any)?.isSuperAdmin;
+    const msg = error instanceof Error ? error.message : "Server error";
+    return NextResponse.json({ error: formatError(msg, isSuperAdmin) }, { status: 500 });
   }
 }
 
@@ -255,7 +265,7 @@ export async function PUT(request: Request) {
     }
 
     if (!session.isSuperAdmin && !session.countryIds.includes(parsed.data.countryId)) {
-      return NextResponse.json({ error: "Country scope is not allowed." }, { status: 403 });
+      return NextResponse.json({ error: formatError("Country scope is not allowed.", session.isSuperAdmin) }, { status: 403 });
     }
 
     const supabase = createSupabaseAdminClient() as any;
@@ -268,11 +278,11 @@ export async function PUT(request: Request) {
       .single();
 
     if (mainBranchError || !mainBranch?.id) {
-      return NextResponse.json({ error: "Main branch not found." }, { status: 404 });
+      return NextResponse.json({ error: formatError("Main branch not found.", session.isSuperAdmin) }, { status: 404 });
     }
 
     if (String(mainBranch.country_id) !== parsed.data.countryId) {
-      return NextResponse.json({ error: "Main branch does not belong to selected country." }, { status: 400 });
+      return NextResponse.json({ error: formatError("Main branch does not belong to selected country.", session.isSuperAdmin) }, { status: 400 });
     }
 
     const permissionGrants = constrainToParentPermissions(mainBranch.permission_grants, parsed.data.permissionGrants);
@@ -289,7 +299,7 @@ export async function PUT(request: Request) {
 
       if (existingByCityId?.id) {
         return NextResponse.json(
-          { error: "A City Branch already exists for this City under the selected Main Branch." },
+          { error: formatError("A City Branch already exists for this City under the selected Main Branch.", session.isSuperAdmin) },
           { status: 409 }
         );
       }
@@ -339,7 +349,7 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+      return NextResponse.json({ error: formatError(error.message, session.isSuperAdmin) }, { status: 403 });
     }
 
     // Link/Upsert central email account
@@ -364,6 +374,8 @@ export async function PUT(request: Request) {
     if (error instanceof ErpAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Server error" }, { status: 500 });
+    const isSuperAdmin = typeof session !== "undefined" && (session as any)?.isSuperAdmin;
+    const msg = error instanceof Error ? error.message : "Server error";
+    return NextResponse.json({ error: formatError(msg, isSuperAdmin) }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { type EnterpriseRole, enterpriseRoles } from "@/lib/permissions/enterprise-roles";
 import { enterpriseRolePermissions } from "@/lib/permissions/enterprise-roles";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
@@ -74,7 +75,7 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
     let resolvedUserId = temp.userId;
     if (temp.userId.startsWith("00000000-") && isSupabaseConfigured()) {
       try {
-        const supabase = await createServerSupabaseClient();
+        const supabase = createSupabaseAdminClient();
         const { data: firstProfile } = await supabase
           .from("profiles")
           .select("id")

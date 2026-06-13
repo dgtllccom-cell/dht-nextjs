@@ -16,7 +16,6 @@ import {
   Ship,
   Trash2,
   Lock,
-  Globe,
   Building2,
   CheckCircle2,
   User,
@@ -293,10 +292,89 @@ function currencySymbol(currency) {
   return currency || "";
 }
 
+function formatShortDate(dateStr) {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatIsoDate(dateStr) {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatNumber(num) {
+  if (num === null || num === undefined) return "-";
+  return Number(num).toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+function LightTable({ headers, children }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table className="min-w-full border-collapse text-xs text-slate-800">
+        <thead className="bg-slate-50 text-[10px] uppercase font-bold tracking-wide text-slate-650 border-b border-slate-200">
+          <tr>
+            {headers.map((header, idx) => (
+              <th
+                key={idx}
+                className="whitespace-nowrap border-r border-slate-200 px-3 py-3 text-left font-black last:border-r-0"
+              >
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200 bg-white text-slate-800">{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function LightTd({ children, className = "", center = false, right = false }) {
+  return (
+    <td
+      className={`whitespace-nowrap border-r border-slate-200 px-3 py-2.5 last:border-r-0 ${
+        center ? "text-center" : ""
+      } ${right ? "text-right" : ""} ${className}`}
+    >
+      {children}
+    </td>
+  );
+}
+
+function LightStatusBadge({ status }) {
+  const s = String(status || "Open").toLowerCase();
+  let badgeClass = "bg-slate-100 text-slate-700 border-slate-205";
+  if (s.includes("confirm")) {
+    badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-250";
+  } else if (s.includes("cancel")) {
+    badgeClass = "bg-rose-50 text-rose-700 border-rose-250";
+  } else if (s.includes("open") || s.includes("draft")) {
+    badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+  }
+  return (
+    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-[9px] font-black uppercase ${badgeClass}`}>
+      {status || "Open"}
+    </span>
+  );
+}
+
 export function PurchaseOrderWizard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("booking"); // "booking" | "goods" | "others"
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
+  const [verifyDropdownOpen, setVerifyDropdownOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewType, setPreviewType] = useState("booking_report"); // "booking_report" | "contract" | "invoice"
   const [form, setForm] = useState(DEFAULT_FORM);
@@ -304,6 +382,7 @@ export function PurchaseOrderWizard() {
   const [editingRemarksType, setEditingRemarksType] = useState(null);
   const [tempRemarksText, setTempRemarksText] = useState("");
   
+
   const [portalElement, setPortalElement] = useState(null);
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -319,6 +398,7 @@ export function PurchaseOrderWizard() {
   const dropdownRef = React.useRef(null);
   const purchaseDropdownRef = React.useRef(null);
   const salesDropdownRef = React.useRef(null);
+  const verifyDropdownRef = React.useRef(null);
 
   const [purchaseDropdownOpen, setPurchaseDropdownOpen] = useState(false);
   const [salesDropdownOpen, setSalesDropdownOpen] = useState(false);
@@ -335,6 +415,9 @@ export function PurchaseOrderWizard() {
       }
       if (salesDropdownRef.current && !salesDropdownRef.current.contains(event.target)) {
         setSalesDropdownOpen(false);
+      }
+      if (verifyDropdownRef.current && !verifyDropdownRef.current.contains(event.target)) {
+        setVerifyDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -700,6 +783,7 @@ export function PurchaseOrderWizard() {
           currencyCode: form.currencyType,
           exchangeRate: Number(form.exchangeRate || 1),
           orderTotal: reportTotals.grandFinal,
+          ledgerPostingStatus: "Pending",
           formData: {
             form,
             totals: reportTotals,
@@ -714,7 +798,9 @@ export function PurchaseOrderWizard() {
         throw new Error(payload?.error?.message || payload?.error || "Purchase order failed to save.");
       }
       setSaveMessage(`Successfully saved Purchase Order: ${payload.data?.purchaseOrderNo || form.purchaseOrderNo}`);
-      setActiveTab("report");
+      setTimeout(() => {
+        router.push("/dashboard/purchase/purchase-booking-journal-report");
+      }, 1500);
     } catch (err) {
       setSaveMessage(err instanceof Error ? err.message : "Error saving order.");
     } finally {
@@ -737,6 +823,7 @@ export function PurchaseOrderWizard() {
           currencyCode: form.currencyType,
           exchangeRate: Number(form.exchangeRate || 1),
           orderTotal: reportTotals.grandFinal,
+          ledgerPostingStatus: "Posted",
           formData: {
             form,
             totals: reportTotals,
@@ -839,6 +926,13 @@ export function PurchaseOrderWizard() {
 
       {/* Actions */}
       <div className="flex items-center gap-1.5 shrink-0 relative" ref={dropdownRef}>
+        <Button
+          type="button"
+          onClick={handleReset}
+          className="flex items-center gap-1 h-7.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md font-bold text-[10px]"
+        >
+          + New
+        </Button>
         <Button
           type="button"
           onClick={() => setViewDropdownOpen(!viewDropdownOpen)}
@@ -993,14 +1087,78 @@ export function PurchaseOrderWizard() {
             </p>
           </div>
 
-          <Button
-            type="button"
-            onClick={handleTransfer}
-            disabled={savingOrder}
-            className="flex items-center gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
-          >
-            <Check className="h-4 w-4" /> {savingOrder ? "Transferring..." : "Transfer & Post"}
-          </Button>
+          <div className="flex items-center gap-2 relative" ref={verifyDropdownRef}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setVerifyDropdownOpen(!verifyDropdownOpen)}
+              className="flex items-center justify-center h-9 w-9 p-0 bg-background text-foreground border border-input rounded-lg hover:bg-muted"
+              title="More Actions"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+
+            {verifyDropdownOpen && (
+              <div className="absolute right-0 top-10 w-48 rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifyDropdownOpen(false);
+                    setActiveTab("booking");
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition border-b border-border/40 pb-2 mb-1"
+                >
+                  <PenLine className="h-3.5 w-3.5 text-primary" />
+                  <span>Edit Booking</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifyDropdownOpen(false);
+                    setPreviewType("invoice");
+                    setPreviewModalOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                >
+                  <Receipt className="h-3.5 w-3.5 text-rose-500" />
+                  <span>Print Invoice / Packing List</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifyDropdownOpen(false);
+                    setPreviewType("contract");
+                    setPreviewModalOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                >
+                  <FileSignature className="h-3.5 w-3.5 text-purple-500" />
+                  <span>Print Contract</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifyDropdownOpen(false);
+                    setPreviewType("booking_report");
+                    setPreviewModalOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                >
+                  <FileText className="h-3.5 w-3.5 text-blue-500" />
+                  <span>Print Proforma Invoice</span>
+                </button>
+              </div>
+            )}
+
+            <Button
+              type="button"
+              onClick={handleTransfer}
+              disabled={savingOrder}
+              className="flex items-center gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
+            >
+              <Check className="h-4 w-4" /> {savingOrder ? "Transferring..." : "Transfer & Post"}
+            </Button>
+          </div>
         </div>
 
         {/* Info Grid */}
@@ -1610,6 +1768,13 @@ export function PurchaseOrderWizard() {
           <div className="flex gap-2 relative" ref={dropdownRef}>
             <Button
               type="button"
+              onClick={handleReset}
+              className="flex items-center gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md font-bold"
+            >
+              + New
+            </Button>
+            <Button
+              type="button"
               onClick={() => setViewDropdownOpen(!viewDropdownOpen)}
               className="flex items-center gap-1.5 h-9 bg-primary text-primary-foreground hover:bg-primary/95 transition-all shadow-md font-bold"
             >
@@ -1817,53 +1982,7 @@ export function PurchaseOrderWizard() {
                     <p className="text-[10px] text-muted-foreground">Order headers, accounts and shipment rules setup</p>
                   </div>
 
-                  {/* Scoping Fields (Locked according to roles) */}
-                  <div className="bg-muted/40 p-3 rounded border border-border space-y-3">
-                    <div className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
-                      <Globe className="h-3 w-3" /> Scope Boundaries
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Country</label>
-                        {isSuperAdmin ? (
-                          <select
-                            value={form.countryId || ""}
-                            onChange={(e) => setForm(prev => ({ ...prev, countryId: e.target.value, countryBranchId: "", cityBranchId: "" }))}
-                            className="w-full bg-background border border-input rounded px-2 py-1 text-foreground focus:border-primary outline-none text-[10px]"
-                          >
-                            <option value="">Select</option>
-                            {countries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                        ) : (
-                          <div className="bg-muted border border-border px-2 py-1 rounded text-muted-foreground flex items-center gap-1 text-[10px]">
-                            <Lock className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{form.branchCountry || "Locked"}</span>
-                          </div>
-                        )}
-                      </div>
 
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Branch</label>
-                        {isSuperAdmin ? (
-                          <select
-                            value={form.countryBranchId || ""}
-                            onChange={(e) => setForm(prev => ({ ...prev, countryBranchId: e.target.value, cityBranchId: "" }))}
-                            disabled={!form.countryId}
-                            className="w-full bg-background border border-input rounded px-2 py-1 text-foreground focus:border-primary outline-none text-[10px] disabled:opacity-50"
-                          >
-                            <option value="">Select</option>
-                            {mainBranches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                          </select>
-                        ) : (
-                          <div className="bg-muted border border-border px-2 py-1 rounded text-muted-foreground flex items-center gap-1 text-[10px]">
-                            <Lock className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{form.branchName || "Locked"}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
                   <div className="space-y-3">
                     <div className="relative" ref={purchaseDropdownRef}>
@@ -3177,6 +3296,8 @@ export function PurchaseOrderWizard() {
         </section>
 
       </div>
+
+
 
       {/* High-fidelity Print & Preview Modal */}
       {previewModalOpen && (

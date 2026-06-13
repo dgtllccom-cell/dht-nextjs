@@ -72,40 +72,68 @@ export function openAccountA4ReportWindow(input: {
 
   // 2. Customer Details
   const custObj = b.customerDetail?.customer;
-  const customerHtml = `
-    <tr><td class="label">Customer Name</td><td class="value">${escapeHtml(custObj?.customer_name || b.accountName || "Khan")}</td></tr>
-    <tr><td class="label">Company Name</td><td class="value">${escapeHtml(custObj?.company_name || "-")}</td></tr>
-    <tr><td class="label">Customer Code</td><td class="value">${escapeHtml(custObj?.id ? compactCode(custObj.id, `CUS-${b.selectedCountryCode || "AE"}-${b.selectedBranchCode || "CHM"}`) : "CUS-AE-CHM-0002")}</td></tr>
-    <tr><td class="label">Phone</td><td class="value">${escapeHtml(custObj?.mobile || "-")}</td></tr>
-    <tr><td class="label">Email</td><td class="value">${escapeHtml(custObj?.email || "-")}</td></tr>
-    <tr><td class="label">Address</td><td class="value">${escapeHtml(custObj?.address || "-")}</td></tr>
+  const customerHtml = custObj ? `
+    <tr><td class="label">Customer Name</td><td class="value">${escapeHtml(custObj.customer_name || "-")}</td></tr>
+    <tr><td class="label">Company Name</td><td class="value">${escapeHtml(custObj.company_name || "-")}</td></tr>
+    <tr><td class="label">Customer Code</td><td class="value">${escapeHtml(compactCode(custObj.id, `CUS-${b.selectedCountryCode || "AE"}-${b.selectedBranchCode || "CHM"}`))}</td></tr>
+    <tr><td class="label">Phone</td><td class="value">${escapeHtml(custObj.mobile || "-")}</td></tr>
+    <tr><td class="label">Email</td><td class="value">${escapeHtml(custObj.email || "-")}</td></tr>
+    <tr><td class="label">Address</td><td class="value">${escapeHtml(custObj.address || "-")}</td></tr>
     <tr><td class="label">City</td><td class="value">${escapeHtml(b.selectedBranchName?.split(" - ")[0] || "-")}</td></tr>
-    <tr><td class="label">Country</td><td class="value">${escapeHtml(b.selectedCountryName || "UAE")}</td></tr>
+    <tr><td class="label">Country</td><td class="value">${escapeHtml(b.selectedCountryName || "-")}</td></tr>
+  ` : `
+    <tr><td class="label">Customer Name</td><td class="value">-</td></tr>
+    <tr><td class="label">Company Name</td><td class="value">-</td></tr>
+    <tr><td class="label">Customer Code</td><td class="value">-</td></tr>
+    <tr><td class="label">Phone</td><td class="value">-</td></tr>
+    <tr><td class="label">Email</td><td class="value">-</td></tr>
+    <tr><td class="label">Address</td><td class="value">-</td></tr>
+    <tr><td class="label">City</td><td class="value">-</td></tr>
+    <tr><td class="label">Country</td><td class="value">-</td></tr>
   `;
-
+ 
   // 3. Company Details
-  const companyHtml = `
-    <tr><td class="label">Company Name</td><td class="value">${escapeHtml(b.companyDetail?.name || "Asmat Super Admin")}</td></tr>
-    <tr><td class="label">Company Code</td><td class="value">${escapeHtml(b.companyDetail?.id ? compactCode(b.companyDetail.id, "COMP") : "COMP-0001")}</td></tr>
-    <tr><td class="label">Company Type</td><td class="value">Private Limited</td></tr>
+  const companyHtml = b.companyDetail ? `
+    <tr><td class="label">Company Name</td><td class="value">${escapeHtml(b.companyDetail.companyName || b.companyDetail.name || "-")}</td></tr>
+    <tr><td class="label">Company Code</td><td class="value">${escapeHtml(b.companyDetail.id ? compactCode(b.companyDetail.id, "COMP") : "-")}</td></tr>
+    <tr><td class="label">Company Type</td><td class="value">${escapeHtml(b.companyDetail.businessName || b.companyDetail.legal_name || "Private Limited")}</td></tr>
+    <tr><td class="label">Registration No.</td><td class="value">${escapeHtml(b.companyDetail.registrations?.find((r: any) => r.type.toLowerCase().includes("registration") || r.type.toLowerCase().includes("license") || r.type.toLowerCase().includes("trade"))?.value || "-")}</td></tr>
+    <tr><td class="label">Tax Registration No.</td><td class="value">${escapeHtml(b.companyDetail.registrations?.find((r: any) => r.type.toLowerCase().includes("tax"))?.value || "-")}</td></tr>
+    <tr><td class="label">NTN / GST No.</td><td class="value">${escapeHtml(b.companyDetail.registrations?.find((r: any) => r.type.toLowerCase().includes("ntn") || r.type.toLowerCase().includes("gst"))?.value || "-")}</td></tr>
+    <tr><td class="label">Company Address</td><td class="value">${escapeHtml(b.companyDetail.address || "-")}</td></tr>
+    <tr><td class="label">Country</td><td class="value">${escapeHtml(b.companyDetail.country || "-")}</td></tr>
+    <tr><td class="label">Phone</td><td class="value">${escapeHtml(b.companyDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("phone") || c.type.toLowerCase().includes("number") || c.type.toLowerCase().includes("mobile"))?.value || "-")}</td></tr>
+    <tr><td class="label">Email</td><td class="value">${escapeHtml(b.companyDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("email"))?.value || "-")}</td></tr>
+  ` : `
+    <tr><td class="label">Company Name</td><td class="value">-</td></tr>
+    <tr><td class="label">Company Code</td><td class="value">-</td></tr>
+    <tr><td class="label">Company Type</td><td class="value">-</td></tr>
     <tr><td class="label">Registration No.</td><td class="value">-</td></tr>
     <tr><td class="label">Tax Registration No.</td><td class="value">-</td></tr>
     <tr><td class="label">NTN / GST No.</td><td class="value">-</td></tr>
-    <tr><td class="label">Company Address</td><td class="value">Mall Road, Chaman, District Chaman, Balochistan, Pakistan</td></tr>
-    <tr><td class="label">Country</td><td class="value">Pakistan</td></tr>
-    <tr><td class="label">Phone</td><td class="value">+92 300 1234567</td></tr>
-    <tr><td class="label">Email</td><td class="value">asmatandbrothers@gmail.com</td></tr>
+    <tr><td class="label">Company Address</td><td class="value">-</td></tr>
+    <tr><td class="label">Country</td><td class="value">-</td></tr>
+    <tr><td class="label">Phone</td><td class="value">-</td></tr>
+    <tr><td class="label">Email</td><td class="value">-</td></tr>
   `;
-
+ 
   // 4. Bank Details
-  const bankHtml = `
-    <tr><td class="label">Bank Name</td><td class="value">${escapeHtml(b.bankDetail?.name || "Dubai Islamic Bank")}</td></tr>
-    <tr><td class="label">Branch Name</td><td class="value">${escapeHtml(b.bankDetail?.legal_name || "Main Branch")}</td></tr>
-    <tr><td class="label">Bank Account Number</td><td class="value">AE24 DIB 1234 5678 9012 3456</td></tr>
-    <tr><td class="label">IBAN</td><td class="value">AE24DIB1234567890123456</td></tr>
-    <tr><td class="label">Account Title</td><td class="value">${escapeHtml(b.accountName || "Khan")}</td></tr>
-    <tr><td class="label">Swift Code</td><td class="value">DIBLAEAD</td></tr>
-    <tr><td class="label">Currency</td><td class="value">${escapeHtml(b.currency || "AED")}</td></tr>
+  const bankHtml = b.bankDetail ? `
+    <tr><td class="label">Bank Name</td><td class="value">${escapeHtml(b.bankDetail.bank_name || b.bankDetail.companyName || b.bankDetail.name || "-")}</td></tr>
+    <tr><td class="label">Branch Name</td><td class="value">${escapeHtml(b.bankDetail.branch_name || b.bankDetail.legal_name || "-")}</td></tr>
+    <tr><td class="label">Bank Account Number</td><td class="value">${escapeHtml(b.bankDetail.account_number || b.bankDetail.address || "-")}</td></tr>
+    <tr><td class="label">IBAN</td><td class="value">${escapeHtml(b.bankDetail.iban_number || b.bankDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("iban"))?.value || "-")}</td></tr>
+    <tr><td class="label">Account Title</td><td class="value">${escapeHtml(b.bankDetail.account_title || b.accountName || "-")}</td></tr>
+    <tr><td class="label">Swift Code</td><td class="value">${escapeHtml(b.bankDetail.swift_bic || b.bankDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("swift"))?.value || "-")}</td></tr>
+    <tr><td class="label">Currency</td><td class="value">${escapeHtml(b.bankDetail.currency || b.currency || "-")}</td></tr>
+  ` : `
+    <tr><td class="label">Bank Name</td><td class="value">-</td></tr>
+    <tr><td class="label">Branch Name</td><td class="value">-</td></tr>
+    <tr><td class="label">Bank Account Number</td><td class="value">-</td></tr>
+    <tr><td class="label">IBAN</td><td class="value">-</td></tr>
+    <tr><td class="label">Account Title</td><td class="value">-</td></tr>
+    <tr><td class="label">Swift Code</td><td class="value">-</td></tr>
+    <tr><td class="label">Currency</td><td class="value">-</td></tr>
   `;
 
   // 5. Warehouse Details

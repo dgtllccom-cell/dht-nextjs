@@ -74,6 +74,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (body.exchangeRate !== undefined) patch.exchange_rate = body.exchangeRate;
     if (body.orderTotal !== undefined) patch.order_total = body.orderTotal;
     if (body.formData !== undefined) patch.form_data = body.formData ?? null;
+    if (body.ledgerPostingStatus !== undefined) {
+      const s = String(body.ledgerPostingStatus).toLowerCase();
+      patch.ledger_posting_status = s === "posted" ? "posted" : s === "cancelled" ? "cancelled" : "draft";
+    }
+    if (body.paymentStatus !== undefined) {
+      const s = String(body.paymentStatus).toLowerCase();
+      patch.payment_status = ["pending", "partial", "completed", "cancelled"].includes(s) ? s : "pending";
+    }
     patch.updated_at = new Date().toISOString();
 
     const updated = await requireSupabaseData(

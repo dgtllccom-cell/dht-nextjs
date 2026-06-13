@@ -4,6 +4,7 @@ import { enterpriseAccountCreateSchema } from "@/lib/api/erp-validation";
 import { authorizeApiScope, getScopeFromSearchParams } from "@/lib/api/scope-middleware";
 import { requireErpSession } from "@/lib/auth/session";
 import { createApiSupabaseClient } from "@/lib/api/supabase";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 function isUuid(value: string | null | undefined) {
   return Boolean(
@@ -331,7 +332,20 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (profileError || !userProfile) {
-      throw new Error("The user ID does not exist in the referenced users table. Account creation requires a valid user reference.");
+      // Auto-create a default profile row for this actorId using the admin client
+      const admin = createSupabaseAdminClient() as any;
+      const { error: insertError } = await admin
+        .from("profiles")
+        .insert({
+          id: actorId,
+          full_name: session.fullName || session.email || "Bootstrapped User",
+          user_code: "BOOTSTRAP-" + actorId.slice(0, 4).toUpperCase()
+        });
+      if (insertError) {
+        throw new Error(
+          `The user ID does not exist in the referenced users table and could not be auto-created: ${insertError.message}`
+        );
+      }
     }
 
     const manualReferenceNumber = body.manualReferenceNumber?.trim() || null;
@@ -344,6 +358,9 @@ export async function POST(request: NextRequest) {
         country_branch_id: body.countryBranchId ?? null,
         city_branch_id: body.cityBranchId ?? null,
         parent_id: body.parentId ?? null,
+        customer_id: body.customerId ?? null,
+        company_id: body.companyId ?? null,
+        bank_id: body.bankId ?? null,
         code: issuedCode,
         account_number: identity.accountNumber,
         customer_number: identity.customerNumber,

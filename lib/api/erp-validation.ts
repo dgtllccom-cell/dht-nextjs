@@ -4,7 +4,10 @@ import { paymentEntryTypes, roznamchaTypes } from "@/lib/accounting/roznamcha-fl
 import { enterpriseRoles } from "@/lib/permissions/enterprise-roles";
 
 export const uuidSchema = z.string().uuid();
-export const optionalUuidSchema = uuidSchema.nullish();
+export const optionalUuidSchema = z.preprocess(
+  (val) => (val === "" || val === undefined ? null : val),
+  uuidSchema.nullish()
+);
 export const supportedLanguageSchema = z.enum(["en", "ar", "ur", "fa", "ps"]);
 
 export const scopeSchema = z.object({
@@ -221,7 +224,9 @@ export const purchaseOrderCreateSchema = scopeSchema.extend({
   orderTotal: z.coerce.number().finite().min(0).default(0),
 
   // Flexible payload (goods, shipping, notes, etc.) until full PO schema is modeled.
-  formData: z.unknown().optional()
+  formData: z.unknown().optional(),
+  ledgerPostingStatus: z.string().optional(),
+  paymentStatus: z.string().optional()
 });
 
 export const purchaseOrderUpdateSchema = purchaseOrderCreateSchema.partial().extend({
@@ -414,19 +419,19 @@ export const bankCreateSchema = z.object({
   shortName: z.string().trim().min(1).max(20),
   accountTitle: z.string().trim().min(2).max(200),
   accountNumber: z.string().trim().min(2).max(120),
-  ibanNumber: z.string().trim().max(34).nullable().optional(),
+  ibanNumber: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().max(34).nullable().optional()),
   currency: z.string().trim().length(3).transform((v) => v.toUpperCase()),
   accountStatus: z.enum(["Active", "Inactive", "Frozen", "Closed"]).default("Active"),
   countryId: optionalUuidSchema,
   stateProvinceId: optionalUuidSchema,
   districtId: optionalUuidSchema,
   cityId: optionalUuidSchema,
-  fullAddress: z.string().trim().max(500).nullable().optional(),
-  phone: z.string().trim().max(50).nullable().optional(),
-  email: z.string().trim().email().nullable().optional(),
-  swiftBic: z.string().trim().max(20).nullable().optional(),
-  website: z.string().trim().url().nullable().optional(),
-  remarks: z.string().trim().max(2000).nullable().optional()
+  fullAddress: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().max(500).nullable().optional()),
+  phone: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().max(50).nullable().optional()),
+  email: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().email().nullable().optional()),
+  swiftBic: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().max(20).nullable().optional()),
+  website: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().max(255).nullable().optional()),
+  remarks: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().max(2000).nullable().optional())
 });
 
 export const bankUpdateSchema = bankCreateSchema.partial();
@@ -442,7 +447,10 @@ export const accountUpdateSchema = scopeSchema.partial().extend({
   currency: z.string().trim().length(3).transform((v) => v.toUpperCase()).optional(),
   status: z.string().trim().max(80).optional(),
   isControlAccount: z.coerce.boolean().optional(),
-  approvalRequestId: optionalUuidSchema
+  approvalRequestId: optionalUuidSchema,
+  customerId: optionalUuidSchema,
+  companyId: optionalUuidSchema,
+  bankId: optionalUuidSchema
 });
 
 export const enterpriseAccountCreateSchema = scopeSchema.extend({
@@ -454,7 +462,10 @@ export const enterpriseAccountCreateSchema = scopeSchema.extend({
   kind: accountKindSchema,
   currency: z.string().trim().length(3).transform((v) => v.toUpperCase()),
   openingBalance: z.coerce.number().finite().default(0),
-  isControlAccount: z.coerce.boolean().default(false)
+  isControlAccount: z.coerce.boolean().default(false),
+  customerId: optionalUuidSchema,
+  companyId: optionalUuidSchema,
+  bankId: optionalUuidSchema
 });
 
 export const enterpriseLedgerCreateSchema = scopeSchema.extend({

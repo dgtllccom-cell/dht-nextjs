@@ -38,7 +38,17 @@ export async function GET(request: NextRequest) {
     if (currency === "USD" || (branchCurrency && currency === branchCurrency)) {
       let query = supabase
         .from("daily_usd_rates")
-        .select("selling_rate, buying_rate, credit_rate, debit_rate, rate_date, updated_at")
+        .select(`
+          selling_rate,
+          buying_rate,
+          credit_rate,
+          debit_rate,
+          rate_date,
+          updated_at,
+          profiles:entered_by (
+            full_name
+          )
+        `)
         .eq("country_id", countryId)
         .is("deleted_at", null)
         .order("rate_date", { ascending: false })
@@ -57,13 +67,21 @@ export async function GET(request: NextRequest) {
         creditRate: toRate(row?.credit_rate ?? row?.selling_rate),
         debitRate: toRate(row?.debit_rate ?? row?.buying_rate),
         effectiveDate: row?.rate_date ?? null,
-        source: row ? "daily_usd_rates" : currency === "USD" ? "usd" : "default"
+        source: row ? "daily_usd_rates" : currency === "USD" ? "usd" : "default",
+        lastUpdatedBy: row?.profiles?.full_name || "System"
       });
     }
 
     const { data, error } = await supabase
       .from("exchange_rate_history")
-      .select("new_rate, effective_date, created_at")
+      .select(`
+        new_rate,
+        effective_date,
+        created_at,
+        profiles:changed_by (
+          full_name
+        )
+      `)
       .eq("country_id", countryId)
       .eq("from_currency", currency)
       .order("effective_date", { ascending: false })
@@ -75,7 +93,8 @@ export async function GET(request: NextRequest) {
     return apiOk({
       rate: toRate(row?.new_rate),
       effectiveDate: row?.effective_date ?? null,
-      source: row ? "exchange_rate_history" : "default"
+      source: row ? "exchange_rate_history" : "default",
+      lastUpdatedBy: row?.profiles?.full_name || "System"
     });
   } catch (error) {
     return handleApiError(error);

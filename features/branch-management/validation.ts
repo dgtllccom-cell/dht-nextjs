@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 const uuidSchema = z.string().uuid();
-const optionalUuidSchema = uuidSchema.optional();
+const optionalUuidSchema = z.preprocess(
+  (val) => (val === "" || val === undefined ? null : val),
+  uuidSchema.nullable().optional()
+);
 const currencySchema = z.string().trim().length(3).transform((value) => value.toUpperCase());
 const optionalIsoSchema = z
   .string()
