@@ -1136,7 +1136,8 @@ export function CashEntryForm({
           title: "Roznamcha Cash Entry",
           subtitle: `${res.header.voucher_no || ""} · ${res.header.entry_date || ""}`,
           rows: buildA4RowsForEntry(res),
-          autoPrint: false
+          autoPrint: false,
+          lang
         });
       }
     } catch (err) {
@@ -1966,7 +1967,7 @@ export function CashEntryForm({
               <CardContent className="p-4 space-y-4">
                 {/* Row 1: Search Account & Daily Payment Date */}
                 <div className="grid gap-4 grid-cols-2">
-                  <FieldBlock label="Search Account (Name or Number)" required>
+                  <FieldBlock label={t(lang, "form.search_account")} required>
                     <SearchSelect
                       label=""
                       value={counterLedgerId}
@@ -1977,7 +1978,7 @@ export function CashEntryForm({
                     />
                   </FieldBlock>
 
-                  <FieldBlock label="Daily Payment Date" required>
+                  <FieldBlock label={t(lang, "form.daily_payment_date")} required>
                     <Input
                       className="h-10 text-xs font-semibold w-full"
                       value={entryDate}
@@ -1993,7 +1994,7 @@ export function CashEntryForm({
 
                 {/* Row 2: Roznamcha Type & Roznamcha Number */}
                 <div className="grid gap-4 grid-cols-2">
-                  <FieldBlock label="Roznamcha Type" required>
+                  <FieldBlock label={t(lang, "form.roznamcha_type")} required>
                     <select
                       className="h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
                       value={roznamchaType}
@@ -2005,7 +2006,7 @@ export function CashEntryForm({
                     </select>
                   </FieldBlock>
 
-                  <FieldBlock label="Roznamcha Number" required>
+                  <FieldBlock label={t(lang, "form.roznamcha_number")} required>
                     <Input
                       className="h-10 text-xs font-semibold w-full"
                       value={roznamchaNumber}
@@ -2020,7 +2021,7 @@ export function CashEntryForm({
                 {/* Transaction entry details (category, currency, amount) */}
                 <div className="border-t border-slate-100 pt-4 space-y-4 dark:border-slate-800">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <FieldBlock label="Roznamcha Category" required>
+                    <FieldBlock label={t(lang, "form.roznamcha_category")} required>
                       <select
                         className="h-10 w-full max-w-[220px] rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
                         value={paymentType}
@@ -2044,7 +2045,7 @@ export function CashEntryForm({
                       </select>
                     </FieldBlock>
 
-                    <FieldBlock label="Currency Type" required>
+                    <FieldBlock label={t(lang, "form.currency_type")} required>
                       <select
                         className={cn(
                           "h-10 w-full max-w-[220px] rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none",
@@ -2200,10 +2201,10 @@ export function CashEntryForm({
 
                       {paymentType === "transfer" && (
                         <div className="grid gap-3 md:grid-cols-2">
-                          <FieldBlock label="From">
+                          <FieldBlock label={t(lang, "form.from")}>
                             <Input className="h-9 text-xs" value={typeDetails.from || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, from: e.target.value }))} placeholder="From account" />
                           </FieldBlock>
-                          <FieldBlock label="To">
+                          <FieldBlock label={t(lang, "form.to")}>
                             <Input className="h-9 text-xs" value={typeDetails.to || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, to: e.target.value }))} placeholder="To account" />
                           </FieldBlock>
                           <FieldBlock label="Reference" className="md:col-span-2">
@@ -2221,13 +2222,13 @@ export function CashEntryForm({
                         Transaction Conversion Details (Local Calculation) ({currency} ➔ {branchCurrency})
                       </div>
                       <div className="grid gap-3 md:grid-cols-3">
-                        <FieldBlock label="Quantity (Foreign Amount)">
+                        <FieldBlock label={t(lang, "form.quantity")}>
                           <Input className="h-9 text-xs font-semibold" value={calcAmount} onChange={(e) => setCalcAmount(e.target.value)} type="number" step="0.0001" min="0" placeholder="e.g. 100" />
                         </FieldBlock>
-                        <FieldBlock label="Transaction Rate">
+                        <FieldBlock label={t(lang, "form.transaction_rate")}>
                           <Input className="h-9 text-xs font-semibold" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} type="number" step="0.0001" min="0" disabled={isLocalCurrency} />
                         </FieldBlock>
-                        <FieldBlock label="Operation">
+                        <FieldBlock label={t(lang, "form.operation")}>
                           <select
                             className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-semibold outline-none"
                             value={calcOp}
@@ -2245,7 +2246,7 @@ export function CashEntryForm({
                   {selectedCounterLedger && currency && (
                     <div className="space-y-3">
                       <div className="grid gap-4 md:grid-cols-2">
-                        <FieldBlock label="Debit / Credit Entry" required>
+                        <FieldBlock label={t(lang, "form.debit_credit")} required>
                           <div className="grid grid-cols-2 gap-2 h-10">
                             <Button
                               type="button"
@@ -2274,7 +2275,7 @@ export function CashEntryForm({
                           </div>
                         </FieldBlock>
 
-                        <FieldBlock label="Final Amount" required>
+                        <FieldBlock label={t(lang, "form.final_amount")} required>
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
                               {branchCurrency}
@@ -2301,7 +2302,7 @@ export function CashEntryForm({
                   {/* Details and Remarks */}
                   {selectedCounterLedger && currency && (
                     <div className="space-y-4">
-                      <FieldBlock label="Remarks / Notes">
+                      <FieldBlock label={t(lang, "form.remarks_notes")}>
                         <textarea
                           rows={3}
                           className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-semibold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2319,7 +2320,7 @@ export function CashEntryForm({
                           className="h-10 px-4 rounded-lg font-bold gap-2 text-xs"
                         >
                           <RefreshCw className="h-4 w-4" />
-                          Reset
+                          {t(lang, "form.reset")}
                         </Button>
                         <Button
                           type="button"
@@ -2328,7 +2329,7 @@ export function CashEntryForm({
                           className="h-10 px-5 rounded-lg font-bold bg-blue-600 hover:bg-blue-700 text-white gap-2 text-xs"
                         >
                           <Save className="h-4 w-4" />
-                          {saving ? "Saving..." : "Save"}
+                          {saving ? "Saving..." : t(lang, "form.save")}
                         </Button>
                         <Button
                           type="button"
@@ -2342,7 +2343,7 @@ export function CashEntryForm({
                           className="h-10 px-5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 text-xs"
                         >
                           <Eye className="h-4 w-4" />
-                          Save & View
+                          {t(lang, "form.save_view")}
                         </Button>
                         <Button
                           type="button"
@@ -2355,7 +2356,7 @@ export function CashEntryForm({
                           className="h-10 px-5 rounded-lg font-bold bg-emerald-700 hover:bg-emerald-800 text-white gap-2 text-xs"
                         >
                           <Send className="h-4 w-4" />
-                          Save & Submit
+                          {t(lang, "form.save_submit")}
                         </Button>
                       </div>
                     </div>

@@ -192,6 +192,7 @@ export function BranchGeneralReportView({
   // Popover states
   const [activeContactPopup, setActiveContactPopup] = useState<{ id: string; type: "phone" | "email" } | null>(null);
   const [activeProductPopup, setActiveProductPopup] = useState<string | null>(null);
+  const [activeActionDropdownId, setActiveActionDropdownId] = useState<string | null>(null);
 
   const [viewLoadingId, setViewLoadingId] = useState<string | null>(null);
 
@@ -382,9 +383,11 @@ export function BranchGeneralReportView({
   useEffect(() => {
     function handleGlobalClick(e: MouseEvent) {
       const target = e.target as HTMLElement;
-      if (!target.closest(".popup-trigger") && !target.closest(".popup-content")) {
+      if (!target.closest(".popup-trigger") && !target.closest(".popup-content") &&
+          !target.closest(".action-dropdown-trigger") && !target.closest(".action-dropdown-content")) {
         setActiveContactPopup(null);
         setActiveProductPopup(null);
+        setActiveActionDropdownId(null);
       }
     }
     document.addEventListener("mousedown", handleGlobalClick);
@@ -952,35 +955,58 @@ export function BranchGeneralReportView({
                               )}
                             </div>
                           </td>
-                          <td className="p-2">
-                            <div className="flex items-center justify-center gap-1.5">
+                          <td className="p-2 relative">
+                            <div className="flex items-center justify-center popup-trigger">
                               <button
-                                onClick={() => toggleCountryRow(country.id)}
-                                className="flex h-5 items-center gap-1 rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-800 hover:bg-slate-200 transition-all shadow-sm"
+                                onClick={() => setActiveActionDropdownId(activeActionDropdownId === country.id ? null : country.id)}
+                                className="action-dropdown-trigger flex h-5 items-center gap-1 rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-800 hover:bg-slate-200 transition-all shadow-sm"
                               >
-                                {isExpanded ? "Hide City" : "Show City"}
-                                <span className="text-[8px]">{isExpanded ? "▲" : "▼"}</span>
+                                Actions <span className="text-[7px]">▼</span>
                               </button>
-                              {mainBranch ? (
-                                <>
+                              {activeActionDropdownId === country.id && (
+                                <div className="action-dropdown-content absolute right-2 top-7 z-50 min-w-[120px] rounded-md border border-slate-200 bg-white p-1 text-[9px] shadow-lg popup-content flex flex-col gap-0.5 font-semibold text-slate-700">
                                   <button
-                                    onClick={() => viewCountryBranch(mainBranch.id, country.name)}
-                                    disabled={viewLoadingId !== null}
-                                    className="rounded border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm transition-all"
+                                    onClick={() => {
+                                      toggleCountryRow(country.id);
+                                      setActiveActionDropdownId(null);
+                                    }}
+                                    className="flex w-full items-center px-2 py-1 hover:bg-slate-100 rounded text-left transition-colors text-slate-800"
                                   >
-                                    {viewLoadingId === mainBranch.id ? "Loading..." : "View"}
+                                    {isExpanded ? "Hide City Branches" : "Show City Branches"}
                                   </button>
-                                  <button
-                                    onClick={() => openCountryBranchEdit(mainBranch.id)}
-                                    className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all"
-                                  >
-                                    Edit
-                                  </button>
-                                </>
-                              ) : (
-                                <button className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all">
-                                  Edit
-                                </button>
+                                  {mainBranch ? (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          viewCountryBranch(mainBranch.id, country.name);
+                                          setActiveActionDropdownId(null);
+                                        }}
+                                        disabled={viewLoadingId !== null}
+                                        className="flex w-full items-center px-2 py-1 hover:bg-slate-100 rounded text-left transition-colors text-emerald-600 font-bold"
+                                      >
+                                        {viewLoadingId === mainBranch.id ? "Loading..." : "View Main Branch"}
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          openCountryBranchEdit(mainBranch.id);
+                                          setActiveActionDropdownId(null);
+                                        }}
+                                        className="flex w-full items-center px-2 py-1 hover:bg-slate-100 rounded text-left transition-colors text-indigo-600 font-bold"
+                                      >
+                                        Edit Main Branch
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setActiveActionDropdownId(null);
+                                      }}
+                                      className="flex w-full items-center px-2 py-1 hover:bg-slate-100 rounded text-left transition-colors text-indigo-600 font-bold"
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </td>

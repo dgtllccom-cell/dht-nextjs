@@ -1,4 +1,5 @@
-"use client";
+import { t } from "@/lib/i18n/ui";
+import type { SupportedLanguage } from "@/lib/i18n/languages";
 
 export type AccountReportData = {
   accountName: string;
@@ -37,10 +38,14 @@ export function openAccountA4ReportWindow(input: {
   subtitle?: string;
   autoPrint?: boolean;
   accountData: AccountReportData;
+  lang?: string;
 }) {
   if (typeof window === "undefined") return;
   const w = window.open("", "_blank");
   if (!w) return;
+
+  const lang = (input.lang || "en") as SupportedLanguage;
+  const isRtl = ["ur", "ar", "fa", "ps"].includes(lang);
 
   const now = new Date();
   const stampDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -61,58 +66,58 @@ export function openAccountA4ReportWindow(input: {
 
   // 1. Account Info
   const accountInfoHtml = `
-    <tr><td class="label">Account Name</td><td class="value">${escapeHtml(b.accountName || "-")}</td></tr>
-    <tr><td class="label">Account Code</td><td class="value">${escapeHtml(b.accountCode || "AC-EXP-0001")}</td></tr>
-    <tr><td class="label">Account Type</td><td class="value">${escapeHtml(b.subType || b.category || "Expense")}</td></tr>
-    <tr><td class="label">Currency</td><td class="value">${escapeHtml(b.currency || "AED")}</td></tr>
-    <tr><td class="label">Status</td><td class="value font-black text-blue-600">${escapeHtml(b.status || "In Progress")}</td></tr>
-    <tr><td class="label">Created Date</td><td class="value">${formattedDateTime}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.col_account_name")}</td><td class="value">${escapeHtml(b.accountName || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.col_account_no")}</td><td class="value">${escapeHtml(b.accountCode || "AC-EXP-0001")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.account_type")}</td><td class="value">${escapeHtml(b.subType || b.category || "Expense")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.currency")}</td><td class="value">${escapeHtml(b.currency || "AED")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.ledger_status")}</td><td class="value font-black text-blue-600">${escapeHtml(b.status || "In Progress")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.col_date")}</td><td class="value">${formattedDateTime}</td></tr>
     <tr><td class="label">Last Updated</td><td class="value">${formattedDateTime}</td></tr>
   `;
 
   // 2. Customer Details
   const custObj = b.customerDetail?.customer;
   const customerHtml = custObj ? `
-    <tr><td class="label">Customer Name</td><td class="value">${escapeHtml(custObj.customer_name || "-")}</td></tr>
-    <tr><td class="label">Company Name</td><td class="value">${escapeHtml(custObj.company_name || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.col_name")}</td><td class="value">${escapeHtml(custObj.customer_name || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.company_name")}</td><td class="value">${escapeHtml(custObj.company_name || "-")}</td></tr>
     <tr><td class="label">Customer Code</td><td class="value">${escapeHtml(compactCode(custObj.id, `CUS-${b.selectedCountryCode || "AE"}-${b.selectedBranchCode || "CHM"}`))}</td></tr>
     <tr><td class="label">Phone</td><td class="value">${escapeHtml(custObj.mobile || "-")}</td></tr>
     <tr><td class="label">Email</td><td class="value">${escapeHtml(custObj.email || "-")}</td></tr>
-    <tr><td class="label">Address</td><td class="value">${escapeHtml(custObj.address || "-")}</td></tr>
-    <tr><td class="label">City</td><td class="value">${escapeHtml(b.selectedBranchName?.split(" - ")[0] || "-")}</td></tr>
-    <tr><td class="label">Country</td><td class="value">${escapeHtml(b.selectedCountryName || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.address")}</td><td class="value">${escapeHtml(custObj.address || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.state_city")}</td><td class="value">${escapeHtml(b.selectedBranchName?.split(" - ")[0] || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.country")}</td><td class="value">${escapeHtml(b.selectedCountryName || "-")}</td></tr>
   ` : `
-    <tr><td class="label">Customer Name</td><td class="value">-</td></tr>
-    <tr><td class="label">Company Name</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.col_name")}</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.company_name")}</td><td class="value">-</td></tr>
     <tr><td class="label">Customer Code</td><td class="value">-</td></tr>
     <tr><td class="label">Phone</td><td class="value">-</td></tr>
     <tr><td class="label">Email</td><td class="value">-</td></tr>
-    <tr><td class="label">Address</td><td class="value">-</td></tr>
-    <tr><td class="label">City</td><td class="value">-</td></tr>
-    <tr><td class="label">Country</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.address")}</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.state_city")}</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.country")}</td><td class="value">-</td></tr>
   `;
  
   // 3. Company Details
   const companyHtml = b.companyDetail ? `
-    <tr><td class="label">Company Name</td><td class="value">${escapeHtml(b.companyDetail.companyName || b.companyDetail.name || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.company_name")}</td><td class="value">${escapeHtml(b.companyDetail.companyName || b.companyDetail.name || "-")}</td></tr>
     <tr><td class="label">Company Code</td><td class="value">${escapeHtml(b.companyDetail.id ? compactCode(b.companyDetail.id, "COMP") : "-")}</td></tr>
-    <tr><td class="label">Company Type</td><td class="value">${escapeHtml(b.companyDetail.businessName || b.companyDetail.legal_name || "Private Limited")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.account_type")}</td><td class="value">${escapeHtml(b.companyDetail.businessName || b.companyDetail.legal_name || "Private Limited")}</td></tr>
     <tr><td class="label">Registration No.</td><td class="value">${escapeHtml(b.companyDetail.registrations?.find((r: any) => r.type.toLowerCase().includes("registration") || r.type.toLowerCase().includes("license") || r.type.toLowerCase().includes("trade"))?.value || "-")}</td></tr>
     <tr><td class="label">Tax Registration No.</td><td class="value">${escapeHtml(b.companyDetail.registrations?.find((r: any) => r.type.toLowerCase().includes("tax"))?.value || "-")}</td></tr>
     <tr><td class="label">NTN / GST No.</td><td class="value">${escapeHtml(b.companyDetail.registrations?.find((r: any) => r.type.toLowerCase().includes("ntn") || r.type.toLowerCase().includes("gst"))?.value || "-")}</td></tr>
-    <tr><td class="label">Company Address</td><td class="value">${escapeHtml(b.companyDetail.address || "-")}</td></tr>
-    <tr><td class="label">Country</td><td class="value">${escapeHtml(b.companyDetail.country || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.address")}</td><td class="value">${escapeHtml(b.companyDetail.address || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.country")}</td><td class="value">${escapeHtml(b.companyDetail.country || "-")}</td></tr>
     <tr><td class="label">Phone</td><td class="value">${escapeHtml(b.companyDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("phone") || c.type.toLowerCase().includes("number") || c.type.toLowerCase().includes("mobile"))?.value || "-")}</td></tr>
     <tr><td class="label">Email</td><td class="value">${escapeHtml(b.companyDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("email"))?.value || "-")}</td></tr>
   ` : `
-    <tr><td class="label">Company Name</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.company_name")}</td><td class="value">-</td></tr>
     <tr><td class="label">Company Code</td><td class="value">-</td></tr>
-    <tr><td class="label">Company Type</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.account_type")}</td><td class="value">-</td></tr>
     <tr><td class="label">Registration No.</td><td class="value">-</td></tr>
     <tr><td class="label">Tax Registration No.</td><td class="value">-</td></tr>
     <tr><td class="label">NTN / GST No.</td><td class="value">-</td></tr>
-    <tr><td class="label">Company Address</td><td class="value">-</td></tr>
-    <tr><td class="label">Country</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.address")}</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.country")}</td><td class="value">-</td></tr>
     <tr><td class="label">Phone</td><td class="value">-</td></tr>
     <tr><td class="label">Email</td><td class="value">-</td></tr>
   `;
@@ -120,35 +125,35 @@ export function openAccountA4ReportWindow(input: {
   // 4. Bank Details
   const bankHtml = b.bankDetail ? `
     <tr><td class="label">Bank Name</td><td class="value">${escapeHtml(b.bankDetail.bank_name || b.bankDetail.companyName || b.bankDetail.name || "-")}</td></tr>
-    <tr><td class="label">Branch Name</td><td class="value">${escapeHtml(b.bankDetail.branch_name || b.bankDetail.legal_name || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.branch_name")}</td><td class="value">${escapeHtml(b.bankDetail.branch_name || b.bankDetail.legal_name || "-")}</td></tr>
     <tr><td class="label">Bank Account Number</td><td class="value">${escapeHtml(b.bankDetail.account_number || b.bankDetail.address || "-")}</td></tr>
     <tr><td class="label">IBAN</td><td class="value">${escapeHtml(b.bankDetail.iban_number || b.bankDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("iban"))?.value || "-")}</td></tr>
-    <tr><td class="label">Account Title</td><td class="value">${escapeHtml(b.bankDetail.account_title || b.accountName || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.account_title")}</td><td class="value">${escapeHtml(b.bankDetail.account_title || b.accountName || "-")}</td></tr>
     <tr><td class="label">Swift Code</td><td class="value">${escapeHtml(b.bankDetail.swift_bic || b.bankDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("swift"))?.value || "-")}</td></tr>
-    <tr><td class="label">Currency</td><td class="value">${escapeHtml(b.bankDetail.currency || b.currency || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.currency")}</td><td class="value">${escapeHtml(b.bankDetail.currency || b.currency || "-")}</td></tr>
   ` : `
     <tr><td class="label">Bank Name</td><td class="value">-</td></tr>
-    <tr><td class="label">Branch Name</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.branch_name")}</td><td class="value">-</td></tr>
     <tr><td class="label">Bank Account Number</td><td class="value">-</td></tr>
     <tr><td class="label">IBAN</td><td class="value">-</td></tr>
-    <tr><td class="label">Account Title</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.account_title")}</td><td class="value">-</td></tr>
     <tr><td class="label">Swift Code</td><td class="value">-</td></tr>
-    <tr><td class="label">Currency</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.currency")}</td><td class="value">-</td></tr>
   `;
 
   // 5. Warehouse Details
   const warehouseHtml = `
     <tr><td class="label">Warehouse Name</td><td class="value">-</td></tr>
     <tr><td class="label">Warehouse Code</td><td class="value">-</td></tr>
-    <tr><td class="label">Location</td><td class="value">-</td></tr>
-    <tr><td class="label">City</td><td class="value">-</td></tr>
-    <tr><td class="label">Country</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.address")}</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.state_city")}</td><td class="value">-</td></tr>
+    <tr><td class="label">${t(lang, "ledger.country")}</td><td class="value">-</td></tr>
   `;
 
   // 6. Audit Information
   const auditHtml = `
-    <tr><td class="label">Created By</td><td class="value">Super Admin</td></tr>
-    <tr><td class="label">Created On</td><td class="value">${formattedDateTime}</td></tr>
+    <tr><td class="label">${t(lang, "roz.created_by")}</td><td class="value">Super Admin</td></tr>
+    <tr><td class="label">${t(lang, "roz.posted_at")}</td><td class="value">${formattedDateTime}</td></tr>
     <tr><td class="label">Last Updated By</td><td class="value">Super Admin</td></tr>
     <tr><td class="label">Last Updated On</td><td class="value">${formattedDateTime}</td></tr>
     <tr><td class="label">IP Address</td><td class="value">192.168.1.100</td></tr>
@@ -156,7 +161,7 @@ export function openAccountA4ReportWindow(input: {
   `;
 
   const html = `<!doctype html>
-<html lang="en">
+<html lang="${lang}" dir="${isRtl ? "rtl" : "ltr"}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -255,6 +260,15 @@ export function openAccountA4ReportWindow(input: {
       .sig-line { border-bottom: 1px solid #94a3b8; margin-bottom: 4px; height: 20px; display: flex; align-items: flex-end; justify-content: center; font-family: 'Georgia', serif; font-style: italic; color: #0f172a; font-size: 11px; }
       .page-footer { display: flex; justify-content: space-between; font-size: 7.5px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 6px; margin-top: 10px; font-weight: 700; }
 
+      /* RTL direction specific layouts */
+      html[dir="rtl"] body { text-align: right; direction: rtl; }
+      html[dir="rtl"] th, html[dir="rtl"] td { text-align: right; }
+      html[dir="rtl"] .info-table td.value { text-align: right; }
+      html[dir="rtl"] .meta-box { text-align: left; }
+      html[dir="rtl"] .logo-title { flex-direction: row-reverse; }
+      html[dir="rtl"] .overview-status { float: left; }
+      html[dir="rtl"] .footer-signatures { flex-direction: row-reverse; }
+
       @media print {
         body { background: #ffffff; }
         .wrap { padding: 0; }
@@ -286,9 +300,9 @@ export function openAccountA4ReportWindow(input: {
             </td>
             <td style="width: 35%; text-align: right; vertical-align: middle;">
               <div class="meta-box">
-                <div class="meta-item"><span class="meta-label">Generated On :</span> ${stampDate}</div>
-                <div class="meta-item"><span class="meta-label">Generated Time :</span> ${stampTime}</div>
-                <div class="meta-item"><span class="meta-label">Report By :</span> ${escapeHtml(b.createdBy || "Super Admin")}</div>
+                <div class="meta-item"><span class="meta-label">${t(lang, "ledger.col_date")} :</span> ${stampDate}</div>
+                <div class="meta-item"><span class="meta-label">Time :</span> ${stampTime}</div>
+                <div class="meta-item"><span class="meta-label">${t(lang, "roz.created_by")} :</span> ${escapeHtml(b.createdBy || "Super Admin")}</div>
                 <div class="meta-item"><span class="meta-label">Report Type :</span> Account Profile Summary</div>
               </div>
             </td>
@@ -303,15 +317,15 @@ export function openAccountA4ReportWindow(input: {
 
           <div class="overview-meta-grid">
             <div>
-              <span class="overview-meta-label">Account Code</span>
+              <span class="overview-meta-label">${t(lang, "ledger.col_account_no")}</span>
               <div class="overview-meta-val">${escapeHtml(b.accountCode || "AC-EXP-0001")}</div>
             </div>
             <div>
-              <span class="overview-meta-label">Account Type</span>
+              <span class="overview-meta-label">${t(lang, "ledger.account_type")}</span>
               <div class="overview-meta-val">${escapeHtml(b.subType || b.category || "Expense")}</div>
             </div>
             <div>
-              <span class="overview-meta-label">Currency</span>
+              <span class="overview-meta-label">${t(lang, "ledger.currency")}</span>
               <div class="overview-meta-val">${escapeHtml(b.currency || "AED")}</div>
             </div>
             <div>
@@ -395,7 +409,7 @@ export function openAccountA4ReportWindow(input: {
         <!-- Signature Block -->
         <div class="footer-signatures">
           <div class="notes-box">
-            <strong style="color: #0f172a; font-size: 9px; display: block; margin-bottom: 2px;">Remarks / Notes</strong>
+            <strong style="color: #0f172a; font-size: 9px; display: block; margin-bottom: 2px;">${t(lang, "form.remarks_notes")}</strong>
             <span>This is the official account setup profile document. All operations and entries related to this ledger are regulated under multi-country compliance frameworks.</span>
           </div>
 

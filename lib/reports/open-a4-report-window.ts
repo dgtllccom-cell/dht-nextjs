@@ -1,3 +1,6 @@
+import { t } from "@/lib/i18n/ui";
+import type { SupportedLanguage } from "@/lib/i18n/languages";
+
 export type A4ReportRow = { label: string; value: string };
 
 export type ParentBranchInfo = {
@@ -88,10 +91,14 @@ export function openA4ReportWindow(input: {
   rows?: A4ReportRow[];
   autoPrint?: boolean;
   branchData?: BranchReportData;
+  lang?: string;
 }) {
   if (typeof window === "undefined") return;
   const w = window.open("", "_blank");
   if (!w) return;
+
+  const lang = (input.lang || "en") as SupportedLanguage;
+  const isRtl = ["ur", "ar", "fa", "ps"].includes(lang);
 
   const now = new Date();
   const stampDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -170,9 +177,9 @@ export function openA4ReportWindow(input: {
           </td>
           <td style="width: 35%; text-align: right; vertical-align: middle;">
             <div class="meta-box">
-              <div class="meta-item"><span class="meta-label">Generated On :</span> ${stampDate}</div>
-              <div class="meta-item"><span class="meta-label">Generated Time :</span> ${stampTime}</div>
-              <div class="meta-item"><span class="meta-label">Report By :</span> ${escapeHtml(b.createdBy || "Super Admin")}</div>
+              <div class="meta-item"><span class="meta-label">${t(lang, "ledger.col_date")} :</span> ${stampDate}</div>
+              <div class="meta-item"><span class="meta-label">Time :</span> ${stampTime}</div>
+              <div class="meta-item"><span class="meta-label">${t(lang, "roz.created_by")} :</span> ${escapeHtml(b.createdBy || "Super Admin")}</div>
               <div class="meta-item"><span class="meta-label">Report Type :</span> Branch Detail Report</div>
             </div>
           </td>
@@ -216,42 +223,42 @@ export function openA4ReportWindow(input: {
         <div class="kpi-card">
           <div class="kpi-icon-container" style="background: #ecfdf5; color: #16a34a; border-color: #a7f3d0;">✓</div>
           <div class="kpi-content">
-            <span class="kpi-label">Branch Status</span>
+            <span class="kpi-label">${t(lang, "ledger.ledger_status")}</span>
             <span class="kpi-value" style="color: #16a34a;">${escapeHtml((b.branchStatus || "Active").toUpperCase())}</span>
           </div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon-container" style="background: #eff6ff; color: #2563eb; border-color: #bfdbfe;">📌</div>
           <div class="kpi-content">
-            <span class="kpi-label">Branch Code</span>
+            <span class="kpi-label">${t(lang, "ledger.branch_account_no")}</span>
             <span class="kpi-value">${escapeHtml(b.branchCode || "-")}</span>
           </div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon-container" style="background: #fdf2f8; color: #db2777; border-color: #fbcfe8;">🏢</div>
           <div class="kpi-content">
-            <span class="kpi-label">Branch Type</span>
+            <span class="kpi-label">${t(lang, "ledger.account_type")}</span>
             <span class="kpi-value">${escapeHtml((b.branchType || "MAIN").toUpperCase())}</span>
           </div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon-container" style="background: #f0fdf4; color: #15803d; border-color: #bbf7d0;">🌍</div>
           <div class="kpi-content">
-            <span class="kpi-label">Country</span>
+            <span class="kpi-label">${t(lang, "ledger.country")}</span>
             <span class="kpi-value">${escapeHtml((b.country || "-").toUpperCase())}</span>
           </div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon-container" style="background: #fffbeb; color: #d97706; border-color: #fde68a;">💵</div>
           <div class="kpi-content">
-            <span class="kpi-label">Currency</span>
+            <span class="kpi-label">${t(lang, "ledger.currency")}</span>
             <span class="kpi-value">${escapeHtml((b.currency || "USD").toUpperCase())}</span>
           </div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon-container" style="background: #f8fafc; color: #64748b; border-color: #cbd5e1;">#</div>
           <div class="kpi-content">
-            <span class="kpi-label">Serial Number</span>
+            <span class="kpi-label">${t(lang, "ledger.col_serial")}</span>
             <span class="kpi-value">${escapeHtml(b.serialNumber || "0001")}</span>
           </div>
         </div>
@@ -263,35 +270,35 @@ export function openA4ReportWindow(input: {
         <div>
           <div class="section-title">
             <span class="section-num">1</span>
-            <span>Branch Information</span>
+            <span>${t(lang, "ledger.branch_details")}</span>
           </div>
           <table class="info-table">
             <tr>
-              <td class="label">Serial Number</td>
+              <td class="label">${t(lang, "ledger.col_serial")}</td>
               <td class="value">${escapeHtml(b.serialNumber || "0001")}</td>
             </tr>
             <tr>
-              <td class="label">Branch Code</td>
+              <td class="label">${t(lang, "ledger.branch_account_no")}</td>
               <td class="value">${escapeHtml(b.branchCode || "-")}</td>
             </tr>
             <tr>
-              <td class="label">Branch Name</td>
+              <td class="label">${t(lang, "ledger.branch_name")}</td>
               <td class="value">${escapeHtml(b.branchName || "-")}</td>
             </tr>
             <tr>
-              <td class="label">Branch Type</td>
+              <td class="label">${t(lang, "ledger.account_type")}</td>
               <td class="value">${escapeHtml(b.branchType || "MAIN")}</td>
             </tr>
             <tr>
-              <td class="label">Country</td>
+              <td class="label">${t(lang, "ledger.country")}</td>
               <td class="value">${escapeHtml(b.country || "-")}</td>
             </tr>
             <tr>
-              <td class="label">Currency</td>
+              <td class="label">${t(lang, "ledger.currency")}</td>
               <td class="value">${escapeHtml(b.currency || "-")}</td>
             </tr>
             <tr>
-              <td class="label">Status</td>
+              <td class="label">${t(lang, "ledger.ledger_status")}</td>
               <td class="value" style="color: #16a34a;">${escapeHtml(b.branchStatus || "Active")}</td>
             </tr>
           </table>
@@ -301,7 +308,7 @@ export function openA4ReportWindow(input: {
         <div style="margin-top: 21px;">
           <table class="info-table" style="margin-top: 1px;">
             <tr>
-              <td class="label">Created Date</td>
+              <td class="label">${t(lang, "roz.posted_at")}</td>
               <td class="value">${escapeHtml(b.createdDate || stampDate)}</td>
             </tr>
             <tr>
@@ -309,7 +316,7 @@ export function openA4ReportWindow(input: {
               <td class="value">${escapeHtml(b.updatedDate || stampDate)}</td>
             </tr>
             <tr>
-              <td class="label">Created By</td>
+              <td class="label">${t(lang, "roz.created_by")}</td>
               <td class="value">${escapeHtml(b.createdBy || "Super Admin")}</td>
             </tr>
             <tr>
@@ -337,11 +344,11 @@ export function openA4ReportWindow(input: {
         <div>
           <div class="section-title">
             <span class="section-num">2</span>
-            <span>Branch Details</span>
+            <span>${t(lang, "ledger.branch_details")}</span>
           </div>
           <table class="info-table">
             <tr>
-              <td class="label" style="width: 20%;">City / Region</td>
+              <td class="label" style="width: 20%;">${t(lang, "ledger.state_city")}</td>
               <td class="value" style="width: 30%;">${escapeHtml(b.city || "-")}</td>
               <td class="label" style="width: 20%;">City Code</td>
               <td class="value" style="width: 30%;">${escapeHtml(b.cityCode || "-")}</td>
@@ -355,7 +362,7 @@ export function openA4ReportWindow(input: {
             <tr>
               <td class="label" style="width: 20%;">Postal / Zip Code</td>
               <td class="value" style="width: 30%;">${escapeHtml(b.zipCode || "-")}</td>
-              <td class="label" style="width: 20%;">Full Address</td>
+              <td class="label" style="width: 20%;">${t(lang, "ledger.address")}</td>
               <td class="value" style="width: 30%;">${escapeHtml(b.fullAddress || "-")}</td>
             </tr>
           </table>
@@ -439,11 +446,11 @@ export function openA4ReportWindow(input: {
         <div>
           <div class="section-title">
             <span class="section-num">4</span>
-            <span>Company Details</span>
+            <span>${t(lang, "ledger.company_details")}</span>
           </div>
           <table class="info-table">
             <tr>
-              <td class="label">Company Name</td>
+              <td class="label">${t(lang, "ledger.company_name")}</td>
               <td class="value">${escapeHtml(b.companyName || "-")}</td>
             </tr>
             <tr>
@@ -451,7 +458,7 @@ export function openA4ReportWindow(input: {
               <td class="value">${escapeHtml(b.companyCode || "-")}</td>
             </tr>
             <tr>
-              <td class="label">Company Type</td>
+              <td class="label">${t(lang, "ledger.account_type")}</td>
               <td class="value">${escapeHtml(b.companyType || "Private Limited")}</td>
             </tr>
             <tr>
@@ -523,7 +530,7 @@ export function openA4ReportWindow(input: {
       <!-- Footer Signatures, Remarks & Gold Seal -->
       <div class="footer-signatures">
         <div class="notes-box">
-          <strong style="color: #0f172a; font-size: 9px; display: block; margin-bottom: 2px;">Remarks / Notes</strong>
+          <strong style="color: #0f172a; font-size: 9px; display: block; margin-bottom: 2px;">${t(lang, "form.remarks_notes")}</strong>
           <span style="font-size: 8px;">${escapeHtml(b.remarks || "This is the branch profile summary report. All operations are managed under this branch's authorized scopes.")}</span>
         </div>
         
@@ -573,7 +580,7 @@ export function openA4ReportWindow(input: {
       .map(
         (r) => `
           <tr>
-            <th>${escapeHtml(r.label)}</th>
+            <th>${escapeHtml(t(lang, r.label))}</th>
             <td>${escapeHtml(r.value || "-")}</td>
           </tr>
         `
@@ -599,7 +606,7 @@ export function openA4ReportWindow(input: {
   }
 
   const html = `<!doctype html>
-<html lang="en">
+<html lang="${lang}" dir="${isRtl ? "rtl" : "ltr"}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -681,6 +688,17 @@ export function openA4ReportWindow(input: {
       .sig-box { width: 30%; text-align: center; font-size: 9px; }
       .sig-line { border-bottom: 1px solid #94a3b8; margin-bottom: 4px; height: 22px; display: flex; align-items: flex-end; justify-content: center; font-family: 'Georgia', serif; font-style: italic; color: #0f172a; font-size: 11px; }
       .page-footer { display: flex; justify-content: space-between; font-size: 7.5px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 6px; margin-top: 10px; font-weight: 700; }
+
+      /* RTL direction specific layouts */
+      html[dir="rtl"] body { text-align: right; direction: rtl; }
+      html[dir="rtl"] th, html[dir="rtl"] td { text-align: right; }
+      html[dir="rtl"] .info-table td.value { text-align: right; }
+      html[dir="rtl"] .meta-box { text-align: left; }
+      html[dir="rtl"] .logo-title { flex-direction: row-reverse; }
+      html[dir="rtl"] .hierarchy-steps { flex-direction: row-reverse; }
+      html[dir="rtl"] .kpi-row { flex-direction: row-reverse; }
+      html[dir="rtl"] .owner-card { flex-direction: row-reverse; }
+      html[dir="rtl"] .footer-signatures { flex-direction: row-reverse; }
 
       @media print {
         body { background: #ffffff; }

@@ -1,4 +1,5 @@
-"use client";
+import { t } from "@/lib/i18n/ui";
+import type { SupportedLanguage } from "@/lib/i18n/languages";
 
 export type PurchaseReportData = {
   id: string;
@@ -66,10 +67,14 @@ export function openPurchaseA4ReportWindow(input: {
   subtitle?: string;
   autoPrint?: boolean;
   purchaseData: PurchaseReportData;
+  lang?: string;
 }) {
   if (typeof window === "undefined") return;
   const w = window.open("", "_blank");
   if (!w) return;
+
+  const lang = (input.lang || "en") as SupportedLanguage;
+  const isRtl = ["ur", "ar", "fa", "ps"].includes(lang);
 
   const now = new Date();
   const stampDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -86,9 +91,9 @@ export function openPurchaseA4ReportWindow(input: {
     <tr><td class="label">Booking Number</td><td class="value font-mono font-bold text-blue-600">${escapeHtml(b.purchaseBookingOrderNumber || "-")}</td></tr>
     <tr><td class="label">Purchase Date</td><td class="value">${formatDate(b.purchaseDate)}</td></tr>
     <tr><td class="label">Booking Date</td><td class="value">${formatDate(b.bookingDate)}</td></tr>
-    <tr><td class="label">Country Scope</td><td class="value">${escapeHtml(b.countryName || "-")}</td></tr>
-    <tr><td class="label">Branch Name</td><td class="value">${escapeHtml(b.branchName || "-")}</td></tr>
-    <tr><td class="label">Branch Code</td><td class="value font-mono">${escapeHtml(b.audit?.branchCode || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.country")}</td><td class="value">${escapeHtml(b.countryName || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.branch_name")}</td><td class="value">${escapeHtml(b.branchName || "-")}</td></tr>
+    <tr><td class="label">${t(lang, "ledger.branch_account_no")}</td><td class="value font-mono">${escapeHtml(b.audit?.branchCode || "-")}</td></tr>
   `;
 
   // 2. Party Information
@@ -121,31 +126,31 @@ export function openPurchaseA4ReportWindow(input: {
   const cargoHtml = `
     <tr><td class="label">Product / Goods</td><td class="value font-bold text-slate-800">${escapeHtml(b.productName || "-")}</td></tr>
     <tr><td class="label">Description</td><td class="value" style="font-size: 9px; line-height: 1.3;">${escapeHtml(b.goodsDescription || "-")}</td></tr>
-    <tr><td class="label">Quantity Ordered</td><td class="value font-bold">${formatNumber(b.quantity)} ${escapeHtml(b.unit)}</td></tr>
+    <tr><td class="label">${t(lang, "form.quantity")}</td><td class="value font-bold">${formatNumber(b.quantity)} ${escapeHtml(b.unit)}</td></tr>
     <tr><td class="label">Container Count</td><td class="value font-bold">${b.containerCount} Containers</td></tr>
     <tr><td class="label">Total Weight</td><td class="value font-bold">${formatNumber(b.totalWeight)} kg</td></tr>
   `;
 
   // 5. Financial & Workflow Details
   const financialHtml = `
-    <tr><td class="label">Purchase Rate</td><td class="value font-mono font-bold">${formatMoney(b.purchaseRate)} ${escapeHtml(b.currency)}</td></tr>
-    <tr><td class="label">Total Booking Amount</td><td class="value font-mono font-bold text-blue-600">${formatMoney(b.totalPurchaseAmount)} ${escapeHtml(b.currency)}</td></tr>
+    <tr><td class="label">${t(lang, "form.transaction_rate")}</td><td class="value font-mono font-bold">${formatMoney(b.purchaseRate)} ${escapeHtml(b.currency)}</td></tr>
+    <tr><td class="label">${t(lang, "form.final_amount")}</td><td class="value font-mono font-bold text-blue-600">${formatMoney(b.totalPurchaseAmount)} ${escapeHtml(b.currency)}</td></tr>
     <tr><td class="label">Payment Status</td><td class="value"><span class="badge badge-payment">${escapeHtml(b.paymentStatus || "Pending")}</span></td></tr>
-    <tr><td class="label">Workflow Status</td><td class="value"><span class="badge badge-workflow">${escapeHtml(b.currentStep || b.status || "Open")}</span></td></tr>
+    <tr><td class="label">${t(lang, "ledger.ledger_status")}</td><td class="value"><span class="badge badge-workflow">${escapeHtml(b.currentStep || b.status || "Open")}</span></td></tr>
     ${b.nextStep ? `<tr><td class="label">Next Required Step</td><td class="value font-medium text-amber-700">${escapeHtml(b.nextStep)}</td></tr>` : ""}
   `;
 
   // 6. Audit & System Metadata
   const auditHtml = `
-    <tr><td class="label">Created By</td><td class="value">${escapeHtml(b.audit?.userName || "Super Admin")} (ID: ${escapeHtml(b.audit?.userId || "-")})</td></tr>
-    <tr><td class="label">Created On</td><td class="value">${formatDate(b.createdAt)}</td></tr>
+    <tr><td class="label">${t(lang, "roz.created_by")}</td><td class="value">${escapeHtml(b.audit?.userName || "Super Admin")} (ID: ${escapeHtml(b.audit?.userId || "-")})</td></tr>
+    <tr><td class="label">${t(lang, "ledger.col_date")}</td><td class="value">${formatDate(b.createdAt)}</td></tr>
     <tr><td class="label">Printed By</td><td class="value">Authorized ERP User</td></tr>
     <tr><td class="label">IP Address / Host</td><td class="value">127.0.0.1 (Localhost)</td></tr>
     <tr><td class="label">System Status</td><td class="value font-black text-emerald-600">VERIFIED / LOGGED</td></tr>
   `;
 
   const html = `<!doctype html>
-<html lang="en">
+<html lang="${lang}" dir="${isRtl ? "rtl" : "ltr"}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -249,6 +254,15 @@ export function openPurchaseA4ReportWindow(input: {
       .sig-line { border-bottom: 1px solid #94a3b8; margin-bottom: 4px; height: 20px; display: flex; align-items: flex-end; justify-content: center; font-family: 'Georgia', serif; font-style: italic; color: #0f172a; font-size: 11px; }
       .page-footer { display: flex; justify-content: space-between; font-size: 7.5px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 6px; margin-top: 10px; font-weight: 700; }
 
+      /* RTL direction specific layouts */
+      html[dir="rtl"] body { text-align: right; direction: rtl; }
+      html[dir="rtl"] th, html[dir="rtl"] td { text-align: right; }
+      html[dir="rtl"] .info-table td.value { text-align: right; }
+      html[dir="rtl"] .meta-box { text-align: left; }
+      html[dir="rtl"] .logo-title { flex-direction: row-reverse; }
+      html[dir="rtl"] .overview-status { float: left; }
+      html[dir="rtl"] .footer-signatures { flex-direction: row-reverse; }
+
       @media print {
         body { background: #ffffff; }
         .wrap { padding: 0; }
@@ -280,8 +294,8 @@ export function openPurchaseA4ReportWindow(input: {
             </td>
             <td style="width: 35%; text-align: right; vertical-align: middle;">
               <div class="meta-box">
-                <div class="meta-item"><span class="meta-label">Generated On :</span> ${stampDate}</div>
-                <div class="meta-item"><span class="meta-label">Generated Time :</span> ${stampTime}</div>
+                <div class="meta-item"><span class="meta-label">${t(lang, "ledger.col_date")} :</span> ${stampDate}</div>
+                <div class="meta-item"><span class="meta-label">Time :</span> ${stampTime}</div>
                 <div class="meta-item"><span class="meta-label">Printed By :</span> ERP Admin</div>
                 <div class="meta-item"><span class="meta-label">Report Type :</span> Booking Order Document</div>
               </div>
@@ -309,14 +323,14 @@ export function openPurchaseA4ReportWindow(input: {
               <div class="overview-meta-val">${formatDate(b.purchaseDate)}</div>
             </div>
             <div>
-              <span class="overview-meta-label">Branch Scope</span>
+              <span class="overview-meta-label">${t(lang, "ledger.branch_name")}</span>
               <div class="overview-meta-val">${escapeHtml(b.branchName || "-")}</div>
             </div>
           </div>
 
           <div class="overview-kpis">
             <div>
-              <span class="kpi-label">Quantity</span>
+              <span class="kpi-label">${t(lang, "form.quantity")}</span>
               <div class="kpi-val">${formatNumber(b.quantity)} ${escapeHtml(b.unit)}</div>
             </div>
             <div>
@@ -389,7 +403,7 @@ export function openPurchaseA4ReportWindow(input: {
         <!-- Signature Block -->
         <div class="footer-signatures">
           <div class="notes-box">
-            <strong style="color: #0f172a; font-size: 9px; display: block; margin-bottom: 2px;">Remarks / Verification Notes</strong>
+            <strong style="color: #0f172a; font-size: 9px; display: block; margin-bottom: 2px;">${t(lang, "form.remarks_notes")}</strong>
             <span>This is an official automated print statement from the ACCOUNTS.DGT.LLC Purchase Registry system. All ledger postings and currency balances are verified for security and multi-branch transaction tracking.</span>
           </div>
 
@@ -441,9 +455,4 @@ export function openPurchaseA4ReportWindow(input: {
       }, { once: true });
     </script>
   </body>
-</html>`;
-
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-}
+</html>

@@ -629,6 +629,42 @@ export function PurchaseOrderWizard() {
     };
   }, [form.countryId, form.countryBranchId]);
 
+  // Load latest exchange rate when country or branch changes
+  useEffect(() => {
+    const countryId = form.countryId;
+    const countryBranchId = form.countryBranchId;
+    if (!countryId) return;
+
+    let cancelled = false;
+    async function loadLatestRate() {
+      try {
+        const params = new URLSearchParams({
+          countryId,
+          currency: "USD"
+        });
+        if (countryBranchId) {
+          params.set("countryBranchId", countryBranchId);
+        }
+        const response = await fetch(`/api/erp/currency/latest-rate?${params.toString()}`);
+        const payload = await response.json();
+        if (!cancelled && payload?.ok && payload?.data) {
+          const rate = payload.data.rate || 1;
+          setForm((prev) => ({
+            ...prev,
+            exchangeRate: rate,
+            rate2: rate
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to load exchange rate in wizard:", err);
+      }
+    }
+    loadLatestRate();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.countryId, form.countryBranchId]);
+
   // Keep display labels in sync with UUID scopes
   useEffect(() => {
     const activeCountry = countries.find(c => c.id === form.countryId);
@@ -1982,7 +2018,79 @@ export function PurchaseOrderWizard() {
                     <p className="text-[10px] text-muted-foreground">Order headers, accounts and shipment rules setup</p>
                   </div>
 
-
+                  {isSuperAdmin && (
+                    <div className="space-y-3 p-3 rounded-lg border bg-muted/30">
+                      <div className="text-[10px] font-black uppercase text-primary tracking-wider border-b border-border/40 pb-1 mb-2">
+                        Super Admin: Location Select
+                      </div>
+                      <div className="grid grid-cols-1 gap-2.5">
+                        <label className="grid gap-1 text-[10px] font-bold">
+                          Country
+                          <select
+                            value={form.countryId}
+                            onChange={(e) => {
+                              const cid = e.target.value;
+                              setForm(prev => ({
+                                ...prev,
+                                countryId: cid,
+                                countryBranchId: "",
+                                cityBranchId: ""
+                              }));
+                            }}
+                            className="h-8 rounded border bg-background px-2 text-[10px] font-semibold text-foreground outline-none focus:border-primary"
+                          >
+                            <option value="">Select Country</option>
+                            {countries.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} ({c.currency_code})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-[10px] font-bold">
+                          Country Branch (Main/Trade)
+                          <select
+                            value={form.countryBranchId}
+                            onChange={(e) => {
+                              const bid = e.target.value;
+                              setForm(prev => ({
+                                ...prev,
+                                countryBranchId: bid,
+                                cityBranchId: ""
+                              }));
+                            }}
+                            className="h-8 rounded border bg-background px-2 text-[10px] font-semibold text-foreground outline-none focus:border-primary"
+                            disabled={!form.countryId}
+                          >
+                            <option value="">Select Country Branch</option>
+                            {mainBranches.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name} ({b.code})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-[10px] font-bold">
+                          City Branch (Tehsils/Borders)
+                          <select
+                            value={form.cityBranchId}
+                            onChange={(e) => {
+                              setForm(prev => ({ ...prev, cityBranchId: e.target.value }));
+                            }}
+                            className="h-8 rounded border bg-background px-2 text-[10px] font-semibold text-foreground outline-none focus:border-primary"
+                            disabled={!form.countryBranchId}
+                          >
+                            <option value="">Select City Branch</option>
+                            {cityBranches.map((cb) => (
+                              <option key={cb.id} value={cb.id}>
+                                {cb.city_name} - {cb.name} ({cb.code})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-3">
                     <div className="relative" ref={purchaseDropdownRef}>

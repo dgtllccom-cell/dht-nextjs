@@ -33,13 +33,19 @@ export async function GET(request: NextRequest) {
         WHERE conrelid = 'public.enterprise_accounts'::regclass
           AND contype = 'c'
       `;
+      const indexes = await sql`
+        SELECT indexname, indexdef 
+        FROM pg_indexes 
+        WHERE tablename IN ('enterprise_accounts', 'ledgers')
+      `;
 
       await sql.end();
       return NextResponse.json({
         success: true,
         ea_columns,
         ledger_columns,
-        check_constraints
+        check_constraints,
+        indexes
       });
     }
 
@@ -69,6 +75,24 @@ export async function GET(request: NextRequest) {
       `;
       await sql.end();
       return NextResponse.json({ locks });
+    }
+
+    if (action === "list-locations") {
+      const countries = await sql`SELECT id, name, currency_code FROM public.countries WHERE deleted_at IS NULL`;
+      const country_branches = await sql`SELECT id, country_id, name, code, local_currency, is_main, company_id FROM public.country_branches WHERE deleted_at IS NULL`;
+      const city_branches = await sql`SELECT id, country_id, country_branch_id, city_name, name, code, local_currency, company_id FROM public.city_branches WHERE deleted_at IS NULL`;
+      const companies = await sql`SELECT id, name, base_currency FROM public.companies WHERE deleted_at IS NULL`;
+      const branches = await sql`SELECT id, company_id, name, code FROM public.branches WHERE deleted_at IS NULL`;
+      const cities = await sql`SELECT id, country_id, name, code FROM public.cities WHERE deleted_at IS NULL LIMIT 200`;
+      await sql.end();
+      return NextResponse.json({ countries, country_branches, city_branches, companies, branches, cities });
+    }
+
+    if (action === "list-accounts") {
+      const enterprise_accounts = await sql`SELECT id, scope, country_id, code, name, kind, currency FROM public.enterprise_accounts WHERE deleted_at IS NULL`;
+      const ledgers = await sql`SELECT id, scope, country_id, country_branch_id, city_branch_id, code, name, currency FROM public.ledgers WHERE deleted_at IS NULL`;
+      await sql.end();
+      return NextResponse.json({ enterprise_accounts, ledgers });
     }
 
     if (action === "bootstrap") {

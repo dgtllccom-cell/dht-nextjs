@@ -35,7 +35,20 @@ export async function GET(request: NextRequest) {
 
     const supabase = createSupabaseAdminClient() as any;
 
-    if (currency === "USD" || (branchCurrency && currency === branchCurrency)) {
+    // Fetch the country's local currency
+    const { data: countryData, error: countryError } = await supabase
+      .from("countries")
+      .select("currency_code")
+      .eq("id", countryId)
+      .maybeSingle();
+    
+    if (countryError) throw new Error(countryError.message);
+    const localCurrency = countryData?.currency_code?.trim().toUpperCase();
+
+    const targetBranchCurrency = branchCurrency || localCurrency;
+    const isUsdOrLocal = currency === "USD" || (localCurrency && currency === localCurrency);
+
+    if (isUsdOrLocal) {
       let query = supabase
         .from("daily_usd_rates")
         .select(`
@@ -44,6 +57,7 @@ export async function GET(request: NextRequest) {
           credit_rate,
           debit_rate,
           rate_date,
+          country_branch_id,
           updated_at,
           profiles:entered_by (
             full_name
@@ -52,16 +66,35 @@ export async function GET(request: NextRequest) {
         .eq("country_id", countryId)
         .is("deleted_at", null)
         .order("rate_date", { ascending: false })
-        .order("updated_at", { ascending: false })
-        .limit(1);
+        .limit(10);
 
-      if (countryBranchId) query = query.or(`country_branch_id.eq.${countryBranchId},country_branch_id.is.null`);
+      if (countryBranchId) {
+        query = query.or(`country_branch_id.eq.${countryBranchId},country_branch_id.is.null`);
+      } else {
+        query = query.is("country_branch_id", null);
+      }
 
       const { data, error } = await query;
       if (error) throw new Error(error.message);
-      const row = Array.isArray(data) ? data[0] : null;
+      
+      let row = null;
+      if (Array.isArray(data) && data.length > 0) {
+        // Sort in JS: latest rate_date first, then country_branch_id not null (branch specific) first
+        data.sort((a: any, b: any) => {
+          const dateComp = b.rate_date.localeCompare(a.rate_date);
+          if (dateComp !== 0) return dateComp;
+          if (a.country_branch_id && !b.country_branch_id) return -1;
+          if (!a.country_branch_id && b.country_branch_id) return 1;
+          return 0;
+        });
+        row = data[0];
+      }
+
+      const isSelfConversion = targetBranchCurrency ? currency === targetBranchCurrency : false;
+      const rateVal = isSelfConversion ? 1 : toRate(row?.selling_rate ?? row?.buying_rate);
+
       return apiOk({
-        rate: currency === "USD" ? 1 : toRate(row?.selling_rate ?? row?.buying_rate),
+        rate: rateVal,
         buyRate: toRate(row?.buying_rate),
         sellRate: toRate(row?.selling_rate),
         creditRate: toRate(row?.credit_rate ?? row?.selling_rate),
@@ -106,6 +139,7 @@ export async function POST(request: NextRequest) {
     const session = await requireErpSession();
     const body = (await request.json()) as {
       countryId?: string;
+      countryBranchId?: string | null;
       rateDate?: string;
       buyingRate?: number | string;
       sellingRate?: number | string;
@@ -119,6 +153,7 @@ export async function POST(request: NextRequest) {
       throw new Error("You cannot update currency rates for another country.");
     }
 
+    const countryBranchId = body.countryBranchId ? String(body.countryBranchId).trim() : null;
     const rateDate = String(body.rateDate ?? new Date().toISOString().slice(0, 10)).slice(0, 10);
     const buyingRate = toRate(body.buyingRate);
     const sellingRate = toRate(body.sellingRate);
@@ -127,18 +162,25 @@ export async function POST(request: NextRequest) {
     const admin = createSupabaseAdminClient() as any;
     const actorId = await resolveProfileActor(admin, session.userId);
 
-    const { data: existing, error: existingError } = await admin
+    let existingQuery = admin
       .from("daily_usd_rates")
       .select("id, selling_rate")
       .eq("country_id", countryId)
       .eq("rate_date", rateDate)
-      .is("deleted_at", null)
-      .maybeSingle();
+      .is("deleted_at", null);
+
+    if (countryBranchId) {
+      existingQuery = existingQuery.eq("country_branch_id", countryBranchId);
+    } else {
+      existingQuery = existingQuery.is("country_branch_id", null);
+    }
+
+    const { data: existing, error: existingError } = await existingQuery.maybeSingle();
     if (existingError) throw new Error(existingError.message);
 
     const payload = {
       country_id: countryId,
-      country_branch_id: null,
+      country_branch_id: countryBranchId,
       rate_date: rateDate,
       buying_rate: buyingRate,
       selling_rate: sellingRate,
@@ -159,7 +201,7 @@ export async function POST(request: NextRequest) {
         targetTable: "daily_usd_rates",
         targetId,
         countryId,
-        countryBranchId: null,
+        countryBranchId,
         cityBranchId: null,
         reason: `Exchange rate update request via currency monitoring. Buying: ${buyingRate}, Selling: ${sellingRate}`,
         beforeData: existing || null,
@@ -185,9 +227,16 @@ export async function POST(request: NextRequest) {
       saved = data;
     }
 
+    const { data: countryData } = await admin
+      .from("countries")
+      .select("currency_code")
+      .eq("id", countryId)
+      .maybeSingle();
+    const fromCurrency = countryData?.currency_code || "LOCAL";
+
     await admin.from("exchange_rate_history").insert({
       country_id: countryId,
-      from_currency: "LOCAL",
+      from_currency: fromCurrency,
       to_currency: "USD",
       old_rate: existing?.selling_rate ?? null,
       new_rate: sellingRate,

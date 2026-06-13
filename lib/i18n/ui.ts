@@ -313,7 +313,27 @@ export type UiKey =
   | "ledger.prev"
   | "ledger.next"
   | "ledger.entries_label"
-  | "ledger.entries_table";
+  | "ledger.entries_table"
+  // Form fields & Buttons
+  | "form.from"
+  | "form.to"
+  | "form.quantity"
+  | "form.debit_credit"
+  | "form.submit"
+  | "form.reset"
+  | "form.transaction_rate"
+  | "form.operation"
+  | "form.final_amount"
+  | "form.remarks_notes"
+  | "form.save"
+  | "form.save_view"
+  | "form.save_submit"
+  | "form.search_account"
+  | "form.daily_payment_date"
+  | "form.roznamcha_type"
+  | "form.roznamcha_number"
+  | "form.roznamcha_category"
+  | "form.currency_type";
 
 type Dict = Record<UiKey, string>;
 
@@ -615,7 +635,26 @@ const en: Dict = {
   "ledger.prev": "Previous",
   "ledger.next": "Next",
   "ledger.entries_label": "Ledger Entries",
-  "ledger.entries_table": "Ledger Entries"
+  "ledger.entries_table": "Ledger Entries",
+  "form.from": "From",
+  "form.to": "To",
+  "form.quantity": "Quantity (Foreign Amount)",
+  "form.debit_credit": "Debit / Credit Entry",
+  "form.submit": "Submit",
+  "form.reset": "Reset",
+  "form.transaction_rate": "Transaction Rate",
+  "form.operation": "Operation",
+  "form.final_amount": "Final Amount",
+  "form.remarks_notes": "Remarks / Notes",
+  "form.save": "Save",
+  "form.save_view": "Save & View",
+  "form.save_submit": "Save & Submit",
+  "form.search_account": "Search Account (Name or Number)",
+  "form.daily_payment_date": "Daily Payment Date",
+  "form.roznamcha_type": "Roznamcha Type",
+  "form.roznamcha_number": "Roznamcha Number",
+  "form.roznamcha_category": "Roznamcha Category",
+  "form.currency_type": "Currency Type"
 };
 
 const ur: Dict = {
@@ -880,7 +919,26 @@ const ur: Dict = {
   "ledger.prev": "پچھلا",
   "ledger.next": "اگلا",
   "ledger.source_ledger": "لیجر",
-  "ledger.source_roznamcha": "روزنامچہ"
+  "ledger.source_roznamcha": "روزنامچہ",
+  "form.from": "سے",
+  "form.to": "تک",
+  "form.quantity": "مقدار (غیر ملکی رقم)",
+  "form.debit_credit": "ڈیبٹ / کریڈٹ انٹری",
+  "form.submit": "جمع کریں",
+  "form.reset": "ری سیٹ",
+  "form.transaction_rate": "ٹرانزیکشن ریٹ",
+  "form.operation": "عمل",
+  "form.final_amount": "حتمی رقم",
+  "form.remarks_notes": "ریمارکس / نوٹس",
+  "form.save": "محفوظ کریں",
+  "form.save_view": "محفوظ کریں اور دیکھیں",
+  "form.save_submit": "محفوظ اور جمع کریں",
+  "form.search_account": "اکاؤنٹ تلاش کریں (نام یا نمبر)",
+  "form.daily_payment_date": "ڈیلی پیمنٹ کی تاریخ",
+  "form.roznamcha_type": "روزنامچہ کی قسم",
+  "form.roznamcha_number": "روزنامچہ نمبر",
+  "form.roznamcha_category": "روزنامچہ کیٹیگری",
+  "form.currency_type": "کرنسی کی قسم"
 };
 
 const ar: Dict = {
@@ -1143,7 +1201,26 @@ const ar: Dict = {
   "ledger.prev": "السابق",
   "ledger.next": "التالي",
   "ledger.source_ledger": "دفتر الأستاذ",
-  "ledger.source_roznamcha": "روزنامچه"
+  "ledger.source_roznamcha": "روزنامچه",
+  "form.from": "من",
+  "form.to": "إلى",
+  "form.quantity": "الكمية (المبلغ الأجنبي)",
+  "form.debit_credit": "قيد مدين / دائن",
+  "form.submit": "إرسال",
+  "form.reset": "إعادة ضبط",
+  "form.transaction_rate": "سعر المعاملة",
+  "form.operation": "العملية",
+  "form.final_amount": "المبلغ النهائي",
+  "form.remarks_notes": "ملاحظات",
+  "form.save": "حفظ",
+  "form.save_view": "حفظ ومعاينة",
+  "form.save_submit": "حفظ وإرسال",
+  "form.search_account": "بحث عن الحساب (الاسم أو الرقم)",
+  "form.daily_payment_date": "تاريخ الدفع اليومي",
+  "form.roznamcha_type": "نوع الروزنامجة",
+  "form.roznamcha_number": "رقم الروزنامجة",
+  "form.roznamcha_category": "فئة الروزنامجة",
+  "form.currency_type": "نوع العملة"
 };
 
 const fa: Dict = {
@@ -1356,7 +1433,26 @@ const fa: Dict = {
   "ledger.prev": "قبلی",
   "ledger.next": "بعدی",
   "ledger.source_ledger": "دفتر کل",
-  "ledger.source_roznamcha": "روزنامچه"
+  "ledger.source_roznamcha": "روزنامچه",
+  "form.from": "از",
+  "form.to": "به",
+  "form.quantity": "مقدار (مبلغ خارجی)",
+  "form.debit_credit": "سند بدهکار / بستانکار",
+  "form.submit": "ارسال",
+  "form.reset": "بازنشانی",
+  "form.transaction_rate": "نرخ تراکنش",
+  "form.operation": "عملیات",
+  "form.final_amount": "مبلغ نهایی",
+  "form.remarks_notes": "توضیحات / یادداشت‌ها",
+  "form.save": "ذخیره",
+  "form.save_view": "ذخیره و مشاهده",
+  "form.save_submit": "ذخیره و ارسال",
+  "form.search_account": "جستجوی حساب (نام یا شماره)",
+  "form.daily_payment_date": "تاریخ پرداخت روزانه",
+  "form.roznamcha_type": "نوع روزنامچه",
+  "form.roznamcha_number": "شماره روزنامچه",
+  "form.roznamcha_category": "دسته روزنامچه",
+  "form.currency_type": "نوع ارز"
 };
 
 const ps: Dict = {
@@ -1550,13 +1646,107 @@ const ps: Dict = {
   "ledger.col_total": "رننګ بیلانس",
   "ledger.col_ex_rate": "تبادله نرخ",
   "ledger.col_debit_usd": "ډیبټ (USD)",
+  "ledger.apply": "پلي کړئ",
+  "ledger.reset": "ری سیٹ",
+  "ledger.prev": "مخکینی",
+  "ledger.next": "بل",
+
+  // Ledger columns
+  "ledger.col_branch": "څانګه",
+  "ledger.col_user": "کارن",
+  "ledger.col_roz": "روز#",
+  "ledger.col_account_name": "د حساب نوم",
+  "ledger.col_account_no": "د حساب نمبر",
+  "ledger.export_csv": "Excel (CSV)",
+  "ledger.report_title": "لېجر راپور",
+  "ledger.report_subtitle": "د حساب سټېټمنټ د ټوټلونو، فلټرونو او تبادلې نرخونو سره.",
+  "ledger.print": "پرنټ",
+  "ledger.account_details": "د حساب معلومات",
+  "ledger.company_details": "د شرکت معلومات",
+  "ledger.branch_details": "د څانګې معلومات",
+  "ledger.summary": "د لېجر خلاصه",
+  "ledger.session_details": "د سیشن / لاګین معلومات",
+  "ledger.filters": "فلټرونه",
+  "ledger.entries_table_title": "لېجر انټریز",
+  "ledger.ac_name": "د حساب نوم",
+  "ledger.ac_number": "د حساب نمبر",
+  "ledger.economic_name": "د لېجر نوم",
+  "ledger.category": "کټېګوري",
+  "ledger.account_title": "د حساب عنوان",
+  "ledger.account_type": "ډول",
+  "ledger.currency": "کرنسي",
+  "ledger.contract_no": "د قرارداد نمبر",
+  "ledger.contract_date": "د قرارداد نېټه",
+  "ledger.contract_type": "د قرارداد ډول",
+  "ledger.company_name": "د شرکت نوم",
+  "ledger.business_title": "د کاروبار عنوان",
+  "ledger.registration_number": "د ثبت نمبر",
+  "ledger.trn": "TRN",
+  "ledger.website": "وېب پاڼه",
+  "ledger.branch_name": "د څانګې نوم",
+  "ledger.branch_account_no": "د څانګې حساب نمبر",
+  "ledger.country": "هېواد",
+  "ledger.state_city": "ایالت / ښار",
+  "ledger.address": "پته",
+  "ledger.entries": "انټریز",
+  "ledger.total_debit": "ډیبټ",
+  "ledger.total_credit": "کریډټ",
+  "ledger.current_balance": "بیلانس",
+  "ledger.exchange_rate_local_to_usd": "تبادله نرخ (لوکل→USD)",
+  "ledger.exchange_rate_ph": "لکه: 278.50",
+  "ledger.exchange_rate_hint": "دا یوازې پریویو اووررایډ دی؛ د ټرانزیکشن وخت نرخونه په جدول کې ښکاري.",
+  "ledger.session_branch": "د سیشن څانګه",
+  "ledger.user_name": "د کارن نوم",
+  "ledger.user_id": "کارن آی ډي",
+  "ledger.roles": "رولونه",
+  "ledger.filter_account_no": "د حساب نمبر",
+  "ledger.filter_account_no_ph": "د حساب نمبر، نوم، شرکت... لټون",
+  "ledger.select_account": "اکاؤنټ / لېجر وټاکئ",
+  "ledger.select_account_ph": "اکاؤنټ وټاکئ",
+  "ledger.loading": "لوډ کېږي...",
+  "ledger.from_date": "له نېټې",
+  "ledger.to_date": "تر نېټې",
+  "ledger.branch_filter": "څانګه وټاکئ",
+  "ledger.all_branches": "ټولې څانګې",
+  "ledger.showing_range": "ښيي",
+  "ledger.select_account_hint": "د راپور لپاره اکاؤنټ وټاکئ.",
+  "ledger.rows": "قطارونه",
+  "ledger.page": "پاڼه",
+  "ledger.col_date": "نېټه",
+  "ledger.col_serial": "سیریل",
+  "ledger.col_name": "سرچینه",
+  "ledger.col_details": "تفصیل",
+  "ledger.col_debit": "ډیبټ",
+  "ledger.col_credit": "کریډټ",
+  "ledger.col_total": "رننګ بیلانس",
+  "ledger.col_ex_rate": "تبادله نرخ",
+  "ledger.col_debit_usd": "ډیبټ (USD)",
   "ledger.col_credit_usd": "کریډټ (USD)",
   "ledger.no_data": "ډیټا نشته. لومړی اکاؤنټ وټاکئ.",
   "ledger.no_entries": "په دې نېټه رینج کې انټریز ونه موندل شوې.",
   "ledger.totals": "ټول",
   "ledger.pagination_hint": "پاڼې اندازه:",
   "ledger.source_ledger": "لېجر",
-  "ledger.source_roznamcha": "روزنامچه"
+  "ledger.source_roznamcha": "روزنامچه",
+  "form.from": "له",
+  "form.to": "ته",
+  "form.quantity": "مقدار (بهرنی مقدار)",
+  "form.debit_credit": "ډیبټ / کریډټ داخله",
+  "form.submit": "سپارل",
+  "form.reset": "ری سیٹ",
+  "form.transaction_rate": "د معاملې نرخ",
+  "form.operation": "عملیات",
+  "form.final_amount": "وروستی مقدار",
+  "form.remarks_notes": "تبصرې / یادښتونه",
+  "form.save": "خوندي کول",
+  "form.save_view": "خوندي او کتل",
+  "form.save_submit": "خوندي او سپارل",
+  "form.search_account": "حساب وپلټئ (نوم یا شمیره)",
+  "form.daily_payment_date": "ورځنۍ د تادیې نېټه",
+  "form.roznamcha_type": "د روزنامچې ډول",
+  "form.roznamcha_number": "د روزنامچې شمیره",
+  "form.roznamcha_category": "د روزنامچې کټګوري",
+  "form.currency_type": "د کرنسۍ ډول"
 };
 
 const dictionaries: Record<SupportedLanguage, Dict> = {
@@ -1567,8 +1757,7 @@ const dictionaries: Record<SupportedLanguage, Dict> = {
   ps
 };
 
-export function t(lang: SupportedLanguage, key: UiKey) {
-  return dictionaries[lang]?.[key] ?? en[key] ?? key;
+export function t(lang: SupportedLanguage, key: string) {
+  const dictKey = key as UiKey;
+  return dictionaries[lang]?.[dictKey] ?? en[dictKey] ?? key;
 }
-
-

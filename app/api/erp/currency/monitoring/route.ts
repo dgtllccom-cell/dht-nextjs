@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
       .select("country_id, country_branch_id, rate_date, buying_rate, selling_rate, credit_rate, debit_rate, updated_at")
       .in("country_id", countryIds.length ? countryIds : ["00000000-0000-0000-0000-000000000000"])
       .is("deleted_at", null)
+      .is("country_branch_id", null)
       .order("rate_date", { ascending: false })
       .order("updated_at", { ascending: false })
       .limit(1000);

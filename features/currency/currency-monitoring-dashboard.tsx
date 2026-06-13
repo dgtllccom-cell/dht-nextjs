@@ -64,6 +64,8 @@ export function CurrencyMonitoringDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedCountryId, setSelectedCountryId] = useState("");
+  const [branches, setBranches] = useState<any[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
   const [buyRate, setBuyRate] = useState("");
   const [sellRate, setSellRate] = useState("");
   const [debitRate, setDebitRate] = useState("");
@@ -93,17 +95,78 @@ export function CurrencyMonitoringDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Load branches when country changes
   useEffect(() => {
-    const countries = data?.countries ?? [];
-    if (!countries.length) return;
-    const current = countries.find((country) => country.countryId === selectedCountryId) ?? countries[0];
-    if (!selectedCountryId) setSelectedCountryId(current.countryId);
-    setBuyRate(current.latestBuyRate ? String(current.latestBuyRate) : "");
-    setSellRate(current.latestSellRate ? String(current.latestSellRate) : "");
-    setDebitRate(current.latestDebitRate ? String(current.latestDebitRate) : "");
-    setCreditRate(current.latestCreditRate ? String(current.latestCreditRate) : "");
-    if (current.rateDate) setRateDate(current.rateDate);
-  }, [data?.countries, selectedCountryId]);
+    if (!selectedCountryId) {
+      setBranches([]);
+      setSelectedBranchId("");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await apiGet<{ countryBranches: any[] }>(`/api/branch-management/country-branches?countryId=${encodeURIComponent(selectedCountryId)}`);
+        if (!cancelled) {
+          setBranches(response.countryBranches || []);
+          setSelectedBranchId("");
+        }
+      } catch (err) {
+        console.error("Failed to load country branches", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCountryId]);
+
+  // Load active rate inputs when country or branch changes
+  useEffect(() => {
+    if (!selectedCountryId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          countryId: selectedCountryId,
+          currency: "USD"
+        });
+        if (selectedBranchId) {
+          params.set("countryBranchId", selectedBranchId);
+        }
+        const res = await apiGet<any>(`/api/erp/currency/latest-rate?${params.toString()}`);
+        if (!cancelled && res) {
+          if (res.source === "daily_usd_rates") {
+            setBuyRate(res.buyRate ? String(res.buyRate) : "");
+            setSellRate(res.sellRate ? String(res.sellRate) : "");
+            setDebitRate(res.debitRate ? String(res.debitRate) : "");
+            setCreditRate(res.creditRate ? String(res.creditRate) : "");
+            if (res.effectiveDate) setRateDate(res.effectiveDate);
+          } else {
+            // Find fallback country rate from static data if available
+            const countries = data?.countries ?? [];
+            const current = countries.find((country) => country.countryId === selectedCountryId);
+            if (current && !selectedBranchId) {
+              setBuyRate(current.latestBuyRate ? String(current.latestBuyRate) : "");
+              setSellRate(current.latestSellRate ? String(current.latestSellRate) : "");
+              setDebitRate(current.latestDebitRate ? String(current.latestDebitRate) : "");
+              setCreditRate(current.latestCreditRate ? String(current.latestCreditRate) : "");
+              if (current.rateDate) setRateDate(current.rateDate);
+            } else {
+              setBuyRate("");
+              setSellRate("");
+              setDebitRate("");
+              setCreditRate("");
+              setRateDate(isoToday());
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch latest rate", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCountryId, selectedBranchId, data?.countries]);
 
   async function saveRate() {
     if (!selectedCountryId) {
@@ -115,6 +178,7 @@ export function CurrencyMonitoringDashboard() {
     try {
       await apiPost("/api/erp/currency/latest-rate", {
         countryId: selectedCountryId,
+        countryBranchId: selectedBranchId || null,
         rateDate,
         buyingRate: buyRate,
         sellingRate: sellRate,
@@ -168,6 +232,9 @@ export function CurrencyMonitoringDashboard() {
           countries={data.countries}
           selectedCountryId={selectedCountryId}
           onCountryChange={setSelectedCountryId}
+          branches={branches}
+          selectedBranchId={selectedBranchId}
+          onBranchChange={setSelectedBranchId}
           rateDate={rateDate}
           onRateDateChange={setRateDate}
           buyRate={buyRate}
@@ -218,6 +285,9 @@ export function CurrencyMonitoringDashboard() {
         countries={data?.countries ?? []}
         selectedCountryId={selectedCountryId}
         onCountryChange={setSelectedCountryId}
+        branches={branches}
+        selectedBranchId={selectedBranchId}
+        onBranchChange={setSelectedBranchId}
         rateDate={rateDate}
         onRateDateChange={setRateDate}
         buyRate={buyRate}
@@ -325,6 +395,9 @@ function RatePanel({
   countries,
   selectedCountryId,
   onCountryChange,
+  branches = [],
+  selectedBranchId = "",
+  onBranchChange = () => {},
   rateDate,
   onRateDateChange,
   buyRate,
@@ -342,6 +415,9 @@ function RatePanel({
   countries: CountryCurrencyRow[];
   selectedCountryId: string;
   onCountryChange: (value: string) => void;
+  branches?: any[];
+  selectedBranchId?: string;
+  onBranchChange?: (value: string) => void;
   rateDate: string;
   onRateDateChange: (value: string) => void;
   buyRate: string;
@@ -365,7 +441,7 @@ function RatePanel({
           New transactions use the latest active rate. Posted transactions keep their saved rate and USD amount.
         </p>
       </div>
-      <div className="grid gap-2 md:grid-cols-7">
+      <div className="grid gap-2 md:grid-cols-8">
         <label className="grid gap-1 text-xs font-bold md:col-span-2">
           Country
           <select
@@ -376,6 +452,21 @@ function RatePanel({
             {countries.map((country) => (
               <option key={country.countryId} value={country.countryId}>
                 {country.countryName} ({country.currency})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-bold">
+          Branch Scope
+          <select
+            value={selectedBranchId}
+            onChange={(event) => onBranchChange(event.target.value)}
+            className="h-9 rounded-md border bg-background px-2 text-xs font-bold"
+          >
+            <option value="">All Branches</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
               </option>
             ))}
           </select>

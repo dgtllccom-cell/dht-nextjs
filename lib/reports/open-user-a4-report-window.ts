@@ -1,4 +1,5 @@
-"use client";
+import { t } from "@/lib/i18n/ui";
+import type { SupportedLanguage } from "@/lib/i18n/languages";
 
 export type UserReportData = {
   userId: string;
@@ -51,7 +52,7 @@ function formatDate(value: string) {
   const seconds = String(date.getSeconds()).padStart(2, "0");
   const ampm = hours >= 12 ? "PM" : "AM";
   hours = hours % 12;
-  hours = hours ? hours : 12; // the hour '0' should be '12'
+  hours = hours ? hours : 12;
   const strTime = `${String(hours).padStart(2, "0")}:${minutes}:${seconds} ${ampm}`;
   
   return `${day}-${month}-${year} ${strTime}`;
@@ -62,10 +63,14 @@ export function openUserA4ReportWindow(input: {
   subtitle?: string;
   autoPrint?: boolean;
   userData: UserReportData;
+  lang?: string;
 }) {
   if (typeof window === "undefined") return;
   const w = window.open("", "_blank");
   if (!w) return;
+
+  const lang = (input.lang || "en") as SupportedLanguage;
+  const isRtl = ["ur", "ar", "fa", "ps"].includes(lang);
 
   const now = new Date();
   const stampDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -88,7 +93,7 @@ export function openUserA4ReportWindow(input: {
   let address = "Street 12, City Branch Area, Quetta, Balochistan, Pakistan";
   let zip = "87300";
 
-  // If a city is present in branch name, parse it (e.g. "Quetta - CHAMAN City Branch" -> "Quetta")
+  // If a city is present in branch name, parse it
   if (u.branchName && u.branchName.includes(" - ")) {
     city = u.branchName.split(" - ")[0].trim();
   } else if (u.branchName && u.branchName !== "Global" && u.branchName !== "-") {
@@ -258,7 +263,7 @@ export function openUserA4ReportWindow(input: {
   `;
 
   const html = `<!doctype html>
-<html lang="en">
+<html lang="${lang}" dir="${isRtl ? "rtl" : "ltr"}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -409,6 +414,16 @@ export function openUserA4ReportWindow(input: {
       .sig-line svg { margin-bottom: -4px; }
       .page-footer { display: flex; justify-content: space-between; font-size: 7.5px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 5px; margin-top: 8px; font-weight: 700; }
 
+      /* RTL direction specific layouts */
+      html[dir="rtl"] body { text-align: right; direction: rtl; }
+      html[dir="rtl"] th, html[dir="rtl"] td { text-align: right; }
+      html[dir="rtl"] .info-table td.value { text-align: right; }
+      html[dir="rtl"] .meta-box { text-align: left; }
+      html[dir="rtl"] .logo-title { flex-direction: row-reverse; }
+      html[dir="rtl"] .overview-name-row { flex-direction: row-reverse; }
+      html[dir="rtl"] .overview-name-area { flex-direction: row-reverse; text-align: right; }
+      html[dir="rtl"] .footer-signatures { flex-direction: row-reverse; }
+
       @media print {
         body { background: #ffffff; }
         .wrap { padding: 0; }
@@ -440,10 +455,10 @@ export function openUserA4ReportWindow(input: {
             </td>
             <td style="width: 35%; text-align: right; vertical-align: middle;">
               <div class="meta-box">
-                <div class="meta-item"><span class="meta-label">Generated On:</span> ${stampDate}</div>
-                <div class="meta-item"><span class="meta-label">Generated Time:</span> ${stampTime}</div>
+                <div class="meta-item"><span class="meta-label">${t(lang, "ledger.col_date")}:</span> ${stampDate}</div>
+                <div class="meta-item"><span class="meta-label">Time:</span> ${stampTime}</div>
                 <div class="meta-item"><span class="meta-label">Report ID:</span> UJR-DTL-${escapeHtml(u.userCode || "USER")}-${stampDate.toUpperCase().replace(/ /g, "")}</div>
-                <div class="meta-item"><span class="meta-label">Status:</span> ${escapeHtml(u.status.toUpperCase())}</div>
+                <div class="meta-item"><span class="meta-label">${t(lang, "ledger.ledger_status")}:</span> ${escapeHtml(u.status.toUpperCase())}</div>
               </div>
             </td>
           </tr>
@@ -493,8 +508,8 @@ export function openUserA4ReportWindow(input: {
             <div class="section-header"><span class="section-badge">1</span> BASIC INFORMATION</div>
             <table class="info-table">
               <tr><td class="label">User Name</td><td class="value">${escapeHtml(u.fullName || "-")}</td></tr>
-              <tr><td class="label">Role</td><td class="value">${escapeHtml(u.role || "-")}</td></tr>
-              <tr><td class="label">Status</td><td class="value"><span class="status-pill-green">${escapeHtml(u.status || "Active")}</span></td></tr>
+              <tr><td class="label">${t(lang, "ledger.roles")}</td><td class="value">${escapeHtml(u.role || "-")}</td></tr>
+              <tr><td class="label">${t(lang, "ledger.ledger_status")}</td><td class="value"><span class="status-pill-green">${escapeHtml(u.status || "Active")}</span></td></tr>
               <tr><td class="label">Registered</td><td class="value" style="font-size: 8px;">${escapeHtml(registeredDateStr)}</td></tr>
               <tr><td class="label">Last Login</td><td class="value" style="font-size: 8px;">${escapeHtml(lastLoginDateStr)}</td></tr>
               <tr><td class="label">Password</td><td class="value" style="font-family: monospace; font-size: 9px; letter-spacing: 0.5px;">${escapeHtml(u.rawPassword || "admin123")}</td></tr>
@@ -505,12 +520,12 @@ export function openUserA4ReportWindow(input: {
           <div class="section-card">
             <div class="section-header"><span class="section-badge">2</span> BRANCH INFORMATION</div>
             <table class="info-table">
-              <tr><td class="label">Branch Name</td><td class="value">${escapeHtml(u.branchName || "Global")}</td></tr>
-              <tr><td class="label">Branch Code</td><td class="value" style="color:#1e3a8a; font-weight: 850;">${escapeHtml(u.branchCode || "-")}</td></tr>
-              <tr><td class="label">Country</td><td class="value">${escapeHtml(u.countryName || "-")}</td></tr>
-              <tr><td class="label">Branch Type</td><td class="value">${escapeHtml(u.branchType || "-")}</td></tr>
-              <tr><td class="label">City</td><td class="value">${escapeHtml(city)}</td></tr>
-              <tr><td class="label">Currency</td><td class="value">${escapeHtml(currency)}</td></tr>
+              <tr><td class="label">${t(lang, "ledger.branch_name")}</td><td class="value">${escapeHtml(u.branchName || "Global")}</td></tr>
+              <tr><td class="label">${t(lang, "ledger.branch_account_no")}</td><td class="value" style="color:#1e3a8a; font-weight: 850;">${escapeHtml(u.branchCode || "-")}</td></tr>
+              <tr><td class="label">${t(lang, "ledger.country")}</td><td class="value">${escapeHtml(u.countryName || "-")}</td></tr>
+              <tr><td class="label">${t(lang, "ledger.account_type")}</td><td class="value">${escapeHtml(u.branchType || "-")}</td></tr>
+              <tr><td class="label">${t(lang, "ledger.state_city")}</td><td class="value">${escapeHtml(city)}</td></tr>
+              <tr><td class="label">${t(lang, "ledger.currency")}</td><td class="value">${escapeHtml(currency)}</td></tr>
             </table>
           </div>
           
@@ -537,8 +552,8 @@ export function openUserA4ReportWindow(input: {
               <tr><td class="label">Email</td><td class="value" style="font-size: 8.5px;">${escapeHtml(email)}</td></tr>
               <tr><td class="label">Phone</td><td class="value">${escapeHtml(phone)}</td></tr>
               <tr><td class="label">Alternate No</td><td class="value">${escapeHtml(altPhone)}</td></tr>
-              <tr><td class="label">Address</td><td class="value" style="font-size: 8.5px; line-height:1.2;">${escapeHtml(address)}</td></tr>
-              <tr><td class="label">City / State</td><td class="value">${escapeHtml(city)} / ${escapeHtml(state)}</td></tr>
+              <tr><td class="label">${t(lang, "ledger.address")}</td><td class="value" style="font-size: 8.5px; line-height:1.2;">${escapeHtml(address)}</td></tr>
+              <tr><td class="label">${t(lang, "ledger.state_city")} / State</td><td class="value">${escapeHtml(city)} / ${escapeHtml(state)}</td></tr>
               <tr><td class="label">Postal Code</td><td class="value">${escapeHtml(zip)}</td></tr>
             </table>
           </div>
@@ -581,11 +596,11 @@ export function openUserA4ReportWindow(input: {
               <thead>
                 <tr>
                   <th style="width: 5%;">#</th>
-                  <th style="width: 28%;">Date & Time</th>
-                  <th style="width: 32%;">Description</th>
+                  <th style="width: 28%;">${t(lang, "ledger.col_date")}</th>
+                  <th style="width: 32%;">${t(lang, "ledger.col_details")}</th>
                   <th style="width: 15%;">Ref No.</th>
-                  <th style="width: 10%;">Debit</th>
-                  <th style="width: 10%;">Credit</th>
+                  <th style="width: 10%;">${t(lang, "ledger.total_debit")}</th>
+                  <th style="width: 10%;">${t(lang, "ledger.total_credit")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -598,8 +613,8 @@ export function openUserA4ReportWindow(input: {
           <div class="section-card" style="grid-column: span 1;">
             <div class="section-header"><span class="section-badge">8</span> AUDIT TRAIL</div>
             <table class="info-table">
-              <tr><td class="label">Created By</td><td class="value" style="font-size: 8.5px;">Super Admin (superadmin@dgtllc.com)</td></tr>
-              <tr><td class="label">Created On</td><td class="value" style="font-size: 8.5px;">${escapeHtml(registeredDateStr)}</td></tr>
+              <tr><td class="label">${t(lang, "roz.created_by")}</td><td class="value" style="font-size: 8.5px;">Super Admin (superadmin@dgtllc.com)</td></tr>
+              <tr><td class="label">${t(lang, "roz.posted_at")}</td><td class="value" style="font-size: 8.5px;">${escapeHtml(registeredDateStr)}</td></tr>
               <tr><td class="label">Last Updated By</td><td class="value" style="font-size: 8.5px;">Super Admin (superadmin@dgtllc.com)</td></tr>
               <tr><td class="label">Last Updated On</td><td class="value" style="font-size: 8.5px;">${escapeHtml(lastLoginDateStr)}</td></tr>
               <tr><td class="label">Total Updates</td><td class="value">${editsCount}</td></tr>
@@ -611,7 +626,7 @@ export function openUserA4ReportWindow(input: {
         <!-- Signature Block -->
         <div class="footer-signatures">
           <div class="notes-box">
-            <strong style="color: #0f172a; font-size: 8.5px; display: block; margin-bottom: 2px;">Remarks / Notes</strong>
+            <strong style="color: #0f172a; font-size: 8.5px; display: block; margin-bottom: 2px;">${t(lang, "form.remarks_notes")}</strong>
             <span>This is the official user journal audit report summary. All activities, permission matrices, and security tokens are logged and tracked under global ERP identity governance frameworks.</span>
           </div>
 
@@ -648,9 +663,4 @@ export function openUserA4ReportWindow(input: {
       }, { once: true });
     </script>
   </body>
-</html>`;
-
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-}
+</html>
