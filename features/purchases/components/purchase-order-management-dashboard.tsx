@@ -2036,12 +2036,30 @@ export function PurchaseOrderManagementDashboard() {
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Journal Entry Number:</td><td className="px-2 py-1 text-slate-800 font-mono font-bold">{journalEntryNumberText}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Debit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.purchaseAccountNumber}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Credit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.salesAccountNumber}</td></tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Total Quantity:</td>
+                            <td className="px-2 py-1 text-slate-800 font-bold">{totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || "Units"}</td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Net Weight:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono">{totalNet.toLocaleString()} kg</td>
+                          </tr>
                           <tr>
-                            <td className="px-2 py-1 text-slate-400">Remarks / Narration:</td>
-                            <td className="px-2 py-1 text-slate-900 font-bold leading-normal text-[8.5px] italic max-w-[180px] break-words whitespace-pre-wrap">{remarksText}</td>
+                            <td className="px-2 py-1 text-slate-400">Gross Weight:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono">{totalGross.toLocaleString()} kg</td>
                           </tr>
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+
+                  {/* Document Remarks / Narration full-width block */}
+                  <div className="border border-slate-200 rounded overflow-hidden mt-2.5">
+                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                      <span>📝</span> Remarks / Narration
+                    </div>
+                    <div className="p-2 bg-white text-[8px] font-semibold text-slate-800 italic leading-normal min-h-[30px] whitespace-pre-wrap break-words">
+                      {remarksText}
                     </div>
                   </div>
 

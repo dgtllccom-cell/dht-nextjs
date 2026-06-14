@@ -23,7 +23,9 @@ import {
   TrendingUp,
   WalletCards,
   Globe,
-  Clock3
+  Clock3,
+  Pin,
+  FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -1274,12 +1276,14 @@ export function PurchaseBookingJournalReportView() {
               "Qty",
               "KGs",
               "P.TYPE",
+              "Status",
               "D.Terms",
               "Route",
               "Loading",
               "Date",
               "Receiving",
               "Date",
+              "A4",
               "Actions"
             ]}
           >
@@ -1324,6 +1328,17 @@ export function PurchaseBookingJournalReportView() {
               const receivingLoc = report.form_data?.form?.receivedCountry || "N/A";
               const receivingDate = formatIsoDate(report.form_data?.form?.receivedDate);
 
+              const isPosted = report.status === "Posted";
+              const transferBadge = isPosted ? (
+                <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700">
+                  Transferred
+                </span>
+              ) : (
+                <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700">
+                  In Building
+                </span>
+              );
+
               return (
                 <tr key={report.id} onClick={() => { setSelectedId(report.id); setIsDrawerOpen(true); }} className="cursor-pointer border-b border-slate-200 hover:bg-slate-50/80 transition">
                   <Td center className="font-bold text-slate-400">{pNum}</Td>
@@ -1339,12 +1354,26 @@ export function PurchaseBookingJournalReportView() {
                   <Td right className="font-mono font-semibold text-emerald-650">{qty}</Td>
                   <Td right className="font-mono font-semibold text-emerald-650">{kgs}</Td>
                   <Td><StatusBadge status={pType} /></Td>
-                  <Td className="font-semibold text-slate-650 truncate max-w-[150px]">{dTerms}</Td>
+                  <Td>{transferBadge}</Td>
+                  <Td className="font-semibold text-slate-655 truncate max-w-[150px]">{dTerms}</Td>
                   <Td className="font-semibold text-slate-605">{route}</Td>
                   <Td className="text-slate-700">{loadingLoc}</Td>
                   <Td center className="font-mono text-slate-500">{loadingDate}</Td>
                   <Td className="text-slate-700">{receivingLoc}</Td>
                   <Td center className="font-mono text-slate-500">{receivingDate}</Td>
+                  <Td center>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openReportWindow(report, false);
+                      }}
+                      className="p-1 text-slate-400 hover:text-blue-600 transition"
+                      title="Open A4 Report Preview"
+                    >
+                      <Pin className="h-4 w-4" />
+                    </button>
+                  </Td>
                   <Td center>
                     <RowActionsMenu
                       report={report}
@@ -1880,12 +1909,30 @@ export function PurchaseBookingJournalReportView() {
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Journal Entry Number:</td><td className="px-2 py-1 text-slate-800 font-mono font-bold">{journalEntryNumberText}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Debit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.purchaseAccountNumber}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Credit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.salesAccountNumber}</td></tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Total Quantity:</td>
+                            <td className="px-2 py-1 text-slate-800 font-bold">{totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || "Units"}</td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Net Weight:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono">{totalNet.toLocaleString()} kg</td>
+                          </tr>
                           <tr>
-                            <td className="px-2 py-1 text-slate-400">Remarks / Narration:</td>
-                            <td className="px-2 py-1 text-slate-900 font-bold leading-normal text-[8.5px] italic max-w-[180px] break-words whitespace-pre-wrap">{remarksText}</td>
+                            <td className="px-2 py-1 text-slate-400">Gross Weight:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono">{totalGross.toLocaleString()} kg</td>
                           </tr>
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+
+                  {/* Document Remarks / Narration full-width block */}
+                  <div className="border border-slate-200 rounded overflow-hidden mt-2.5">
+                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                      <span>📝</span> Remarks / Narration
+                    </div>
+                    <div className="p-2 bg-white text-[8px] font-semibold text-slate-800 italic leading-normal min-h-[30px] whitespace-pre-wrap break-words">
+                      {remarksText}
                     </div>
                   </div>
 

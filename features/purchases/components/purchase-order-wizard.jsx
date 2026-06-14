@@ -464,6 +464,8 @@ export function PurchaseOrderWizard() {
   const purchaseDropdownRef = React.useRef(null);
   const salesDropdownRef = React.useRef(null);
   const verifyDropdownRef = React.useRef(null);
+  const purchaseCompanyDropdownRef = React.useRef(null);
+  const salesCompanyDropdownRef = React.useRef(null);
 
   const [purchaseDropdownOpen, setPurchaseDropdownOpen] = useState(false);
   const [salesDropdownOpen, setSalesDropdownOpen] = useState(false);
@@ -485,6 +487,12 @@ export function PurchaseOrderWizard() {
       }
       if (verifyDropdownRef.current && !verifyDropdownRef.current.contains(event.target)) {
         setVerifyDropdownOpen(false);
+      }
+      if (purchaseCompanyDropdownRef.current && !purchaseCompanyDropdownRef.current.contains(event.target)) {
+        setPurchaseCompanySelectOpen(false);
+      }
+      if (salesCompanyDropdownRef.current && !salesCompanyDropdownRef.current.contains(event.target)) {
+        setSalesCompanySelectOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -508,6 +516,9 @@ export function PurchaseOrderWizard() {
   const [customerDetail, setCustomerDetail] = useState(null);
   const [purchasePinDropdownOpen, setPurchasePinDropdownOpen] = useState(false);
   const [salesPinDropdownOpen, setSalesPinDropdownOpen] = useState(false);
+  const [purchaseCompanySelectOpen, setPurchaseCompanySelectOpen] = useState(false);
+  const [salesCompanySelectOpen, setSalesCompanySelectOpen] = useState(false);
+  const [dbCompanies, setDbCompanies] = useState([]);
 
   // Inline Account Creation Modal States
   const [createAccountModalOpen, setCreateAccountModalOpen] = useState(false);
@@ -597,6 +608,18 @@ export function PurchaseOrderWizard() {
         console.error("Failed to load goods master:", err);
       }
     }
+    async function initCompanies() {
+      try {
+        const response = await fetch("/api/erp/companies?limit=100");
+        const res = await response.json();
+        const companiesData = res?.data?.companies || res?.companies;
+        if (!cancelled && companiesData) {
+          setDbCompanies(companiesData);
+        }
+      } catch (err) {
+        console.error("Failed to load companies:", err);
+      }
+    }
     async function initAccounts() {
       try {
         const response = await fetch("/api/erp/accounting/accounts?limit=500");
@@ -607,7 +630,8 @@ export function PurchaseOrderWizard() {
             accountName: acc.name,
             cityBranchName: acc.branch_code || "",
             ledgerCurrency: acc.currency || "USD",
-            customerId: acc.customer_id || acc.customerId || null
+            customerId: acc.customer_id || acc.customerId || null,
+            companyId: acc.company_id || null
           }));
           setDbAccounts(mapped);
         }
@@ -641,6 +665,7 @@ export function PurchaseOrderWizard() {
     initGoods();
     initAccounts();
     initPorts();
+    initCompanies();
     return () => {
       cancelled = true;
     };
@@ -973,6 +998,14 @@ export function PurchaseOrderWizard() {
     const accountName = account.accountName || account.ledgerName || "";
     const branchName = account.cityBranchName || account.countryBranchName || "";
     const currency = (account.ledgerCurrency || "").toUpperCase();
+    const companyId = account.companyId || null;
+
+    let matchedComp = null;
+    if (companyId && dbCompanies.length > 0) {
+      matchedComp = dbCompanies.find(c => c.id === companyId);
+    }
+    const cName = matchedComp?.name || "";
+    const cCode = matchedComp?.name ? "COM-" + matchedComp.name.slice(0, 3).toUpperCase() : "";
 
     setForm((prev) => ({
       ...prev,
@@ -983,6 +1016,9 @@ export function PurchaseOrderWizard() {
             purchaseAccountBranch: branchName,
             purchaseAccountCurrency: currency || prev.purchaseAccountCurrency,
             supplierName: accountName || prev.supplierName,
+            purchaseCompanyId: companyId,
+            purchaseCompanyName: cName,
+            purchaseCompanyCode: cCode,
           }
         : {
             salesAccountNo: accountNo,
@@ -990,6 +1026,9 @@ export function PurchaseOrderWizard() {
             salesAccountBranch: branchName,
             salesAccountCurrency: currency || prev.salesAccountCurrency,
             customerName: accountName || prev.customerName,
+            salesCompanyId: companyId,
+            salesCompanyName: cName,
+            salesCompanyCode: cCode,
           }),
       currencyType: currency || prev.currencyType,
     }));
@@ -2168,7 +2207,8 @@ export function PurchaseOrderWizard() {
                         <td className="px-2 py-1 text-right font-bold">${item.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         <td className="px-2 py-1 text-right font-black text-blue-900">{item.finalAmountPkr.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</td>
                       </tr>
-                    </tbody>
+                    ))}
+                  </tbody>
                     <tfoot className="border-t-[1.5px] border-slate-350 bg-slate-50 font-bold">
                       <tr className="text-slate-800">
                         <td colSpan={4} className="px-2 py-1 text-right text-slate-500 font-extrabold uppercase text-[7px]">Totals:</td>
@@ -3086,53 +3126,30 @@ export function PurchaseOrderWizard() {
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Journal Entry Number:</td><td className="px-2 py-1 text-slate-800 font-mono font-bold">Pending Posting</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Debit Account:</td><td className="px-2 py-1 text-slate-808 font-mono">{form.purchaseAccountNo || "-"}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Credit Account:</td><td className="px-2 py-1 text-slate-808 font-mono">{form.salesAccountNo || "-"}</td></tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Total Quantity:</td>
+                            <td className="px-2 py-1 text-slate-808 font-bold">{reportTotals.totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || "Units"}</td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Net Weight:</td>
+                            <td className="px-2 py-1 text-slate-808 font-mono">{reportTotals.totalNet.toLocaleString()} kg</td>
+                          </tr>
                           <tr>
-                            <td className="px-2 py-1 text-slate-400">Remarks / Narration:</td>
-                            <td className="px-2 py-1 text-slate-900 font-bold leading-normal text-[8.5px] italic max-w-[180px] break-words whitespace-pre-wrap">{form.orderReportRemarks || "No narration remarks provided."}</td>
+                            <td className="px-2 py-1 text-slate-400">Gross Weight:</td>
+                            <td className="px-2 py-1 text-slate-808 font-mono">{reportTotals.totalGross.toLocaleString()} kg</td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
                   </div>
 
-                  {/* Summary Totals Cards block */}
-                  <div className="border border-slate-200 rounded overflow-hidden">
-                    <div className="bg-slate-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                      📊 Summary Totals
+                  {/* Document Remarks / Narration full-width block */}
+                  <div className="border border-slate-200 rounded overflow-hidden mt-3">
+                    <div className="bg-slate-50 border-b border-slate-200 px-2.5 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                      <span>📝</span> Remarks / Narration
                     </div>
-                    <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-slate-50/50">
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Quantity</span>
-                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{reportTotals.totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || "BAGS"}</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Gross Weight</span>
-                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{reportTotals.totalGross.toLocaleString()} kg</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Net Weight</span>
-                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{reportTotals.totalNet.toLocaleString()} kg</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Volume / Containers</span>
-                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{form.containerCount || 0}</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Average Rate / KG</span>
-                        <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${(reportTotals.totalNet > 0 ? (reportTotals.grandPrimaryFinal / reportTotals.totalNet) : 0).toFixed(2)}</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Average Rate / Ton</span>
-                        <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${((reportTotals.totalNet > 0 ? (reportTotals.grandPrimaryFinal / reportTotals.totalNet) : 0) * 1000).toFixed(2)}</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Amount (USD)</span>
-                        <span className="text-[9px] font-black text-blue-700 mt-1 leading-none">${reportTotals.grandPrimaryFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="border border-emerald-300 rounded p-1 bg-emerald-50/35 flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-emerald-650 uppercase font-black tracking-wider leading-none">Total Amount (PKR)</span>
-                        <span className="text-[10px] font-black text-emerald-700 mt-1 leading-none">{reportTotals.grandFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</span>
-                      </div>
+                    <div className="p-2.5 bg-white text-[8px] font-semibold text-slate-800 italic leading-normal min-h-[30px] whitespace-pre-wrap break-words">
+                      {form.orderReportRemarks || "No narration remarks provided."}
                     </div>
                   </div>
 
@@ -3417,14 +3434,72 @@ export function PurchaseOrderWizard() {
                       </div>
 
                       {form.purchaseAccountName && (
-                        <div className="mt-1 text-[9px] text-muted-foreground flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded border border-border/40 font-mono overflow-hidden whitespace-nowrap">
-                          <span className="font-bold text-primary shrink-0">{form.purchaseAccountNo}</span>
-                          <span className="text-border shrink-0">|</span>
-                          <span className="font-semibold text-foreground truncate shrink-0 max-w-[120px]" title={form.purchaseAccountName}>{form.purchaseAccountName}</span>
-                          <span className="text-border shrink-0">|</span>
-                          <span className="text-muted-foreground truncate shrink-0 max-w-[100px]" title={form.purchaseAccountBranch || "No Branch"}>{form.purchaseAccountBranch || "No Branch"}</span>
-                          <span className="text-border shrink-0">|</span>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{form.purchaseAccountCurrency}</span>
+                        <div className="mt-2 p-3 bg-muted/40 border border-border/60 rounded-lg space-y-1.5 font-mono text-[10px] text-muted-foreground relative">
+                          <div className="flex justify-between items-center">
+                            <span>Account Number:</span>
+                            <span className="font-bold text-primary">{form.purchaseAccountNo}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Account Name:</span>
+                            <span className="font-bold text-foreground max-w-[150px] truncate" title={form.purchaseAccountName}>{form.purchaseAccountName}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Branch & Currency:</span>
+                            <span className="font-semibold text-foreground">
+                              {form.purchaseAccountBranch || "No Branch"} | <span className="text-emerald-600 dark:text-emerald-450 font-bold">{form.purchaseAccountCurrency}</span>
+                            </span>
+                          </div>
+                          <div className="pt-1.5 border-t border-border/40 flex justify-between items-center relative">
+                            <span>Company Details:</span>
+                            <div className="flex items-center gap-1.5 relative" ref={purchaseCompanyDropdownRef}>
+                              <span className="font-bold text-foreground truncate max-w-[120px]" title={form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}>
+                                {form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None Selected"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setPurchaseCompanySelectOpen(prev => !prev)}
+                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
+                                title="Select Company"
+                              >
+                                <Pin className={`h-3 w-3 ${purchaseCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
+                              </button>
+
+                              {purchaseCompanySelectOpen && (
+                                <div className="absolute right-0 top-6 w-56 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                                  <div className="px-2 py-1 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
+                                    Select Company
+                                  </div>
+                                  <div className="max-h-40 overflow-y-auto space-y-0.5">
+                                    {dbCompanies.length === 0 ? (
+                                      <div className="px-2 py-3 text-center text-muted-foreground text-[10px] italic">
+                                        No companies found.
+                                      </div>
+                                    ) : (
+                                      dbCompanies.map((c) => {
+                                        const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
+                                        return (
+                                          <button
+                                            key={c.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setValue("purchaseCompanyId", c.id);
+                                              setValue("purchaseCompanyName", c.name);
+                                              setValue("purchaseCompanyCode", cCode);
+                                              setPurchaseCompanySelectOpen(false);
+                                            }}
+                                            className="w-full text-left px-2 py-1 rounded hover:bg-muted text-[10px] text-foreground font-semibold truncate block"
+                                            title={c.name}
+                                          >
+                                            {c.name} ({cCode})
+                                          </button>
+                                        );
+                                      })
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -3586,14 +3661,72 @@ export function PurchaseOrderWizard() {
                       </div>
 
                       {form.salesAccountName && (
-                        <div className="mt-1 text-[9px] text-muted-foreground flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded border border-border/40 font-mono overflow-hidden whitespace-nowrap">
-                          <span className="font-bold text-primary shrink-0">{form.salesAccountNo}</span>
-                          <span className="text-border shrink-0">|</span>
-                          <span className="font-semibold text-foreground truncate shrink-0 max-w-[120px]" title={form.salesAccountName}>{form.salesAccountName}</span>
-                          <span className="text-border shrink-0">|</span>
-                          <span className="text-muted-foreground truncate shrink-0 max-w-[100px]" title={form.salesAccountBranch || "No Branch"}>{form.salesAccountBranch || "No Branch"}</span>
-                          <span className="text-border shrink-0">|</span>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{form.salesAccountCurrency}</span>
+                        <div className="mt-2 p-3 bg-muted/40 border border-border/60 rounded-lg space-y-1.5 font-mono text-[10px] text-muted-foreground relative">
+                          <div className="flex justify-between items-center">
+                            <span>Account Number:</span>
+                            <span className="font-bold text-primary">{form.salesAccountNo}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Account Name:</span>
+                            <span className="font-bold text-foreground max-w-[150px] truncate" title={form.salesAccountName}>{form.salesAccountName}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Branch & Currency:</span>
+                            <span className="font-semibold text-foreground">
+                              {form.salesAccountBranch || "No Branch"} | <span className="text-emerald-600 dark:text-emerald-450 font-bold">{form.salesAccountCurrency}</span>
+                            </span>
+                          </div>
+                          <div className="pt-1.5 border-t border-border/40 flex justify-between items-center relative">
+                            <span>Company Details:</span>
+                            <div className="flex items-center gap-1.5 relative" ref={salesCompanyDropdownRef}>
+                              <span className="font-bold text-foreground truncate max-w-[120px]" title={form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}>
+                                {form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None Selected"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setSalesCompanySelectOpen(prev => !prev)}
+                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
+                                title="Select Company"
+                              >
+                                <Pin className={`h-3 w-3 ${salesCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
+                              </button>
+
+                              {salesCompanySelectOpen && (
+                                <div className="absolute right-0 top-6 w-56 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                                  <div className="px-2 py-1 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
+                                    Select Company
+                                  </div>
+                                  <div className="max-h-40 overflow-y-auto space-y-0.5">
+                                    {dbCompanies.length === 0 ? (
+                                      <div className="px-2 py-3 text-center text-muted-foreground text-[10px] italic">
+                                        No companies found.
+                                      </div>
+                                    ) : (
+                                      dbCompanies.map((c) => {
+                                        const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
+                                        return (
+                                          <button
+                                            key={c.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setValue("salesCompanyId", c.id);
+                                              setValue("salesCompanyName", c.name);
+                                              setValue("salesCompanyCode", cCode);
+                                              setSalesCompanySelectOpen(false);
+                                            }}
+                                            className="w-full text-left px-2 py-1 rounded hover:bg-muted text-[10px] text-foreground font-semibold truncate block"
+                                            title={c.name}
+                                          >
+                                            {c.name} ({cCode})
+                                          </button>
+                                        );
+                                      })
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       )}
 
