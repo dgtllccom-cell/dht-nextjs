@@ -27,7 +27,8 @@ import {
   CheckSquare,
   FileSignature,
   Receipt,
-  PenLine
+  PenLine,
+  Pin
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -476,9 +477,11 @@ export function PurchaseOrderWizard() {
       }
       if (purchaseDropdownRef.current && !purchaseDropdownRef.current.contains(event.target)) {
         setPurchaseDropdownOpen(false);
+        setPurchasePinDropdownOpen(false);
       }
       if (salesDropdownRef.current && !salesDropdownRef.current.contains(event.target)) {
         setSalesDropdownOpen(false);
+        setSalesPinDropdownOpen(false);
       }
       if (verifyDropdownRef.current && !verifyDropdownRef.current.contains(event.target)) {
         setVerifyDropdownOpen(false);
@@ -500,6 +503,25 @@ export function PurchaseOrderWizard() {
   const [mainBranches, setMainBranches] = useState([]);
   const [cityBranches, setCityBranches] = useState([]);
   const [dbAccounts, setDbAccounts] = useState(MOCK_ACCOUNTS);
+
+  const [supplierDetail, setSupplierDetail] = useState(null);
+  const [customerDetail, setCustomerDetail] = useState(null);
+  const [purchasePinDropdownOpen, setPurchasePinDropdownOpen] = useState(false);
+  const [salesPinDropdownOpen, setSalesPinDropdownOpen] = useState(false);
+
+  // Inline Account Creation Modal States
+  const [createAccountModalOpen, setCreateAccountModalOpen] = useState(false);
+  const [createAccountType, setCreateAccountType] = useState("purchase"); // "purchase" | "sales"
+  const [createAccountForm, setCreateAccountForm] = useState({
+    code: "AUTO",
+    name: "",
+    kind: "liability",
+    currency: "USD",
+    parentId: "",
+    isControlAccount: false
+  });
+  const [createAccountLoading, setCreateAccountLoading] = useState(false);
+  const [createAccountError, setCreateAccountError] = useState("");
 
   // Inline Master-Creation Modal States
   const [newCountryModal, setNewCountryModal] = useState(false);
@@ -584,7 +606,8 @@ export function PurchaseOrderWizard() {
             accountCode: acc.code || acc.account_number,
             accountName: acc.name,
             cityBranchName: acc.branch_code || "",
-            ledgerCurrency: acc.currency || "USD"
+            ledgerCurrency: acc.currency || "USD",
+            customerId: acc.customer_id || acc.customerId || null
           }));
           setDbAccounts(mapped);
         }
@@ -622,6 +645,48 @@ export function PurchaseOrderWizard() {
       cancelled = true;
     };
   }, []);
+
+  // Fetch full details when supplierId changes
+  useEffect(() => {
+    if (!form.supplierId) {
+      setSupplierDetail(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/erp/customers/${form.supplierId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const cust = json?.customer || json?.data;
+        if (!cancelled && cust) {
+          setSupplierDetail(cust);
+        }
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+  }, [form.supplierId]);
+
+  // Fetch full details when customerId changes
+  useEffect(() => {
+    if (!form.customerId) {
+      setCustomerDetail(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/erp/customers/${form.customerId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const cust = json?.customer || json?.data;
+        if (!cancelled && cust) {
+          setCustomerDetail(cust);
+        }
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+  }, [form.customerId]);
 
   const isSuperAdmin = session?.scopes?.isSuperAdmin ?? false;
 
@@ -1360,6 +1425,97 @@ export function PurchaseOrderWizard() {
       setNewGoodError(err instanceof Error ? err.message : "Failed to create good.");
     } finally {
       setNewGoodLoading(false);
+    }
+  };
+
+  const openCreateAccountModal = (type) => {
+    const defaultName = type === "purchase"
+      ? (supplierDetail ? (supplierDetail.company_name ? `${supplierDetail.customer_name} (${supplierDetail.company_name})` : supplierDetail.customer_name) : (form.supplierName || ""))
+      : (customerDetail ? (customerDetail.company_name ? `${customerDetail.customer_name} (${customerDetail.company_name})` : customerDetail.customer_name) : (form.customerName || ""));
+
+    setCreateAccountType(type);
+    setCreateAccountForm({
+      code: "AUTO",
+      name: defaultName,
+      kind: type === "purchase" ? "liability" : "asset",
+      currency: form.currencyType || "USD",
+      parentId: "",
+      isControlAccount: false
+    });
+    setCreateAccountError("");
+    setCreateAccountModalOpen(true);
+  };
+
+  const handleAddNewAccount = async () => {
+    const { code, name, kind, currency, parentId, isControlAccount } = createAccountForm;
+    if (!name.trim() || !code.trim()) {
+      setCreateAccountError("Account name and code are required.");
+      return;
+    }
+    setCreateAccountLoading(true);
+    setCreateAccountError("");
+
+    try {
+      const scope = form.cityBranchId ? "city_branch" : form.countryBranchId ? "main_branch" : form.countryId ? "country" : "super_admin";
+      const payload = {
+        scope,
+        countryId: form.countryId || null,
+        countryBranchId: form.countryBranchId || null,
+        cityBranchId: form.cityBranchId || null,
+        parentId: parentId || null,
+        customerId: createAccountType === "purchase" ? form.supplierId : form.customerId,
+        code: code.trim(),
+        manualReferenceNumber: null,
+        name: name.trim(),
+        kind,
+        currency: currency.toUpperCase(),
+        openingBalance: 0,
+        isControlAccount
+      };
+
+      const response = await fetch("/api/erp/accounting/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const payloadData = await response.json().catch(() => ({}));
+      if (!response.ok || !payloadData.ok) {
+        throw new Error(payloadData?.error?.message || payloadData?.error || "Failed to create account.");
+      }
+
+      // Refresh accounts list
+      const reloadRes = await fetch("/api/erp/accounting/accounts?limit=500").then(r => r.json()).catch(() => ({}));
+      if (reloadRes?.data?.accounts) {
+        const mapped = reloadRes.data.accounts.map(acc => ({
+          accountCode: acc.code || acc.account_number,
+          accountName: acc.name,
+          cityBranchName: acc.branch_code || "",
+          ledgerCurrency: acc.currency || "USD",
+          customerId: acc.customer_id || acc.customerId || null
+        }));
+        setDbAccounts(mapped);
+
+        // Find the created account
+        const createdAcc = mapped.find(acc => acc.accountCode === payloadData.accountCode);
+        if (createdAcc) {
+          applyAccountMaster(createAccountType, createdAcc);
+        } else {
+          // Fallback if not found in reload (e.g. scoping lag)
+          applyAccountMaster(createAccountType, {
+            accountCode: payloadData.accountCode,
+            accountName: name.trim(),
+            cityBranchName: "",
+            ledgerCurrency: currency.toUpperCase(),
+            customerId: payload.customerId
+          });
+        }
+      }
+
+      setCreateAccountModalOpen(false);
+    } catch (err) {
+      setCreateAccountError(err instanceof Error ? err.message : "Failed to create account.");
+    } finally {
+      setCreateAccountLoading(false);
     }
   };
 
@@ -2741,7 +2897,6 @@ export function PurchaseOrderWizard() {
                         margin: 0 !important;
                         background: white !important;
                         color: black !important;
-                        font-size: 9px !important;
                       }
                     }
                   `}} />
@@ -2763,7 +2918,8 @@ export function PurchaseOrderWizard() {
                         <div className="text-[7.5px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Global Trade, Trusted Partner</div>
                       </div>
                     </div>
-                    <div className="text-right text-[8px] font-bold text-slate-600 uppercase">
+                    {/* Branch Details */}
+                    <div className="text-right text-[8px] font-bold text-slate-650 uppercase">
                       <div>BRANCH : {form.branchName || "Kabul Main Branch"}</div>
                       <div>COUNTRY : {form.countryName || "Afghanistan"}</div>
                       <div>ADDRESS : House # 123, Street No. 5, Kabul, Afghanistan</div>
@@ -2777,42 +2933,25 @@ export function PurchaseOrderWizard() {
                     <span>Report No: PTVR-2026-{form.purchaseOrderNo?.slice(-6) || "000123"}</span>
                     <span className="text-xs tracking-widest uppercase font-black">Purchase Transfer Verification Report</span>
                     <div className="flex gap-4">
-                      <span>Report Date: {form.purchaseDate}</span>
+                      <span>Report Date: {form.purchaseDate || "14/06/2026"}</span>
                       <span>Time: 10:30 AM</span>
                     </div>
                   </div>
 
-                  {/* Transfer Status Panel */}
-                  <div className="flex gap-3">
-                    <div className="w-[38%] bg-emerald-500/5 border border-emerald-500/10 rounded p-2.5 flex flex-col justify-center">
-                      <span className="text-[7.5px] text-emerald-600 uppercase font-black tracking-wider block">Transfer Status</span>
-                      <span className="text-xs font-black text-emerald-700 block mt-1">
-                        ● Approved & Ready for Transfer
-                      </span>
-                    </div>
-                    <div className="w-[62%] bg-emerald-500/5 border border-emerald-500/10 rounded p-2.5 text-[8.5px] text-slate-650 leading-relaxed font-semibold">
-                      <span className="text-[7.5px] text-emerald-600 uppercase font-black tracking-wider block mb-1">Transferred To (Destination Accounts)</span>
-                      <ul className="list-disc pl-3.5 space-y-0.5">
-                        <li>General Ledger Debit Account: <strong className="text-slate-800 font-mono">{form.purchaseAccountNo || "AE-AC-0001"}</strong> & Credit Account: <strong className="text-slate-800 font-mono">{form.salesAccountNo || "SA-2001"}</strong></li>
-                        <li>Internal Voucher Entry No: <strong className="text-slate-800 font-mono">Pending Posting</strong></li>
-                        <li>Logistics cargo loading module (<strong className="text-slate-800">{form.containerCount || 0} Container</strong>)</li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* 3-Column General Information */}
-                  <div className="grid grid-cols-3 gap-2.5">
-                    {/* Booking Information */}
+                  {/* 2-Column General Information: Purchaser (left) & Supplier (right) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Purchaser (Buyer) Information */}
                     <div className="border border-slate-200 rounded overflow-hidden">
                       <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                        <span>👤</span> Booking Information
+                        <span>👤</span> Purchaser (Buyer) Information
                       </div>
                       <table className="w-full text-[8px] font-semibold text-slate-600">
                         <tbody>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Booking Reference:</td><td className="px-2 py-1 font-bold text-slate-800 font-mono">{form.purchaseOrderNo}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Purchase Date:</td><td className="px-2 py-1 text-slate-800">{form.purchaseDate}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Booking Date:</td><td className="px-2 py-1 text-slate-800">{form.purchaseDate}</td></tr>
-                          <tr><td className="px-2 py-1 text-slate-400">Booking User:</td><td className="px-2 py-1 font-bold text-slate-800 uppercase">{form.userName || "ADMIN"}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Buyer Name:</td><td className="px-2 py-1 font-bold text-slate-800 truncate max-w-[200px]">{form.buyerName || "Demi Trading Co."}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Contact Person:</td><td className="px-2 py-1 text-slate-800">Mr. Imran Hassan</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Mobile Number:</td><td className="px-2 py-1 text-slate-800 font-mono">+92 300 1234567</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Email Address:</td><td className="px-2 py-1 text-slate-800 truncate max-w-[200px]">info@demitrading.com</td></tr>
+                          <tr><td className="px-2 py-1 text-slate-400">Country:</td><td className="px-2 py-1 text-slate-805">Afghanistan</td></tr>
                         </tbody>
                       </table>
                     </div>
@@ -2820,31 +2959,15 @@ export function PurchaseOrderWizard() {
                     {/* Supplier Information */}
                     <div className="border border-slate-200 rounded overflow-hidden">
                       <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                        <span>🏢</span> Supplier Information
+                        <span>🏢</span> Supplier (Sales) Information
                       </div>
                       <table className="w-full text-[8px] font-semibold text-slate-600">
                         <tbody>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Supplier Name:</td><td className="px-2 py-1 font-bold text-slate-800 truncate max-w-[100px]">{form.supplierName || "N/A"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Contact Person:</td><td className="px-2 py-1 text-slate-800">{form.purchaseContactPerson || form.supplierContactPerson || "Mr. Ahmad Shah"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Mobile Number:</td><td className="px-2 py-1 text-slate-800 font-mono">{form.purchaseContact || form.supplierMobile || "+93 700 000 000"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Email Address:</td><td className="px-2 py-1 text-slate-800 truncate max-w-[100px]">{form.supplierEmail || "supplier@globalfoods.com"}</td></tr>
-                          <tr><td className="px-2 py-1 text-slate-400">Country:</td><td className="px-2 py-1 text-slate-800">{form.countryName || "Afghanistan"}</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Buyer Information */}
-                    <div className="border border-slate-200 rounded overflow-hidden">
-                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                        <span>👤</span> Buyer Information
-                      </div>
-                      <table className="w-full text-[8px] font-semibold text-slate-600">
-                        <tbody>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Buyer Name:</td><td className="px-2 py-1 font-bold text-slate-800 truncate max-w-[100px]">{form.buyerName || "Demi Trading Co."}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Contact Person:</td><td className="px-2 py-1 text-slate-800">Mr. Imran Hassan</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Mobile Number:</td><td className="px-2 py-1 text-slate-800 font-mono">+92 300 1234567</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Email Address:</td><td className="px-2 py-1 text-slate-800 truncate max-w-[100px]">info@demitrading.com</td></tr>
-                          <tr><td className="px-2 py-1 text-slate-400">Country:</td><td className="px-2 py-1 text-slate-800">Afghanistan</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Supplier Name:</td><td className="px-2 py-1 font-bold text-slate-800 truncate max-w-[200px]">{form.supplierName || "N/A"}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Contact Person:</td><td className="px-2 py-1 text-slate-805">{form.purchaseContactPerson || form.supplierContactPerson || "Mr. Ahmad Shah"}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Mobile Number:</td><td className="px-2 py-1 text-slate-808 font-mono">{form.purchaseContact || form.supplierMobile || "+93 700 000 000"}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Email Address:</td><td className="px-2 py-1 text-slate-800 truncate max-w-[200px]">{form.supplierEmail || "supplier@globalfoods.com"}</td></tr>
+                          <tr><td className="px-2 py-1 text-slate-400">Country:</td><td className="px-2 py-1 text-slate-805">{form.countryName || "Afghanistan"}</td></tr>
                         </tbody>
                       </table>
                     </div>
@@ -2858,19 +2981,19 @@ export function PurchaseOrderWizard() {
                     <table className="w-full text-[8px] text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase">
-                          <th className="p-1.5 border-r border-slate-200 text-center w-[5%]">SR NO.</th>
-                          <th className="p-1.5 border-r border-slate-200 w-[25%]">GOODS NAME</th>
-                          <th className="p-1.5 border-r border-slate-200 text-center w-[10%]">GRADE</th>
-                          <th className="p-1.5 border-r border-slate-200 text-center w-[10%]">ORIGIN</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">QUANTITY</th>
-                          <th className="p-1.5 border-r border-slate-200 text-center w-[12%]">PACKING</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">GROSS WT</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">NET WT</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">RATE / KG</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">RATE / TON</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[12%]">AMOUNT (USD)</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[8%]">EX. RATE</th>
-                          <th className="p-1.5 text-right w-[15%]">FINAL AMOUNT (PKR)</th>
+                          <th className="p-1 border-r border-slate-200 text-center w-[3%]">SR.</th>
+                          <th className="p-1 border-r border-slate-200 w-[17%]">GOODS NAME</th>
+                          <th className="p-1 border-r border-slate-200 text-center w-[8%]">BRAND</th>
+                          <th className="p-1 border-r border-slate-200 text-center w-[8%]">SIZE</th>
+                          <th className="p-1 border-r border-slate-200 text-center w-[8%]">ORIGIN</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">QUANTITY</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">QTY (KGS)</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">GROSS WT</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">NET WT</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">RATE / KG</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[10%]">AMOUNT (USD)</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[6%]">EX. RATE</th>
+                          <th className="p-1 text-right w-[10%]">FINAL AMOUNT</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2885,23 +3008,24 @@ export function PurchaseOrderWizard() {
                           const finalAmountVal = Number(item.finalAmount || amount * exVal);
 
                           const ratePerKg = item.priceType === "P/KGs" ? coursePrice : coursePrice / 1000;
-                          const ratePerTon = item.priceType === "P/Ton" ? coursePrice : coursePrice * 1000;
 
                           return (
                             <tr key={idx} className="hover:bg-slate-50 transition border-t border-slate-200 font-semibold text-slate-700">
-                              <td className="p-1.5 border-r border-slate-200 text-center font-mono">{idx + 1}</td>
-                              <td className="p-1.5 border-r border-slate-200 font-bold text-slate-900">{item.goodsName}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-center">{item.brand || item.size || "Premium"}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-center">{item.origin}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-bold">{qtyNo.toLocaleString()} {item.qtyName}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-center">{item.qtyKgs ? `${item.qtyKgs} KG / ${item.qtyName.slice(0, -1)}` : "25 KG / BAG"}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">{grossWeight.toLocaleString()} kg</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">{netWeight.toLocaleString()} kg</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">${ratePerKg.toFixed(2)}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">${ratePerTon.toFixed(2)}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono font-bold">${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">{exVal}</td>
-                              <td className="p-1.5 text-right font-mono font-bold text-emerald-600">{finalAmountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="p-1 border-r border-slate-200 text-center font-mono">{idx + 1}</td>
+                              <td className="p-1 border-r border-slate-200 font-bold text-slate-900">
+                                {item.goodsName}
+                              </td>
+                              <td className="p-1 border-r border-slate-200 text-center">{item.brand || "-"}</td>
+                              <td className="p-1 border-r border-slate-200 text-center">{item.size || "-"}</td>
+                              <td className="p-1 border-r border-slate-200 text-center">{item.origin || form.countryName || "-"}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-bold">{qtyNo.toLocaleString()} {item.qtyName}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{qtyKgs.toLocaleString()} kg</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{grossWeight.toLocaleString()} kg</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{netWeight.toLocaleString()} kg</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">${ratePerKg.toFixed(2)}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono font-bold">${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{exVal}</td>
+                              <td className="p-1 text-right font-mono font-bold text-emerald-600">{finalAmountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                             </tr>
                           );
                         })}
@@ -2909,47 +3033,43 @@ export function PurchaseOrderWizard() {
                     </table>
                   </div>
 
-                  {/* Logistics Information */}
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {/* Shipment & Loading Info */}
-                    <div className="border border-slate-200 rounded overflow-hidden">
-                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                        <span>🚢</span> Shipment & Loading Information
-                      </div>
-                      <table className="w-full text-[8px] font-semibold text-slate-600">
-                        <tbody>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Container Count:</td><td className="px-2 py-1 text-slate-800 font-bold">{form.containerCount || 0}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Container Numbers:</td><td className="px-2 py-1 text-slate-800 font-mono truncate max-w-[180px]">{form.containerNumbers || "-"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">BL Number:</td><td className="px-2 py-1 text-slate-800 font-mono">{form.billNo || "CONT-001"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Vessel / Flight:</td><td className="px-2 py-1 text-slate-800">{form.vesselName || "BILL-7788"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Loading Port:</td><td className="px-2 py-1 text-slate-800">{form.loadingPort || "-"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Destination Port:</td><td className="px-2 py-1 text-slate-800">{form.receivedPort || "-"}</td></tr>
-                          <tr><td className="px-2 py-1 text-slate-400">Transit Time:</td><td className="px-2 py-1 text-slate-800">{form.transitTime || "-"}</td></tr>
-                        </tbody>
-                      </table>
+                  {/* Loading & Transit Information */}
+                  <div className="border border-slate-200 rounded overflow-hidden">
+                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                      <span>🚢</span> Loading & Transit Information
                     </div>
-
-                    {/* Loading & Schedule Info */}
-                    <div className="border border-slate-200 rounded overflow-hidden">
-                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                        <span>📅</span> Loading & Schedule Information
-                      </div>
-                      <table className="w-full text-[8px] font-semibold text-slate-600">
-                        <tbody>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Expected Loading Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{form.loadingDate || "-"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Actual Loading Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{form.loadingDate || "-"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Expected Arrival Date:</td><td className="px-2 py-1 text-slate-800 font-mono">-</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Actual Arrival Date:</td><td className="px-2 py-1 text-slate-800 font-mono">-</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Shipping Line / Carrier:</td><td className="px-2 py-1 text-slate-800">-</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Mode of Shipment:</td><td className="px-2 py-1 text-slate-800 font-bold">{form.shippingMode || "Sea Cargo"}</td></tr>
-                          <tr><td className="px-2 py-1 text-slate-400">Schedule Remarks:</td><td className="px-2 py-1 text-slate-800">-</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
+                    <table className="w-full text-[8px] font-semibold text-slate-600">
+                      <tbody>
+                        <tr className="border-b border-slate-100">
+                          <td className="px-2 py-1 text-slate-400 w-[20%]">Loading Country:</td>
+                          <td className="px-2 py-1 text-slate-805 font-bold w-[30%]">{form.countryName || "Afghanistan"}</td>
+                          <td className="px-2 py-1 text-slate-400 w-[20%]">Receiving Country:</td>
+                          <td className="px-2 py-1 text-slate-805 font-bold w-[30%]">{form.receivedCountry || "Pakistan"}</td>
+                        </tr>
+                        <tr className="border-b border-slate-100">
+                          <td className="px-2 py-1 text-slate-400">Loading Port:</td>
+                          <td className="px-2 py-1 text-slate-800">{form.loadingPort || "-"}</td>
+                          <td className="px-2 py-1 text-slate-400">Receiving Port:</td>
+                          <td className="px-2 py-1 text-slate-800">{form.receivedPort || "-"}</td>
+                        </tr>
+                        <tr className="border-b border-slate-100">
+                          <td className="px-2 py-1 text-slate-400">Loading Date:</td>
+                          <td className="px-2 py-1 text-slate-805 font-mono font-bold text-blue-700">{form.loadingDate || "-"}</td>
+                          <td className="px-2 py-1 text-slate-400">Received Date at Port:</td>
+                          <td className="px-2 py-1 text-slate-805 font-mono font-bold text-blue-700">{form.loadingDate || "-"}</td>
+                        </tr>
+                        <tr>
+                          <td className="px-2 py-1 text-slate-400">Containers:</td>
+                          <td className="px-2 py-1 text-slate-800 font-bold">{form.containerCount || 0} Containers</td>
+                          <td className="px-2 py-1 text-slate-400">Container Numbers:</td>
+                          <td className="px-2 py-1 text-slate-808 font-mono truncate max-w-[200px]">{form.containerNumbers || "-"}</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
 
-                  {/* Payment & Accounting details */}
-                  <div className="grid grid-cols-2 gap-2.5">
+                  {/* Payment & Voucher Information */}
+                  <div className="grid grid-cols-2 gap-3">
                     {/* Payment Information */}
                     <div className="border border-slate-200 rounded overflow-hidden">
                       <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
@@ -2957,13 +3077,11 @@ export function PurchaseOrderWizard() {
                       </div>
                       <table className="w-full text-[8px] font-semibold text-slate-600">
                         <tbody>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Payment Condition:</td><td className="px-2 py-1 text-slate-800 font-bold">{form.paymentType || "Advance Payment"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Payment %:</td><td className="px-2 py-1 text-slate-800">{form.advancePercent || 10}%</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Payment Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">${((reportTotals.grandPrimaryFinal * (form.advancePercent || 10)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Due Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{form.advancePaymentDate || form.purchaseDate}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance %:</td><td className="px-2 py-1 text-slate-800">{100 - (form.advancePercent || 10)}%</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">${(reportTotals.grandPrimaryFinal - (reportTotals.grandPrimaryFinal * (form.advancePercent || 10)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Final Payment Due Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{form.paymentDate || form.purchaseDate}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Payment Condition:</td><td className="px-2 py-1 text-slate-808 font-bold">{form.paymentType || "Advance Payment"}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Ratio / Due:</td><td className="px-2 py-1 text-slate-800">{form.advancePercent || 10}% / <strong className="text-blue-700">{form.advancePaymentDate || form.purchaseDate}</strong></td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">${((reportTotals.grandPrimaryFinal * (form.advancePercent || 10)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance:</td><td className="px-2 py-1 text-slate-805">{100 - (form.advancePercent || 10)}% / <strong className="text-rose-600">{form.paymentDate || form.purchaseDate}</strong></td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">${(reportTotals.grandPrimaryFinal - (reportTotals.grandPrimaryFinal * (form.advancePercent || 10)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
                           <tr>
                             <td className="px-2 py-1 text-slate-400">Payment Status:</td>
                             <td className="px-2 py-1">
@@ -2978,7 +3096,7 @@ export function PurchaseOrderWizard() {
                       </table>
                     </div>
 
-                    {/* Accounting Information */}
+                    {/* Accounting & Narration */}
                     <div className="border border-slate-200 rounded overflow-hidden">
                       <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
                         <span>📊</span> Accounting Information
@@ -2986,12 +3104,11 @@ export function PurchaseOrderWizard() {
                       <table className="w-full text-[8px] font-semibold text-slate-600">
                         <tbody>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Journal Entry Number:</td><td className="px-2 py-1 text-slate-800 font-mono font-bold">Pending Posting</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Debit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{form.purchaseAccountNo || "-"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Credit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{form.salesAccountNo || "-"}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Ledger Reference:</td><td className="px-2 py-1 text-slate-800 font-mono">-</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Debit Account:</td><td className="px-2 py-1 text-slate-808 font-mono">{form.purchaseAccountNo || "-"}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Credit Account:</td><td className="px-2 py-1 text-slate-808 font-mono">{form.salesAccountNo || "-"}</td></tr>
                           <tr>
-                            <td className="px-2 py-1 text-slate-400">Remarks / Special Notes:</td>
-                            <td className="px-2 py-1 text-slate-900 font-bold leading-normal text-[8.5px] italic max-w-[180px] break-words whitespace-pre-wrap">{form.orderReportRemarks || "-"}</td>
+                            <td className="px-2 py-1 text-slate-400">Remarks / Narration:</td>
+                            <td className="px-2 py-1 text-slate-900 font-bold leading-normal text-[8.5px] italic max-w-[180px] break-words whitespace-pre-wrap">{form.orderReportRemarks || "No narration remarks provided."}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -3013,66 +3130,30 @@ export function PurchaseOrderWizard() {
                         <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{reportTotals.totalGross.toLocaleString()} kg</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Net Weight</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Net Weight</span>
                         <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{reportTotals.totalNet.toLocaleString()} kg</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Volume / Containers</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Volume / Containers</span>
                         <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{form.containerCount || 0}</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Average Rate / KG</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Average Rate / KG</span>
                         <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${(reportTotals.totalNet > 0 ? (reportTotals.grandPrimaryFinal / reportTotals.totalNet) : 0).toFixed(2)}</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Average Rate / Ton</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Average Rate / Ton</span>
                         <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${((reportTotals.totalNet > 0 ? (reportTotals.grandPrimaryFinal / reportTotals.totalNet) : 0) * 1000).toFixed(2)}</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Amount (USD)</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Amount (USD)</span>
                         <span className="text-[9px] font-black text-blue-700 mt-1 leading-none">${reportTotals.grandPrimaryFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="border border-emerald-300 rounded p-1 bg-emerald-50/35 flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-emerald-600 uppercase font-black tracking-wider leading-none">Total Amount (PKR)</span>
+                        <span className="text-[7px] text-emerald-650 uppercase font-black tracking-wider leading-none">Total Amount (PKR)</span>
                         <span className="text-[10px] font-black text-emerald-700 mt-1 leading-none">{reportTotals.grandFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</span>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Action Report Log Table */}
-                  <div className="border border-slate-200 rounded overflow-hidden">
-                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                      <span>📋</span> Action / Report Log
-                    </div>
-                    <table className="w-full text-[7.5px] border-collapse text-left text-slate-600">
-                      <thead>
-                        <tr className="bg-slate-100/60 font-bold border-b border-slate-200 uppercase text-slate-500">
-                          <th className="px-2 py-1 border-r border-slate-200 text-center w-[5%]">SR NO.</th>
-                          <th className="px-2 py-1 border-r border-slate-200 w-[20%]">ACTION</th>
-                          <th className="px-2 py-1 border-r border-slate-200 w-[15%]">PERFORMED BY</th>
-                          <th className="px-2 py-1 border-r border-slate-200 w-[20%]">DATE & TIME</th>
-                          <th className="px-2 py-1">REMARKS / NOTE</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[
-                          { action: "Purchase Transfer Created", note: "Purchase transfer record created successfully." },
-                          { action: "Booking Confirmed", note: "Booking information verified." },
-                          { action: "Supplier Verified", note: "Supplier details verified." },
-                          { action: "Goods Details Added", note: "Goods information added successfully." },
-                          { action: "Payment Recorded", note: "Advance payment recorded." },
-                          { action: "Transfer Approved", note: "Transfer approved & ready for transfer." }
-                        ].map((log, index) => (
-                          <tr key={index} className="border-t border-slate-100 hover:bg-slate-50/30">
-                            <td className="px-2 py-1 border-r border-slate-200 text-center font-mono">{index + 1}</td>
-                            <td className="px-2 py-1 border-r border-slate-200 font-bold text-slate-700">{log.action}</td>
-                            <td className="px-2 py-1 border-r border-slate-200 font-bold uppercase">{form.userName || "ADMIN"}</td>
-                            <td className="px-2 py-1 border-r border-slate-200 font-mono">{form.purchaseDate} 10:{index * 5} AM</td>
-                            <td className="px-2 py-1 text-slate-500 italic font-medium">{log.note}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
                   </div>
 
                   {/* Stamp & Signatures */}
@@ -3328,24 +3409,42 @@ export function PurchaseOrderWizard() {
                   <div className="space-y-3">
                     <div className="relative" ref={purchaseDropdownRef}>
                       <label className="block text-[10px] text-muted-foreground mb-1">Purchase Account No*</label>
-                      <input
-                        type="text"
-                        value={form.purchaseAccountNo || ""}
-                        onChange={(e) => handleTextChange("purchase", e.target.value)}
-                        onFocus={() => {
-                          setPurchaseDropdownOpen(true);
-                          setPurchaseSearch(form.purchaseAccountNo || "");
-                        }}
-                        placeholder="Type account name or code..."
-                        className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8"
-                      />
+                      <div className="relative flex items-center">
+                        <input
+                          type="text"
+                          value={form.purchaseAccountNo || ""}
+                          onChange={(e) => handleTextChange("purchase", e.target.value)}
+                          onFocus={() => {
+                            setPurchaseDropdownOpen(true);
+                            setPurchasePinDropdownOpen(false);
+                            setPurchaseSearch(form.purchaseAccountNo || "");
+                          }}
+                          placeholder="Type account name or code..."
+                          className="w-full bg-background border border-input rounded pl-2.5 pr-8 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 font-mono"
+                        />
+                        <button
+                          type="button"
+                          disabled={!form.supplierId}
+                          onClick={() => {
+                            setPurchasePinDropdownOpen(prev => !prev);
+                            setPurchaseDropdownOpen(false);
+                          }}
+                          className="absolute right-2 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          title={form.supplierId ? "Show linked supplier accounts" : "Please select a Supplier / Seller first"}
+                        >
+                          <Pin className={`h-3 w-3 transition-transform ${purchasePinDropdownOpen ? "text-primary fill-primary/20 rotate-45" : ""}`} />
+                        </button>
+                      </div>
 
                       {form.purchaseAccountName && (
-                        <div className="mt-1 text-[9px] text-muted-foreground flex justify-between items-center bg-muted/30 px-2 py-1 rounded border border-border/40">
-                          <span className="font-semibold text-foreground truncate">{form.purchaseAccountName}</span>
-                          <span className="font-mono text-[8px] uppercase bg-background px-1 py-0.5 rounded text-muted-foreground">
-                            {form.purchaseAccountCurrency} • {form.purchaseAccountBranch}
-                          </span>
+                        <div className="mt-1 text-[9px] text-muted-foreground flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded border border-border/40 font-mono overflow-hidden whitespace-nowrap">
+                          <span className="font-bold text-primary shrink-0">{form.purchaseAccountNo}</span>
+                          <span className="text-border shrink-0">|</span>
+                          <span className="font-semibold text-foreground truncate shrink-0 max-w-[120px]" title={form.purchaseAccountName}>{form.purchaseAccountName}</span>
+                          <span className="text-border shrink-0">|</span>
+                          <span className="text-muted-foreground truncate shrink-0 max-w-[100px]" title={form.purchaseAccountBranch || "No Branch"}>{form.purchaseAccountBranch || "No Branch"}</span>
+                          <span className="text-border shrink-0">|</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{form.purchaseAccountCurrency}</span>
                         </div>
                       )}
 
@@ -3394,13 +3493,9 @@ export function PurchaseOrderWizard() {
                           <div className="border-t border-border/40 pt-1 mt-1">
                             <button
                               type="button"
-                              onClick={async () => {
+                              onClick={() => {
                                 setPurchaseDropdownOpen(false);
-                                const newCode = prompt("Enter new purchase account code:");
-                                if (newCode && newCode.trim()) {
-                                  setValue("purchaseAccountNo", newCode.trim());
-                                  await triggerBackgroundLookup("purchase", newCode.trim());
-                                }
+                                openCreateAccountModal("purchase");
                               }}
                               className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-primary hover:bg-primary/5 transition text-left"
                             >
@@ -3410,28 +3505,115 @@ export function PurchaseOrderWizard() {
                           </div>
                         </div>
                       )}
+
+                      {purchasePinDropdownOpen && (
+                        <div className="absolute left-0 mt-1 w-full max-w-[280px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="px-2 py-1 border-b border-border/40 mb-1 flex items-center justify-between">
+                            <span className="text-[8px] font-black tracking-wider text-primary uppercase">Supplier Accounts</span>
+                            <span className="text-[8px] text-muted-foreground italic truncate max-w-[150px]" title={supplierDetail?.customer_name || supplierDetail?.company_name || ""}>
+                              {supplierDetail?.customer_name || supplierDetail?.company_name || "Haji Shipper"}
+                            </span>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto space-y-0.5">
+                            {(() => {
+                              const filtered = dbAccounts.filter(acc => {
+                                if (!form.supplierId) return false;
+                                if (acc.customerId === form.supplierId) return true;
+                                const sName = supplierDetail?.customer_name?.toLowerCase();
+                                const sCompany = supplierDetail?.company_name?.toLowerCase();
+                                const accName = acc.accountName?.toLowerCase();
+                                if (sName && accName.includes(sName)) return true;
+                                if (sCompany && accName.includes(sCompany)) return true;
+                                return false;
+                              });
+                              if (filtered.length === 0) {
+                                return (
+                                  <div className="px-2.5 py-3 text-center text-muted-foreground text-[10px] font-bold italic">
+                                    No linked supplier accounts.
+                                  </div>
+                                );
+                              }
+                              return filtered.map((acc) => (
+                                <button
+                                  key={acc.accountCode}
+                                  type="button"
+                                  onClick={() => {
+                                    applyAccountMaster("purchase", acc);
+                                    setPurchasePinDropdownOpen(false);
+                                  }}
+                                  className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-muted text-left transition"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[9px] font-bold shrink-0">
+                                      {acc.accountName.charAt(0)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <span className="font-bold text-foreground text-[10px] block truncate">{acc.accountName}</span>
+                                      <span className="text-muted-foreground text-[8px] block font-mono truncate">{acc.accountCode} • {acc.cityBranchName}</span>
+                                    </div>
+                                  </div>
+                                  <span className="text-[8px] bg-muted px-1 py-0.5 rounded text-muted-foreground font-bold font-mono uppercase shrink-0">
+                                    {acc.ledgerCurrency}
+                                  </span>
+                                </button>
+                              ));
+                            })()}
+                          </div>
+                          <div className="border-t border-border/40 pt-1 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPurchasePinDropdownOpen(false);
+                                openCreateAccountModal("purchase");
+                              }}
+                              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold text-primary hover:bg-primary/5 transition text-left"
+                            >
+                              <span className="text-xs">+</span>
+                              <span>Create New Account</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="relative" ref={salesDropdownRef}>
                       <label className="block text-[10px] text-muted-foreground mb-1">Sales Account / Code No*</label>
-                      <input
-                        type="text"
-                        value={form.salesAccountNo || ""}
-                        onChange={(e) => handleTextChange("sales", e.target.value)}
-                        onFocus={() => {
-                          setSalesDropdownOpen(true);
-                          setSalesSearch(form.salesAccountNo || "");
-                        }}
-                        placeholder="Type account name or code..."
-                        className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8"
-                      />
+                      <div className="relative flex items-center">
+                        <input
+                          type="text"
+                          value={form.salesAccountNo || ""}
+                          onChange={(e) => handleTextChange("sales", e.target.value)}
+                          onFocus={() => {
+                            setSalesDropdownOpen(true);
+                            setSalesPinDropdownOpen(false);
+                            setSalesSearch(form.salesAccountNo || "");
+                          }}
+                          placeholder="Type account name or code..."
+                          className="w-full bg-background border border-input rounded pl-2.5 pr-8 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 font-mono"
+                        />
+                        <button
+                          type="button"
+                          disabled={!form.customerId}
+                          onClick={() => {
+                            setSalesPinDropdownOpen(prev => !prev);
+                            setSalesDropdownOpen(false);
+                          }}
+                          className="absolute right-2 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          title={form.customerId ? "Show linked customer accounts" : "Please select a Customer / Buyer first"}
+                        >
+                          <Pin className={`h-3 w-3 transition-transform ${salesPinDropdownOpen ? "text-primary fill-primary/20 rotate-45" : ""}`} />
+                        </button>
+                      </div>
 
                       {form.salesAccountName && (
-                        <div className="mt-1 text-[9px] text-muted-foreground flex justify-between items-center bg-muted/30 px-2 py-1 rounded border border-border/40">
-                          <span className="font-semibold text-foreground truncate">{form.salesAccountName}</span>
-                          <span className="font-mono text-[8px] uppercase bg-background px-1 py-0.5 rounded text-muted-foreground">
-                            {form.salesAccountCurrency} • {form.salesAccountBranch}
-                          </span>
+                        <div className="mt-1 text-[9px] text-muted-foreground flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded border border-border/40 font-mono overflow-hidden whitespace-nowrap">
+                          <span className="font-bold text-primary shrink-0">{form.salesAccountNo}</span>
+                          <span className="text-border shrink-0">|</span>
+                          <span className="font-semibold text-foreground truncate shrink-0 max-w-[120px]" title={form.salesAccountName}>{form.salesAccountName}</span>
+                          <span className="text-border shrink-0">|</span>
+                          <span className="text-muted-foreground truncate shrink-0 max-w-[100px]" title={form.salesAccountBranch || "No Branch"}>{form.salesAccountBranch || "No Branch"}</span>
+                          <span className="text-border shrink-0">|</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{form.salesAccountCurrency}</span>
                         </div>
                       )}
 
@@ -3480,18 +3662,83 @@ export function PurchaseOrderWizard() {
                           <div className="border-t border-border/40 pt-1 mt-1">
                             <button
                               type="button"
-                              onClick={async () => {
+                              onClick={() => {
                                 setSalesDropdownOpen(false);
-                                const newCode = prompt("Enter new sales account code:");
-                                if (newCode && newCode.trim()) {
-                                  setValue("salesAccountNo", newCode.trim());
-                                  await triggerBackgroundLookup("sales", newCode.trim());
-                                }
+                                openCreateAccountModal("sales");
                               }}
                               className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-primary hover:bg-primary/5 transition text-left"
                             >
                               <span className="text-sm">+</span>
                               <span>New Account</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {salesPinDropdownOpen && (
+                        <div className="absolute left-0 mt-1 w-full max-w-[280px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="px-2 py-1 border-b border-border/40 mb-1 flex items-center justify-between">
+                            <span className="text-[8px] font-black tracking-wider text-primary uppercase">Customer Accounts</span>
+                            <span className="text-[8px] text-muted-foreground italic truncate max-w-[150px]" title={customerDetail?.customer_name || customerDetail?.company_name || ""}>
+                              {customerDetail?.customer_name || customerDetail?.company_name || "Buyer Customer"}
+                            </span>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto space-y-0.5">
+                            {(() => {
+                              const filtered = dbAccounts.filter(acc => {
+                                if (!form.customerId) return false;
+                                if (acc.customerId === form.customerId) return true;
+                                const cName = customerDetail?.customer_name?.toLowerCase();
+                                const cCompany = customerDetail?.company_name?.toLowerCase();
+                                const accName = acc.accountName?.toLowerCase();
+                                if (cName && accName.includes(cName)) return true;
+                                if (cCompany && accName.includes(cCompany)) return true;
+                                return false;
+                              });
+                              if (filtered.length === 0) {
+                                return (
+                                  <div className="px-2.5 py-3 text-center text-muted-foreground text-[10px] font-bold italic">
+                                    No linked customer accounts.
+                                  </div>
+                                );
+                              }
+                              return filtered.map((acc) => (
+                                <button
+                                  key={acc.accountCode}
+                                  type="button"
+                                  onClick={() => {
+                                    applyAccountMaster("sales", acc);
+                                    setSalesPinDropdownOpen(false);
+                                  }}
+                                  className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-muted text-left transition"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[9px] font-bold shrink-0">
+                                      {acc.accountName.charAt(0)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <span className="font-bold text-foreground text-[10px] block truncate">{acc.accountName}</span>
+                                      <span className="text-muted-foreground text-[8px] block font-mono truncate">{acc.accountCode} • {acc.cityBranchName}</span>
+                                    </div>
+                                  </div>
+                                  <span className="text-[8px] bg-muted px-1 py-0.5 rounded text-muted-foreground font-bold font-mono uppercase shrink-0">
+                                    {acc.ledgerCurrency}
+                                  </span>
+                                </button>
+                              ));
+                            })()}
+                          </div>
+                          <div className="border-t border-border/40 pt-1 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSalesPinDropdownOpen(false);
+                                openCreateAccountModal("sales");
+                              }}
+                              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold text-primary hover:bg-primary/5 transition text-left"
+                            >
+                              <span className="text-xs">+</span>
+                              <span>Create New Account</span>
                             </button>
                           </div>
                         </div>
@@ -5573,6 +5820,119 @@ export function PurchaseOrderWizard() {
                 onClick={handleSaveCustomVariation}
                 className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
               >Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE NEW ACCOUNT MODAL ────────────────────────────────────────── */}
+      {createAccountModalOpen && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div>
+                <h3 className="text-sm font-bold tracking-tight text-foreground">
+                  Create New {createAccountType === "purchase" ? "Supplier Account" : "Customer Account"}
+                </h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Scope: {form.cityBranchId ? "City Branch" : form.countryBranchId ? "Main Branch" : form.countryId ? "Country Scope" : "Super Admin"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateAccountModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
+              >✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              {createAccountError && (
+                <div className="bg-destructive/10 border border-destructive/30 text-destructive text-[10px] rounded px-3 py-2">
+                  {createAccountError}
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Account Name *</label>
+                <input
+                  type="text"
+                  value={createAccountForm.name}
+                  onChange={(e) => setCreateAccountForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Haji Ahmad Dry Fruits"
+                  className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-muted-foreground mb-1">Account Code *</label>
+                  <input
+                    type="text"
+                    value={createAccountForm.code}
+                    onChange={(e) => setCreateAccountForm(p => ({ ...p, code: e.target.value }))}
+                    placeholder="AUTO"
+                    className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-muted-foreground mb-1">Currency *</label>
+                  <select
+                    value={createAccountForm.currency}
+                    onChange={(e) => setCreateAccountForm(p => ({ ...p, currency: e.target.value }))}
+                    className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                  >
+                    {CURRENCY_OPTIONS.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-muted-foreground mb-1">Account Category *</label>
+                  <select
+                    value={createAccountForm.kind}
+                    onChange={(e) => setCreateAccountForm(p => ({ ...p, kind: e.target.value }))}
+                    className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                  >
+                    <option value="liability">Liability</option>
+                    <option value="asset">Asset</option>
+                    <option value="expense">Expense</option>
+                    <option value="income">Income</option>
+                    <option value="equity">Equity</option>
+                  </select>
+                </div>
+                <div className="flex items-center pt-5">
+                  <label className="flex items-center gap-1.5 text-[10px] font-semibold text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={createAccountForm.isControlAccount}
+                      onChange={(e) => setCreateAccountForm(p => ({ ...p, isControlAccount: e.target.checked }))}
+                      className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
+                    />
+                    Control Account
+                  </label>
+                </div>
+              </div>
+              
+              <p className="text-[9px] text-muted-foreground/60">
+                This account will be created under the selected country and branch scoping, and auto-selected.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-5 pb-4">
+              <button
+                type="button"
+                onClick={() => setCreateAccountModalOpen(false)}
+                className="px-4 py-1.5 text-[11px] rounded border border-input text-muted-foreground hover:text-foreground transition-colors"
+              >Cancel</button>
+              <button
+                type="button"
+                onClick={handleAddNewAccount}
+                disabled={createAccountLoading}
+                className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+              >
+                {createAccountLoading ? "Saving…" : "Save Account"}
+              </button>
             </div>
           </div>
         </div>

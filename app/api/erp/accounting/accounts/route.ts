@@ -249,7 +249,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("enterprise_accounts")
       .select(
-        "id, scope, country_id, country_branch_id, city_branch_id, parent_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at"
+        "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at"
       )
       .is("deleted_at", null)
       .order("code", { ascending: true });

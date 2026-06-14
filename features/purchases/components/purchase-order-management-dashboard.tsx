@@ -63,6 +63,8 @@ type PurchaseReport = {
   totalNetWeight?: number;
   purchaseAmount?: number;
   finalAmount?: number;
+  exchange_rate?: number;
+  remarks?: string;
   form_data?: any;
   supplier_company_id?: string;
   audit: {
@@ -1689,7 +1691,7 @@ export function PurchaseOrderManagementDashboard() {
                 )}
               </div>
             </div>
-          }
+          }>
                {(() => {
             const goodsEntries = selected.form_data?.goodsEntries || [
               {
@@ -1883,7 +1885,6 @@ export function PurchaseOrderManagementDashboard() {
                       </table>
                     </div>
                   </div>
-
                   {/* Goods Details section */}
                   <div className="border border-slate-200 rounded overflow-hidden">
                     <div className="bg-[#0f2942] text-white px-2.5 py-1 text-[8px] font-black uppercase tracking-wider">
@@ -1892,19 +1893,19 @@ export function PurchaseOrderManagementDashboard() {
                     <table className="w-full text-[8px] text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase">
-                          <th className="p-1.5 border-r border-slate-200 text-center w-[5%]">SR NO.</th>
-                          <th className="p-1.5 border-r border-slate-200 w-[25%]">GOODS NAME</th>
-                          <th className="p-1.5 border-r border-slate-200 text-center w-[10%]">GRADE</th>
-                          <th className="p-1.5 border-r border-slate-200 text-center w-[10%]">ORIGIN</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">QUANTITY</th>
-                          <th className="p-1.5 border-r border-slate-200 text-center w-[12%]">PACKING</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">GROSS WT</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">NET WT</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">RATE / KG</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">RATE / TON</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[12%]">AMOUNT (USD)</th>
-                          <th className="p-1.5 border-r border-slate-200 text-right w-[8%]">EX. RATE</th>
-                          <th className="p-1.5 text-right w-[15%]">FINAL AMOUNT (PKR)</th>
+                          <th className="p-1 border-r border-slate-200 text-center w-[3%]">SR.</th>
+                          <th className="p-1 border-r border-slate-200 w-[17%]">GOODS NAME</th>
+                          <th className="p-1 border-r border-slate-200 text-center w-[8%]">BRAND</th>
+                          <th className="p-1 border-r border-slate-200 text-center w-[8%]">SIZE</th>
+                          <th className="p-1 border-r border-slate-200 text-center w-[8%]">ORIGIN</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">QUANTITY</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">QTY (KGS)</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">GROSS WT</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">NET WT</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[8%]">RATE / KG</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[10%]">AMOUNT (USD)</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[6%]">EX. RATE</th>
+                          <th className="p-1 text-right w-[10%]">FINAL AMOUNT</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1919,23 +1920,24 @@ export function PurchaseOrderManagementDashboard() {
                           const finalAmountVal = Number(item.finalAmount || amount * exVal);
 
                           const ratePerKg = item.priceType === "P/KGs" ? coursePrice : coursePrice / 1000;
-                          const ratePerTon = item.priceType === "P/Ton" ? coursePrice : coursePrice * 1000;
 
                           return (
                             <tr key={idx} className="hover:bg-slate-50 transition border-t border-slate-200 font-semibold text-slate-700">
-                              <td className="p-1.5 border-r border-slate-200 text-center font-mono">{idx + 1}</td>
-                              <td className="p-1.5 border-r border-slate-200 font-bold text-slate-900">{item.goodsName}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-center">{item.brand || item.size || "Premium"}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-center">{item.origin}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-bold">{qtyNo.toLocaleString()} {item.qtyName}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-center">{item.qtyKgs ? `${item.qtyKgs} KG / ${item.qtyName.slice(0, -1)}` : "25 KG / BAG"}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">{grossWeight.toLocaleString()} kg</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">{netWeight.toLocaleString()} kg</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">${ratePerKg.toFixed(2)}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">${ratePerTon.toFixed(2)}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono font-bold">${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">{exVal}</td>
-                              <td className="p-1.5 text-right font-mono font-bold text-emerald-600">{finalAmountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="p-1 border-r border-slate-200 text-center font-mono">{idx + 1}</td>
+                              <td className="p-1 border-r border-slate-200 font-bold text-slate-900">
+                                {item.goodsName}
+                              </td>
+                              <td className="p-1 border-r border-slate-200 text-center">{item.brand || "-"}</td>
+                              <td className="p-1 border-r border-slate-200 text-center">{item.size || "-"}</td>
+                              <td className="p-1 border-r border-slate-200 text-center">{item.origin || selected.countryName || "-"}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-bold">{qtyNo.toLocaleString()} {item.qtyName}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{qtyKgs.toLocaleString()} kg</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{grossWeight.toLocaleString()} kg</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{netWeight.toLocaleString()} kg</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">${ratePerKg.toFixed(2)}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono font-bold">${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{exVal}</td>
+                              <td className="p-1 text-right font-mono font-bold text-emerald-600">{finalAmountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                             </tr>
                           );
                         })}
@@ -1943,43 +1945,39 @@ export function PurchaseOrderManagementDashboard() {
                     </table>
                   </div>
 
-                  {/* Logistics Information */}
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {/* Shipment & Loading Info */}
-                    <div className="border border-slate-200 rounded overflow-hidden">
-                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                        <span>🚢</span> Shipment & Loading Information
-                      </div>
-                      <table className="w-full text-[8px] font-semibold text-slate-600">
-                        <tbody>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Container Count:</td><td className="px-2 py-1 text-slate-800 font-bold">{containerCount}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Container Numbers:</td><td className="px-2 py-1 text-slate-800 font-mono truncate max-w-[180px]">{containerNumbersText}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">BL Number:</td><td className="px-2 py-1 text-slate-800 font-mono">{billNumberText}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Vessel / Flight:</td><td className="px-2 py-1 text-slate-800">{vesselFlightText}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Loading Port:</td><td className="px-2 py-1 text-slate-800">{loadingPortText}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Destination Port:</td><td className="px-2 py-1 text-slate-800">{destinationPortText}</td></tr>
-                          <tr><td className="px-2 py-1 text-slate-400">Transit Time:</td><td className="px-2 py-1 text-slate-800">{transitTimeText}</td></tr>
-                        </tbody>
-                      </table>
+                  {/* Loading & Transit Information */}
+                  <div className="border border-slate-200 rounded overflow-hidden">
+                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                      <span>🚢</span> Loading & Transit Information
                     </div>
-
-                    {/* Loading & Schedule Info */}
-                    <div className="border border-slate-200 rounded overflow-hidden">
-                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                        <span>📅</span> Loading & Schedule Information
-                      </div>
-                      <table className="w-full text-[8px] font-semibold text-slate-600">
-                        <tbody>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Expected Loading Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{expectedLoadingDate}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Actual Loading Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{actualLoadingDate}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Expected Arrival Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{expectedArrivalDate}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Actual Arrival Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{actualArrivalDate}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Shipping Line / Carrier:</td><td className="px-2 py-1 text-slate-800">{shippingLineCarrier}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Mode of Shipment:</td><td className="px-2 py-1 text-slate-800 font-bold">{modeOfShipment}</td></tr>
-                          <tr><td className="px-2 py-1 text-slate-400">Schedule Remarks:</td><td className="px-2 py-1 text-slate-800">{scheduleRemarks}</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
+                    <table className="w-full text-[8px] font-semibold text-slate-600">
+                      <tbody>
+                        <tr className="border-b border-slate-100">
+                          <td className="px-2 py-1 text-slate-400 w-[20%]">Loading Country:</td>
+                          <td className="px-2 py-1 text-slate-800 font-bold w-[30%]">{selected.countryName || "Afghanistan"}</td>
+                          <td className="px-2 py-1 text-slate-400 w-[20%]">Receiving Country:</td>
+                          <td className="px-2 py-1 text-slate-800 font-bold w-[30%]">{selected.form_data?.form?.receivedCountry || selected.buyerName || "Pakistan"}</td>
+                        </tr>
+                        <tr className="border-b border-slate-100">
+                          <td className="px-2 py-1 text-slate-400">Loading Port:</td>
+                          <td className="px-2 py-1 text-slate-800">{loadingPortText}</td>
+                          <td className="px-2 py-1 text-slate-400">Receiving Port:</td>
+                          <td className="px-2 py-1 text-slate-800">{destinationPortText}</td>
+                        </tr>
+                        <tr className="border-b border-slate-100">
+                          <td className="px-2 py-1 text-slate-400">Loading Date:</td>
+                          <td className="px-2 py-1 text-slate-800 font-mono font-bold text-blue-750">{expectedLoadingDate}</td>
+                          <td className="px-2 py-1 text-slate-400">Received Date at Port:</td>
+                          <td className="px-2 py-1 text-slate-800 font-mono font-bold text-blue-750">{selected.form_data?.form?.receivedDate || "-"}</td>
+                        </tr>
+                        <tr>
+                          <td className="px-2 py-1 text-slate-400">Containers:</td>
+                          <td className="px-2 py-1 text-slate-800 font-bold">{containerCount} Containers</td>
+                          <td className="px-2 py-1 text-slate-400">Container Numbers & BL:</td>
+                          <td className="px-2 py-1 text-slate-800 font-mono truncate max-w-[200px]">{containerNumbersText} {billNumberText !== "-" && `/ BL: ${billNumberText}`}</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
 
                   {/* Payment & Accounting details */}
@@ -1992,12 +1990,10 @@ export function PurchaseOrderManagementDashboard() {
                       <table className="w-full text-[8px] font-semibold text-slate-600">
                         <tbody>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Payment Condition:</td><td className="px-2 py-1 text-slate-800 font-bold">{paymentConditionText}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Payment %:</td><td className="px-2 py-1 text-slate-800">{advancePercent}%</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Payment Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">${advanceAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Due Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{advanceDueDateText}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance %:</td><td className="px-2 py-1 text-slate-800">{remainingPercent}%</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">${remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Final Payment Due Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{finalPaymentDueDateText}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Percent / Due:</td><td className="px-2 py-1 text-slate-800">{advancePercent}% / <span className="font-bold text-blue-700">{advanceDueDateText}</span></td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">${advanceAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance / Due:</td><td className="px-2 py-1 text-slate-800">{remainingPercent}% / <span className="font-bold text-rose-600">{finalPaymentDueDateText}</span></td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">${remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
                           <tr>
                             <td className="px-2 py-1 text-slate-400">Payment Status:</td>
                             <td className="px-2 py-1">
@@ -2022,9 +2018,8 @@ export function PurchaseOrderManagementDashboard() {
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Journal Entry Number:</td><td className="px-2 py-1 text-slate-800 font-mono font-bold">{journalEntryNumberText}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Debit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.purchaseAccountNumber}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Credit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.salesAccountNumber}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Ledger Reference:</td><td className="px-2 py-1 text-slate-800 font-mono">-</td></tr>
                           <tr>
-                            <td className="px-2 py-1 text-slate-400">Remarks / Special Notes:</td>
+                            <td className="px-2 py-1 text-slate-400">Remarks / Narration:</td>
                             <td className="px-2 py-1 text-slate-900 font-bold leading-normal text-[8.5px] italic max-w-[180px] break-words whitespace-pre-wrap">{remarksText}</td>
                           </tr>
                         </tbody>
@@ -2034,7 +2029,7 @@ export function PurchaseOrderManagementDashboard() {
 
                   {/* Summary Totals Cards block */}
                   <div className="border border-slate-200 rounded overflow-hidden">
-                    <div className="bg-slate-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                    <div className="bg-slate-150 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
                       📊 Summary Totals
                     </div>
                     <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-slate-50/50">
@@ -2047,66 +2042,30 @@ export function PurchaseOrderManagementDashboard() {
                         <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{totalGross.toLocaleString()} kg</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Net Weight</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Net Weight</span>
                         <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{totalNet.toLocaleString()} kg</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Volume / Containers</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Volume / Containers</span>
                         <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{containerCount}</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Average Rate / KG</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Average Rate / KG</span>
                         <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${avgRateKg.toFixed(2)}</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Average Rate / Ton</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Average Rate / Ton</span>
                         <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${avgRateTon.toFixed(2)}</span>
                       </div>
                       <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Amount (USD)</span>
+                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Amount (USD)</span>
                         <span className="text-[9px] font-black text-blue-700 mt-1 leading-none">${totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="border border-emerald-300 rounded p-1 bg-emerald-50/35 flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-emerald-600 uppercase font-black tracking-wider leading-none">Total Amount (PKR)</span>
+                        <span className="text-[7px] text-emerald-650 uppercase font-black tracking-wider leading-none">Total Amount (PKR)</span>
                         <span className="text-[10px] font-black text-emerald-700 mt-1 leading-none">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</span>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Action Report Log Table */}
-                  <div className="border border-slate-200 rounded overflow-hidden">
-                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                      <span>📋</span> Action / Report Log
-                    </div>
-                    <table className="w-full text-[7.5px] border-collapse text-left text-slate-600">
-                      <thead>
-                        <tr className="bg-slate-100/60 font-bold border-b border-slate-200 uppercase text-slate-500">
-                          <th className="px-2 py-1 border-r border-slate-200 text-center w-[5%]">SR NO.</th>
-                          <th className="px-2 py-1 border-r border-slate-200 w-[20%]">ACTION</th>
-                          <th className="px-2 py-1 border-r border-slate-200 w-[15%]">PERFORMED BY</th>
-                          <th className="px-2 py-1 border-r border-slate-200 w-[20%]">DATE & TIME</th>
-                          <th className="px-2 py-1">REMARKS / NOTE</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[
-                          { action: "Purchase Transfer Created", note: "Purchase transfer record created successfully." },
-                          { action: "Booking Confirmed", note: "Booking information verified." },
-                          { action: "Supplier Verified", note: "Supplier details verified." },
-                          { action: "Goods Details Added", note: "Goods information added successfully." },
-                          { action: "Payment Recorded", note: "Advance payment recorded." },
-                          { action: "Transfer Approved", note: "Transfer approved & ready for transfer." }
-                        ].map((log, index) => (
-                          <tr key={index} className="border-t border-slate-100 hover:bg-slate-50/30">
-                            <td className="px-2 py-1 border-r border-slate-200 text-center font-mono">{index + 1}</td>
-                            <td className="px-2 py-1 border-r border-slate-200 font-bold text-slate-700">{log.action}</td>
-                            <td className="px-2 py-1 border-r border-slate-200 font-bold uppercase">{selected.audit?.userName || "ADMIN"}</td>
-                            <td className="px-2 py-1 border-r border-slate-200 font-mono">{reportDate} 10:{index * 5} AM</td>
-                            <td className="px-2 py-1 text-slate-500 italic font-medium">{log.note}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
                   </div>
 
                   {/* Stamp & Signatures */}
