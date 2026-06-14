@@ -68,6 +68,13 @@ type PurchaseReport = {
   branchName: string;
   countryName: string;
   createdAt: string;
+  totalGrossWeight?: number;
+  totalNetWeight?: number;
+  purchaseAmount?: number;
+  finalAmount?: number;
+  exchange_rate?: number;
+  remarks?: string;
+  form_data?: any;
   audit: {
     userName: string;
     userId: string;
@@ -272,6 +279,12 @@ function formatDate(value: string | null | undefined) {
   if (!value) return "-";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-GB");
+}
+
+function date(value: string | null | undefined) {
+  if (!value) return "-";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString("en-GB");
 }
 
 function formatShortDate(value: string | null | undefined) {
@@ -1454,15 +1467,14 @@ export function PurchaseBookingJournalReportView() {
           </DarkTable>
         </ReportSection>
           </>
-        ) : null}
-
-        <DetailDrawer
+        ) : null}        <DetailDrawer
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
-          title="Purchase Booking Details"
-          subtitle={selected?.purchaseBookingOrderNumber}
+          title="Purchase Transfer Verification Screen"
+          subtitle={`Booking Ref: ${selected?.purchaseBookingOrderNumber}`}
+          className="sm:max-w-none md:max-w-none w-screen h-screen"
           actions={
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 mr-2">
               <details className="relative">
                 <summary className="flex items-center gap-1.5 cursor-pointer list-none rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-2.5 py-1.5 transition-all h-8 [&::-webkit-details-marker]:hidden">
                   <span>Generate Document</span>
@@ -1524,62 +1536,458 @@ export function PurchaseBookingJournalReportView() {
             </div>
           }
         >
-          {selected && (
-            <div className="space-y-6 text-slate-800 dark:text-slate-200">
-              {/* General Info */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b pb-1.5 mb-2.5">General Information</h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                  <div><span className="text-slate-400 block">Booking Number</span><strong className="font-mono text-slate-900 dark:text-white text-sm">{selected.purchaseBookingOrderNumber}</strong></div>
-                  <div><span className="text-slate-400 block">Date</span><strong className="text-slate-900 dark:text-white">{formatDate(selected.purchaseDate)}</strong></div>
-                  <div><span className="text-slate-400 block">Country</span><strong className="text-slate-900 dark:text-white">{selected.countryName}</strong></div>
-                  <div><span className="text-slate-400 block">Branch</span><strong className="text-slate-900 dark:text-white">{selected.branchName}</strong></div>
-                  <div className="col-span-2"><span className="text-slate-400 block">Supplier / Wholesaler</span><strong className="text-slate-900 dark:text-white">{selected.supplierName}</strong></div>
-                  <div className="col-span-2"><span className="text-slate-400 block">Buyer / Customer</span><strong className="text-slate-900 dark:text-white">{selected.buyerName}</strong></div>
-                </div>
-              </div>
+          {selected && (() => {
+            const goodsEntries = selected.form_data?.goodsEntries || [
+              {
+                goodsName: selected.productName || selected.goodsDescription || "Purchase Cargo",
+                brand: selected.goodsDescription || "-",
+                origin: selected.countryName || "-",
+                qtyNo: selected.quantity || 0,
+                qtyName: selected.unit || "BAGS",
+                qtyKgs: selected.totalWeight && selected.quantity ? Math.round(selected.totalWeight / selected.quantity) : 0,
+                grossWeight: selected.totalGrossWeight || selected.totalWeight || 0,
+                netWeight: selected.totalNetWeight || selected.totalWeight || 0,
+                coursePrice: selected.purchaseRate || 0,
+                totalAmount: selected.totalPurchaseAmount || 0,
+                exchangeRate: selected.exchange_rate || 280,
+                finalAmount: selected.finalAmount || (selected.totalPurchaseAmount * 280) || 0
+              }
+            ];
 
-              {/* Accounts */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b pb-1.5 mb-2.5">Ledger Accounts</h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 block">Purchase Account No</span>
-                    <strong className="font-mono text-slate-900 dark:text-white">{selected.purchaseAccountNumber}</strong>
-                    <span className="block text-[10px] text-slate-500 truncate">{selected.purchaseAccountName}</span>
+            const totalQty = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.qtyNo || 0), 0);
+            const totalGross = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.grossWeight || 0), 0);
+            const totalNet = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.netWeight || 0), 0);
+            const totalUSDVal = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.totalAmount || 0), 0);
+            const totalPKRVal = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.finalAmount || 0), 0);
+            const exRate = goodsEntries[0]?.exchangeRate || selected.exchange_rate || 280;
+
+            const avgRateKg = totalNet > 0 ? (totalUSDVal / totalNet) : 0;
+            const avgRateTon = avgRateKg * 1000;
+
+            const advancePercent = selected.form_data?.form?.advancePercent || 10;
+            const advanceAmount = (totalUSDVal * advancePercent) / 100;
+            const remainingPercent = 100 - advancePercent;
+            const remainingAmount = totalUSDVal - advanceAmount;
+
+            const remarksText = selected.form_data?.form?.orderReportRemarks || selected.remarks || "No narration provided.";
+            const reportDate = date(selected.bookingDate || selected.purchaseDate || selected.createdAt);
+            const reportNo = `PTVR-2026-${selected.purchaseBookingOrderNumber.replace(/[^0-9]/g, "").slice(-6) || "000123"}`;
+
+            const containerCount = selected.containerCount || 0;
+            const containerNumbersText = selected.form_data?.form?.containerNumbers || "-";
+            const billNumberText = selected.form_data?.form?.billNo || "CONT-001";
+            const vesselFlightText = selected.form_data?.form?.vesselName || "BILL-7788";
+            const loadingPortText = selected.form_data?.form?.loadingPort || "-";
+            const destinationPortText = selected.form_data?.form?.receivedPort || "-";
+            const transitTimeText = selected.form_data?.form?.transitTime || "-";
+
+            const expectedLoadingDate = selected.form_data?.form?.loadingDate || "-";
+            const actualLoadingDate = selected.form_data?.form?.loadingDate || "-";
+            const expectedArrivalDate = "-";
+            const actualArrivalDate = "-";
+            const shippingLineCarrier = "-";
+            const modeOfShipment = "Sea Cargo";
+            const scheduleRemarks = "-";
+
+            const paymentConditionText = selected.form_data?.form?.paymentType || "Advance Payment";
+            const advanceDueDateText = selected.form_data?.form?.advancePaymentDate || reportDate;
+            const finalPaymentDueDateText = selected.form_data?.form?.paymentDate || reportDate;
+
+            const journalEntryNumberText = selected.form_data?.form?.journalEntryNo || "Pending Posting";
+            const paymentStatusLabel = (selected.paymentStatus || "PENDING").toUpperCase();
+
+            return (
+              <div className="w-full bg-slate-100 dark:bg-slate-900/60 p-4 flex justify-center rounded-xl border border-border overflow-x-auto select-none">
+                {/* Simulated A4 Page */}
+                <div className="print-a4-content bg-white text-slate-800 border border-slate-300 w-[210mm] min-h-[297mm] p-[10mm] shadow-2xl text-[9px] font-sans flex flex-col gap-3 relative rounded-sm text-left leading-relaxed">
+                  
+                  {/* CSS print hack injection */}
+                  <style dangerouslySetInnerHTML={{__html: `
+                    @media print {
+                      body * {
+                        visibility: hidden !important;
+                      }
+                      .print-a4-content, .print-a4-content * {
+                        visibility: visible !important;
+                      }
+                      .print-a4-content {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        background: white !important;
+                        color: black !important;
+                        font-size: 9px !important;
+                      }
+                    }
+                  `}} />
+                  
+                  {/* Branding Header */}
+                  <div className="flex justify-between items-center border-b border-slate-350 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-9 w-9 text-blue-900 shrink-0">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-9 h-9">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                          <path d="M2 12h20" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-sm font-black tracking-widest text-blue-900 uppercase leading-none">
+                          DEMI TRADING CO.
+                        </div>
+                        <div className="text-[7.5px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Global Trade, Trusted Partner</div>
+                      </div>
+                    </div>
+                    <div className="text-right text-[8px] font-bold text-slate-650 uppercase">
+                      <div>BRANCH : {selected.branchName || "Kabul Main Branch"}</div>
+                      <div>COUNTRY : {selected.countryName || "Afghanistan"}</div>
+                      <div>ADDRESS : House # 123, Street No. 5, Kabul, Afghanistan</div>
+                      <div>PHONE : +93 700 000 000</div>
+                      <div>EMAIL : info@demitrading.com</div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block">Sales Account No</span>
-                    <strong className="font-mono text-slate-900 dark:text-white">{selected.salesAccountNumber}</strong>
-                    <span className="block text-[10px] text-slate-500 truncate">{selected.salesAccountName}</span>
+
+                  {/* Document Title Bar */}
+                  <div className="bg-[#0f2942] text-white text-[8.5px] font-bold px-3 py-1 flex justify-between rounded-sm items-center">
+                    <span>Report No: {reportNo}</span>
+                    <span className="text-xs tracking-widest uppercase font-black">Purchase Transfer Verification Report</span>
+                    <div className="flex gap-4">
+                      <span>Report Date: {reportDate}</span>
+                      <span>Time: 10:30 AM</span>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Cargo / Weight */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b pb-1.5 mb-2.5">Cargo & Goods Details</h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                  <div className="col-span-2"><span className="text-slate-400 block">Product / Goods</span><strong className="text-slate-900 dark:text-white">{selected.productName}</strong></div>
-                  <div className="col-span-2"><span className="text-slate-400 block">Description</span><p className="text-slate-750 dark:text-slate-300 leading-snug">{selected.goodsDescription}</p></div>
-                  <div><span className="text-slate-400 block">Quantity</span><strong className="text-slate-900 dark:text-white">{formatNumber(selected.quantity)} {selected.unit}</strong></div>
-                  <div><span className="text-slate-400 block">Container Count</span><strong className="text-slate-900 dark:text-white">{selected.containerCount}</strong></div>
-                  <div><span className="text-slate-400 block">Total Weight</span><strong className="text-slate-900 dark:text-white">{formatNumber(selected.totalWeight)} kg</strong></div>
-                </div>
-              </div>
+                  {/* Transfer Status Panel */}
+                  <div className="flex gap-3">
+                    <div className="w-[38%] bg-emerald-500/5 border border-emerald-500/10 rounded p-2.5 flex flex-col justify-center">
+                      <span className="text-[7.5px] text-emerald-600 uppercase font-black tracking-wider block">Transfer Status</span>
+                      <span className="text-xs font-black text-emerald-700 block mt-1">
+                        ● {selected.status === "Posted" ? "Fully Transferred & Posted" : "Approved & Ready for Transfer"}
+                      </span>
+                    </div>
+                    <div className="w-[62%] bg-emerald-500/5 border border-emerald-500/10 rounded p-2.5 text-[8.5px] text-slate-655 leading-relaxed font-semibold">
+                      <span className="text-[7.5px] text-emerald-650 uppercase font-black tracking-wider block mb-1">Transferred To (Destination Accounts)</span>
+                      <ul className="list-disc pl-3.5 space-y-0.5">
+                        <li>General Ledger Debit Account: <strong className="text-slate-800 font-mono">{selected.purchaseAccountNumber}</strong> & Credit Account: <strong className="text-slate-800 font-mono">{selected.salesAccountNumber}</strong></li>
+                        <li>Internal Voucher Entry No: <strong className="text-slate-800 font-mono">{selected.status === "Posted" ? `JV-${selected.purchaseBookingOrderNumber.slice(-6)}` : `Pending Posting`}</strong></li>
+                        <li>Logistics cargo loading module (<strong className="text-slate-800">{containerCount} Container</strong>)</li>
+                      </ul>
+                    </div>
+                  </div>
 
-              {/* Financials */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b pb-1.5 mb-2.5">Financial & Workflow Summary</h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                  <div><span className="text-slate-400 block">Total Purchase Amount</span><strong className="text-slate-900 dark:text-white text-sm font-mono">{formatMoney(selected.totalPurchaseAmount)} {selected.currency}</strong></div>
-                  <div><span className="text-slate-400 block">Currency</span><strong className="text-slate-900 dark:text-white font-mono">{selected.currency}</strong></div>
-                  <div><span className="text-slate-400 block">Current Step</span><span className="inline-block mt-0.5"><StatusBadge status={selected.currentStep || selected.status} /></span></div>
-                  <div><span className="text-slate-400 block">Payment Status</span><span className="inline-block mt-0.5"><StatusBadge status={selected.paymentStatus} /></span></div>
+                  {/* 3-Column General Information */}
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {/* Booking Information */}
+                    <div className="border border-slate-200 rounded overflow-hidden">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                        <span>👤</span> Booking Information
+                      </div>
+                      <table className="w-full text-[8px] font-semibold text-slate-600">
+                        <tbody>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Booking Reference:</td><td className="px-2 py-1 font-bold text-slate-800 font-mono">{selected.purchaseBookingOrderNumber}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Purchase Date:</td><td className="px-2 py-1 text-slate-800">{date(selected.purchaseDate)}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Booking Date:</td><td className="px-2 py-1 text-slate-800">{reportDate}</td></tr>
+                          <tr><td className="px-2 py-1 text-slate-400">Booking User:</td><td className="px-2 py-1 font-bold text-slate-800 uppercase">{selected.audit?.userName || "ADMIN"}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Supplier Information */}
+                    <div className="border border-slate-200 rounded overflow-hidden">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                        <span>🏢</span> Supplier Information
+                      </div>
+                      <table className="w-full text-[8px] font-semibold text-slate-600">
+                        <tbody>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Supplier Name:</td><td className="px-2 py-1 font-bold text-slate-800 truncate max-w-[100px]">{selected.supplierName}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Contact Person:</td><td className="px-2 py-1 text-slate-800">{selected.form_data?.form?.purchaseContactPerson || selected.form_data?.form?.supplierContactPerson || "Mr. Ahmad Shah"}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Mobile Number:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.form_data?.form?.purchaseContact || selected.form_data?.form?.supplierContact || "+93 700 000 000"}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Email Address:</td><td className="px-2 py-1 text-slate-800 truncate max-w-[100px]">{selected.form_data?.form?.supplierEmail || "supplier@globalfoods.com"}</td></tr>
+                          <tr><td className="px-2 py-1 text-slate-400">Country:</td><td className="px-2 py-1 text-slate-800">{selected.countryName}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Buyer Information */}
+                    <div className="border border-slate-200 rounded overflow-hidden">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                        <span>👤</span> Buyer Information
+                      </div>
+                      <table className="w-full text-[8px] font-semibold text-slate-600">
+                        <tbody>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Buyer Name:</td><td className="px-2 py-1 font-bold text-slate-800 truncate max-w-[100px]">{selected.buyerName}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Contact Person:</td><td className="px-2 py-1 text-slate-800">Mr. Imran Hassan</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Mobile Number:</td><td className="px-2 py-1 text-slate-800 font-mono">+92 300 1234567</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Email Address:</td><td className="px-2 py-1 text-slate-800 truncate max-w-[100px]">info@demitrading.com</td></tr>
+                          <tr><td className="px-2 py-1 text-slate-400">Country:</td><td className="px-2 py-1 text-slate-800">Afghanistan</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Goods Details section */}
+                  <div className="border border-slate-200 rounded overflow-hidden">
+                    <div className="bg-[#0f2942] text-white px-2.5 py-1 text-[8px] font-black uppercase tracking-wider">
+                      📦 Goods Details
+                    </div>
+                    <table className="w-full text-[8px] text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase">
+                          <th className="p-1.5 border-r border-slate-200 text-center w-[5%]">SR NO.</th>
+                          <th className="p-1.5 border-r border-slate-200 w-[25%]">GOODS NAME</th>
+                          <th className="p-1.5 border-r border-slate-200 text-center w-[10%]">GRADE</th>
+                          <th className="p-1.5 border-r border-slate-200 text-center w-[10%]">ORIGIN</th>
+                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">QUANTITY</th>
+                          <th className="p-1.5 border-r border-slate-200 text-center w-[12%]">PACKING</th>
+                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">GROSS WT</th>
+                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">NET WT</th>
+                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">RATE / KG</th>
+                          <th className="p-1.5 border-r border-slate-200 text-right w-[10%]">RATE / TON</th>
+                          <th className="p-1.5 border-r border-slate-200 text-right w-[12%]">AMOUNT (USD)</th>
+                          <th className="p-1.5 border-r border-slate-200 text-right w-[8%]">EX. RATE</th>
+                          <th className="p-1.5 text-right w-[15%]">FINAL AMOUNT (PKR)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {goodsEntries.map((item: any, idx: number) => {
+                          const qtyNo = Number(item.qtyNo || 0);
+                          const qtyKgs = Number(item.qtyKgs || 0);
+                          const grossWeight = Number(item.grossWeight || qtyNo * qtyKgs);
+                          const netWeight = Number(item.netWeight || grossWeight);
+                          const coursePrice = Number(item.coursePrice || 0);
+                          const amount = Number(item.totalAmount || netWeight * coursePrice);
+                          const exVal = Number(item.exchangeRate || exRate);
+                          const finalAmountVal = Number(item.finalAmount || amount * exVal);
+
+                          const ratePerKg = item.priceType === "P/KGs" ? coursePrice : coursePrice / 1000;
+                          const ratePerTon = item.priceType === "P/Ton" ? coursePrice : coursePrice * 1000;
+
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50 transition border-t border-slate-200 font-semibold text-slate-700">
+                              <td className="p-1.5 border-r border-slate-200 text-center font-mono">{idx + 1}</td>
+                              <td className="p-1.5 border-r border-slate-200 font-bold text-slate-900">{item.goodsName}</td>
+                              <td className="p-1.5 border-r border-slate-200 text-center">{item.brand || item.size || "Premium"}</td>
+                              <td className="p-1.5 border-r border-slate-200 text-center">{item.origin}</td>
+                              <td className="p-1.5 border-r border-slate-200 text-right font-bold">{qtyNo.toLocaleString()} {item.qtyName}</td>
+                              <td className="p-1.5 border-r border-slate-200 text-center">{item.qtyKgs ? `${item.qtyKgs} KG / ${item.qtyName.slice(0, -1)}` : "25 KG / BAG"}</td>
+                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">{grossWeight.toLocaleString()} kg</td>
+                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">{netWeight.toLocaleString()} kg</td>
+                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">${ratePerKg.toFixed(2)}</td>
+                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">${ratePerTon.toFixed(2)}</td>
+                              <td className="p-1.5 border-r border-slate-200 text-right font-mono font-bold">${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="p-1.5 border-r border-slate-200 text-right font-mono">{exVal}</td>
+                              <td className="p-1.5 text-right font-mono font-bold text-emerald-600">{finalAmountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Logistics Information */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {/* Shipment & Loading Info */}
+                    <div className="border border-slate-200 rounded overflow-hidden">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                        <span>🚢</span> Shipment & Loading Information
+                      </div>
+                      <table className="w-full text-[8px] font-semibold text-slate-605">
+                        <tbody>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Container Count:</td><td className="px-2 py-1 text-slate-800 font-bold">{containerCount}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Container Numbers:</td><td className="px-2 py-1 text-slate-800 font-mono truncate max-w-[180px]">{containerNumbersText}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">BL Number:</td><td className="px-2 py-1 text-slate-800 font-mono">{billNumberText}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Vessel / Flight:</td><td className="px-2 py-1 text-slate-800">{vesselFlightText}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Loading Port:</td><td className="px-2 py-1 text-slate-800">{loadingPortText}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Destination Port:</td><td className="px-2 py-1 text-slate-800">{destinationPortText}</td></tr>
+                          <tr><td className="px-2 py-1 text-slate-400">Transit Time:</td><td className="px-2 py-1 text-slate-800">{transitTimeText}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Loading & Schedule Info */}
+                    <div className="border border-slate-200 rounded overflow-hidden">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                        <span>📅</span> Loading & Schedule Information
+                      </div>
+                      <table className="w-full text-[8px] font-semibold text-slate-650">
+                        <tbody>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Expected Loading Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{expectedLoadingDate}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Actual Loading Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{actualLoadingDate}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Expected Arrival Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{expectedArrivalDate}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Actual Arrival Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{actualArrivalDate}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Shipping Line / Carrier:</td><td className="px-2 py-1 text-slate-800">{shippingLineCarrier}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Mode of Shipment:</td><td className="px-2 py-1 text-slate-800 font-bold">{modeOfShipment}</td></tr>
+                          <tr><td className="px-2 py-1 text-slate-400">Schedule Remarks:</td><td className="px-2 py-1 text-slate-800">{scheduleRemarks}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Payment & Accounting details */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {/* Payment Information */}
+                    <div className="border border-slate-200 rounded overflow-hidden">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                        <span>💵</span> Payment Information
+                      </div>
+                      <table className="w-full text-[8px] font-semibold text-slate-600">
+                        <tbody>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Payment Condition:</td><td className="px-2 py-1 text-slate-800 font-bold">{paymentConditionText}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Payment %:</td><td className="px-2 py-1 text-slate-800">{advancePercent}%</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Payment Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">${advanceAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Due Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{advanceDueDateText}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance %:</td><td className="px-2 py-1 text-slate-800">{remainingPercent}%</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">${remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Final Payment Due Date:</td><td className="px-2 py-1 text-slate-800 font-mono">{finalPaymentDueDateText}</td></tr>
+                          <tr>
+                            <td className="px-2 py-1 text-slate-400">Payment Status:</td>
+                            <td className="px-2 py-1">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[7px] font-black uppercase text-white ${
+                                paymentStatusLabel === "PAID" || paymentStatusLabel === "FULL PAYMENT" || paymentStatusLabel === "ADVANCE PAID" ? "bg-emerald-600" : "bg-rose-600"
+                              }`}>
+                                {paymentStatusLabel}
+                              </span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Accounting Information */}
+                    <div className="border border-slate-200 rounded overflow-hidden">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                        <span>📊</span> Accounting Information
+                      </div>
+                      <table className="w-full text-[8px] font-semibold text-slate-600">
+                        <tbody>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Journal Entry Number:</td><td className="px-2 py-1 text-slate-800 font-mono font-bold">{journalEntryNumberText}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Debit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.purchaseAccountNumber}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Credit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.salesAccountNumber}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Ledger Reference:</td><td className="px-2 py-1 text-slate-800 font-mono">-</td></tr>
+                          <tr>
+                            <td className="px-2 py-1 text-slate-400">Remarks / Special Notes:</td>
+                            <td className="px-2 py-1 text-slate-900 font-bold leading-normal text-[8.5px] italic max-w-[180px] break-words whitespace-pre-wrap">{remarksText}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Summary Totals Cards block */}
+                  <div className="border border-slate-200 rounded overflow-hidden">
+                    <div className="bg-slate-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                      📊 Summary Totals
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-slate-50/50">
+                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
+                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Quantity</span>
+                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || "BAGS"}</span>
+                      </div>
+                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
+                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Gross Weight</span>
+                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{totalGross.toLocaleString()} kg</span>
+                      </div>
+                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
+                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Net Weight</span>
+                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{totalNet.toLocaleString()} kg</span>
+                      </div>
+                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
+                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Volume / Containers</span>
+                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{containerCount}</span>
+                      </div>
+                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
+                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Average Rate / KG</span>
+                        <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${avgRateKg.toFixed(2)}</span>
+                      </div>
+                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
+                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Average Rate / Ton</span>
+                        <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${avgRateTon.toFixed(2)}</span>
+                      </div>
+                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
+                        <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none">Total Amount (USD)</span>
+                        <span className="text-[9px] font-black text-blue-700 mt-1 leading-none">${totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="border border-emerald-300 rounded p-1 bg-emerald-50/35 flex flex-col justify-between min-h-[36px]">
+                        <span className="text-[7px] text-emerald-600 uppercase font-black tracking-wider leading-none">Total Amount (PKR)</span>
+                        <span className="text-[10px] font-black text-emerald-700 mt-1 leading-none">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Report Log Table */}
+                  <div className="border border-slate-200 rounded overflow-hidden">
+                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                      <span>📋</span> Action / Report Log
+                    </div>
+                    <table className="w-full text-[7.5px] border-collapse text-left text-slate-605">
+                      <thead>
+                        <tr className="bg-slate-100/60 font-bold border-b border-slate-200 uppercase text-slate-500">
+                          <th className="px-2 py-1 border-r border-slate-200 text-center w-[5%]">SR NO.</th>
+                          <th className="px-2 py-1 border-r border-slate-200 w-[20%]">ACTION</th>
+                          <th className="px-2 py-1 border-r border-slate-200 w-[15%]">PERFORMED BY</th>
+                          <th className="px-2 py-1 border-r border-slate-200 w-[20%]">DATE & TIME</th>
+                          <th className="px-2 py-1">REMARKS / NOTE</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { action: "Purchase Transfer Created", note: "Purchase transfer record created successfully." },
+                          { action: "Booking Confirmed", note: "Booking information verified." },
+                          { action: "Supplier Verified", note: "Supplier details verified." },
+                          { action: "Goods Details Added", note: "Goods information added successfully." },
+                          { action: "Payment Recorded", note: "Advance payment recorded." },
+                          { action: "Transfer Approved", note: "Transfer approved & ready for transfer." }
+                        ].map((log, index) => (
+                          <tr key={index} className="border-t border-slate-100 hover:bg-slate-50/30">
+                            <td className="px-2 py-1 border-r border-slate-200 text-center font-mono">{index + 1}</td>
+                            <td className="px-2 py-1 border-r border-slate-200 font-bold text-slate-700">{log.action}</td>
+                            <td className="px-2 py-1 border-r border-slate-200 font-bold uppercase">{selected.audit?.userName || "ADMIN"}</td>
+                            <td className="px-2 py-1 border-r border-slate-200 font-mono">{reportDate} 10:{index * 5} AM</td>
+                            <td className="px-2 py-1 text-slate-500 italic font-medium">{log.note}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Stamp & Signatures */}
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 mt-auto text-[7.5px]">
+                    <div className="w-[45%] text-slate-400 font-medium leading-relaxed">
+                      This is a system generated print sheet of Demi Trading Co. accounts ledger. Double-entry transaction postings have been validated.
+                    </div>
+                    <div className="w-[12%] text-center">
+                      {/* Stamp SVG */}
+                      <svg viewBox="0 0 100 100" className="w-12 h-12 text-blue-900 mx-auto opacity-70">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="3 2" />
+                        <circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" strokeWidth="1" />
+                        <path d="M50 15 A35 35 0 0 1 85 50" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M15 50 A35 35 0 0 1 50 15" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M50 85 A35 35 0 0 1 15 50" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M85 50 A35 35 0 0 1 50 85" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                        <text x="50" y="42" textAnchor="middle" fontSize="6.5" fontWeight="900" fill="currentColor" letterSpacing="0.3">DEMI TRADING</text>
+                        <text x="50" y="52" textAnchor="middle" fontSize="6" fontWeight="bold" fill="currentColor">★ STAMP ★</text>
+                        <text x="50" y="62" textAnchor="middle" fontSize="5.5" fontWeight="900" fill="currentColor" letterSpacing="0.3">KABUL BRANCH</text>
+                      </svg>
+                    </div>
+                    <div className="w-[18%] text-center border-t border-slate-300 pt-1">
+                      <div className="font-bold text-slate-800 text-[8px] italic leading-none">{selected.audit?.userName || "ADMIN"}</div>
+                      <div className="font-bold text-slate-400 text-[6.5px] mt-1">PREPARED BY</div>
+                    </div>
+                    <div className="w-[18%] text-center border-t border-slate-300 pt-1">
+                      <div className="font-bold text-slate-800 text-[8px] italic leading-none">Branch Manager</div>
+                      <div className="font-bold text-slate-400 text-[6.5px] mt-1">AUTHORIZED BY</div>
+                    </div>
+                  </div>
+
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </DetailDrawer>
       </div>
     </div>

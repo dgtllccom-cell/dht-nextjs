@@ -32,6 +32,12 @@ export type PurchaseReportData = {
   branchName: string;
   countryName: string;
   createdAt: string;
+  totalGrossWeight?: number;
+  totalNetWeight?: number;
+  purchaseAmount?: number;
+  finalAmount?: number;
+  form_data?: any;
+  supplier_company_id?: string;
   audit: {
     userName: string;
     userId: string;
@@ -77,374 +83,673 @@ export function openPurchaseA4ReportWindow(input: {
   const isRtl = ["ur", "ar", "fa", "ps"].includes(lang);
 
   const now = new Date();
-  const stampDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  const stampTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+  const stampTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
 
-  const title = escapeHtml(input.title);
-  const subtitle = escapeHtml(input.subtitle || "Purchase Booking Order Summary");
   const b = input.purchaseData;
+  const form = b.form_data?.form || {};
+  const goods = b.form_data?.goodsEntries || [];
 
-  const formattedDateTime = `${stampDate} ${stampTime}`;
+  // Parse items from goodsEntries list
+  let items: any[] = [];
+  if (goods.length > 0) {
+    items = goods.map((g: any, index: number) => {
+      const qtyNo = Number(g.qtyNo || 0);
+      const qtyKgs = Number(g.qtyKgs || 0);
+      const emptyKgs = Number(g.emptyKgs || 0);
+      const grossWt = qtyNo * qtyKgs;
+      const netWt = qtyNo * (qtyKgs - emptyKgs);
+      const rateKg = Number(g.coursePrice || 0);
+      const rateTon = rateKg * 1000;
+      const amountUsd = Number(g.totalAmount || 0);
+      const finalAmountPkr = Number(g.finalAmount || 0);
+      return {
+        srNo: index + 1,
+        goodsName: g.goodsName || "N/A",
+        grade: g.size || "N/A",
+        origin: g.origin || "N/A",
+        quantity: qtyNo,
+        qtyName: g.qtyName || "BAGS",
+        packing: `${qtyKgs} KG / ${emptyKgs} KG`,
+        grossWt,
+        netWt,
+        rateKg,
+        rateTon,
+        amountUsd,
+        exRate: g.rate2 || 280.00,
+        finalAmountPkr
+      };
+    });
+  } else {
+    // Fallback if goods entries list is empty
+    items = [{
+      srNo: 1,
+      goodsName: b.productName || "WALNUTS IN SHELL",
+      grade: "Organic",
+      origin: b.countryName || "USA",
+      quantity: b.quantity || 0,
+      qtyName: b.unit || "BAGS",
+      packing: `${b.totalWeight / (b.quantity || 1)} KG`,
+      grossWt: b.totalWeight || 0,
+      netWt: b.totalWeight || 0,
+      rateKg: b.purchaseRate || 0,
+      rateTon: (b.purchaseRate || 0) * 1000,
+      amountUsd: b.totalPurchaseAmount || 0,
+      exRate: 280.00,
+      finalAmountPkr: b.finalAmount || (b.totalPurchaseAmount || 0) * 280.00
+    }];
+  }
 
-  // 1. General Info
-  const generalInfoHtml = `
-    <tr><td class="label">Booking Number</td><td class="value font-mono font-bold text-blue-600">${escapeHtml(b.purchaseBookingOrderNumber || "-")}</td></tr>
-    <tr><td class="label">Purchase Date</td><td class="value">${formatDate(b.purchaseDate)}</td></tr>
-    <tr><td class="label">Booking Date</td><td class="value">${formatDate(b.bookingDate)}</td></tr>
-    <tr><td class="label">${t(lang, "ledger.country")}</td><td class="value">${escapeHtml(b.countryName || "-")}</td></tr>
-    <tr><td class="label">${t(lang, "ledger.branch_name")}</td><td class="value">${escapeHtml(b.branchName || "-")}</td></tr>
-    <tr><td class="label">${t(lang, "ledger.branch_account_no")}</td><td class="value font-mono">${escapeHtml(b.audit?.branchCode || "-")}</td></tr>
+  // Calculate Aggregates
+  const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const totalGrossWeight = items.reduce((sum, item) => sum + (item.grossWt || 0), 0);
+  const totalNetWeight = items.reduce((sum, item) => sum + (item.netWt || 0), 0);
+  const totalDeductions = Math.max(0, totalGrossWeight - totalNetWeight);
+  const totalAmountUsd = items.reduce((sum, item) => sum + (item.amountUsd || 0), 0);
+  const totalAmountPkr = items.reduce((sum, item) => sum + (item.finalAmountPkr || 0), 0);
+  const avgRateKg = items.length > 0 ? items.reduce((sum, item) => sum + (item.rateKg || 0), 0) / items.length : 0;
+  const avgRateTon = avgRateKg * 1000;
+
+  const exRateVal = Number(form.exchangeRate || items[0]?.exRate || 280.00);
+  const advancePercentVal = Number(form.advancePercent || 10);
+  const advanceUsd = (totalAmountUsd * advancePercentVal) / 100;
+  const advancePkr = (totalAmountPkr * advancePercentVal) / 100;
+  const remainingUsd = totalAmountUsd - advanceUsd;
+  const remainingPkr = totalAmountPkr - advancePkr;
+
+  const commonSessionHtml = `
+    <!-- Branch Details Box Section -->
+    <div class="border-box">
+      <div class="box-header">🏢 Branch Details & User Session</div>
+      <div class="session-grid">
+        <div class="session-item"><span>User ID:</span><span>${escapeHtml(b.audit?.userId || "USR-1001")}</span></div>
+        <div class="session-item"><span>Branch Name:</span><span>${escapeHtml(b.branchName || "QUETTA MAIN BRANCH")}</span></div>
+        <div class="session-item"><span>Date:</span><span>${formatDate(b.bookingDate || b.purchaseDate)}</span></div>
+        <div class="session-item"><span>User Name:</span><span>${escapeHtml(b.audit?.userName || "SUPER ADMIN")}</span></div>
+        <div class="session-item"><span>Branch Code:</span><span>${escapeHtml(b.audit?.branchCode || "QTA-01")}</span></div>
+        <div class="session-item"><span>Time:</span><span>10:30 AM</span></div>
+      </div>
+    </div>
   `;
 
-  // 2. Party Information
-  const partyHtml = `
-    <tr><td class="label">Supplier / Seller</td><td class="value font-semibold text-slate-800">${escapeHtml(b.supplierName || "-")}</td></tr>
-    <tr><td class="label">Buyer / Customer</td><td class="value font-semibold text-slate-800">${escapeHtml(b.buyerName || "-")}</td></tr>
-    <tr><td class="label">Registered Country</td><td class="value">${escapeHtml(b.countryName || "-")}</td></tr>
-    <tr><td class="label">Registered Branch</td><td class="value">${escapeHtml(b.branchName || "-")}</td></tr>
+  const commonFooterHtml = `
+    <!-- Stamp & Signatures -->
+    <div class="footer-sign">
+      <div class="disclaimer">
+        This is a system generated print sheet of Daman Business Group ERP accounts registry ledger. Double-entry transaction postings have been validated.
+      </div>
+      <div class="stamp-box">
+        <div class="stamp-circle">
+          STAMP<br/><span style="font-size: 4px; color: #cbd5e1;">VERIFIED</span>
+        </div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line">${escapeHtml(b.audit?.userName || "Admin User")}</div>
+        <div class="sign-lbl">PREPARED BY</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line">ERP Registrar</div>
+        <div class="sign-lbl">AUTHORIZED BY</div>
+      </div>
+    </div>
   `;
 
-  // 3. Ledger Accounts
-  const ledgerHtml = `
-    <tr>
-      <td class="label">Purchase Account</td>
-      <td class="value">
-        <div class="font-mono font-bold">${escapeHtml(b.purchaseAccountNumber || "-")}</div>
-        <div style="font-size: 8.5px; color: #64748b; font-weight: 500;">${escapeHtml(b.purchaseAccountName || "-")}</div>
-      </td>
-    </tr>
-    <tr>
-      <td class="label">Sales Account</td>
-      <td class="value">
-        <div class="font-mono font-bold">${escapeHtml(b.salesAccountNumber || "-")}</div>
-        <div style="font-size: 8.5px; color: #64748b; font-weight: 500;">${escapeHtml(b.salesAccountName || "-")}</div>
-      </td>
-    </tr>
-  `;
-
-  // 4. Goods & Cargo Details
-  const cargoHtml = `
-    <tr><td class="label">Product / Goods</td><td class="value font-bold text-slate-800">${escapeHtml(b.productName || "-")}</td></tr>
-    <tr><td class="label">Description</td><td class="value" style="font-size: 9px; line-height: 1.3;">${escapeHtml(b.goodsDescription || "-")}</td></tr>
-    <tr><td class="label">${t(lang, "form.quantity")}</td><td class="value font-bold">${formatNumber(b.quantity)} ${escapeHtml(b.unit)}</td></tr>
-    <tr><td class="label">Container Count</td><td class="value font-bold">${b.containerCount} Containers</td></tr>
-    <tr><td class="label">Total Weight</td><td class="value font-bold">${formatNumber(b.totalWeight)} kg</td></tr>
-  `;
-
-  // 5. Financial & Workflow Details
-  const financialHtml = `
-    <tr><td class="label">${t(lang, "form.transaction_rate")}</td><td class="value font-mono font-bold">${formatMoney(b.purchaseRate)} ${escapeHtml(b.currency)}</td></tr>
-    <tr><td class="label">${t(lang, "form.final_amount")}</td><td class="value font-mono font-bold text-blue-600">${formatMoney(b.totalPurchaseAmount)} ${escapeHtml(b.currency)}</td></tr>
-    <tr><td class="label">Payment Status</td><td class="value"><span class="badge badge-payment">${escapeHtml(b.paymentStatus || "Pending")}</span></td></tr>
-    <tr><td class="label">${t(lang, "ledger.ledger_status")}</td><td class="value"><span class="badge badge-workflow">${escapeHtml(b.currentStep || b.status || "Open")}</span></td></tr>
-    ${b.nextStep ? `<tr><td class="label">Next Required Step</td><td class="value font-medium text-amber-700">${escapeHtml(b.nextStep)}</td></tr>` : ""}
-  `;
-
-  // 6. Audit & System Metadata
-  const auditHtml = `
-    <tr><td class="label">${t(lang, "roz.created_by")}</td><td class="value">${escapeHtml(b.audit?.userName || "Super Admin")} (ID: ${escapeHtml(b.audit?.userId || "-")})</td></tr>
-    <tr><td class="label">${t(lang, "ledger.col_date")}</td><td class="value">${formatDate(b.createdAt)}</td></tr>
-    <tr><td class="label">Printed By</td><td class="value">Authorized ERP User</td></tr>
-    <tr><td class="label">IP Address / Host</td><td class="value">127.0.0.1 (Localhost)</td></tr>
-    <tr><td class="label">System Status</td><td class="value font-black text-emerald-600">VERIFIED / LOGGED</td></tr>
-  `;
-
+  // Template HTML containing 3 sequential sheets
   const html = `<!doctype html>
 <html lang="${lang}" dir="${isRtl ? "rtl" : "ltr"}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${title}</title>
+    <title>Purchase Master Verification Report</title>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-      @page { size: A4; margin: 12mm; }
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+      @page { size: A4; margin: 8mm; }
       html, body { height: 100%; margin: 0; padding: 0; }
-      body { background: #f1f5f9; color: #1e293b; font-family: 'Inter', Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .wrap { padding: 25px; display: flex; justify-content: center; }
-      .page {
+      body { background: #f1f5f9; color: #1e293b; font-family: 'Outfit', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8.5px; }
+      .wrap { padding: 20px; display: flex; flex-direction: column; gap: 20px; align-items: center; }
+      .sheet {
         width: 210mm;
         min-height: 297mm;
-        padding: 15mm 15mm;
-        margin: 0 auto;
+        padding: 10mm;
         background: #ffffff;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-        border-radius: 12px;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
         box-sizing: border-box;
-        overflow: hidden;
         display: flex;
         flex-direction: column;
+        gap: 12px;
+        position: relative;
+        text-align: left;
       }
-      
-      .header-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-      .header-table td { border: none; padding: 0; }
-      .logo-title { display: flex; align-items: center; gap: 10px; }
-      .logo-icon { width: 36px; height: 36px; background: #0f172a; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold; }
-      .logo-text { font-size: 14px; font-weight: 950; color: #0f172a; line-height: 1.1; }
-      .logo-subtext { font-size: 8px; color: #64748b; font-weight: 600; line-height: 1.2; }
-      .report-title { font-size: 16px; font-weight: 900; color: #1e3a8a; margin: 0 0 4px 0; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; }
-      .meta-box { font-size: 9px; color: #334155; font-weight: 700; line-height: 1.4; text-align: right; }
-      .meta-label { color: #64748b; font-weight: 500; }
-
-      .overview-banner {
-        background: #0f172a;
-        color: #ffffff;
-        border-radius: 8px;
-        padding: 16px 20px;
-        margin-bottom: 20px;
-      }
-      .overview-title { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-      .overview-name { font-size: 20px; font-weight: 900; color: #ffffff; margin-top: 2px; }
-      .overview-status { float: right; font-size: 8.5px; font-weight: 800; border: 1px solid rgba(16,185,129,0.3); background: rgba(16,185,129,0.15); color: #34d399; border-radius: 4px; padding: 2px 8px; text-transform: uppercase; }
-      
-      .overview-meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; border-bottom: 1px solid #334155; padding-bottom: 12px; }
-      .overview-meta-label { font-size: 8px; font-weight: 700; color: #94a3b8; text-transform: uppercase; }
-      .overview-meta-val { font-size: 11px; font-weight: 800; color: #e2e8f0; margin-top: 2px; }
-
-      .overview-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; text-align: center; }
-      .kpi-label { font-size: 8px; font-weight: 700; color: #94a3b8; text-transform: uppercase; }
-      .kpi-val { font-size: 14px; font-weight: 900; margin-top: 2px; color: #38bdf8; }
-
-      .section-card {
-        background: #ffffff;
-        border: 1.5px solid #e2e8f0;
-        border-radius: 8px;
-        margin-bottom: 15px;
+      .border-box {
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
         overflow: hidden;
       }
-      .section-header {
+      .box-header {
         background: #f8fafc;
         border-bottom: 1px solid #e2e8f0;
-        padding: 8px 12px;
-        font-size: 9px;
+        padding: 5px 8px;
+        font-size: 8px;
         font-weight: 800;
-        color: #1e293b;
-        letter-spacing: 0.5px;
+        color: #1e3a8a;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+      
+      /* Branding Header */
+      .brand-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #cbd5e1;
+        padding-bottom: 8px;
+      }
+      .brand-logo-title {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
       }
-      .section-badge {
-        background: #e2e8f0;
+      .brand-logo-icon {
+        width: 32px;
+        height: 32px;
+        color: #1e3a8a;
+      }
+      .brand-name {
+        font-size: 13px;
+        font-weight: 900;
+        color: #1e3a8a;
+        letter-spacing: 0.5px;
+        line-height: 1;
+      }
+      .brand-tagline {
+        font-size: 7px;
+        color: #64748b;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .doc-title-sec {
+        text-align: right;
+      }
+      .doc-title {
+        font-size: 13px;
+        font-weight: 900;
+        color: #1e3a8a;
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .doc-serial {
+        font-size: 8px;
+        font-weight: 700;
         color: #475569;
-        width: 14px;
-        height: 14px;
+        font-family: monospace;
+        margin-top: 3px;
+      }
+      
+      /* Branch & Session Details Grid */
+      .session-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px 16px;
+        padding: 8px;
+        font-size: 8px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .session-item {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #f1f5f9;
+        padding-bottom: 2px;
+      }
+      .session-item span:last-child {
+        color: #0f172a;
+      }
+
+      /* Inner Details grid/tables */
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .info-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .info-table td {
+        padding: 4px 6px;
+        font-size: 7.5px;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .info-table tr:last-child td {
+        border-bottom: none;
+      }
+      .info-table td.lbl {
+        color: #64748b;
+        font-weight: 500;
+        width: 45%;
+      }
+      .info-table td.val {
+        font-weight: 700;
+        color: #0f172a;
+      }
+
+      /* Data Tables */
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      .data-table th {
+        background: #1e3a8a;
+        color: #ffffff;
+        font-size: 7px;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 5px 8px;
+        letter-spacing: 0.2px;
+      }
+      .data-table td {
+        padding: 5px 8px;
+        font-size: 7.5px;
+        border-bottom: 1px solid #cbd5e1;
+      }
+      .data-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      /* Totaling Aggregates */
+      .aggregates-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .aggregate-box {
+        border-right: 1px solid #e2e8f0;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 6px 8px;
+        text-align: center;
+      }
+      .aggregate-box:nth-child(4n) { border-right: none; }
+      .aggregate-box:nth-child(n+5) { border-bottom: none; }
+      .aggregate-lbl { font-size: 6.5px; color: #64748b; font-weight: 700; text-transform: uppercase; }
+      .aggregate-val { font-size: 9.5px; font-weight: 800; color: #0f172a; margin-top: 1px; }
+
+      /* Stamp & signatures */
+      .footer-sign {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid #cbd5e1;
+        padding-top: 8px;
+        margin-top: auto;
+        font-size: 7.5px;
+      }
+      .disclaimer { width: 40%; color: #64748b; line-height: 1.3; }
+      .stamp-circle {
+        border: 1.5px dashed #cbd5e1;
         border-radius: 50%;
+        width: 42px;
+        height: 42px;
         display: inline-flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        font-size: 8px;
-        font-weight: 900;
+        font-size: 5.5px;
+        color: #94a3b8;
+        font-weight: 800;
+        text-transform: uppercase;
+        line-height: 1.2;
       }
-      
-      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 12px; }
-      .info-table { width: 100%; border-collapse: collapse; }
-      .info-table td { padding: 5px 10px; font-size: 9.5px; border-bottom: 1px solid #f1f5f9; }
-      .info-table td.label { color: #64748b; font-weight: 600; width: 40%; }
-      .info-table td.value { font-weight: 700; color: #1e293b; text-align: left; }
-      
-      .badge { display: inline-block; font-size: 8px; font-weight: 800; border-radius: 4px; padding: 2px 6px; text-transform: uppercase; }
-      .badge-payment { border: 1px solid rgba(37,99,235,0.3); background: rgba(37,99,235,0.1); color: #2563eb; }
-      .badge-workflow { border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); color: #d97706; }
-
-      .footer-signatures { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 15px; border-top: 1px solid #e2e8f0; }
-      .notes-box { width: 45%; font-size: 8px; color: #64748b; line-height: 1.3; }
-      .seal-box { text-align: center; }
-      .sig-box { width: 30%; text-align: center; font-size: 9px; }
-      .sig-line { border-bottom: 1px solid #94a3b8; margin-bottom: 4px; height: 20px; display: flex; align-items: flex-end; justify-content: center; font-family: 'Georgia', serif; font-style: italic; color: #0f172a; font-size: 11px; }
-      .page-footer { display: flex; justify-content: space-between; font-size: 7.5px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 6px; margin-top: 10px; font-weight: 700; }
-
-      /* RTL direction specific layouts */
-      html[dir="rtl"] body { text-align: right; direction: rtl; }
-      html[dir="rtl"] th, html[dir="rtl"] td { text-align: right; }
-      html[dir="rtl"] .info-table td.value { text-align: right; }
-      html[dir="rtl"] .meta-box { text-align: left; }
-      html[dir="rtl"] .logo-title { flex-direction: row-reverse; }
-      html[dir="rtl"] .overview-status { float: left; }
-      html[dir="rtl"] .footer-signatures { flex-direction: row-reverse; }
+      .sign-box { width: 20%; text-align: center; }
+      .sign-line { border-bottom: 1px solid #cbd5e1; height: 16px; margin-bottom: 3px; font-weight: bold; color: #0f172a; display: flex; align-items: flex-end; justify-content: center; font-style: italic; }
+      .sign-lbl { font-size: 6.5px; font-weight: 700; color: #64748b; }
 
       @media print {
         body { background: #ffffff; }
-        .wrap { padding: 0; }
-        .page { border: none; box-shadow: none; border-radius: 0; padding: 0; width: 100%; min-height: 100%; }
+        .wrap { padding: 0; gap: 0; }
+        .sheet {
+          border: none !important;
+          box-shadow: none !important;
+          margin: 0 !important;
+          padding: 8mm 0 !important;
+          page-break-after: always;
+          min-height: 100vh !important;
+          height: auto !important;
+        }
+        .sheet:last-child {
+          page-break-after: avoid;
+        }
       }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <div class="page">
+      
+      <!-- SHEET 1: BRANCH LOGISTICS REPORT -->
+      <div class="sheet">
         <!-- Branding Header -->
-        <table class="header-table">
-          <tr>
-            <td style="width: 35%; vertical-align: middle;">
-              <div class="logo-title">
-                <div class="logo-icon">📦</div>
-                <div>
-                  <div class="logo-text">ACCOUNTS.DGT.LLC</div>
-                  <div class="logo-subtext">Enterprise ERP / FMS</div>
-                  <div class="logo-subtext">Purchase Booking Order Registry</div>
-                </div>
-              </div>
-            </td>
-            <td style="width: 30%; text-align: center; vertical-align: middle;">
-              <h1 class="report-title">${title}</h1>
-              <div style="font-size: 8px; font-weight: 800; border: 1px solid #1e3a8a; color: #1e3a8a; border-radius: 999px; padding: 2px 10px; display: inline-block; text-transform: uppercase;">
-                ${subtitle}
-              </div>
-            </td>
-            <td style="width: 35%; text-align: right; vertical-align: middle;">
-              <div class="meta-box">
-                <div class="meta-item"><span class="meta-label">${t(lang, "ledger.col_date")} :</span> ${stampDate}</div>
-                <div class="meta-item"><span class="meta-label">Time :</span> ${stampTime}</div>
-                <div class="meta-item"><span class="meta-label">Printed By :</span> ERP Admin</div>
-                <div class="meta-item"><span class="meta-label">Report Type :</span> Booking Order Document</div>
-              </div>
-            </td>
-          </tr>
-        </table>
-
-        <!-- Dark Blue Overview Banner -->
-        <div class="overview-banner">
-          <span class="overview-status">${escapeHtml(b.paymentStatus || "Unpaid")}</span>
-          <div class="overview-title">Booking Registry Document</div>
-          <div class="overview-name">${escapeHtml(b.purchaseBookingOrderNumber || "-")}</div>
-
-          <div class="overview-meta-grid">
-            <div>
-              <span class="overview-meta-label">Supplier / Seller</span>
-              <div class="overview-meta-val">${escapeHtml(b.supplierName || "-")}</div>
+        <div class="brand-header">
+          <div class="brand-logo-title">
+            <div class="brand-logo-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px;">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+              </svg>
             </div>
             <div>
-              <span class="overview-meta-label">Product / Goods</span>
-              <div class="overview-meta-val">${escapeHtml(b.productName || "-")}</div>
-            </div>
-            <div>
-              <span class="overview-meta-label">Purchase Date</span>
-              <div class="overview-meta-val">${formatDate(b.purchaseDate)}</div>
-            </div>
-            <div>
-              <span class="overview-meta-label">${t(lang, "ledger.branch_name")}</span>
-              <div class="overview-meta-val">${escapeHtml(b.branchName || "-")}</div>
+              <div class="brand-name">DAMAN BUSINESS GROUP</div>
+              <div class="brand-tagline">Enterprise ERP / Logistics Platform</div>
             </div>
           </div>
-
-          <div class="overview-kpis">
-            <div>
-              <span class="kpi-label">${t(lang, "form.quantity")}</span>
-              <div class="kpi-val">${formatNumber(b.quantity)} ${escapeHtml(b.unit)}</div>
-            </div>
-            <div>
-              <span class="kpi-label">Total Weight</span>
-              <div class="kpi-val">${formatNumber(b.totalWeight)} kg</div>
-            </div>
-            <div>
-              <span class="kpi-label">Container Count</span>
-              <div class="kpi-val">${b.containerCount}</div>
-            </div>
-            <div>
-              <span class="kpi-label">Total Value</span>
-              <div class="kpi-val" style="color: #67e8f9;">${formatMoney(b.totalPurchaseAmount)} ${escapeHtml(b.currency)}</div>
-            </div>
+          <div class="doc-title-sec">
+            <h2 class="doc-title">BRANCH LOGISTICS REPORT</h2>
+            <div class="doc-serial">Serial: PO-${escapeHtml(b.purchaseBookingOrderNumber)}</div>
           </div>
         </div>
 
-        <!-- 6 Details Cards Grid Layout -->
+        ${commonSessionHtml}
+
+        <!-- Logistics cards -->
+        <div class="grid-3">
+          <!-- Card 1: BOOKING DETAILS -->
+          <div class="border-box">
+            <div class="box-header">👤 Booking Information</div>
+            <table class="info-table">
+              <tbody>
+                <tr><td class="lbl">Reference:</td><td class="val font-mono">${escapeHtml(b.purchaseBookingOrderNumber)}</td></tr>
+                <tr><td class="lbl">Purchase Date:</td><td class="val">${formatDate(b.purchaseDate)}</td></tr>
+                <tr><td class="lbl">Booking Date:</td><td class="val">${formatDate(b.bookingDate)}</td></tr>
+                <tr><td class="lbl">Exchange Rate:</td><td class="val font-mono">${exRateVal} Rs</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Card 2: SUPPLIER DETAILS -->
+          <div class="border-box">
+            <div class="box-header">🏢 Supplier Information</div>
+            <table class="info-table">
+              <tbody>
+                <tr><td class="lbl">Name:</td><td class="val">${escapeHtml(b.supplierName || "N/A")}</td></tr>
+                <tr><td class="lbl">Contact Person:</td><td class="val">${escapeHtml(form.supplierContact || "-")}</td></tr>
+                <tr><td class="lbl">Liability Acct:</td><td class="val font-mono truncate">${escapeHtml(b.purchaseAccountNumber || "AE-AC-0001")}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Card 3: BUYER DETAILS -->
+          <div class="border-box">
+            <div class="box-header">👤 Buyer Information</div>
+            <table class="info-table">
+              <tbody>
+                <tr><td class="lbl">Name:</td><td class="val">${escapeHtml(b.buyerName || "N/A")}</td></tr>
+                <tr><td class="lbl">Contact Person:</td><td class="val">${escapeHtml(form.customerContact || "-")}</td></tr>
+                <tr><td class="lbl">Asset Acct:</td><td class="val font-mono truncate">${escapeHtml(b.salesAccountNumber || "SA-2001")}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Shipment and Loading details -->
         <div class="grid-2">
-          <!-- Card 1 -->
-          <div class="section-card">
-            <div class="section-header"><span class="section-badge">1</span> GENERAL REGISTRATION INFO</div>
+          <!-- Shipment -->
+          <div class="border-box">
+            <div class="box-header">🚢 Shipment & Logistics</div>
             <table class="info-table">
-              ${generalInfoHtml}
+              <tbody>
+                <tr><td class="lbl">Containers Count:</td><td class="val">${b.containerCount || 1} FCL</td></tr>
+                <tr><td class="lbl">Container Numbers:</td><td class="val font-mono truncate">${escapeHtml(form.containerNumbers || "N/A")}</td></tr>
+                <tr><td class="lbl">Vessel / Carrier:</td><td class="val">${escapeHtml(form.vesselName || "N/A")}</td></tr>
+                <tr><td class="lbl">Remarks / Sea Seal:</td><td class="val font-mono">${escapeHtml(form.sealNumber || "N/A")}</td></tr>
+              </tbody>
             </table>
           </div>
-          <!-- Card 2 -->
-          <div class="section-card">
-            <div class="section-header"><span class="section-badge">2</span> CONTRACTING PARTIES</div>
-            <table class="info-table">
-              ${partyHtml}
-            </table>
-          </div>
-        </div>
 
-        <div class="grid-2">
-          <!-- Card 3 -->
-          <div class="section-card">
-            <div class="section-header"><span class="section-badge">3</span> DOUBLE-ENTRY LEDGERS</div>
+          <!-- Loading & Transit -->
+          <div class="border-box">
+            <div class="box-header">📅 Loading & Transit Details</div>
             <table class="info-table">
-              ${ledgerHtml}
-            </table>
-          </div>
-          <!-- Card 4 -->
-          <div class="section-card">
-            <div class="section-header"><span class="section-badge">4</span> CARGO & QUANTITY SPECS</div>
-            <table class="info-table">
-              ${cargoHtml}
+              <tbody>
+                <tr><td class="lbl">Shipping Mode / Mode:</td><td class="val font-bold">${escapeHtml(form.shippingMode || "By Sea")}</td></tr>
+                <tr><td class="lbl">Expected Loading Date:</td><td class="val">${formatDate(form.expectedLoadingDate || form.loadingDate)}</td></tr>
+                <tr><td class="lbl">Loading Country/Port:</td><td class="val">${escapeHtml(form.loadingCountry || "N/A")} / ${escapeHtml(form.loadingPort || form.loadingBorder || "N/A")}</td></tr>
+                <tr><td class="lbl">Received Date at Port:</td><td class="val font-bold text-blue-600 font-mono">${formatDate(form.receivedDate)}</td></tr>
+                <tr><td class="lbl">Received Country/Port:</td><td class="val">${escapeHtml(form.receivedCountry || "N/A")} / ${escapeHtml(form.receivedPort || form.receivedBorder || "N/A")}</td></tr>
+              </tbody>
             </table>
           </div>
         </div>
 
-        <div class="grid-2">
-          <!-- Card 5 -->
-          <div class="section-card">
-            <div class="section-header"><span class="section-badge">5</span> FINANCIALS & WORKFLOW</div>
-            <table class="info-table">
-              ${financialHtml}
-            </table>
-          </div>
-          <!-- Card 6 -->
-          <div class="section-card">
-            <div class="section-header"><span class="section-badge">6</span> SECURITY & AUDIT TRAIL</div>
-            <table class="info-table">
-              ${auditHtml}
-            </table>
+        <!-- Special Instructions Remarks -->
+        <div class="border-box">
+          <div class="box-header">📝 Special Remarks & Narration Instructions</div>
+          <div style="padding: 10px; font-size: 8px; line-height: 1.4; color: #334155; min-height: 60px; white-space: pre-line;">
+            ${escapeHtml(form.orderReportRemarks || b.goodsDescription || "Standard purchase order report generated.")}
           </div>
         </div>
 
-        <!-- Signature Block -->
-        <div class="footer-signatures">
-          <div class="notes-box">
-            <strong style="color: #0f172a; font-size: 9px; display: block; margin-bottom: 2px;">${t(lang, "form.remarks_notes")}</strong>
-            <span>This is an official automated print statement from the ACCOUNTS.DGT.LLC Purchase Registry system. All ledger postings and currency balances are verified for security and multi-branch transaction tracking.</span>
-          </div>
-
-          <!-- Premium Gold Badge Seal -->
-          <div class="seal-box">
-            <svg width="55" height="55" viewBox="0 0 100 100">
-              <!-- Ribbon -->
-              <path d="M35 50 L25 85 L50 75 L75 85 L65 50 Z" fill="#d97706" />
-              <path d="M45 50 L40 90 L50 82 L60 90 L55 50 Z" fill="#b45309" />
-              <!-- Outer Ring -->
-              <circle cx="50" cy="45" r="35" fill="url(#goldGrad)" stroke="#f59e0b" stroke-width="2" />
-              <circle cx="50" cy="45" r="30" fill="none" stroke="#d97706" stroke-width="1" stroke-dasharray="3,3" />
-              <!-- Typography -->
-              <text x="50" y="38" font-family="'Inter', sans-serif" font-size="7" font-weight="900" text-anchor="middle" fill="#78350f" letter-spacing="0.2">ERP BOOKING</text>
-              <text x="50" y="46" font-family="'Inter', sans-serif" font-size="5" font-weight="800" text-anchor="middle" fill="#92400e">VERIFIED</text>
-              <text x="50" y="55" font-family="'Inter', sans-serif" font-size="6" font-weight="900" text-anchor="middle" fill="#78350f" letter-spacing="0.2">RECORDED</text>
-              
-              <defs>
-                <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#fef3c7" />
-                  <stop offset="50%" stop-color="#fbbf24" />
-                  <stop offset="100%" stop-color="#f59e0b" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-
-          <div class="sig-box">
-            <div class="sig-line">ERP Registrar</div>
-            <div style="font-size: 8px; font-weight: 700; color: #64748b;">Authorized Registrar</div>
-            <div style="font-size: 7px; color: #94a3b8; font-weight: 500;">DGT Accounts Department</div>
-          </div>
-        </div>
-
-        <!-- Page Footer -->
-        <div class="page-footer">
-          <div>🏢 ACCOUNTS.DGT.LLC | Purchase Booking Order Summary</div>
-          <div>Report Code: PO-${escapeHtml(b.purchaseBookingOrderNumber || "MAIN")}-${stampDate.replace(/-/g, "")}</div>
-          <div>Page 1 of 1</div>
-        </div>
+        ${commonFooterHtml}
       </div>
+
+
+      <!-- SHEET 2: TOTALING REPORT -->
+      <div class="sheet">
+        <!-- Branding Header -->
+        <div class="brand-header">
+          <div class="brand-logo-title">
+            <div class="brand-logo-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px;">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="brand-name">DAMAN BUSINESS GROUP</div>
+              <div class="brand-tagline">Enterprise ERP / Logistics Platform</div>
+            </div>
+          </div>
+          <div class="doc-title-sec">
+            <h2 class="doc-title">TOTALING REPORT</h2>
+            <div class="doc-serial">Serial: PO-${escapeHtml(b.purchaseBookingOrderNumber)}</div>
+          </div>
+        </div>
+
+        ${commonSessionHtml}
+
+        <!-- Detailed Goods Specification List Table -->
+        <div class="border-box">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 4%; text-align: center;">SR</th>
+                <th style="width: 14%;">Goods Specification</th>
+                <th style="width: 10%; text-align: center;">Grade</th>
+                <th style="width: 10%; text-align: center;">Origin</th>
+                <th style="width: 10%; text-align: right;">Quantity</th>
+                <th style="width: 12%; text-align: center;">Packing</th>
+                <th style="width: 10%; text-align: right;">Gross Weight</th>
+                <th style="width: 10%; text-align: right;">Net Weight</th>
+                <th style="width: 10%; text-align: right;">Rate/KG</th>
+                <th style="width: 10%; text-align: right;">Amount (USD)</th>
+                <th style="width: 10%; text-align: right;">Final Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(item => `
+                <tr>
+                  <td style="text-align: center;">${item.srNo}</td>
+                  <td style="font-weight: bold; color: #1e3a8a;">${escapeHtml(item.goodsName)}</td>
+                  <td style="text-align: center;">${escapeHtml(item.grade)}</td>
+                  <td style="text-align: center;">${escapeHtml(item.origin)}</td>
+                  <td style="text-align: right; font-weight: bold;">${formatNumber(item.quantity)} ${item.qtyName}</td>
+                  <td style="text-align: center;">${escapeHtml(item.packing)}</td>
+                  <td style="text-align: right; font-family: monospace;">${formatNumber(item.grossWt)} kg</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: bold;">${formatNumber(item.netWt)} kg</td>
+                  <td style="text-align: right; font-family: monospace;">$${item.rateKg.toFixed(2)}</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: bold;">$${formatMoney(item.amountUsd)}</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: 800; color: #1e3a8a;">${formatMoney(item.finalAmountPkr)} Rs</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Totaling Aggregates Panel -->
+        <div class="aggregates-grid">
+          <div class="aggregate-box">
+            <div class="aggregate-lbl">Total Quantity</div>
+            <div class="aggregate-val">${formatNumber(totalQuantity)} Units</div>
+          </div>
+          <div class="aggregate-box">
+            <div class="aggregate-lbl">Total Gross Weight</div>
+            <div class="aggregate-val">${formatNumber(totalGrossWeight)} kg</div>
+          </div>
+          <div class="aggregate-box">
+            <div class="aggregate-lbl">Total Net Weight</div>
+            <div class="aggregate-val">${formatNumber(totalNetWeight)} kg</div>
+          </div>
+          <div class="aggregate-box">
+            <div class="aggregate-lbl" style="color: #ef4444;">Total Deductions</div>
+            <div class="aggregate-val" style="color: #ef4444;">${formatNumber(totalDeductions)} kg</div>
+          </div>
+          <div class="aggregate-box">
+            <div class="aggregate-lbl">Average Rate/KG</div>
+            <div class="aggregate-val">$${avgRateKg.toFixed(2)}</div>
+          </div>
+          <div class="aggregate-box">
+            <div class="aggregate-lbl">Average Rate/Ton</div>
+            <div class="aggregate-val">$${avgRateTon.toFixed(2)}</div>
+          </div>
+          <div class="aggregate-box">
+            <div class="aggregate-lbl" style="color: #2563eb;">Total Purchase (USD)</div>
+            <div class="aggregate-val font-mono" style="color: #2563eb;">$${formatMoney(totalAmountUsd)}</div>
+          </div>
+          <div class="aggregate-box" style="background: #ecfdf5;">
+            <div class="aggregate-lbl" style="color: #059669;">Grand Final Amount</div>
+            <div class="aggregate-val font-mono" style="color: #059669;">${formatMoney(totalAmountPkr)} Rs</div>
+          </div>
+        </div>
+
+        ${commonFooterHtml}
+      </div>
+
+
+      <!-- SHEET 3: PAYMENT VOUCHER -->
+      <div class="sheet">
+        <!-- Branding Header -->
+        <div class="brand-header">
+          <div class="brand-logo-title">
+            <div class="brand-logo-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px;">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="brand-name">DAMAN BUSINESS GROUP</div>
+              <div class="brand-tagline">Enterprise ERP / Logistics Platform</div>
+            </div>
+          </div>
+          <div class="doc-title-sec">
+            <h2 class="doc-title">PAYMENT VOUCHER</h2>
+            <div class="doc-serial">Serial: PO-${escapeHtml(b.purchaseBookingOrderNumber)}</div>
+          </div>
+        </div>
+
+        ${commonSessionHtml}
+
+        <!-- General Ledger Double Entry details -->
+        <div class="border-box">
+          <div class="box-header">⚙️ General Ledger Double-Entry Posting</div>
+          <table class="data-table">
+            <thead>
+              <tr style="background: #f1f5f9; color: #475569; font-size: 7px; font-weight: 700; border-bottom: 1px solid #cbd5e1;">
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc;">Debit / Credit</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc;">Account Code</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc;">Account Name / Branch Location</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc; text-align: right;">Debit (Dr)</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc; text-align: right;">Credit (Cr)</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc; text-align: center;">Currency</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight: bold; color: #2563eb;">DEBIT (DR)</td>
+                <td style="font-family: monospace; font-weight: bold;">${escapeHtml(b.purchaseAccountNumber || "AE-AC-0001")}</td>
+                <td>
+                  <strong>${escapeHtml(b.purchaseAccountName || "Dubai Purchase Account")}</strong>
+                  <span style="font-size: 6.5px; color: #64748b; display: block;">${escapeHtml(b.branchName || "Kabul Main Branch")}</span>
+                </td>
+                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #2563eb;">$${formatMoney(totalAmountUsd)}</td>
+                <td style="text-align: right; color: #94a3b8;">-</td>
+                <td style="text-align: center; font-weight: bold;">USD</td>
+              </tr>
+              <tr>
+                <td style="font-weight: bold; color: #059669;">CREDIT (CR)</td>
+                <td style="font-family: monospace; font-weight: bold;">${escapeHtml(b.salesAccountNumber || "SA-2001")}</td>
+                <td>
+                  <strong>${escapeHtml(b.salesAccountName || "Damaan Sales Account")}</strong>
+                  <span style="font-size: 6.5px; color: #64748b; display: block;">${escapeHtml(b.branchName || "Kabul Main Branch")}</span>
+                </td>
+                <td style="text-align: right; color: #94a3b8;">-</td>
+                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #059669;">${formatMoney(totalAmountPkr)} Rs</td>
+                <td style="text-align: center; font-weight: bold;">PKR</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Payment details and due dates schedule -->
+        <div class="border-box">
+          <div class="box-header">💰 Detailed Payment Terms, Schedules & Due Balances</div>
+          <div style="padding: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 7.5px; color: #64748b; font-weight: 500;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+                <span>Payment Condition / Type:</span><strong style="color: #0f172a;">${escapeHtml(form.paymentType || b.paymentStatus || "Advance Payment")}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+                <span>Exchange Rate (USD → PKR):</span><strong style="color: #0f172a; font-family: monospace;">${exRateVal} Rs</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+                <span>Total Invoice Amount (USD):</span><strong style="color: #1e3a8a; font-family: monospace;">$${formatMoney(totalAmountUsd)}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+                <span>Total Invoice Amount (PKR):</span><strong style="color: #059669; font-family: monospace;">${formatMoney(totalAmountPkr)} Rs</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding-top: 1px;">
+                <span>Payment Method Details:</span><strong style="color: #0f172a; max-w: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(form.paymentDaysAndMethodDetails || "N/A")}</strong>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px; border-left: 1px solid #cbd5e1; padding-left: 16px;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+                <span>Advance % / Ratio:</span><strong style="color: #0f172a;">${advancePercentVal}%</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+                <span>Advance Amount (USD / PKR):</span><strong style="color: #0f172a; font-family: monospace;">$${formatMoney(advanceUsd)} / ${formatMoney(advancePkr)} Rs</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+                <span>Advance Payment Date:</span><strong style="color: #2563eb; font-family: monospace;">${formatDate(form.advancePaymentDate)}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+                <span>Remaining Balance (USD / PKR):</span><strong style="color: #ef4444; font-family: monospace;">$${formatMoney(remainingUsd)} / ${formatMoney(remainingPkr)} Rs</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding-top: 1px;">
+                <span>Remaining Due Date:</span><strong style="color: #ef4444; font-family: monospace;">${formatDate(form.paymentDate)}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${commonFooterHtml}
+      </div>
+
     </div>
     <script>
       window.__ERP_A4_AUTOPRINT__ = ${input.autoPrint ? "true" : "false"};

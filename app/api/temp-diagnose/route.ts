@@ -337,9 +337,24 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    if (action === "diagnose-report") {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select("id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, payment_status, ledger_posting_status, form_data, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name)")
+        .is("deleted_at", null)
+        .limit(10);
+
+      return NextResponse.json({
+        success: !error,
+        data,
+        error: error ? error.message : null,
+        errorDetails: error
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Please specify action=test, inspect-serials, sync-serials, or list-ledgers"
+      message: "Please specify action=test, inspect-serials, sync-serials, list-ledgers, or diagnose-report"
     });
   } catch (error: any) {
     return NextResponse.json({
