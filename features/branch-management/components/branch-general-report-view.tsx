@@ -526,131 +526,168 @@ export function BranchGeneralReportView({
   return (
     <div className={containerClassName}>
       
-      {/* Top Header Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">{title}</h1>
-          <p className="text-xs text-slate-500">{subtitle || "Detail summary branch configuration monitoring"}</p>
+      {/* Unified Header, Metrics & Control Bar */}
+      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+        
+        {/* Left Side: Title and Subtitle */}
+        <div className="min-w-[180px]">
+          <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+            Super Admin
+          </div>
+          <h1 className="text-sm font-black tracking-tight text-slate-900 leading-none mt-0.5">
+            {title}
+          </h1>
+          <div className="text-[9px] font-bold text-slate-500 mt-1">
+            {subtitle || "Super Admin — Countries — Main Branches — City Branches"}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs font-semibold gap-1 bg-white"
-            onClick={() => setExpandedView((current) => !current)}
+
+        {/* Middle Left: Filter Controls */}
+        <div className="flex items-center gap-2 flex-grow max-w-sm">
+          <select
+            id="searchType"
+            className="h-8 rounded-lg border border-slate-300 bg-white px-2.5 text-[10px] font-extrabold text-slate-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            value={searchType}
+            onChange={(e) => setSearchType(e.target.value)}
           >
-            {expandedView ? <Minimize2 className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
-            {expandedView ? "Shrink View" : "Expand View"}
-          </Button>
+            <option value="">Select Category</option>
+            <option value="branch">Branch</option>
+            <option value="country">Country</option>
+            <option value="city">City</option>
+          </select>
+
+          <div className="relative flex items-center bg-white border border-slate-300 rounded-lg px-2.5 h-8 shadow-sm flex-grow">
+            <Search className="h-3.5 w-3.5 text-slate-400 mr-1.5" />
+            <input
+              type="text"
+              id="branchSearch"
+              placeholder="Search branch, city, country..."
+              className="w-full bg-transparent border-none outline-none text-[10px] font-semibold placeholder:text-slate-400"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          
+          {/* Interactive Metric Filter Buttons */}
+          <button
+            type="button"
+            className={cn(
+              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500",
+              searchType === "country"
+                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-100"
+                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-350"
+            )}
+            onClick={() => setSearchType(searchType === "country" ? "" : "country")}
+          >
+            <span>Countries</span>
+            <span className={cn(
+              "px-1.5 py-0.5 rounded font-mono text-[9px] font-extrabold leading-none",
+              searchType === "country" ? "bg-indigo-500/40 text-white" : "bg-slate-100 text-slate-600"
+            )}>
+              {visibleSummary.totalCountries}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={cn(
+              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500",
+              searchType === "branch"
+                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-100"
+                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-355"
+            )}
+            onClick={() => setSearchType(searchType === "branch" ? "" : "branch")}
+          >
+            <span>Branches</span>
+            <span className={cn(
+              "px-1.5 py-0.5 rounded font-mono text-[9px] font-extrabold leading-none",
+              searchType === "branch" ? "bg-indigo-500/40 text-white" : "bg-slate-100 text-slate-600"
+            )}>
+              {visibleSummary.totalMainBranches + visibleSummary.totalCityBranches}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={cn(
+              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500",
+              searchType === "city"
+                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-100"
+                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-355"
+            )}
+            onClick={() => setSearchType(searchType === "city" ? "" : "city")}
+          >
+            <span>Users</span>
+            <span className={cn(
+              "px-1.5 py-0.5 rounded font-mono text-[9px] font-extrabold leading-none",
+              searchType === "city" ? "bg-indigo-500/40 text-white" : "bg-slate-100 text-slate-600"
+            )}>
+              {data?.summary.totalActiveUsers ?? "95+"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={cn(
+              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500",
+              (!searchType && !searchQuery)
+                ? "bg-emerald-600 border-emerald-600 text-white shadow-sm shadow-emerald-100"
+                : "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100/80 hover:border-amber-300"
+            )}
+            onClick={() => {
+              setSearchType("");
+              setSearchQuery("");
+            }}
+            title={(!searchType && !searchQuery) ? "All filters cleared" : "Reset category & search query"}
+          >
+            <span>Reports</span>
+            <span className={cn(
+              "px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase leading-none font-mono",
+              (!searchType && !searchQuery) ? "bg-emerald-500/40 text-white" : "bg-amber-200 text-amber-900"
+            )}>
+              {(!searchType && !searchQuery) ? "Active" : "Reset"}
+            </span>
+          </button>
+
+          <div className="border-l border-slate-200 h-6 mx-1"></div>
+
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 text-xs font-semibold gap-1 bg-white"
+            className="h-8 text-[10px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500"
             onClick={() => window.print()}
           >
             <Printer className="h-3.5 w-3.5" />
             Print
           </Button>
-        </div>
-      </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-[10px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500"
+            onClick={() => setExpandedView((current) => !current)}
+          >
+            {expandedView ? <Minimize2 className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
+            {expandedView ? "Shrink" : "Expand"}
+          </Button>
 
-      {/* Top Control Panel */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          
-          {/* Left Controls */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div>
-              <div className="text-xs font-bold text-slate-900 leading-tight">Admin<br />Branch</div>
-              <div className="text-[10px] text-slate-400">Branch detail<br />monitoring</div>
+          <div className="border-l border-slate-200 h-6 mx-1"></div>
+
+          {/* Very compact user info info bubble/pill */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 h-8">
+            <div className="text-right">
+              <div className="text-[8px] font-bold text-slate-400 uppercase leading-none">User</div>
+              <div className="text-[9px] font-extrabold text-slate-700 leading-none mt-0.5">{data?.summary.superAdminName || "Super Admin"}</div>
             </div>
-
-            <select
-              id="searchType"
-              className="h-9 w-32 rounded-lg border border-slate-300 bg-white px-3 text-[11px] font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              value={searchType}
-              onChange={(e) => setSearchType(e.target.value)}
-            >
-              <option value="">Select Category</option>
-              <option value="branch">Branch</option>
-              <option value="country">Country</option>
-              <option value="city">City</option>
-            </select>
-
-            <div className="relative flex items-center bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-sm min-w-[240px]">
-              <Search className="h-3.5 w-3.5 text-slate-400 mr-2" />
-              <input
-                type="text"
-                id="branchSearch"
-                placeholder="Search branch, city, country..."
-                className="w-full bg-transparent border-none outline-none text-[11px] placeholder:text-slate-400"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs font-semibold bg-white"
-              onClick={() => window.print()}
-            >
-              🖨 Print
-            </Button>
-          </div>
-
-          {/* Right Status Card */}
-          <div className="flex items-center gap-4 bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5">
-            <div>
-              <div className="text-[9px] uppercase tracking-wider text-slate-400">Report Date</div>
-              <div className="text-[11px] font-bold text-slate-800">
-                {data ? new Date(data.generatedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "-"}
-              </div>
-            </div>
-
-            <div className="border-l border-slate-200 h-8"></div>
-
-            <div>
-              <div className="text-[9px] uppercase tracking-wider text-slate-400">User</div>
-              <div className="text-[11px] font-bold text-slate-800">{data?.summary.superAdminName || "Mr. Admin"}</div>
-            </div>
-
-            <div className="border-l border-slate-200 h-8"></div>
-
-            <div>
-              <div className="text-[9px] uppercase tracking-wider text-slate-400">Open Branch</div>
-              <div className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Super Admin
-              </div>
-            </div>
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Open Branch: Super Admin"></div>
           </div>
         </div>
-      </div>
 
-      {/* Summary Metrics */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 max-w-lg">
-        <div className="bg-white border border-slate-200 rounded-xl p-3 text-center shadow-sm">
-          <div className="text-[10px] font-medium text-slate-400">Countries</div>
-          <div className="text-lg font-extrabold text-slate-900 mt-1">{visibleSummary.totalCountries}</div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3 text-center shadow-sm">
-          <div className="text-[10px] font-medium text-slate-400">Branches</div>
-          <div className="text-lg font-extrabold text-slate-900 mt-1">{visibleSummary.totalMainBranches + visibleSummary.totalCityBranches}</div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3 text-center shadow-sm">
-          <div className="text-[10px] font-medium text-slate-400">Users</div>
-          <div className="text-lg font-extrabold text-slate-900 mt-1">{data?.summary.totalActiveUsers ?? "95+"}</div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3 text-center shadow-sm">
-          <div className="text-[10px] font-medium text-slate-400">Reports</div>
-          <span className="inline-block mt-2 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-100">
-            Active
-          </span>
-        </div>
       </div>
 
       {error ? (

@@ -63,7 +63,9 @@ export function SearchSelect({
   onValueChange,
   onOpenChange,
   createLabel = "+ New",
-  onCreateNew
+  onCreateNew,
+  triggerClassName,
+  className
 }: {
   label: string;
   value: string;
@@ -75,6 +77,8 @@ export function SearchSelect({
   createLabel?: string;
   onCreateNew?: () => void | Promise<void>;
   createButtonPlacement?: "modal" | "trigger" | "both" | "below";
+  triggerClassName?: string;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -121,7 +125,7 @@ export function SearchSelect({
   }, [open, containerRef]);
 
   return (
-    <div className="relative space-y-1.5" ref={(el) => { containerRef.current = el; }}>
+    <div className={cn("relative", label && "space-y-1.5", className)} ref={(el) => { containerRef.current = el; }}>
       {label && <Label className="text-[11px] font-semibold text-muted-foreground">{label}</Label>}
       <div className="flex gap-2">
         <button
@@ -130,7 +134,8 @@ export function SearchSelect({
           onClick={() => setOpenSafe(!open)}
           className={cn(
             "w-full h-10 flex items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-xs text-left shadow-sm hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 text-slate-900 bg-white",
-            selectedLabel ? "" : "text-muted-foreground"
+            selectedLabel ? "" : "text-muted-foreground",
+            triggerClassName
           )}
         >
           <span className="truncate">{selectedLabel || placeholder}</span>

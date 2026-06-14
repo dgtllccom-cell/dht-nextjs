@@ -19,7 +19,8 @@ import {
   Clock,
   Sparkles,
   MapPin,
-  Activity
+  Activity,
+  MoreVertical
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openUserA4ReportWindow, type UserReportData } from "@/lib/reports/open-user-a4-report-window";
@@ -65,6 +66,7 @@ type UserLiveReportPanelProps = {
   onExcel?: () => void;
   onEmail?: () => void;
   onWhatsApp?: () => void;
+  hideHeader?: boolean;
 };
 
 export function UserLiveReportPanel({
@@ -90,9 +92,25 @@ export function UserLiveReportPanel({
   onPdf,
   onExcel,
   onEmail,
-  onWhatsApp
+  onWhatsApp,
+  hideHeader = false
 }: UserLiveReportPanelProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".ujr-details-actions-wrapper")) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) {
+      window.addEventListener("click", handleOutsideClick);
+    }
+    return () => window.removeEventListener("click", handleOutsideClick);
+  }, [dropdownOpen]);
 
   const activeStatus = status || "Active";
   const initials = useMemo(() => {
@@ -264,75 +282,94 @@ export function UserLiveReportPanel({
     <div className="rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden text-slate-800 font-sans text-xs">
       
       {/* ── Toolbar Header ────────────────────────────────────────────── */}
-      <div className="bg-[#f8fafc] border-b border-slate-100 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {onBack && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-slate-900 rounded-full" onClick={onBack}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">User Journal Detailed Report</h2>
-            <p className="text-[10px] text-slate-400">Complete information about user journal and related details</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs text-slate-700 bg-white border-slate-200" onClick={() => handlePrintTrigger(true)}>
-            <Printer className="h-3.5 w-3.5 mr-1" /> Print
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs text-red-700 bg-white border-red-200 hover:bg-red-50" onClick={() => handlePrintTrigger(false)}>
-            <FileText className="h-3.5 w-3.5 mr-1 text-red-500" /> PDF
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs text-emerald-700 bg-white border-emerald-200 hover:bg-emerald-50" onClick={onExcel}>
-            <FileSpreadsheet className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Excel
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs text-slate-700 bg-white border-slate-200" onClick={onEmail}>
-            <Mail className="h-3.5 w-3.5 mr-1 text-slate-500" /> Email
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs text-white bg-emerald-600 hover:bg-emerald-700 border-none shadow-sm" onClick={onWhatsApp}>
-            <MessageCircle className="h-3.5 w-3.5 mr-1 fill-current" /> WhatsApp
-          </Button>
-        </div>
-      </div>
-
-      {/* ── Dark Blue Overview Banner ─────────────────────────────────── */}
-      <div className="bg-[#0f172a] text-white px-6 py-5 flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-extrabold text-sm flex items-center justify-center border-2 border-white/20">
-              {initials}
-            </div>
+      {!hideHeader && (
+        <div className="bg-[#f8fafc] border-b border-slate-100 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-slate-900 rounded-full" onClick={onBack}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
             <div>
-              <h1 className="text-base font-black tracking-tight leading-none">{fullName || "Quetta City Test User"}</h1>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1.5 flex items-center gap-2">
-                Role: <span className="text-blue-400">{role ? role.replace(/_/g, " ") : "city_branch_admin"}</span>
-              </p>
+              <h2 className="text-sm font-bold text-slate-900">User Journal Detailed Report</h2>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500 mt-1 font-medium">
+                <span><strong>Journal ID:</strong> <span className="font-mono text-slate-700">{displayRegNo}</span></span>
+                <span><strong>Login User ID:</strong> <span className="text-[#1455ff] font-extrabold">{displayUserCode}</span></span>
+                <span><strong>System ID:</strong> <span className="font-mono text-slate-700">{displayRegNo}</span></span>
+                <span><strong>Registered:</strong> <span className="text-slate-700">{displayRegDate}</span></span>
+              </div>
             </div>
           </div>
-          <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[9px] font-black tracking-widest px-3 py-1 rounded-md uppercase">
-            {activeStatus}
-          </span>
-        </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-800 pt-4 text-[10px]">
-          <div>
-            <span className="text-slate-400 font-bold uppercase tracking-wider block">Journal ID</span>
-            <span className="font-semibold block text-slate-200 mt-1 truncate max-w-full" title={displayRegNo}>{displayRegNo}</span>
-          </div>
-          <div>
-            <span className="text-slate-400 font-bold uppercase tracking-wider block">Login User ID</span>
-            <span className="font-extrabold block text-blue-400 mt-1">{displayUserCode}</span>
-          </div>
-          <div>
-            <span className="text-slate-400 font-bold uppercase tracking-wider block">System Generated ID</span>
-            <span className="font-semibold block text-slate-200 mt-1 truncate max-w-full" title={displayRegNo}>{displayRegNo}</span>
-          </div>
-          <div>
-            <span className="text-slate-400 font-bold uppercase tracking-wider block">Registered Date</span>
-            <span className="font-semibold block text-slate-200 mt-1">{displayRegDate}</span>
+          <div className="ujr-details-actions-wrapper relative">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 text-slate-500 hover:text-slate-900 border-slate-200 bg-white"
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              title="More Actions"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+            {dropdownOpen && (
+              <div className="absolute right-0 mt-1.5 w-48 bg-white border border-slate-200 rounded-lg shadow-lg z-[110] py-1 text-left">
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-semibold flex items-center gap-2 text-slate-700"
+                  onClick={() => { setDropdownOpen(false); handlePrintTrigger(true); }}
+                >
+                  <Printer className="h-4 w-4 text-slate-500" /> Print Report
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-semibold flex items-center gap-2 text-slate-700"
+                  onClick={() => { setDropdownOpen(false); handlePrintTrigger(false); }}
+                >
+                  <FileText className="h-4 w-4 text-red-500" /> Export PDF
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-semibold flex items-center gap-2 text-slate-700"
+                  onClick={() => { setDropdownOpen(false); if (onExcel) onExcel(); }}
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Export Excel
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-semibold flex items-center gap-2 text-slate-700"
+                  onClick={() => { setDropdownOpen(false); if (onEmail) onEmail(); }}
+                >
+                  <Mail className="h-4 w-4 text-slate-500" /> Email Report
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-semibold flex items-center gap-2 text-slate-700"
+                  onClick={() => { setDropdownOpen(false); if (onWhatsApp) onWhatsApp(); }}
+                >
+                  <MessageCircle className="h-4 w-4 text-emerald-500 fill-current" /> WhatsApp Report
+                </button>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* ── White Overview Banner ─────────────────────────────────── */}
+      <div className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-extrabold text-sm flex items-center justify-center border-2 border-slate-100 shadow-sm">
+            {initials}
+          </div>
+          <div>
+            <h1 className="text-base font-black tracking-tight leading-none text-slate-900">{fullName || "Quetta City Test User"}</h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 flex items-center gap-2">
+              Role: <span className="text-blue-600 font-extrabold">{role ? role.replace(/_/g, " ") : "city_branch_admin"}</span>
+            </p>
+          </div>
+        </div>
+        <span className="bg-emerald-50 border border-emerald-250 text-emerald-700 text-[9px] font-black tracking-widest px-3 py-1 rounded-md uppercase">
+          {activeStatus}
+        </span>
       </div>
 
       {/* ── Content Layout ────────────────────────────────────────────── */}
@@ -480,8 +517,8 @@ export function UserLiveReportPanel({
                       <th className="px-3 py-2 border-r border-slate-100">Date & Time</th>
                       <th className="px-3 py-2 border-r border-slate-100">Description</th>
                       <th className="px-3 py-2 border-r border-slate-100">Ref No.</th>
-                      <th className="px-3 py-2 border-r border-slate-100">Debit ({currency})</th>
-                      <th className="px-3 py-2">Credit ({currency})</th>
+                      <th className="px-3 py-2 border-r border-slate-100">Session IP</th>
+                      <th className="px-3 py-2">Session Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -490,40 +527,50 @@ export function UserLiveReportPanel({
                       <td className="px-3 py-1.5 border-r border-slate-100">{displayRegDate.slice(0, 17)}</td>
                       <td className="px-3 py-1.5 border-r border-slate-100 font-medium">Initial User Creation & Role Assignment</td>
                       <td className="px-3 py-1.5 border-r border-slate-100 font-mono text-slate-500">SYS-REG</td>
-                      <td className="px-3 py-1.5 border-r border-slate-100">0.00</td>
-                      <td className="px-3 py-1.5">0.00</td>
+                      <td className="px-3 py-1.5 border-r border-slate-100 font-mono">192.168.1.100</td>
+                      <td className="px-3 py-1.5 text-[9px]">
+                        <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 font-bold uppercase">CREATED</span>
+                      </td>
                     </tr>
                     <tr className="border-b border-slate-50 hover:bg-slate-50/50">
                       <td className="px-3 py-1.5 font-bold border-r border-slate-100">2</td>
                       <td className="px-3 py-1.5 border-r border-slate-100">{displayRegDate.slice(0, 17)}</td>
-                      <td className="px-3 py-1.5 border-r border-slate-100 font-medium">Assigned permissions for {role}</td>
+                      <td className="px-3 py-1.5 border-r border-slate-100 font-medium">Assigned permissions / role defaults</td>
                       <td className="px-3 py-1.5 border-r border-slate-100 font-mono text-slate-500">SYS-PERM</td>
-                      <td className="px-3 py-1.5 border-r border-slate-100">0.00</td>
-                      <td className="px-3 py-1.5">0.00</td>
+                      <td className="px-3 py-1.5 border-r border-slate-100 font-mono">192.168.1.100</td>
+                      <td className="px-3 py-1.5 text-[9px]">
+                        <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 font-bold uppercase">ASSIGNED</span>
+                      </td>
                     </tr>
                     <tr className="border-b border-slate-50 hover:bg-slate-50/50">
                       <td className="px-3 py-1.5 font-bold border-r border-slate-100">3</td>
                       <td className="px-3 py-1.5 border-r border-slate-100">{displayLastLogin.slice(0, 17)}</td>
                       <td className="px-3 py-1.5 border-r border-slate-100 font-medium">User Login Session Authenticated</td>
                       <td className="px-3 py-1.5 border-r border-slate-100 font-mono text-slate-500">AUTH-LOG</td>
-                      <td className="px-3 py-1.5 border-r border-slate-100">0.00</td>
-                      <td className="px-3 py-1.5">0.00</td>
+                      <td className="px-3 py-1.5 border-r border-slate-100 font-mono">192.168.1.100</td>
+                      <td className="px-3 py-1.5 text-[9px]">
+                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-250 font-bold uppercase">ONLINE</span>
+                      </td>
                     </tr>
                     <tr className="border-b border-slate-50 hover:bg-slate-50/50">
                       <td className="px-3 py-1.5 font-bold border-r border-slate-100">4</td>
                       <td className="px-3 py-1.5 border-r border-slate-100">{displayLastLogin.slice(0, 17)}</td>
                       <td className="px-3 py-1.5 border-r border-slate-100 font-medium">System activity refresh</td>
                       <td className="px-3 py-1.5 border-r border-slate-100 font-mono text-slate-500">ACT-REF</td>
-                      <td className="px-3 py-1.5 border-r border-slate-100">0.00</td>
-                      <td className="px-3 py-1.5">0.00</td>
+                      <td className="px-3 py-1.5 border-r border-slate-100 font-mono">192.168.1.100</td>
+                      <td className="px-3 py-1.5 text-[9px]">
+                        <span className="text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 font-bold uppercase">ACTIVE</span>
+                      </td>
                     </tr>
                     <tr className="hover:bg-slate-50/50">
                       <td className="px-3 py-1.5 font-bold border-r border-slate-100">5</td>
                       <td className="px-3 py-1.5 border-r border-slate-100">{displayLastLogin.slice(0, 17)}</td>
                       <td className="px-3 py-1.5 border-r border-slate-100 font-medium">Auditable action logged</td>
                       <td className="px-3 py-1.5 border-r border-slate-100 font-mono text-slate-500">AUD-LOG</td>
-                      <td className="px-3 py-1.5 border-r border-slate-100">0.00</td>
-                      <td className="px-3 py-1.5">0.00</td>
+                      <td className="px-3 py-1.5 border-r border-slate-100 font-mono">192.168.1.100</td>
+                      <td className="px-3 py-1.5 text-[9px]">
+                        <span className="text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 font-bold uppercase">ACTIVE</span>
+                      </td>
                     </tr>
                   </tbody>
                 </table>

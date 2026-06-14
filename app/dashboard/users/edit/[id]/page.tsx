@@ -1,4 +1,5 @@
-import { UserEditPage } from "@/features/users/components/user-edit-page";
+import { Suspense } from "react";
+import { UserRegistrationWizard } from "@/features/users/components/user-registration-wizard";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -6,7 +7,11 @@ interface Props {
 
 export default async function UserEditRoute({ params }: Props) {
   const { id } = await params;
-  return <UserEditPage userId={id} />;
+  return (
+    <Suspense fallback={<div className="p-8 text-slate-400">Loading Wizard...</div>}>
+      <UserRegistrationWizard userIdProp={id} />
+    </Suspense>
+  );
 }
 
 export function generateMetadata() {
@@ -15,3 +20,4 @@ export function generateMetadata() {
     description: "Edit user profile, branch, permissions and security settings",
   };
 }
+

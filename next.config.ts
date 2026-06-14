@@ -27,3 +27,5 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+// Trigger dev server restart to clear in-memory Webpack caching: 2026-06-14T01:36:20

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronDown, Download, MoreVertical, Printer, RefreshCcw, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, Calendar, Download, Loader2, MoreVertical, Printer, RefreshCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -110,6 +111,15 @@ function fmtKind(value: string | null | undefined) {
   return v ? titleCase(v) : "-";
 }
 
+function formatDateString(isoString?: string | null) {
+  if (!isoString) return "-";
+  try {
+    return isoString.split("T")[0] || "-";
+  } catch {
+    return "-";
+  }
+}
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -145,7 +155,7 @@ function normalizeForSearch(value: string) {
 
 function buildLedgerOption(row: LedgerLookupRow): SearchSelectOption {
   const branch = row.cityBranchName || row.countryBranchName || row.countryName || "";
-  const label = `${row.ledgerCode} · ${row.accountName || row.ledgerName}${branch ? ` · ${branch}` : ""}`;
+  const label = `${row.accountCode || row.ledgerCode} · ${row.accountName || row.ledgerName}${branch ? ` · ${branch}` : ""}`;
   const keywords = [
     row.ledgerCode,
     row.ledgerName,
@@ -209,11 +219,15 @@ export function LedgerReportView({
   initialFromDate?: string | null;
   initialToDate?: string | null;
 }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [loadingStatement, setLoadingStatement] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [accountSearch, setAccountSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [selectedUser, setSelectedUser] = useState("");
+  const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [datePreset, setDatePreset] = useState<"today" | "yesterday" | "this_week" | "this_month" | "custom">(
     initialFromDate || initialToDate ? "custom" : "this_month"
@@ -232,16 +246,64 @@ export function LedgerReportView({
   const [page, setPage] = useState(1);
   const pageSize = 40;
 
-  const ledgerOptions = useMemo(() => rows.map((row) => buildLedgerOption(row)), [rows]);
+  const countryOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const row of rows) {
+      if (row.countryId && row.countryName) {
+        seen.set(row.countryId, row.countryName);
+      }
+    }
+    const list = Array.from(seen.entries()).map(([value, label]) => ({ value, label }));
+    return [{ value: "", label: "All Countries" }, ...list];
+  }, [rows]);
+
   const branchOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const row of rows) {
-      const label = buildBranchLabel(row);
-      const key = normalizeForSearch(label);
-      if (key && !seen.has(key)) seen.set(key, label);
+      const branchId = row.cityBranchId || row.countryBranchId;
+      const branchName = row.cityBranchName || row.countryBranchName;
+      if (branchId && branchName) {
+        seen.set(branchId, branchName);
+      }
     }
-    return Array.from(seen.values()).map((label) => ({ value: label, label }));
+    const list = Array.from(seen.entries()).map(([value, label]) => ({ value, label }));
+    return [{ value: "", label: "All Branches" }, ...list];
   }, [rows]);
+
+  const userOptions = useMemo(() => {
+    const seen = new Set<string>();
+    if (statement?.lines) {
+      for (const line of statement.lines) {
+        if (line.createdByName) seen.add(line.createdByName);
+      }
+    }
+    const list = Array.from(seen).map((u) => ({ value: u, label: u }));
+    return [{ value: "", label: "All Users" }, ...list];
+  }, [statement?.lines]);
+
+  const filteredLedgers = useMemo(() => {
+    let list = rows;
+    if (selectedCountry) {
+      list = list.filter((row) => row.countryId === selectedCountry);
+    }
+    if (branchFilter) {
+      list = list.filter((row) => row.cityBranchId === branchFilter || row.countryBranchId === branchFilter);
+    }
+    return list;
+  }, [rows, selectedCountry, branchFilter]);
+
+  const ledgerOptions = useMemo(() => filteredLedgers.map((row) => buildLedgerOption(row)), [filteredLedgers]);
+
+  const displayedLines = useMemo(() => {
+    if (!statement?.lines) return [];
+    let list = statement.lines;
+    if (selectedUser) {
+      list = list.filter((line) => line.createdByName === selectedUser);
+    }
+    return list;
+  }, [statement?.lines, selectedUser]);
+
+
 
   async function loadReport(nextLedgerId = ledgerId, nextAccountSearch = accountSearch) {
     setLoading(true);
@@ -336,8 +398,16 @@ export function LedgerReportView({
 
   const displayRows = useMemo(() => {
     const q = normalizeForSearch(accountSearch.trim());
-    const branchQ = normalizeForSearch(branchFilter.trim());
     let list = rows;
+    if (selectedCountry) {
+      list = list.filter((row) => row.countryId === selectedCountry);
+    }
+    if (branchFilter) {
+      list = list.filter((row) => row.cityBranchId === branchFilter || row.countryBranchId === branchFilter);
+    }
+    if (statusFilter !== "all") {
+      list = list.filter((row) => row.status === statusFilter);
+    }
     if (q) {
       list = list.filter((row) =>
         normalizeForSearch(
@@ -358,14 +428,8 @@ export function LedgerReportView({
         ).includes(q)
       );
     }
-    if (branchQ) {
-      list = list.filter((row) => normalizeForSearch(buildBranchLabel(row)).includes(branchQ));
-    }
-    if (statusFilter !== "all") {
-      list = list.filter((row) => row.status === statusFilter);
-    }
     return list;
-  }, [accountSearch, branchFilter, rows, statusFilter]);
+  }, [accountSearch, branchFilter, rows, statusFilter, selectedCountry]);
 
   const pageCount = Math.max(1, Math.ceil(displayRows.length / pageSize));
   const tableRows = displayRows.slice((page - 1) * pageSize, page * pageSize);
@@ -401,32 +465,30 @@ export function LedgerReportView({
   function exportReportCsv() {
     const rowsCsv = [
       [
-        "Account Name",
-        "Account No",
-        "Category",
-        "Type",
-        "Currency",
+        "S.No",
+        "Country",
         "Branch",
-        "Company",
+        "Account No",
+        "Account Name",
         "Entries",
-        "Debit",
         "Credit",
-        "Balance",
-        "Status"
+        "Debit",
+        "Created Date",
+        "Last Entry Date",
+        "Balance"
       ],
-      ...displayRows.map((row) => [
-        row.accountName || row.ledgerName || "-",
-        row.accountCode || row.ledgerCode || "-",
-        row.accountKind || "-",
-        row.scope,
-        row.ledgerCurrency || "-",
+      ...displayRows.map((row, index) => [
+        String(index + 1),
+        row.countryName || "-",
         buildBranchLabel(row),
-        row.companyName || "-",
+        row.accountCode || row.ledgerCode || "-",
+        row.accountName || row.ledgerName || "-",
         String(row.entries ?? 0),
-        fmtNumber(row.debit ?? 0),
         fmtNumber(row.credit ?? 0),
-        fmtNumber(row.balance ?? 0),
-        row.status
+        fmtNumber(row.debit ?? 0),
+        formatDateString(row.createdAt),
+        formatDateString(row.lastEntryDate),
+        fmtNumber(row.balance ?? 0)
       ])
     ];
     exportCsv(`ledger-general-report_${new Date().toISOString().slice(0, 10)}.csv`, rowsCsv);
@@ -436,6 +498,8 @@ export function LedgerReportView({
     setAccountSearch("");
     setBranchFilter("");
     setStatusFilter("all");
+    setSelectedCountry("");
+    setSelectedUser("");
     setDatePreset("this_month");
     setFromDate(monthStartIso());
     setToDate(todayIso());
@@ -465,139 +529,220 @@ export function LedgerReportView({
   }, [menuOpen]);
 
   return (
-    <div className="mx-auto max-w-[1650px] space-y-4 px-4 py-4 md:px-6">
+    <div className="w-full space-y-4 px-4 py-4 md:px-6">
       <ReportHeader
         title={pageTitle}
         generatedAt={generatedAt}
         actions={
-          <>
-            <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setFiltersOpen((v) => !v)}>
-              <Search className="h-4 w-4" aria-hidden />
-              {filtersOpen ? "Hide Filters" : "Search / Filters"}
-            </Button>
+          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setFiltersOpen((v) => !v)}>
+            <Search className="h-4 w-4" aria-hidden />
+            {filtersOpen ? "Hide Filters" : "Search / Filters"}
+          </Button>
+        }
+      />
 
-            <div id="ledger-actions-menu" className="relative">
-              <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setMenuOpen((v) => !v)}>
-                <MoreVertical className="h-4 w-4" aria-hidden />
-                {t(lang, "ledger.actions")}
+      {filtersOpen ? (
+        <div className="rounded-lg border bg-card p-3 shadow-sm print:hidden">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Account Search select */}
+            <div className="w-full md:w-[320px]">
+              <SearchSelect
+                label=""
+                value={ledgerId}
+                placeholder={t(lang, "ledger.select_account_ph")}
+                options={ledgerOptions}
+                onValueChange={(value) => {
+                  setLedgerId(value);
+                  void loadSelectedStatement(value);
+                }}
+                onOpenChange={(open) => {
+                  if (open) setMenuOpen(false);
+                }}
+              />
+            </div>
+
+            {/* 2. Country filter */}
+            <div className="w-full md:w-[150px]">
+              <SearchSelect
+                label=""
+                value={selectedCountry}
+                placeholder="All Countries"
+                options={countryOptions}
+                onValueChange={(value) => {
+                  setSelectedCountry(value);
+                  setLedgerId("");
+                }}
+              />
+            </div>
+
+            {/* 3. Branch filter */}
+            <div className="w-full md:w-[160px]">
+              <SearchSelect
+                label=""
+                value={branchFilter}
+                placeholder={t(lang, "ledger.all_branches")}
+                options={branchOptions}
+                onValueChange={(value) => {
+                  setBranchFilter(value);
+                  setLedgerId("");
+                }}
+              />
+            </div>
+
+            {/* 4. User filter */}
+            <div className="w-full md:w-[150px]">
+              <SearchSelect
+                label=""
+                value={selectedUser}
+                placeholder="All Users"
+                options={userOptions}
+                onValueChange={(value) => {
+                  setSelectedUser(value);
+                }}
+                disabled={!statement?.lines?.length}
+              />
+            </div>
+
+            {/* 5. Status filter */}
+            <div className="w-full md:w-[130px]">
+              <SearchSelect
+                label=""
+                value={statusFilter}
+                placeholder="All Statuses"
+                options={[
+                  { value: "all", label: "All Statuses" },
+                  { value: "active", label: "Active" },
+                  { value: "inactive", label: "Inactive" }
+                ]}
+                onValueChange={(value) => {
+                  setStatusFilter(value as "all" | "active" | "inactive");
+                }}
+              />
+            </div>
+
+            {/* 6. Date Range dropdown popover */}
+            <div className="relative w-full md:w-auto">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDateDropdownOpen(!dateDropdownOpen)}
+                className="h-10 w-full md:w-auto text-xs gap-2"
+              >
+                <Calendar className="h-4 w-4" />
+                {fromDate} → {toDate}
               </Button>
-              {menuOpen ? (
-                <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border bg-background shadow-xl">
-                  <MenuAction icon={<Printer className="h-4 w-4" />} label={t(lang, "ledger.print")} onClick={() => openPrint(true)} />
-                  <MenuAction icon={<Download className="h-4 w-4" />} label="PDF Export" onClick={() => openPrint(false)} />
-                  <MenuAction icon={<Download className="h-4 w-4" />} label={t(lang, "ledger.export_csv")} onClick={exportReportCsv} />
-                  <MenuAction icon={<Search className="h-4 w-4" />} label="View Ledger" onClick={() => selectedLedger?.ledgerId && loadSelectedStatement(selectedLedger.ledgerId)} />
-                  <MenuAction icon={<ChevronDown className="h-4 w-4" />} label="Open Journal" onClick={() => selectedLedger?.ledgerId && loadSelectedStatement(selectedLedger.ledgerId)} />
-                  <MenuAction icon={<RefreshCcw className="h-4 w-4" />} label="Account Activity" onClick={() => selectedLedger?.ledgerId && loadSelectedStatement(selectedLedger.ledgerId)} />
+              {dateDropdownOpen ? (
+                <div className="absolute right-0 md:left-0 mt-2 z-30 w-64 p-3 bg-popover text-popover-foreground rounded-lg border shadow-lg space-y-3 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+                  <div className="space-y-1">
+                    <span className="text-[11px] text-muted-foreground font-semibold">From Date</span>
+                    <Input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => {
+                        setDatePreset("custom");
+                        setFromDate(e.target.value);
+                      }}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[11px] text-muted-foreground font-semibold">To Date</span>
+                    <Input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => {
+                        setDatePreset("custom");
+                        setToDate(e.target.value);
+                      }}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full font-bold"
+                    onClick={() => {
+                      setDateDropdownOpen(false);
+                      void loadReport(ledgerId, accountSearch);
+                    }}
+                  >
+                    Apply Date Range
+                  </Button>
                 </div>
               ) : null}
             </div>
-          </>
-        }
-        />
 
-      {filtersOpen ? (
-        <Card className="border-slate-200/80 shadow-sm">
-          <CardHeader className="border-b pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <CardTitle className="text-base">Search / Filters</CardTitle>
-                <p className="mt-1 text-xs text-muted-foreground">Collapsed by default for a cleaner report view.</p>
-              </div>
-              <Button type="button" variant="ghost" size="sm" className="gap-2" onClick={() => setFiltersOpen(false)}>
-                <ChevronDown className="h-4 w-4 rotate-180" aria-hidden />
-                Hide
+            {/* 7. Search Input field for queries */}
+            <div className="w-full md:w-[180px]">
+              <Input
+                className="h-10 text-xs"
+                value={accountSearch}
+                onChange={(e) => setAccountSearch(e.target.value)}
+                placeholder="Filter text..."
+              />
+            </div>
+
+            {/* 8. Search/Apply and Reset buttons */}
+            <Button type="button" onClick={() => void loadReport(ledgerId, accountSearch)} disabled={loading} className="h-10 gap-2">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Apply
+            </Button>
+            <Button type="button" variant="outline" onClick={resetFilters} disabled={loading} className="h-10">
+              Reset
+            </Button>
+
+            {/* 9. Actions button pushed to far right corner */}
+            <div id="ledger-actions-menu" className="relative ml-auto">
+              <Button type="button" variant="outline" className="h-10 gap-2" onClick={() => setMenuOpen((v) => !v)}>
+                <MoreVertical className="h-4 w-4" />
+                Actions
               </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4">
-            <div className="grid gap-3 xl:grid-cols-[1.3fr_1fr_180px_auto] xl:items-end">
-              <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">{t(lang, "ledger.filter_account_no")}</Label>
-                <SearchSelect
-                  label={t(lang, "ledger.select_account")}
-                  value={ledgerId}
-                  placeholder={t(lang, "ledger.select_account_ph")}
-                  options={ledgerOptions}
-                  onValueChange={(value) => {
-                    setLedgerId(value);
-                    void loadSelectedStatement(value);
-                  }}
-                  createButtonPlacement="modal"
-                  onOpenChange={(open) => {
-                    if (open) setMenuOpen(false);
-                  }}
-                />
-                <Input
-                  className="h-9 text-sm"
-                  value={accountSearch}
-                  onChange={(e) => setAccountSearch(e.target.value)}
-                  placeholder={t(lang, "ledger.filter_account_no_ph")}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">{t(lang, "ledger.branch_filter")}</Label>
-                <SearchSelect
-                  label={t(lang, "ledger.branch_filter")}
-                  value={branchFilter}
-                  options={[{ value: "", label: t(lang, "ledger.all_branches") }, ...branchOptions]}
-                  onValueChange={setBranchFilter}
-                  placeholder={t(lang, "ledger.all_branches")}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Status</Label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-                >
-                  <option value="all">All</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">{t(lang, "ledger.from_date")}</Label>
-                  <Input
-                    className="h-9 text-xs"
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => {
-                      setDatePreset("custom");
-                      setFromDate(e.target.value);
+              {menuOpen ? (
+                <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border bg-background shadow-xl bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+                  <MenuAction icon={<Printer className="h-4 w-4" />} label={t(lang, "ledger.print")} onClick={() => openPrint(true)} />
+                  <MenuAction icon={<Download className="h-4 w-4" />} label="PDF Export" onClick={() => openPrint(false)} />
+                  <MenuAction icon={<Download className="h-4 w-4" />} label={t(lang, "ledger.export_csv")} onClick={exportReportCsv} />
+                  <MenuAction
+                    icon={<Search className="h-4 w-4" />}
+                    label="View Ledger"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (selectedLedger && (selectedLedger.accountCode || selectedLedger.ledgerCode)) {
+                        router.push(`/dashboard/ledger/new?account=${encodeURIComponent(selectedLedger.accountCode || selectedLedger.ledgerCode)}`);
+                      } else if (selectedLedger?.ledgerId) {
+                        void loadSelectedStatement(selectedLedger.ledgerId);
+                      }
+                    }}
+                  />
+                  <MenuAction
+                    icon={<ChevronDown className="h-4 w-4" />}
+                    label="Open Journal"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (selectedLedger && (selectedLedger.accountCode || selectedLedger.ledgerCode)) {
+                        router.push(`/dashboard/ledger/new?account=${encodeURIComponent(selectedLedger.accountCode || selectedLedger.ledgerCode)}`);
+                      } else if (selectedLedger?.ledgerId) {
+                        void loadSelectedStatement(selectedLedger.ledgerId);
+                      }
+                    }}
+                  />
+                  <MenuAction
+                    icon={<RefreshCcw className="h-4 w-4" />}
+                    label="Account Activity"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (selectedLedger && (selectedLedger.accountCode || selectedLedger.ledgerCode)) {
+                        router.push(`/dashboard/ledger/new?account=${encodeURIComponent(selectedLedger.accountCode || selectedLedger.ledgerCode)}`);
+                      } else if (selectedLedger?.ledgerId) {
+                        void loadSelectedStatement(selectedLedger.ledgerId);
+                      }
                     }}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">{t(lang, "ledger.to_date")}</Label>
-                  <Input
-                    className="h-9 text-xs"
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => {
-                      setDatePreset("custom");
-                      setToDate(e.target.value);
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2 xl:justify-end">
-                <Button type="button" size="sm" onClick={() => void loadReport(ledgerId, accountSearch)} disabled={loading}>
-                  {loading ? t(lang, "ledger.loading") : t(lang, "ledger.apply")}
-                </Button>
-                <Button type="button" size="sm" variant="secondary" onClick={resetFilters} disabled={loading}>
-                  {t(lang, "ledger.reset")}
-                </Button>
-              </div>
+              ) : null}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -635,7 +780,19 @@ export function LedgerReportView({
               </div>
 
               <div className="flex flex-wrap gap-2 pt-1">
-                <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => selectedLedger?.ledgerId && loadSelectedStatement(selectedLedger.ledgerId)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => {
+                    if (selectedLedger && (selectedLedger.accountCode || selectedLedger.ledgerCode)) {
+                      router.push(`/dashboard/ledger/new?account=${encodeURIComponent(selectedLedger.accountCode || selectedLedger.ledgerCode)}`);
+                    } else if (selectedLedger?.ledgerId) {
+                      void loadSelectedStatement(selectedLedger.ledgerId);
+                    }
+                  }}
+                >
                   <Search className="h-4 w-4" aria-hidden />
                   View Ledger
                 </Button>
@@ -676,7 +833,7 @@ export function LedgerReportView({
             <table className="w-full min-w-[1300px] border-separate border-spacing-0 text-xs">
               <thead className="sticky top-0 z-10 bg-slate-900 text-white dark:bg-slate-800">
                 <tr className="whitespace-nowrap">
-                  {["Account Name", "Account No", "Category", "Type", "Currency", "Branch", "Company", "Entries", "Debit", "Credit", "Balance", "Status"].map((head) => (
+                  {["S.No", "Country", "Branch", "Account No", "Account Name", "Entries", "Credit", "Debit", "Created Date", "Last Entry Date", "Balance", "Actions"].map((head) => (
                     <th key={head} className="border-b border-slate-700 px-3 py-2 text-left font-semibold">
                       {head}
                     </th>
@@ -702,23 +859,38 @@ export function LedgerReportView({
                           active ? "bg-primary/5 dark:bg-primary/10" : ""
                         )}
                         onClick={() => {
-                          void loadSelectedStatement(row.ledgerId);
-                          setDrawerOpen(true);
+                          if (row.accountCode || row.ledgerCode) {
+                            router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
+                          } else {
+                            void loadSelectedStatement(row.ledgerId);
+                            setDrawerOpen(true);
+                          }
                         }}
                       >
-                        <td className="px-3 py-2 font-medium text-slate-950 dark:text-slate-100">{row.accountName || row.ledgerName}</td>
-                        <td className="px-3 py-2 font-mono">{row.accountCode || row.ledgerCode}</td>
-                        <td className="px-3 py-2">{row.accountKind || "-"}</td>
-                        <td className="px-3 py-2">{fmtKind(row.scope)}</td>
-                        <td className="px-3 py-2">{row.ledgerCurrency || "-"}</td>
+                        <td className="px-3 py-2 font-mono">{(page - 1) * pageSize + index + 1}</td>
+                        <td className="px-3 py-2">{row.countryName || "-"}</td>
                         <td className="px-3 py-2">{buildBranchLabel(row)}</td>
-                        <td className="px-3 py-2">{row.companyName || "-"}</td>
+                        <td className="px-3 py-2 font-mono">{row.accountCode || row.ledgerCode}</td>
+                        <td className="px-3 py-2 font-medium text-slate-950 dark:text-slate-100">{row.accountName || row.ledgerName}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{row.entries}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-rose-600">{fmtNumber(row.debit)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-emerald-600">{fmtNumber(row.credit)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-rose-600">{fmtNumber(row.debit)}</td>
+                        <td className="px-3 py-2">{formatDateString(row.createdAt)}</td>
+                        <td className="px-3 py-2">{formatDateString(row.lastEntryDate)}</td>
                         <td className="px-3 py-2 text-right tabular-nums font-semibold">{fmtNumber(row.balance)}</td>
-                        <td className="px-3 py-2">
-                          <span className={badgeClass(row.status)}>{row.status === "active" ? "Active" : "Inactive"}</span>
+                        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            title="View Ledger"
+                            onClick={() => {
+                              router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
+                            }}
+                          >
+                            <Search className="h-3.5 w-3.5" aria-hidden />
+                          </Button>
                         </td>
                       </tr>
                     );
@@ -832,11 +1004,11 @@ export function LedgerReportView({
                     </tr>
                   </thead>
                   <tbody className="divide-y dark:divide-slate-800">
-                    {statement.lines.map((line, idx) => (
+                    {displayedLines.map((line, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40">
                         <td className="px-3 py-2 whitespace-nowrap">{line.entryDate}</td>
                         <td className="px-3 py-2 font-mono whitespace-nowrap">{line.referenceNo || line.sourceId.slice(0, 8)}</td>
-                        <td className="px-3 py-2 max-w-[200px] truncate" title={line.description}>{line.description || "-"}</td>
+                        <td className="px-3 py-2 max-w-[200px] truncate" title={line.description ?? undefined}>{line.description || "-"}</td>
                         <td className="px-3 py-2 text-right font-mono text-rose-600">
                           {line.debit ? fmtNumber(line.debit) : "-"}
                         </td>
@@ -848,7 +1020,7 @@ export function LedgerReportView({
                         </td>
                       </tr>
                     ))}
-                    {statement.lines.length === 0 && (
+                    {displayedLines.length === 0 && (
                       <tr>
                         <td colSpan={6} className="px-3 py-4 text-center text-muted-foreground italic">No entries for this period.</td>
                       </tr>
@@ -861,15 +1033,15 @@ export function LedgerReportView({
             <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border dark:bg-slate-900/30 dark:border-slate-800">
               <div>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Debit Total</span>
-                <div className="text-sm font-extrabold text-rose-600 mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(statement.totals.debit)}</div>
+                <div className="text-sm font-extrabold text-rose-600 mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(displayedLines.reduce((sum, r) => sum + r.debit, 0))}</div>
               </div>
               <div>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Credit Total</span>
-                <div className="text-sm font-extrabold text-emerald-600 mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(statement.totals.credit)}</div>
+                <div className="text-sm font-extrabold text-emerald-600 mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(displayedLines.reduce((sum, r) => sum + r.credit, 0))}</div>
               </div>
               <div>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Closing Balance</span>
-                <div className="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(statement.totals.balance)}</div>
+                <div className="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(displayedLines.length ? displayedLines[displayedLines.length - 1]!.runningBalance : 0)}</div>
               </div>
             </div>
           </div>

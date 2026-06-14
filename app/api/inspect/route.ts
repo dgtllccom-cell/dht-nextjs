@@ -88,6 +88,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ countries, country_branches, city_branches, companies, branches, cities });
     }
 
+
+
     if (action === "list-accounts") {
       const enterprise_accounts = await sql`SELECT id, scope, country_id, code, name, kind, currency FROM public.enterprise_accounts WHERE deleted_at IS NULL`;
       const ledgers = await sql`SELECT id, scope, country_id, country_branch_id, city_branch_id, code, name, currency FROM public.ledgers WHERE deleted_at IS NULL`;

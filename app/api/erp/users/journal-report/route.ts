@@ -92,6 +92,7 @@ function demoJournalRows(session: ErpSession, reason: string) {
       userId: "temp-super-admin",
       userCode: "SUPERADMIN",
       fullName: "Super Admin",
+      email: "superadmin@damaan.com",
       countryId: null,
       countryName: "Global",
       branchId: null,
@@ -104,6 +105,7 @@ function demoJournalRows(session: ErpSession, reason: string) {
       userId: "temp-pakistan-country-admin",
       userCode: "PK-COUNTRY-0531",
       fullName: "Pakistan Country Test Admin",
+      email: "pkadmin@damaan.com",
       countryId: "dec26827-2ba2-4517-97cb-2d85729511a2",
       countryName: "Pakistan",
       branchId: "04723132-7910-413b-a3ea-48b78f73e071",
@@ -116,6 +118,7 @@ function demoJournalRows(session: ErpSession, reason: string) {
       userId: "temp-quetta-city-admin",
       userCode: "PK-QUETTA-0531",
       fullName: "Quetta City Test User",
+      email: "pkquetta@damaan.com",
       countryId: "dec26827-2ba2-4517-97cb-2d85729511a2",
       countryName: "Pakistan",
       branchId: "b3d606be-1d37-44a3-a740-d8685f6fc158",
@@ -131,6 +134,7 @@ function demoJournalRows(session: ErpSession, reason: string) {
     userId: session.userId,
     userCode: session.userId.slice(0, 14).toUpperCase(),
     fullName: session.fullName ?? session.email ?? "Current User",
+    email: session.email ?? "user@damaan.com",
     countryId: session.countryIds[0] ?? null,
     countryName: session.countryIds.length ? "Assigned Country" : "Global",
     branchId: session.cityBranchIds[0] ?? session.countryBranchIds[0] ?? null,
@@ -298,7 +302,7 @@ export async function GET(request: NextRequest) {
       return apiOk(fallbackReport(session, error instanceof Error ? error.message : "Supabase admin client unavailable"));
     }
 
-    const [profilesRes, assignmentsRes, permissionsRes] = await Promise.all([
+    const [profilesRes, assignmentsRes, permissionsRes, authUsersRes] = await Promise.all([
       withTimeout<ProfileRow>(
         admin
         .from("profiles")
@@ -317,16 +321,31 @@ export async function GET(request: NextRequest) {
           .limit(Math.max(query.limit * 3, 500)),
         "user role assignments"
       ),
-      withTimeout<PermissionRow>(admin.from("user_permission_sets").select("user_id, permissions").limit(Math.max(query.limit * 2, 500)), "user permissions")
+      withTimeout<PermissionRow>(admin.from("user_permission_sets").select("user_id, permissions").limit(Math.max(query.limit * 2, 500)), "user permissions"),
+      withTimeout<any>(
+        admin.auth.admin.listUsers({ limit: 1000 }).then((res: any) => ({
+          data: res.data?.users ?? [],
+          error: res.error ? { message: res.error.message } : null
+        })),
+        "auth users list"
+      )
     ]);
 
     if (profilesRes.error || assignmentsRes.error) {
       return apiOk(fallbackReport(session, profilesRes.error?.message ?? assignmentsRes.error?.message ?? "User journal data source unavailable"));
     }
 
-    const profiles = (profilesRes.data ?? []) as ProfileRow[];
+       const profiles = (profilesRes.data ?? []) as ProfileRow[];
     const assignments = (assignmentsRes.data ?? []) as AssignmentRow[];
     const permissionSets = (permissionsRes.error ? [] : permissionsRes.data ?? []) as PermissionRow[];
+    const authUsers = (authUsersRes.error ? [] : authUsersRes.data ?? []) as any[];
+
+    const emailLookup = new Map<string, string>();
+    for (const u of authUsers) {
+      if (u?.id && u?.email) {
+        emailLookup.set(u.id, u.email);
+      }
+    }
 
     if (!profiles.length) {
       return apiOk(fallbackReport(session, "No user profile records found"));
@@ -442,6 +461,7 @@ export async function GET(request: NextRequest) {
         userId: profile.id,
         userCode: profile.user_code ?? profile.id.slice(0, 8).toUpperCase(),
         fullName: profile.full_name ?? "-",
+        email: emailLookup.get(profile.id) ?? "-",
         countryId: country?.id ?? null,
         countryName: country?.name ?? "-",
         branchId: cityBranch?.id ?? mainBranch?.id ?? null,

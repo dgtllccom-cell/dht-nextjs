@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/dev-single.cjs",
-    "dev:detach": "node scripts/dev-detached.cjs",
+    "dev": "node --max-old-space-size=4096 scripts/dev-single.cjs",
+    "dev:detach": "node --max-old-space-size=4096 scripts/dev-detached.cjs",
     "dev:stop": "node scripts/dev-stop.cjs",
     "dev:next": "next dev",
     "build": "next build",
@@ -22,6 +22,7 @@
     "db:studio": "drizzle-kit studio",
     "db:inspect-test": "node C:\\Users\\dgtll\\.gemini\\antigravity-ide\\brain\\c9e44d00-ce6b-4f96-9db4-9800e3765d28\\scratch\\inspect-db.js",
     "db:check-locations": "node check-locations.js",
+    "db:inspect-vouchers": "node .tmp/inspect-entries.mjs",
     "db:list-users": "node C:\\Users\\dgtll\\.gemini\\antigravity-ide\\brain\\c9e44d00-ce6b-4f96-9db4-9800e3765d28\\scratch\\list-users.js"
   },
   "dependencies": {

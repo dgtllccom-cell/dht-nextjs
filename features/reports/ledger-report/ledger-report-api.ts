@@ -34,6 +34,7 @@ export type LedgerLookupRow = {
   stateName: string | null;
   cityName: string | null;
   address: string | null;
+  createdAt?: string | null;
 };
 
 export type LedgerStatementLine = {
@@ -51,6 +52,10 @@ export type LedgerStatementLine = {
   usdAmount: number;
   createdAt: string;
   runningBalance: number;
+  superAdminSerialNo?: string | null;
+  countrySerialNo?: string | null;
+  branchSerialNo?: string | null;
+  branchName?: string | null;
 };
 
 export async function listLedgerReportLedgers(params: {

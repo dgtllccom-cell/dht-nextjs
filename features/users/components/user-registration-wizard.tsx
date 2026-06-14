@@ -100,10 +100,10 @@ function reportRow(label: string, value: string, tone: "muted" | "primary" = "mu
   );
 }
 
-export function UserRegistrationWizard() {
+export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const urlUserId = searchParams.get("userId");
+  const urlUserId = userIdProp || searchParams.get("userId");
 
   const [banner, setBanner] = useState<Banner>(null);
   const [saving, setSaving] = useState(false);
@@ -423,6 +423,16 @@ export function UserRegistrationWizard() {
     setBanner(null);
     setCreatedResult(null);
 
+    if (!fullName || fullName.trim().length < 2) {
+      setBanner({ tone: "err", text: "Full Name must be at least 2 characters." });
+      return;
+    }
+
+    if (!gender) {
+      setBanner({ tone: "err", text: "Gender is required." });
+      return;
+    }
+
     const issuedCode = normalizeUserCode(userCode || "");
     if (!issuedCode) {
       setBanner({ tone: "err", text: "User ID is required." });
@@ -561,9 +571,9 @@ export function UserRegistrationWizard() {
   }, [usersList, sidebarFilter]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── Page Header ──────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-2.5">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">User Registration & Setup</h1>
@@ -571,9 +581,12 @@ export function UserRegistrationWizard() {
               {editUserId ? "Edit Mode" : "New User"}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Create, scope, and assign permissions for ERP users.
-          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500 mt-1.5 font-medium">
+            <span><strong>Journal ID:</strong> <span className="font-mono text-slate-700">{accountRegNo}</span></span>
+            <span><strong>Login User ID:</strong> <span className="text-[#1455ff] font-extrabold">{userCode || "-"}</span></span>
+            <span><strong>System ID:</strong> <span className="font-mono text-slate-700">{accountRegNo}</span></span>
+            <span><strong>Registered:</strong> <span className="text-slate-700">{editUserId ? "Active" : "Draft"}</span></span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/new-entry/users/journal-report")} className="h-9">
@@ -582,54 +595,17 @@ export function UserRegistrationWizard() {
         </div>
       </div>
 
-      {/* ── Steps Indicator Bar ────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-slate-500">
-        {steps.map((s) => {
-          const active = s.number === step;
-          const completed = step > s.number;
-          return (
-            <button
-              key={s.number}
-              type="button"
-              onClick={() => {
-                if (s.number === 1 || (s.number > 1 && fullName.trim().length >= 2 && gender)) {
-                  setStep(s.number);
-                }
-              }}
-              className={`flex items-center gap-2 border rounded-lg p-2.5 text-left transition-all ${
-                active
-                  ? "border-primary bg-primary/5 text-primary font-bold shadow-sm"
-                  : completed
-                  ? "border-emerald-200 bg-emerald-50/50 text-emerald-700 font-bold"
-                  : "border-slate-100 bg-slate-50/50 text-slate-400"
-              }`}
-            >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
-                active
-                  ? "bg-primary text-white"
-                  : completed
-                  ? "bg-emerald-600 text-white"
-                  : "bg-slate-200 text-slate-500"
-              }`}>
-                {completed ? "✓" : s.number}
-              </span>
-              <span className="truncate">{s.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* ── Left Column Form + Right Column Preview ──────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Side: Step View (Wizard Form) */}
-        <div className="lg:col-span-4 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* Left Side: Direct Single-Page Form */}
+        <div className="lg:col-span-5 space-y-4">
           {/* Header Banner */}
           {banner ? (
             <div
               className={
                 banner.tone === "ok"
-                  ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-800"
-                  : "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800"
+                  ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-800 animate-fade-in"
+                  : "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800 animate-fade-in"
               }
             >
               {banner.text}
@@ -713,256 +689,252 @@ export function UserRegistrationWizard() {
             </Card>
           ) : null}
 
-          {/* Step 1: Personal Info */}
-          {step === 1 && (
-            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
-              <div className="flex items-center gap-2.5 border-b pb-3">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">1</span>
-                <h2 className="text-sm font-bold text-slate-900">Step 1: Personal Information</h2>
+          {/* Card 1: Personal Info */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+            <div className="flex items-center gap-2 border-b pb-1.5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-655">1</span>
+              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Personal Information</h2>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border bg-slate-50/50 p-3">
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border bg-white shadow-xs shrink-0">
+                {previewImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewImageUrl} alt="Profile preview" className="h-full w-full object-cover" />
+                ) : (
+                  <Upload className="h-4 w-4 text-slate-400" aria-hidden />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold text-slate-700">Profile Picture</div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setProfileFile(file);
+                    if (!file) {
+                      setPreviewImageUrl("");
+                      return;
+                    }
+                    setPreviewImageUrl(URL.createObjectURL(file));
+                  }}
+                  className="w-full mt-1 rounded border bg-white px-2 py-1 text-[10px] font-medium"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3.5 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold">Gender *</Label>
+                <select
+                  className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                >
+                  <option value="">Select</option>
+                  {genderOptions.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold">Full Name *</Label>
+                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className="h-9 text-xs" />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="text-[10px] font-bold">Account Registration Number (Auto)</Label>
+                <Input value={accountRegNo} readOnly className="bg-slate-50 font-bold font-mono h-9 text-xs" />
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Scope Flow */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+            <div className="flex items-center gap-2 border-b pb-1.5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-655">2</span>
+              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Scope & Assignment</h2>
+            </div>
+
+            <div className="grid gap-3.5 md:grid-cols-1">
+              <SearchSelect
+                label={loadingCountries ? "Country (Loading...)" : "Country *"}
+                value={countryId}
+                placeholder="Select country"
+                options={countryOptions}
+                disabled={loadingCountries || role === "super_admin"}
+                onValueChange={setCountryId}
+              />
+
+              <SearchSelect
+                label="Branch Type *"
+                value={branchType}
+                placeholder="Select branch type"
+                options={branchTypeSelectOptions}
+                disabled={role === "super_admin" || role === "country_admin" || role === "country_user"}
+                onValueChange={(v) => {
+                  setBranchType(v as any);
+                  setCountryBranchId("");
+                  setCityBranchId("");
+                }}
+              />
+
+              {branchType === "main" ? (
+                <SearchSelect
+                  label="Branch Name *"
+                  value={countryBranchId}
+                  placeholder="Select main branch"
+                  options={mainBranchOptions}
+                  disabled={role === "super_admin" || role === "country_admin" || role === "country_user" || !countryId}
+                  onValueChange={setCountryBranchId}
+                />
+              ) : branchType === "city" ? (
+                <SearchSelect
+                  label="Branch Name *"
+                  value={cityBranchId}
+                  placeholder="Select city branch"
+                  options={cityBranchOptions}
+                  disabled={role === "super_admin" || role === "country_admin" || role === "country_user" || !countryId}
+                  onValueChange={setCityBranchId}
+                />
+              ) : (
+                <div className="rounded-lg border bg-slate-50/60 p-2.5 text-[10px] font-semibold text-slate-500 text-center">
+                  Select Country & Branch Type above.
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold">Branch Code (Auto)</Label>
+                  <Input value={branchCode} readOnly className="bg-slate-50 font-bold font-mono h-9 text-xs text-blue-600" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold">City (Auto)</Label>
+                  <Input value={cityName} readOnly className="bg-slate-50 font-bold h-9 text-xs text-slate-800" />
+                </div>
               </div>
 
-              <div className="flex items-center gap-4 rounded-xl border bg-muted/10 p-4">
-                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border bg-background">
-                  {previewImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={previewImageUrl} alt="Profile preview" className="h-full w-full object-cover" />
+              <SearchSelect
+                label="Role *"
+                value={role}
+                placeholder="Select role"
+                options={roleSelectOptions}
+                onValueChange={(v) => setRole(v as EnterpriseRole)}
+              />
+            </div>
+          </div>
+
+          {/* Card 3: Security & Credentials */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+            <div className="flex items-center gap-2 border-b pb-1.5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-660">3</span>
+              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Credentials & Permissions</h2>
+            </div>
+
+            <div className="grid gap-3.5 md:grid-cols-1">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold">User ID *</Label>
+                <div className="flex gap-2">
+                  <Input value={userCode} onChange={(e) => setUserCode(e.target.value)} placeholder="User login ID" className="h-9 text-xs" />
+                  <Button type="button" variant="outline" size="icon" aria-label="Regenerate ID" onClick={generateUserCode} className="flex-shrink-0 h-9 w-9">
+                    <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold">{editUserId ? "Password (leave blank to keep current)" : "Password *"}</Label>
+                <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" className="h-9 text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold">{editUserId ? "Confirm Password" : "Confirm Password *"}</Label>
+                <Input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm Password" type="password" className="h-9 text-xs" />
+              </div>
+            </div>
+
+            <div className="grid gap-3 grid-cols-1 pt-1.5">
+              {/* Perm groups */}
+              <div className="rounded-lg border bg-slate-50/60 p-3">
+                <div className="mb-2 text-[9px] font-black uppercase tracking-wider text-slate-500">Permission Groups</div>
+                <Input className="h-8 text-xs mb-2 bg-white" value={permQuery} onChange={(e) => setPermQuery(e.target.value)} placeholder="Search group..." />
+                <div className="max-h-[140px] overflow-y-auto rounded-lg border bg-white text-xs">
+                  {filteredGroups.map(([group, perms]) => {
+                    const active = group === activePermGroup;
+                    const count = perms.filter((p) => selectedPermissions.includes(p)).length;
+                    return (
+                      <button
+                        key={group}
+                        type="button"
+                        onClick={() => setActivePermGroup(group)}
+                        className={`flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left hover:bg-slate-50 transition-colors border-b last:border-b-0 ${active ? "bg-slate-100/60 font-bold text-slate-900" : "text-slate-600"}`}
+                      >
+                        <span className="truncate">{group}</span>
+                        <span className="text-[10px] font-bold font-mono px-1 bg-slate-200/50 rounded">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Permissions items */}
+              <div className="rounded-lg border bg-slate-50/60 p-3">
+                <div className="mb-2 text-[9px] font-black uppercase tracking-wider text-slate-500">Granted Permissions ({activePermGroup})</div>
+                <div className="max-h-[180px] overflow-y-auto rounded-lg border bg-white p-1.5">
+                  {activeGroupPermissions.length ? (
+                    <div className="space-y-0.5">
+                      {activeGroupPermissions.map((perm) => {
+                        const checked = selectedPermissions.includes(perm);
+                        return (
+                          <label key={perm} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs">
+                            <input
+                              type="checkbox"
+                              className="h-3.5 w-3.5 rounded text-primary"
+                              checked={checked}
+                              onChange={() => togglePermission(perm)}
+                            />
+                            <span className="font-semibold text-slate-700 truncate">{perm}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   ) : (
-                    <Upload className="h-6 w-6 text-muted-foreground" aria-hidden />
+                    <div className="p-3 text-center text-xs text-slate-400">No permissions match filter query.</div>
                   )}
                 </div>
-                <div className="flex-1">
-                  <div className="mb-1 text-sm font-semibold">Profile Picture</div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null;
-                      setProfileFile(file);
-                      if (!file) {
-                        setPreviewImageUrl("");
-                        return;
-                      }
-                      setPreviewImageUrl(URL.createObjectURL(file));
-                    }}
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  />
-                  <div className="mt-1 text-xs text-muted-foreground">Upload profile picture (optional)</div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Gender *</Label>
-                  <select
-                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                  >
-                    <option value="">Select</option>
-                    {genderOptions.map((g) => (
-                      <option key={g} value={g}>{g}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Full Name *</Label>
-                  <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Account Registration Number (Auto)</Label>
-                  <Input value={accountRegNo} readOnly className="bg-muted/40 font-semibold" />
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-4 border-t">
-                <Button type="button" onClick={() => { if (fullName.trim().length >= 2 && gender) { setStep(2); } else { setBanner({ tone: "err", text: "Please fill required (*) fields." }); } }} className="bg-primary text-white">
-                  Next Step
-                </Button>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Step 2: Scope Flow */}
-          {step === 2 && (
-            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
-              <div className="flex items-center gap-2.5 border-b pb-3">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">2</span>
-                <h2 className="text-sm font-bold text-slate-900">Step 2: Country / Branch / Role</h2>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-1">
-                <SearchSelect
-                  label={loadingCountries ? "Country (Loading...)" : "Country *"}
-                  value={countryId}
-                  placeholder="Select country"
-                  options={countryOptions}
-                  disabled={loadingCountries || role === "super_admin"}
-                  onValueChange={setCountryId}
-                />
-
-                <SearchSelect
-                  label="Branch Type *"
-                  value={branchType}
-                  placeholder="Select branch type"
-                  options={branchTypeSelectOptions}
-                  disabled={role === "super_admin" || role === "country_admin" || role === "country_user"}
-                  onValueChange={(v) => {
-                    setBranchType(v as any);
-                    setCountryBranchId("");
-                    setCityBranchId("");
-                  }}
-                />
-
-                {branchType === "main" ? (
-                  <SearchSelect
-                    label="Branch Name *"
-                    value={countryBranchId}
-                    placeholder="Select main branch"
-                    options={mainBranchOptions}
-                    disabled={role === "super_admin" || role === "country_admin" || role === "country_user" || !countryId}
-                    onValueChange={setCountryBranchId}
-                  />
-                ) : branchType === "city" ? (
-                  <SearchSelect
-                    label="Branch Name *"
-                    value={cityBranchId}
-                    placeholder="Select city branch"
-                    options={cityBranchOptions}
-                    disabled={role === "super_admin" || role === "country_admin" || role === "country_user" || !countryId}
-                    onValueChange={setCityBranchId}
-                  />
-                ) : (
-                  <div className="rounded-lg border bg-muted/10 p-3 text-xs text-muted-foreground">
-                    Select Branch Type first.
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label>Branch Code (Auto)</Label>
-                  <Input value={branchCode} readOnly className="bg-muted/40 font-semibold text-xs" />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>City (Auto)</Label>
-                  <Input value={cityName} readOnly className="bg-muted/40 font-semibold text-xs" />
-                </div>
-
-                <SearchSelect
-                  label="Role *"
-                  value={role}
-                  placeholder="Select role"
-                  options={roleSelectOptions}
-                  onValueChange={(v) => setRole(v as EnterpriseRole)}
-                />
-              </div>
-
-              <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button type="button" onClick={() => { if (canGoNext()) { setStep(3); } else { setBanner({ tone: "err", text: "Please complete required (*) fields." }); } }} className="bg-primary text-white">
-                  Next Step
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Permissions & Finish */}
-          {step === 3 && (
-            <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
-              <div className="flex items-center gap-2.5 border-b pb-3">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">3</span>
-                <h2 className="text-sm font-bold text-slate-900">Step 3: Security & Permissions</h2>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-1">
-                <div className="space-y-2">
-                  <Label>User ID *</Label>
-                  <div className="flex gap-2">
-                    <Input value={userCode} onChange={(e) => setUserCode(e.target.value)} placeholder="User login ID" />
-                    <Button type="button" variant="outline" size="icon" aria-label="Regenerate" onClick={generateUserCode} className="flex-shrink-0">
-                      <RefreshCcw className="h-4 w-4" aria-hidden />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>{editUserId ? "Password (leave blank to keep current)" : "Password *"}</Label>
-                  <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" />
-                </div>
-                <div className="space-y-2">
-                  <Label>{editUserId ? "Confirm Password" : "Confirm Password *"}</Label>
-                  <Input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm Password" type="password" />
-                </div>
-              </div>
-
-              <div className="grid gap-3 grid-cols-1">
-                {/* Perm groups */}
-                <div className="rounded-xl border bg-muted/10 p-3">
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Groups</div>
-                  <Input className="h-8 text-xs mb-2" value={permQuery} onChange={(e) => setPermQuery(e.target.value)} placeholder="Filter..." />
-                  <div className="max-h-[160px] overflow-y-auto rounded-lg border bg-background text-xs">
-                    {filteredGroups.map(([group, perms]) => {
-                      const active = group === activePermGroup;
-                      const count = perms.filter((p) => selectedPermissions.includes(p)).length;
-                      return (
-                        <button
-                          key={group}
-                          type="button"
-                          onClick={() => setActivePermGroup(group)}
-                          className={`flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left hover:bg-muted ${active ? "bg-muted font-bold" : ""}`}
-                        >
-                          <span className="truncate">{group}</span>
-                          <span className="text-[10px] text-muted-foreground">{count}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Permissions items */}
-                <div className="rounded-xl border bg-muted/10 p-3">
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Granted Permissions</div>
-                  <div className="max-h-[200px] overflow-y-auto rounded-lg border bg-background p-2">
-                    {activeGroupPermissions.length ? (
-                      <div className="space-y-1">
-                        {activeGroupPermissions.map((perm) => {
-                          const checked = selectedPermissions.includes(perm);
-                          return (
-                            <label key={perm} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs">
-                              <input
-                                type="checkbox"
-                                className="h-3.5 w-3.5 rounded text-primary"
-                                checked={checked}
-                                onChange={() => togglePermission(perm)}
-                              />
-                              <span className="font-semibold text-slate-700 truncate">{perm}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="p-3 text-xs text-slate-400">No permissions in this group.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-                <Button type="button" onClick={finish} disabled={saving} className="bg-primary text-white">
-                  {saving ? "Saving..." : editUserId ? "Save Changes" : "Register User"}
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* Unified Save & Action Controls */}
+          <div className="flex items-center justify-end gap-3 pt-1">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => router.push("/dashboard/new-entry/users/journal-report")}
+              className="h-10 text-xs font-bold border-slate-300"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={finish}
+              disabled={saving}
+              className="bg-primary hover:bg-primary/95 text-white h-10 px-6 text-xs font-bold shadow-md shadow-blue-100"
+            >
+              {saving ? "Saving..." : editUserId ? "Save Changes" : "Register User"}
+            </Button>
+          </div>
         </div>
 
         {/* Right Side: High-fidelity Live Report Preview */}
-        <div className="lg:col-span-8 h-fit lg:sticky lg:top-24 space-y-4">
+        <div className="lg:col-span-7 h-fit lg:sticky lg:top-16 space-y-3">
           <UserLiveReportPanel
             fullName={fullName}
             gender={gender}
             accountRegNo={accountRegNo}
             role={role}
             userCode={userCode || "PK-QUETTA-0531"}
+            hideHeader={true}
             rawPassword={password || "admin123"}
             status={editUserId ? "Active" : "Draft"}
             selectedCountryName={selectedCountry?.name}

@@ -9,9 +9,43 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { execSync } = require("node:child_process");
 
 const cwd = process.cwd();
 const pidPath = path.join(cwd, ".next-dev.pid");
+
+// Self-healing: Find and kill any zombie processes occupying port 3000 on Windows
+try {
+  const port = 3000;
+  const netstatOut = execSync("netstat -ano").toString();
+  const lines = netstatOut.split("\n");
+  const pidsToKill = new Set();
+
+  for (const line of lines) {
+    if (line.includes(`:${port}`) || line.includes(" 3000 ")) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 5) {
+        const pidStr = parts[parts.length - 1];
+        const p = Number(pidStr);
+        if (p && !Number.isNaN(p) && p !== process.pid) {
+          pidsToKill.add(p);
+        }
+      }
+    }
+  }
+
+  for (const p of pidsToKill) {
+    console.log(`[dev-stop] Found process ${p} using port ${port}. Terminating...`);
+    try {
+      execSync(`taskkill /F /PID ${p}`);
+      console.log(`[dev-stop] Terminated process ${p}.`);
+    } catch (err) {
+      // ignore
+    }
+  }
+} catch (e) {
+  // ignore
+}
 
 function isPidRunning(pid) {
   if (!pid || Number.isNaN(pid)) return false;
@@ -32,7 +66,7 @@ function safeUnlink(filePath) {
 }
 
 if (!fs.existsSync(pidPath)) {
-  console.log("[dev-stop] no pid file found (.next-dev.pid). Nothing to stop.");
+  console.log("[dev-stop] No pid file found (.next-dev.pid) or port 3000 cleared. Ready to start.");
   process.exit(0);
 }
 

@@ -43,6 +43,18 @@ import { t } from "@/lib/i18n/ui";
 import { cn } from "@/lib/utils";
 import { BankPicker } from "@/features/banks/components/bank-picker";
 import { getBankById } from "@/features/banks/bank-api";
+import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
+
+function getCountryFlag(name?: string) {
+  if (!name) return "🏳️";
+  const lower = name.toLowerCase();
+  if (lower.includes("pakistan")) return "🇵🇰";
+  if (lower.includes("afghanistan")) return "🇦🇫";
+  if (lower.includes("iran")) return "🇮🇷";
+  if (lower.includes("emirates") || lower.includes("uae") || lower.includes("dubai")) return "🇦🇪";
+  if (lower.includes("india")) return "🇮🇳";
+  return "🏳️";
+}
 
 const SAVED_BANKS_KEY = "erp_saved_banks_v1";
 const SAVED_METHODS_KEY = "erp_saved_payment_methods_v1";
@@ -240,7 +252,7 @@ export function CashEntryForm({
     debitRate?: number;
   } | null>(null);
 
-  const [pakistanRate, setPakistanRate] = useState<{
+  const [countryRate, setCountryRate] = useState<{
     buyRate?: number;
     sellRate?: number;
     creditRate?: number;
@@ -437,6 +449,16 @@ export function CashEntryForm({
     return Number(finalPayment || 0);
   }, [finalPayment, showCalcPanel, calcFinal]);
 
+  const txAmount = useMemo(() => {
+    if (showCalcPanel) {
+      if (calcAmount) return Number(calcAmount);
+      const rate = Number(exchangeRate);
+      if (rate > 0) return amount / rate;
+      return 0;
+    }
+    return amount;
+  }, [showCalcPanel, calcAmount, exchangeRate, amount]);
+
   useEffect(() => {
     if (!selectedCounterLedger) return;
     const code = selectedCounterLedger.accountCode || selectedCounterLedger.manualReferenceNumber || selectedCounterLedger.ledgerCode || "";
@@ -487,14 +509,7 @@ export function CashEntryForm({
       base = `From: ${fromAcc || "-"} | To: ${toAcc || "-"} | Reference: ${ref || "-"}`;
     }
 
-    const calcText = showCalcPanel && calcAmount && exchangeRate && calcFinal !== null
-      ? `Calculation: ${Number(calcAmount).toLocaleString()} ${currency.toUpperCase()} ${calcOp === "mul" ? "×" : "÷"} ${Number(exchangeRate).toLocaleString()} = ${calcFinal.toFixed(2)} ${targetAccountCurrency}`
-      : "";
-
-    if (base && calcText) {
-      return `${base} | ${calcText}`;
-    }
-    return base || calcText;
+    return base;
   }, [
     paymentType,
     paymentMode,
@@ -503,14 +518,108 @@ export function CashEntryForm({
     amount,
     currency,
     typeDetails,
-    attachmentFile,
-    showCalcPanel,
-    calcAmount,
-    exchangeRate,
-    calcFinal,
-    calcOp,
-    targetAccountCurrency
+    attachmentFile
   ]);
+
+  // Sync calculation details directly to remarks textarea dynamically
+  useEffect(() => {
+    if (showCalcPanel && calcAmount && exchangeRate && calcFinal !== null) {
+      setRemarks((prev) => {
+        const opSymbol = calcOp === "mul" ? "×" : "÷";
+        const newCalcLine = `Calculation: ${Number(calcAmount).toLocaleString()} ${currency.toUpperCase()} ${opSymbol} ${Number(exchangeRate).toLocaleString()} = ${calcFinal.toFixed(2)} ${targetAccountCurrency}`;
+        
+        // Remove any existing lines starting with "Calculation:"
+        const lines = prev.split("\n").map((l) => l.trim()).filter((l) => !l.startsWith("Calculation:"));
+        lines.push(newCalcLine);
+        return lines.filter(Boolean).join("\n");
+      });
+    } else {
+      // If the calculation is no longer active/valid, remove any stale calculation lines
+      setRemarks((prev) => {
+        const lines = prev.split("\n").map((l) => l.trim()).filter((l) => !l.startsWith("Calculation:"));
+        return lines.filter(Boolean).join("\n");
+      });
+    }
+  }, [showCalcPanel, calcAmount, exchangeRate, calcOp, currency, calcFinal, targetAccountCurrency]);
+
+  const detailsString = useMemo(() => {
+    if (!paymentType) return "";
+    if (paymentType === "bank") {
+      const bankName = typeDetails.bankName || "";
+      const method = typeDetails.method || "";
+      const refNo = typeDetails.refNo || "";
+      const payDate = typeDetails.payDate || entryDate;
+      const formattedDate = payDate ? payDate.split("-").reverse().join("/") : "";
+      const attachment = attachmentFile?.name || typeDetails.bankAttachmentName || "";
+      
+      const parts = [
+        bankName && `Bank: ${bankName}`,
+        method && `Method: ${method}`,
+        refNo && `Ref: ${refNo}`,
+        formattedDate && `Date: ${formattedDate}`,
+        attachment && `Attachment: ${attachment}`
+      ].filter(Boolean);
+      
+      return parts.length ? `Bank Details: ${parts.join(" | ")}` : "";
+    }
+    if (paymentType === "cash") {
+      const receiver = typeDetails.receiverSenderName || "";
+      const mobile = typeDetails.mobileNumber || "";
+      const whatsapp = typeDetails.whatsappNumber || "";
+      
+      const parts = [
+        receiver && `Receiver/Sender: ${receiver}`,
+        mobile && `Mobile: ${mobile}`,
+        whatsapp && `WhatsApp: ${whatsapp}`
+      ].filter(Boolean);
+      
+      return parts.length ? `Cash Details: ${parts.join(" | ")}` : "";
+    }
+    if (paymentType === "transfer") {
+      const fromVal = typeDetails.from || "";
+      const toVal = typeDetails.to || "";
+      const refVal = typeDetails.ref || "";
+      
+      const parts = [
+        fromVal && `From: ${fromVal}`,
+        toVal && `To: ${toVal}`,
+        refVal && `Ref: ${refVal}`
+      ].filter(Boolean);
+      
+      return parts.length ? `Transfer Details: ${parts.join(" | ")}` : "";
+    }
+    if (paymentType === "business" || paymentType === "invoice") {
+      const invNo = typeDetails.invoiceNumber || "";
+      const purInfo = typeDetails.purchaseInfo || typeDetails.businessName || "";
+      
+      const parts = [
+        invNo && `Invoice #: ${invNo}`,
+        purInfo && `Info: ${purInfo}`
+      ].filter(Boolean);
+      
+      return parts.length ? `Invoice/Business Details: ${parts.join(" | ")}` : "";
+    }
+    return "";
+  }, [paymentType, typeDetails, entryDate, attachmentFile]);
+
+  // Sync category details directly to remarks textarea dynamically
+  useEffect(() => {
+    setRemarks((prev) => {
+      const lines = prev.split("\n").map((l) => l.trim()).filter((l) => {
+        return !l.startsWith("Bank Details:") &&
+               !l.startsWith("Cash Details:") &&
+               !l.startsWith("Transfer Details:") &&
+               !l.startsWith("Invoice/Business Details:") &&
+               !l.startsWith("Invoice Details:");
+      });
+      
+      if (detailsString) {
+        lines.push(detailsString);
+      }
+      return lines.filter(Boolean).join("\n");
+    });
+  }, [detailsString]);
+
 
 
   const recentTransactions = useMemo(() => [
@@ -649,25 +758,25 @@ export function CashEntryForm({
     };
   }, []);
 
-  // Fetch Pakistan daily USD rates
+  // Fetch selected country daily USD rates
   useEffect(() => {
-    if (!countries.length) return;
-    const pak = countries.find(c => c.name.toLowerCase() === "pakistan" || c.currency_code === "PKR");
-    if (!pak) return;
+    if (!countries.length || !countryId) return;
+    const currentCountry = countries.find(c => c.id === countryId);
+    if (!currentCountry) return;
     (async () => {
       try {
         const params = new URLSearchParams({
-          countryId: pak.id,
+          countryId: currentCountry.id,
           currency: "USD",
-          branchCurrency: "PKR"
+          branchCurrency: branchCurrency
         });
         const res = await apiGet<any>(`/api/erp/currency/latest-rate?${params.toString()}`);
-        setPakistanRate(res);
+        setCountryRate(res);
       } catch (err) {
-        console.error("Failed to fetch Pakistan exchange rates", err);
+        console.error("Failed to fetch country exchange rates", err);
       }
     })();
-  }, [countries]);
+  }, [countries, countryId, branchCurrency]);
 
   // Load saved bank/method options (local cache until management setup tables are wired in).
   useEffect(() => {
@@ -1032,7 +1141,15 @@ export function CashEntryForm({
 
   function parseNarrationRemarks(narration: string | null | undefined) {
     if (!narration) return "";
-    const lines = narration.split("\n").filter(l => !l.trim().startsWith("[Audit Trail"));
+    const lines = narration.split("\n").filter(l => 
+      !l.trim().startsWith("[Audit Trail") &&
+      !l.trim().startsWith("Calculation:") &&
+      !l.trim().startsWith("Bank Details:") &&
+      !l.trim().startsWith("Cash Details:") &&
+      !l.trim().startsWith("Transfer Details:") &&
+      !l.trim().startsWith("Invoice/Business Details:") &&
+      !l.trim().startsWith("Invoice Details:")
+    );
     if (lines.length === 0) return "";
     
     const firstLine = lines[0];
@@ -1043,6 +1160,20 @@ export function CashEntryForm({
     return remarksLines.join("\n").trim();
   }
 
+  function parseAuditTrail(narration: string | null | undefined) {
+    if (!narration) return null;
+    const match = narration.match(/\[Audit Trail - Qty:\s*([0-9.,]+)\s*\|\s*Currency:\s*([A-Z]{3})\s*\|\s*Rate:\s*([0-9.,]+)\s*\|\s*Op:\s*([×÷*\/])\s*\|\s*Converted:\s*[0-9.,]+\s*[A-Z]{3}\]/i);
+    if (match) {
+      return {
+        qty: match[1].replace(/,/g, ""),
+        currency: match[2].toUpperCase(),
+        rate: match[3].replace(/,/g, ""),
+        op: match[4] === "÷" || match[4] === "/" ? ("div" as const) : ("mul" as const)
+      };
+    }
+    return null;
+  }
+
   function parseNarrationDetails(narration: string | null | undefined) {
     const details: Record<string, string> = {};
     if (!narration) return details;
@@ -1050,8 +1181,21 @@ export function CashEntryForm({
     const lines = narration.split("\n").filter(l => !l.trim().startsWith("[Audit Trail"));
     if (lines.length === 0) return details;
 
-    const firstLine = lines[0];
-    const parts = firstLine.split(" | ");
+    const detailsLine = lines.find(l => 
+      l.startsWith("Bank Details:") || 
+      l.startsWith("Cash Details:") || 
+      l.startsWith("Transfer Details:") || 
+      l.startsWith("Invoice/Business Details:") ||
+      l.startsWith("Invoice Details:")
+    );
+
+    let lineToParse = lines[0];
+    if (detailsLine) {
+      const colonIdx = detailsLine.indexOf(":");
+      lineToParse = detailsLine.slice(colonIdx + 1).trim();
+    }
+
+    const parts = lineToParse.split(" | ");
     
     for (const part of parts) {
       const colonIdx = part.indexOf(":");
@@ -1068,29 +1212,40 @@ export function CashEntryForm({
         } else {
           details.bankName = val;
         }
-      } else if (rawKey === "transfer type") {
+      } else if (rawKey === "transfer type" || rawKey === "method") {
         details.method = val;
         details.transferType = val;
-      } else if (rawKey === "transfer number" || rawKey === "reference" || rawKey === "transfer info") {
+      } else if (rawKey === "transfer number" || rawKey === "reference" || rawKey === "transfer info" || rawKey === "ref") {
         details.transferReferenceNumber = val;
         details.refNo = val;
         details.ref = val;
       } else if (rawKey === "attachment") {
         details.bankAttachmentName = val;
-      } else if (rawKey === "receiver/sender") {
+      } else if (rawKey === "receiver/sender" || rawKey === "receiver") {
         details.receiverSenderName = val;
         details.receiver = val;
       } else if (rawKey === "mobile") {
         details.mobileNumber = val;
-      } else if (rawKey === "invoice number") {
+      } else if (rawKey === "whatsapp") {
+        details.whatsappNumber = val;
+      } else if (rawKey === "invoice number" || rawKey === "invoice #") {
         details.invoiceNumber = val;
-      } else if (rawKey === "purchase info" || rawKey === "business name") {
+      } else if (rawKey === "purchase info" || rawKey === "business name" || rawKey === "info") {
         details.purchaseInfo = val;
         details.businessName = val;
       } else if (rawKey === "from") {
         details.from = val;
       } else if (rawKey === "to") {
         details.to = val;
+      } else if (rawKey === "date") {
+        if (val.includes("/")) {
+          const dParts = val.split("/");
+          if (dParts.length === 3) {
+            details.payDate = `${dParts[2]}-${dParts[1]}-${dParts[0]}`;
+          }
+        } else {
+          details.payDate = val;
+        }
       }
     }
     return details;
@@ -1185,15 +1340,23 @@ export function CashEntryForm({
       }
       setPaymentType(cat as any);
       
-      setCurrency(firstLine.currency || "");
-      const amt = Number(firstLine.debit || firstLine.credit || 0);
-      setFinalPayment(String(amt));
-      
       setTypeDetails(parseNarrationDetails(narration));
       
-      const nextCur = (firstLine.currency || "").toUpperCase();
-      if (nextCur !== branchCurrency.toUpperCase()) {
-        setCalcAmount(String(amt));
+      const audit = parseAuditTrail(narration);
+      if (audit) {
+        setCurrency(audit.currency);
+        setCalcAmount(audit.qty);
+        setExchangeRate(audit.rate);
+        setCalcOp(audit.op);
+        const amt = Number(firstLine.debit || firstLine.credit || 0);
+        setFinalPayment(String(amt));
+      } else {
+        setCurrency(firstLine.currency || "");
+        const amt = Number(firstLine.debit || firstLine.credit || 0);
+        setFinalPayment(String(amt));
+        setCalcAmount("");
+        setExchangeRate("1");
+        setCalcOp("mul");
       }
     }
     
@@ -1270,7 +1433,7 @@ export function CashEntryForm({
       } else {
         auditTrail = `[Audit Trail - Final Amount: ${amount.toFixed(2)} ${branchCurrency} (Local Currency Entry)]`;
       }
-      const combinedNarration = [computedDetails, remarks].filter(Boolean).join("\n");
+      const combinedNarration = remarks.trim();
       const finalNarration = `${combinedNarration.trim()}\n${auditTrail}`;
       const payload = {
         mode: "post" as const,
@@ -1329,7 +1492,7 @@ export function CashEntryForm({
             description: finalNarration.trim() ? finalNarration.trim() : undefined,
             debit: computed.counter.debit,
             credit: computed.counter.credit,
-            currency: currency.trim().toUpperCase(),
+            currency: targetAccountCurrency.trim().toUpperCase(),
             exchangeRate: Number(exchangeRate),
             accountNumber: selectedCounterLedger?.accountCode || selectedCounterLedger?.rawAccountCode || null,
             manualReferenceNumber: selectedCounterLedger?.manualReferenceNumber || null,
@@ -1344,7 +1507,7 @@ export function CashEntryForm({
             description: finalNarration.trim() ? finalNarration.trim() : undefined,
             debit: computed.cash.debit,
             credit: computed.cash.credit,
-            currency: currency.trim().toUpperCase(),
+            currency: (selectedCashLedger?.ledgerCurrency || branchCurrency).trim().toUpperCase(),
             exchangeRate: Number(exchangeRate),
             accountNumber: selectedCashLedger?.accountCode || selectedCashLedger?.rawAccountCode || null,
             manualReferenceNumber: selectedCashLedger?.manualReferenceNumber || null,
@@ -1520,80 +1683,133 @@ export function CashEntryForm({
   return (
     <div className="mx-auto w-full bg-[#f8fbff] dark:bg-slate-950/40 text-slate-950 dark:text-slate-50 min-h-screen">
       {/* Horizontal Scope & Session Grid */}
-      <div className="mx-4 mt-4 mb-3 bg-white border border-slate-200 rounded-xl p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800 flex flex-wrap items-start justify-between gap-6">
-        
-        {/* Left Column: Scope Context */}
-        <div className="grid grid-cols-[90px_1fr] gap-x-4 gap-y-1.5 text-xs font-semibold">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">Country</span>
-          <div className="relative flex items-center">
-            <select
-              value={countryId}
-              disabled={loadingCountries || (effectiveScopeMode !== "super_admin" && !isSuperAdmin)}
-              onChange={(e) => setCountryId(e.target.value)}
-              className="bg-transparent border-none p-0 outline-none font-bold text-blue-600 dark:text-blue-400 cursor-pointer appearance-none text-xs hover:underline"
-            >
-              <option value="" className="text-slate-900">Select Country</option>
-              {countries.map((c) => (
-                <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>
-              ))}
-            </select>
+      <div className="mx-4 mt-4 mb-3 bg-white border border-slate-200 rounded-xl p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800 flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+        <div className="flex flex-wrap items-start gap-x-10 gap-y-6">
+          
+          {/* Column 1: Scope Context */}
+          <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">Country</span>
+            <div className="relative flex items-center">
+              <select
+                value={countryId}
+                disabled={loadingCountries || (effectiveScopeMode !== "super_admin" && !isSuperAdmin)}
+                onChange={(e) => setCountryId(e.target.value)}
+                className="bg-transparent border-none p-0 outline-none font-bold text-blue-600 dark:text-blue-400 cursor-pointer appearance-none text-xs hover:underline"
+              >
+                <option value="" className="text-slate-900">Select Country</option>
+                {countries.map((c) => (
+                  <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">Branch Name</span>
+            <div className="relative flex items-center">
+              <select
+                value={countryBranchId}
+                disabled={!countryId}
+                onChange={(e) => setCountryBranchId(e.target.value)}
+                className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-200 cursor-pointer appearance-none text-xs hover:underline"
+              >
+                <option value="" className="text-slate-900">Select Branch</option>
+                {mainBranches.map((b) => (
+                  <option key={b.id} value={b.id} className="text-slate-900">{b.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Branch Code</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150">
+              {selectedMainBranch?.code || "—"}
+            </span>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Date</span>
+            <input
+              type="date"
+              value={entryDate}
+              onChange={(e) => setEntryDate(e.target.value)}
+              className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-150 cursor-pointer text-xs"
+            />
+
+            <span className="text-base font-black text-blue-600 dark:text-blue-400 text-right leading-none">#</span>
+            <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
+              {savedSerials ? [savedSerials.superAdmin, savedSerials.country, savedSerials.branch].filter(Boolean).join(" / ") : "—"}
+            </span>
           </div>
 
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">Branch Name</span>
-          <div className="relative flex items-center">
-            <select
-              value={countryBranchId}
-              disabled={!countryId}
-              onChange={(e) => setCountryBranchId(e.target.value)}
-              className="bg-transparent border-none p-0 outline-none font-bold text-slate-800 dark:text-slate-200 cursor-pointer appearance-none text-xs hover:underline"
-            >
-              <option value="" className="text-slate-900">Select Branch</option>
-              {mainBranches.map((b) => (
-                <option key={b.id} value={b.id} className="text-slate-900">{b.name}</option>
-              ))}
-            </select>
+          {/* Column 2: User Context */}
+          <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User Name</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150">
+              {session?.user?.fullName || "Muhammad Asmatullah"}
+            </span>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User ID</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
+              {session?.user?.id?.slice(0, 8).toUpperCase() || "ADM-001"}
+            </span>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Team</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150">
+              Accounts Team
+            </span>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Time</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150">
+              {loginTimeText || "—"}
+            </span>
           </div>
 
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Branch Code</span>
-          <span className="font-extrabold text-slate-850 dark:text-slate-150">
-            {selectedMainBranch?.code || "—"}
-          </span>
+          {/* Column 3: Exchange Rates */}
+          <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Exchange</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150">
+              {getCountryFlag(selectedCountry?.name)} USD / {branchCurrency}
+            </span>
 
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Date</span>
-          <input
-            type="date"
-            value={entryDate}
-            onChange={(e) => setEntryDate(e.target.value)}
-            className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-150 cursor-pointer text-xs"
-          />
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Rate Date</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
+              {countryRate?.effectiveDate || entryDate.split("-").reverse().join("/") || "Today"}
+            </span>
 
-          <span className="text-base font-black text-blue-600 dark:text-blue-400 text-right leading-none">#</span>
-          <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs">
-            {savedSerials ? [savedSerials.superAdmin, savedSerials.country, savedSerials.branch].filter(Boolean).join(" / ") : "—"}
-          </span>
-        </div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 text-right">Buy / Sell</span>
+            <span className="font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
+              {countryRate?.debitRate ? countryRate.debitRate.toFixed(4) : "—"} / {countryRate?.creditRate ? countryRate.creditRate.toFixed(4) : "—"}
+            </span>
 
-        {/* Middle Column: User Context */}
-        <div className="grid grid-cols-[90px_1fr] gap-x-4 gap-y-1.5 text-xs font-semibold">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User Name</span>
-          <span className="font-extrabold text-slate-850 dark:text-slate-150">
-            {session?.user?.fullName || "Muhammad Asmatullah"}
-          </span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Budget Rate</span>
+            <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
+              {countryRate?.buyRate ? ((countryRate.buyRate + (countryRate.sellRate || countryRate.buyRate)) / 2).toFixed(4) : "—"}
+            </span>
+          </div>
 
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User ID</span>
-          <span className="font-extrabold text-slate-850 dark:text-slate-150">
-            {session?.user?.id?.slice(0, 8).toUpperCase() || "ADM-001"}
-          </span>
+          {/* Column 4: Transaction Information */}
+          <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Created By</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[120px]" title={activeCreator || session?.user?.fullName || "Current User"}>
+              {activeCreator || session?.user?.fullName || "Current User"}
+            </span>
 
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Team</span>
-          <span className="font-extrabold text-slate-850 dark:text-slate-150">
-            Accounts Team
-          </span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Approved By</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[120px]" title={activeApprover || "Pending"}>
+              {activeApprover || "Pending"}
+            </span>
 
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Time</span>
-          <span className="font-extrabold text-slate-850 dark:text-slate-150">
-            {loginTimeText || "—"}
-          </span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Status</span>
+            <div>
+              <span className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider border",
+                activeStatus === "approved"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400"
+                  : activeStatus === "cancelled"
+                  ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-800 dark:text-rose-400"
+                  : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-400"
+              )}>
+                {activeStatus || "Draft"}
+              </span>
+            </div>
+          </div>
+
         </div>
 
         {/* Right Column: Header Actions */}
@@ -1758,49 +1974,6 @@ export function CashEntryForm({
                         <span className="font-semibold text-slate-900 dark:text-slate-100 break-words">{selectedCounterLedger.address || "-"}</span>
                       </div>
                     </div>
-
-                    {/* Pakistan Exchange Rates Card */}
-                    <div className="border-t border-slate-100 pt-4 mt-4 dark:border-slate-800 space-y-3">
-                      <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-805 dark:text-emerald-400 flex items-center gap-1.5">
-                        🇵🇰 Pakistan Exchange Rates (Approved)
-                      </h4>
-                      <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50/50 p-3 rounded-lg border border-slate-100 dark:bg-slate-900/40 dark:border-slate-800">
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Currency</span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200">USD / PKR</span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Effective Date</span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
-                            {pakistanRate?.effectiveDate || entryDate.split("-").reverse().join("/") || "Today"}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Debit Rate (Buy)</span>
-                          <span className="font-extrabold text-emerald-700 dark:text-emerald-400 font-mono">
-                            {pakistanRate?.debitRate ? pakistanRate.debitRate.toFixed(4) : "278.2500"}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Credit Rate (Sell)</span>
-                          <span className="font-extrabold text-emerald-700 dark:text-emerald-400 font-mono">
-                            {pakistanRate?.creditRate ? pakistanRate.creditRate.toFixed(4) : "279.7500"}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Budget Rate</span>
-                          <span className="font-extrabold text-blue-700 dark:text-blue-400 font-mono">
-                            {pakistanRate?.buyRate ? ((pakistanRate.buyRate + (pakistanRate.sellRate || pakistanRate.buyRate)) / 2).toFixed(4) : "279.0000"}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Last Updated By</span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200 truncate block max-w-[120px]" title={pakistanRate?.lastUpdatedBy || "System"}>
-                            {pakistanRate?.lastUpdatedBy || "System"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
                   </div>
 
                   {/* Right Panel: Company Details */}
@@ -1865,64 +2038,6 @@ export function CashEntryForm({
                         <span className="font-bold text-slate-500">Address</span>
                         <span className="text-slate-400">:</span>
                         <span className="font-semibold text-slate-900 dark:text-slate-100 break-words">{selectedCounterLedger.address || "-"}</span>
-                      </div>
-                    </div>
-
-                    {/* Transaction Information Card */}
-                    <div className="border-t border-slate-100 pt-4 mt-4 dark:border-slate-800 space-y-3">
-                      <h4 className="text-[11px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-400 flex items-center gap-1.5">
-                        📝 Transaction Information
-                      </h4>
-                      <div className="grid grid-cols-2 gap-3 text-xs bg-blue-50/20 p-3 rounded-lg border border-blue-100/50 dark:bg-slate-900/40 dark:border-slate-800">
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Journal Serial No.</span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
-                            {savedSerials?.superAdmin || "—"}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Country Serial No.</span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
-                            {savedSerials?.country || "—"}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Branch Serial No.</span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
-                            {savedSerials?.branch || "—"}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Transaction Date</span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
-                            {entryDate.split("-").reverse().join("/")}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Created By</span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200 truncate block max-w-[120px]" title={activeCreator || session?.user?.fullName || "Current User"}>
-                            {activeCreator || session?.user?.fullName || "Current User"}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Approved By</span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200 truncate block max-w-[120px]" title={activeApprover || "Pending"}>
-                            {activeApprover || "Pending"}
-                          </span>
-                        </div>
-                        <div className="col-span-2 space-y-0.5">
-                          <span className="font-bold text-slate-500 block text-[10px]">Approval Status</span>
-                          <span className={cn(
-                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider border",
-                            activeStatus === "approved"
-                              ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400"
-                              : activeStatus === "cancelled"
-                              ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-800 dark:text-rose-400"
-                              : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-400"
-                          )}>
-                            {activeStatus || "Draft"}
-                          </span>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -2385,7 +2500,8 @@ export function CashEntryForm({
                       <ReportBox
                         rows={[
                           ["Date", entryDate.split("-").reverse().join("/")],
-                          ["Amount", amount ? `${fmtAmount(amount)} ${currency.toUpperCase()}` : "-"],
+                          ["Amount", txAmount ? `${fmtAmount(txAmount)} ${currency.toUpperCase()}` : "-"],
+                          ...(showCalcPanel && amount ? [["Final Payment (Converted)", `${fmtAmount(amount)} ${targetAccountCurrency}`]] : []),
                           ["Exchange Rate", currency && !isLocalCurrency ? exchangeRate : "-"],
                           ["Rate Source", currency && !isLocalCurrency ? exchangeRateSource : "-"],
                           ["Rate Time", currency && !isLocalCurrency ? (exchangeRateEffectiveAt || "-") : "-"],
@@ -2403,7 +2519,7 @@ export function CashEntryForm({
                         title="Ledger Entry Impact"
                         rows={[
                           ["Transaction Type", paymentMode === "DEBIT" ? "Debit (Money Received)" : "Credit (Money Paid)"],
-                          ["Amount", amount ? `${fmtAmount(amount)} ${currency}` : "-"],
+                          ["Amount", amount ? `${fmtAmount(amount)} ${targetAccountCurrency}` : "-"],
                           ["Balance Effect", paymentMode === "DEBIT" ? "Add to account balance" : "Reduce account balance"]
                         ]}
                       />
@@ -2462,19 +2578,19 @@ export function CashEntryForm({
                       <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-slate-800">
                         <span className="font-semibold text-slate-500">Total Debit (Received)</span>
                         <span className="font-black text-emerald-700 text-sm">
-                          {paymentMode === "DEBIT" ? `${fmtAmount(amount)} ${currency}` : "0.00"}
+                          {paymentMode === "DEBIT" ? `${fmtAmount(amount)} ${targetAccountCurrency}` : "0.00"}
                         </span>
                       </div>
                       <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-slate-800">
                         <span className="font-semibold text-slate-500">Total Credit (Paid)</span>
                         <span className="font-black text-red-700 text-sm">
-                          {paymentMode === "CREDIT" ? `${fmtAmount(amount)} ${currency}` : "0.00"}
+                          {paymentMode === "CREDIT" ? `${fmtAmount(amount)} ${targetAccountCurrency}` : "0.00"}
                         </span>
                       </div>
                       <div className="flex justify-between items-center py-1.5 font-bold bg-white dark:bg-slate-900 p-2 rounded-lg border">
                         <span className="font-black text-slate-800 dark:text-slate-100">Net Amount</span>
                         <span className="font-black text-blue-700 text-base">
-                          {fmtAmount(amount)} {currency}
+                          {fmtAmount(amount)} {targetAccountCurrency}
                         </span>
                       </div>
                     </CardContent>

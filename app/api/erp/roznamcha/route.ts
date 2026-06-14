@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest } from "next/server";
+import fs from "fs";
 import { apiCreated, apiOk, handleApiError } from "@/lib/api/response";
 import { roznamchaPostingSchema } from "@/lib/api/erp-validation";
 import { authorizeApiScope, getScopeFromSearchParams } from "@/lib/api/scope-middleware";
@@ -48,6 +49,7 @@ async function nextTransactionSerial(admin: any, scopeType: "global" | "country"
 
 async function resolveUsdAmount(admin: any, input: {
   countryId: string | null | undefined;
+  countryBranchId?: string | null | undefined;
   currency: string;
   amount: number;
   rate: number;
@@ -79,15 +81,29 @@ async function resolveUsdAmount(admin: any, input: {
   let usdRate = 1;
   if (input.countryId) {
     // 1. Try to find the rate on the specific entry date
-    const { data: row, error: rowError } = await admin
+    let query = admin
       .from("daily_usd_rates")
-      .select("buying_rate, selling_rate, credit_rate, debit_rate")
+      .select("buying_rate, selling_rate, credit_rate, debit_rate, country_branch_id")
       .eq("country_id", input.countryId)
       .eq("rate_date", input.entryDate)
-      .is("deleted_at", null)
-      .maybeSingle();
+      .is("deleted_at", null);
 
-    if (!rowError && row) {
+    if (input.countryBranchId) {
+      query = query.or(`country_branch_id.eq.${input.countryBranchId},country_branch_id.is.null`);
+    } else {
+      query = query.is("country_branch_id", null);
+    }
+
+    const { data: rows, error: rowError } = await query;
+
+    if (!rowError && Array.isArray(rows) && rows.length > 0) {
+      // Sort so that branch-specific rate comes first
+      rows.sort((a: any, b: any) => {
+        if (a.country_branch_id && !b.country_branch_id) return -1;
+        if (!a.country_branch_id && b.country_branch_id) return 1;
+        return 0;
+      });
+      const row = rows[0];
       if (input.isDebit) {
         usdRate = toNumber(row.debit_rate || row.buying_rate || row.selling_rate || 1);
       } else {
@@ -95,17 +111,32 @@ async function resolveUsdAmount(admin: any, input: {
       }
     } else {
       // 2. Try to find the latest rate as fallback
-      const { data: latestRow, error: latestError } = await admin
+      let fallbackQuery = admin
         .from("daily_usd_rates")
-        .select("buying_rate, selling_rate, credit_rate, debit_rate")
+        .select("buying_rate, selling_rate, credit_rate, debit_rate, country_branch_id, rate_date")
         .eq("country_id", input.countryId)
         .is("deleted_at", null)
         .order("rate_date", { ascending: false })
         .order("updated_at", { ascending: false })
-        .limit(1);
+        .limit(10);
 
-      if (!latestError && Array.isArray(latestRow) && latestRow[0]) {
-        const row = latestRow[0];
+      if (input.countryBranchId) {
+        fallbackQuery = fallbackQuery.or(`country_branch_id.eq.${input.countryBranchId},country_branch_id.is.null`);
+      } else {
+        fallbackQuery = fallbackQuery.is("country_branch_id", null);
+      }
+
+      const { data: latestRows, error: latestError } = await fallbackQuery;
+
+      if (!latestError && Array.isArray(latestRows) && latestRows.length > 0) {
+        latestRows.sort((a: any, b: any) => {
+          const dateComp = b.rate_date.localeCompare(a.rate_date);
+          if (dateComp !== 0) return dateComp;
+          if (a.country_branch_id && !b.country_branch_id) return -1;
+          if (!a.country_branch_id && b.country_branch_id) return 1;
+          return 0;
+        });
+        const row = latestRows[0];
         if (input.isDebit) {
           usdRate = toNumber(row.debit_rate || row.buying_rate || row.selling_rate || 1);
         } else {
@@ -189,7 +220,7 @@ function createOperationalPostingPlan(body: ReturnType<typeof roznamchaPostingSc
   };
 }
 
-async function postRoznamchaWithErpSession(input: {
+export async function postRoznamchaWithErpSession(input: {
   sessionUserId: string;
   body: ReturnType<typeof roznamchaPostingSchema.parse>;
 }) {
@@ -303,6 +334,7 @@ async function postRoznamchaWithErpSession(input: {
 
     const conversion = await resolveUsdAmount(admin, {
       countryId: body.countryId,
+      countryBranchId: body.countryBranchId,
       currency: line.currency,
       amount: debit + credit,
       rate: usdRate,
@@ -532,8 +564,19 @@ export async function POST(request: NextRequest) {
       ...result.transactionSerials,
       postingPlan
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("ROZNAMCHA_POST_ERROR:", error);
+    try {
+      const errInfo = {
+        message: error?.message,
+        stack: error?.stack,
+        time: new Date().toISOString(),
+        errorJson: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      };
+      fs.writeFileSync("c:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/error_log.txt", JSON.stringify(errInfo, null, 2), "utf8");
+    } catch (fsErr) {
+      console.error("Failed to write error to file:", fsErr);
+    }
     return handleApiError(error);
   }
 }

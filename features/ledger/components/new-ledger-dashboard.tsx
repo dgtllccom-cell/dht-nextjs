@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Calendar,
   Download,
   FileText,
   Loader2,
@@ -17,9 +18,11 @@ import { apiGet } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
   getLedgerStatement,
+  listLedgerReportLedgers,
   type LedgerLookupRow,
   type LedgerStatementLine
 } from "@/features/reports/ledger-report/ledger-report-api";
+import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 
 type LookupResponse = {
   found: boolean;
@@ -69,6 +72,46 @@ function branchLabel(row: LedgerLookupRow | null) {
   return row.cityBranchName || row.countryBranchName || row.countryName || "-";
 }
 
+function getCountryCode(countryName: string | null | undefined): string {
+  if (!countryName) return "CO";
+  const name = countryName.toLowerCase().trim();
+  if (name.includes("pakistan")) return "PK";
+  if (name.includes("india")) return "IN";
+  if (name.includes("iran")) return "IR";
+  if (name.includes("afghanistan")) return "AF";
+  if (name.includes("uae") || name.includes("dubai") || name.includes("emirates")) return "AE";
+  
+  const clean = name.replace(/[^a-z]/g, "");
+  return clean.slice(0, 2).toUpperCase() || "CO";
+}
+
+function getBranchCode(branchName: string | null | undefined): string {
+  if (!branchName) return "-";
+  
+  let cleanName = branchName;
+  if (branchName.includes(" - ")) {
+    const parts = branchName.split(" - ");
+    cleanName = parts[1] || parts[0] || branchName;
+  }
+  
+  const name = cleanName.toLowerCase().trim();
+  
+  if (name.includes("quetta")) return "QT";
+  if (name.includes("dubai") || name.includes("uae") || name.includes("emirates")) return "DXB";
+  if (name.includes("kabul")) return "KBL";
+  if (name.includes("chaman")) return "CHM";
+  if (name.includes("peshawar")) return "PEW";
+  if (name.includes("tehran") || name.includes("iran")) return "THR";
+  if (name.includes("delhi") || name.includes("india")) return "DEL";
+  
+  let clean = name.replace("main branch", "").replace("branch", "").trim();
+  if (clean.length >= 2) {
+    const code = clean.replace(/[^a-z]/g, "").slice(0, 3).toUpperCase();
+    return code || "BR";
+  }
+  return cleanName.slice(0, 3).toUpperCase();
+}
+
 function exportCsv(filename: string, rows: string[][]) {
   const csv = rows
     .map((row) =>
@@ -89,6 +132,27 @@ function exportCsv(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
+function buildLedgerOption(row: LedgerLookupRow): SearchSelectOption {
+  const branch = row.cityBranchName || row.countryBranchName || row.countryName || "";
+  const label = `${row.accountCode || row.ledgerCode} · ${row.accountName || row.ledgerName}${branch ? ` · ${branch}` : ""}`;
+  const keywords = [
+    row.ledgerCode,
+    row.ledgerName,
+    row.accountCode,
+    row.accountName,
+    row.companyName,
+    row.countryName,
+    row.stateName,
+    row.cityName,
+    branch,
+    row.accountKind,
+    row.ledgerCurrency
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { value: row.ledgerId, label, keywords };
+}
+
 export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: string }) {
   const [query, setQuery] = useState(initialAccount);
   const [fromDate, setFromDate] = useState(yearStartIso());
@@ -98,6 +162,13 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
   const [totals, setTotals] = useState({ entries: 0, debit: 0, credit: 0, balance: 0 });
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingLedgers, setLoadingLedgers] = useState(false);
+  const [ledgerId, setLedgerId] = useState("");
+  const [rawLedgers, setRawLedgers] = useState<LedgerLookupRow[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [selectedUser, setSelectedUser] = useState("");
+  const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
 
@@ -107,51 +178,124 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
     return first.runningBalance - first.debit + first.credit;
   }, [account?.currentBalance, lines]);
 
-  async function loadAccount(searchValue = query) {
-    const q = searchValue.trim();
-    if (!q) {
-      setError("Please enter Account Number, Manual Reference, Customer Number, or Account Name.");
-      return;
+  const countryOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const option of rawLedgers) {
+      if (option.countryId && option.countryName) {
+        seen.set(option.countryId, option.countryName);
+      }
     }
+    const list = Array.from(seen.entries()).map(([value, label]) => ({ value, label }));
+    return [{ value: "", label: "All Countries" }, ...list];
+  }, [rawLedgers]);
 
+  const branchOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const option of rawLedgers) {
+      const branchId = option.cityBranchId || option.countryBranchId;
+      const branchName = option.cityBranchName || option.countryBranchName;
+      if (branchId && branchName) {
+        seen.set(branchId, branchName);
+      }
+    }
+    const list = Array.from(seen.entries()).map(([value, label]) => ({ value, label }));
+    return [{ value: "", label: "All Branches" }, ...list];
+  }, [rawLedgers]);
+
+  const userOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const line of lines) {
+      if (line.createdByName) seen.add(line.createdByName);
+    }
+    const list = Array.from(seen).map((u) => ({ value: u, label: u }));
+    return [{ value: "", label: "All Users" }, ...list];
+  }, [lines]);
+
+  const filteredLedgers = useMemo(() => {
+    let list = rawLedgers;
+    if (selectedCountry) {
+      list = list.filter((l) => l.countryId === selectedCountry);
+    }
+    if (selectedBranch) {
+      list = list.filter((l) => l.cityBranchId === selectedBranch || l.countryBranchId === selectedBranch);
+    }
+    return list;
+  }, [rawLedgers, selectedCountry, selectedBranch]);
+
+  const ledgerOptions = useMemo(() => filteredLedgers.map(buildLedgerOption), [filteredLedgers]);
+
+  const linesWithRunningUsd = useMemo(() => {
+    let runningUsd = 0;
+    const creditNormal = account?.normalBalance === "credit";
+    return lines.map((line) => {
+      const usdDebit = line.debit > 0 ? line.usdAmount : 0;
+      const usdCredit = line.credit > 0 ? line.usdAmount : 0;
+      runningUsd += creditNormal ? usdCredit - usdDebit : usdDebit - usdCredit;
+      return {
+        ...line,
+        runningBalanceUsd: runningUsd
+      };
+    });
+  }, [lines, account?.normalBalance]);
+
+  const displayedLines = useMemo(() => {
+    let list = linesWithRunningUsd;
+    if (selectedUser) {
+      list = list.filter((l) => l.createdByName === selectedUser);
+    }
+    return list;
+  }, [linesWithRunningUsd, selectedUser]);
+
+  async function loadAccountById(id: string, nextFromDate = fromDate, nextToDate = toDate) {
+    if (!id) return;
     setLoading(true);
     setError(null);
     try {
-      const lookup = await apiGet<LookupResponse>(
-        `/api/erp/accounting/accounts/lookup?q=${encodeURIComponent(q)}&limit=500`
-      );
-
-      if (!lookup.found || !lookup.account) {
-        setAccount(null);
-        setLines([]);
-        setTotals({ entries: 0, debit: 0, credit: 0, balance: 0 });
-        setError("Account not found in Account Master. Check Account Number, Manual Reference, Customer Number, or Account Name.");
-        return;
-      }
-
-      setAccount(lookup.account);
       const statement = await getLedgerStatement({
-        ledgerId: lookup.account.ledgerId,
-        fromDate,
-        toDate,
+        ledgerId: id,
+        fromDate: nextFromDate,
+        toDate: nextToDate,
         limit: 5000
       });
+      if (statement.header) {
+        setAccount(statement.header);
+        setLedgerId(id);
+        setQuery(statement.header.accountCode || statement.header.ledgerCode || "");
+      }
       setLines(statement.lines);
       setTotals({
         entries: statement.totals.entries,
         debit: statement.totals.debit,
         credit: statement.totals.credit,
-        balance: statement.totals.balance || lookup.account.currentBalance || 0
+        balance: statement.totals.balance || statement.header?.currentBalance || 0
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ledger lookup failed.");
+      setError(err instanceof Error ? err.message : "Failed to load ledger statement.");
     } finally {
       setLoading(false);
     }
   }
 
+  async function loadAccount(searchValue = query) {
+    const q = searchValue.trim();
+    if (!q) {
+      setError("Please select an Account.");
+      return;
+    }
+    const option = ledgerOptions.find((o) => o.keywords.toLowerCase().includes(q.toLowerCase()) || o.value === q);
+    if (option) {
+      void loadAccountById(option.value);
+    } else {
+      setError("Account not found.");
+    }
+  }
+
   function clearSearch() {
     setQuery("");
+    setLedgerId("");
+    setSelectedCountry("");
+    setSelectedBranch("");
+    setSelectedUser("");
     setAccount(null);
     setLines([]);
     setTotals({ entries: 0, debit: 0, credit: 0, balance: 0 });
@@ -163,21 +307,49 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
   }
 
   function downloadCsv() {
+    let runningUsd = 0;
+    const creditNormal = account?.normalBalance === "credit";
+    const countryColHeader = `${account ? getCountryCode(account.countryName) : "CO"}/Serial`;
     exportCsv("new-ledger-statement.csv", [
-      ["Date", "Name", "No", "Serial", "Details", "Dr", "Cr", "Total", "Ex. Rate", "Dr. (USD)", "Cr. (USD)"],
-      ...lines.map((line, index) => [
-        line.entryDate,
-        line.createdByName || account?.accountName || "-",
-        line.referenceNo || "-",
-        String(index + 1).padStart(2, "0"),
-        line.description || "-",
-        fmtNumber(line.debit),
-        fmtNumber(line.credit),
-        fmtNumber(line.runningBalance),
-        fmtNumber(line.usdRate),
-        line.debit > 0 ? fmtNumber(line.usdAmount) : "0.00",
-        line.credit > 0 ? fmtNumber(line.usdAmount) : "0.00"
-      ])
+      [
+        "Date",
+        "SA/Serial",
+        countryColHeader,
+        "BR/Serial",
+        "Branch Code",
+        "User Name",
+        "No.",
+        "Details",
+        "Dr.",
+        "Cr.",
+        "Total",
+        "Ex. Rate",
+        "Dr. (USD)",
+        "Cr. (USD)",
+        "Total (USD)"
+      ],
+      ...lines.map((line, index) => {
+        const usdDebit = line.debit > 0 ? line.usdAmount : 0;
+        const usdCredit = line.credit > 0 ? line.usdAmount : 0;
+        runningUsd += creditNormal ? usdCredit - usdDebit : usdDebit - usdCredit;
+        return [
+          line.entryDate,
+          line.superAdminSerialNo || "-",
+          line.countrySerialNo || "-",
+          line.branchSerialNo || "-",
+          getBranchCode(line.branchName),
+          line.createdByName || "-",
+          line.referenceNo || "-",
+          line.description || "-",
+          fmtNumber(line.debit),
+          fmtNumber(line.credit),
+          fmtNumber(line.runningBalance),
+          fmtNumber(line.usdRate),
+          fmtNumber(usdDebit),
+          fmtNumber(usdCredit),
+          fmtNumber(runningUsd)
+        ];
+      })
     ]);
   }
 
@@ -189,67 +361,145 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
   }, []);
 
   useEffect(() => {
-    if (initialAccount.trim()) {
-      void loadAccount(initialAccount);
+    async function loadLedgers() {
+      setLoadingLedgers(true);
+      try {
+        const res = await listLedgerReportLedgers({ reportScope: "super_admin", limit: 500 });
+        if (res && res.ledgers) {
+          setRawLedgers(res.ledgers);
+          
+          if (initialAccount) {
+            const found = res.ledgers.find(
+              (l) =>
+                l.ledgerCode === initialAccount ||
+                l.accountCode === initialAccount ||
+                l.ledgerId === initialAccount
+            );
+            if (found) {
+              setLedgerId(found.ledgerId);
+              void loadAccountById(found.ledgerId);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load ledgers", err);
+      } finally {
+        setLoadingLedgers(false);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadLedgers();
   }, [initialAccount]);
 
   return (
-    <div className="mx-auto max-w-[1500px] space-y-4 p-4 md:p-6 print:p-0">
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between print:hidden">
-        <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") void loadAccount();
+    <div className="w-full space-y-4 p-4 md:p-6 print:p-0">
+      <div className="rounded-lg border bg-card p-3 shadow-sm print:hidden">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-full md:w-[320px]">
+            <SearchSelect
+              label=""
+              value={ledgerId}
+              placeholder="Search or select account..."
+              options={ledgerOptions}
+              onValueChange={(value) => {
+                setLedgerId(value);
+                void loadAccountById(value);
               }}
-              className="h-10 pl-9 pr-10"
-              placeholder="Search full account no, manual ref, customer no, account name, ledger..."
             />
-            {query ? (
-              <button
-                type="button"
-                onClick={clearSearch}
-                className="absolute right-2 top-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Clear search"
-                title="Clear search"
-              >
-                <X className="h-4 w-4" />
-              </button>
+          </div>
+          <div className="w-full md:w-[150px]">
+            <SearchSelect
+              label=""
+              value={selectedCountry}
+              placeholder="All Countries"
+              options={countryOptions}
+              onValueChange={(value) => {
+                setSelectedCountry(value);
+                setLedgerId("");
+              }}
+            />
+          </div>
+          <div className="w-full md:w-[160px]">
+            <SearchSelect
+              label=""
+              value={selectedBranch}
+              placeholder="All Branches"
+              options={branchOptions}
+              onValueChange={(value) => {
+                setSelectedBranch(value);
+                setLedgerId("");
+              }}
+            />
+          </div>
+          <div className="w-full md:w-[150px]">
+            <SearchSelect
+              label=""
+              value={selectedUser}
+              placeholder="All Users"
+              options={userOptions}
+              onValueChange={(value) => {
+                setSelectedUser(value);
+              }}
+              disabled={!lines.length}
+            />
+          </div>
+          <div className="relative w-full md:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDateDropdownOpen(!dateDropdownOpen)}
+              className="h-10 w-full md:w-auto text-xs gap-2"
+            >
+              <Calendar className="h-4 w-4" />
+              {fromDate} → {toDate}
+            </Button>
+            {dateDropdownOpen ? (
+              <div className="absolute right-0 md:left-0 mt-2 z-30 w-64 p-3 bg-popover text-popover-foreground rounded-lg border shadow-lg space-y-3">
+                <div className="space-y-1">
+                  <span className="text-[11px] text-muted-foreground font-semibold">From Date</span>
+                  <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="h-9 text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[11px] text-muted-foreground font-semibold">To Date</span>
+                  <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="h-9 text-xs" />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    setDateDropdownOpen(false);
+                    void loadAccountById(ledgerId);
+                  }}
+                >
+                  Apply Date Range
+                </Button>
+              </div>
             ) : null}
           </div>
-          <div className="grid grid-cols-2 gap-2 md:w-[280px]">
-            <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="h-10 text-xs" />
-            <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="h-10 text-xs" />
-          </div>
-          <Button type="button" onClick={() => void loadAccount()} disabled={loading} className="gap-2">
+          <Button type="button" onClick={() => void loadAccountById(ledgerId)} disabled={loading || !ledgerId} className="h-10 gap-2">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             Search
           </Button>
-        </div>
 
-        <div className="relative">
-          <Button type="button" variant="outline" className="gap-2" onClick={() => setActionsOpen((value) => !value)}>
-            <MoreVertical className="h-4 w-4" />
-            Actions
-          </Button>
-          {actionsOpen ? (
-            <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl">
-              <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted" onClick={printLedger}>
-                <Printer className="h-4 w-4" /> Print
-              </button>
-              <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted" onClick={downloadCsv}>
-                <Download className="h-4 w-4" /> Export CSV
-              </button>
-              <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted" onClick={printLedger}>
-                <FileText className="h-4 w-4" /> PDF
-              </button>
-            </div>
-          ) : null}
+          <div className="relative ml-auto">
+            <Button type="button" variant="outline" className="h-10 gap-2" onClick={() => setActionsOpen((value) => !value)}>
+              <MoreVertical className="h-4 w-4" />
+              Actions
+            </Button>
+            {actionsOpen ? (
+              <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl">
+                <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted" onClick={printLedger}>
+                  <Printer className="h-4 w-4" /> Print
+                </button>
+                <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted" onClick={downloadCsv}>
+                  <Download className="h-4 w-4" /> Export CSV
+                </button>
+                <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted" onClick={printLedger}>
+                  <FileText className="h-4 w-4" /> PDF
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -265,7 +515,7 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
             <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight text-cyan-600 dark:text-cyan-300">
-                  Country&apos;s Ledger Report
+                  Ledger Statement
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   Status: Active | Created: {account ? fmtDate(lines[0]?.createdAt) : "-"}
@@ -324,7 +574,7 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
             <table className="w-full min-w-[1120px] text-xs">
               <thead className="bg-slate-900 text-white dark:bg-slate-800">
                 <tr>
-                  {["Date", "Name", "No.", "Serial", "Details", "Dr.", "Cr.", "Total", "Ex. Rate", "Dr. (USD)", "Cr. (USD)"].map((head) => (
+                  {["Date", "SA/Serial", `${account ? getCountryCode(account.countryName) : "CO"}/Serial`, "BR/Serial", "Branch Code", "User Name", "No.", "Details", "Dr.", "Cr.", "Total", "Ex. Rate", "Dr. (USD)", "Cr. (USD)", "Total (USD)"].map((head) => (
                     <th key={head} className="border-b border-slate-700 px-4 py-3 text-left font-semibold uppercase tracking-wide">
                       {head}
                     </th>
@@ -334,29 +584,43 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-10 text-center text-muted-foreground">
+                    <td colSpan={15} className="px-4 py-10 text-center text-muted-foreground">
                       Loading ledger data...
                     </td>
                   </tr>
-                ) : lines.length ? (
-                  lines.map((line, index) => (
-                    <tr key={`${line.sourceId}-${index}`} className={cn("border-b", index % 2 ? "bg-muted/20" : "bg-background")}>
-                      <td className="px-4 py-3">{fmtDate(line.entryDate)}</td>
-                      <td className="px-4 py-3 font-medium text-cyan-600 dark:text-cyan-300">{line.createdByName || account?.accountName || "-"}</td>
-                      <td className="px-4 py-3">{line.referenceNo || "-"}</td>
-                      <td className="px-4 py-3">{String(index + 1).padStart(2, "0")}</td>
-                      <td className="max-w-[360px] px-4 py-3">{line.description || "-"}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-cyan-600 dark:text-cyan-300">{fmtNumber(line.debit)}</td>
-                      <td className="px-4 py-3 text-right text-rose-500">{fmtNumber(line.credit)}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-emerald-600">{fmtNumber(line.runningBalance)}</td>
-                      <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-300">{fmtNumber(line.usdRate)}</td>
-                      <td className="px-4 py-3 text-right">{line.debit > 0 ? fmtNumber(line.usdAmount) : "0.00"}</td>
-                      <td className="px-4 py-3 text-right">{line.credit > 0 ? fmtNumber(line.usdAmount) : "0.00"}</td>
-                    </tr>
-                  ))
+                ) : displayedLines.length ? (
+                  displayedLines.map((line, index) => {
+                    const superAdminSerial = line.superAdminSerialNo || "-";
+                    const countrySerial = line.countrySerialNo || "-";
+                    const branchSerial = line.branchSerialNo || "-";
+                    const branchNameVal = getBranchCode(line.branchName);
+                    const userNameVal = line.createdByName || "-";
+                    const usdDebit = line.debit > 0 ? line.usdAmount : 0;
+                    const usdCredit = line.credit > 0 ? line.usdAmount : 0;
+ 
+                    return (
+                      <tr key={`${line.sourceId}-${index}`} className={cn("border-b", index % 2 ? "bg-muted/20" : "bg-background")}>
+                        <td className="px-4 py-3">{fmtDate(line.entryDate)}</td>
+                        <td className="px-4 py-3 font-mono">{superAdminSerial}</td>
+                        <td className="px-4 py-3 font-mono">{countrySerial}</td>
+                        <td className="px-4 py-3 font-mono">{branchSerial}</td>
+                        <td className="px-4 py-3" title={line.branchName || undefined}>{branchNameVal}</td>
+                        <td className="px-4 py-3 font-medium text-cyan-600 dark:text-cyan-300">{userNameVal}</td>
+                        <td className="px-4 py-3">{line.referenceNo || "-"}</td>
+                        <td className="max-w-[360px] px-4 py-3">{line.description || "-"}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-cyan-600 dark:text-cyan-300">{fmtNumber(line.debit)}</td>
+                        <td className="px-4 py-3 text-right text-rose-500">{fmtNumber(line.credit)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-emerald-600">{fmtNumber(line.runningBalance)}</td>
+                        <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-300">{fmtNumber(line.usdRate)}</td>
+                        <td className="px-4 py-3 text-right">{fmtNumber(usdDebit)}</td>
+                        <td className="px-4 py-3 text-right">{fmtNumber(usdCredit)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-emerald-600">{fmtNumber(line.runningBalanceUsd)}</td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={15} className="px-4 py-12 text-center text-muted-foreground">
                       {account ? "No posted ledger entries found for this account." : "Search an account to load the full ledger statement."}
                     </td>
                   </tr>

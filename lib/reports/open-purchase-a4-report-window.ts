@@ -455,4 +455,9 @@ export function openPurchaseA4ReportWindow(input: {
       }, { once: true });
     </script>
   </body>
-</html>
+</html>`;
+
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}

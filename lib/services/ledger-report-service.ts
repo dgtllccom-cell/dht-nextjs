@@ -38,6 +38,7 @@ export type LedgerLookupRow = {
   cityId?: string | null;
   cityName: string | null;
   address: string | null;
+  createdAt?: string | null;
 };
 
 export type LedgerStatementLine = {
@@ -55,6 +56,10 @@ export type LedgerStatementLine = {
   usdAmount: number;
   createdAt: string;
   runningBalance: number;
+  superAdminSerialNo?: string | null;
+  countrySerialNo?: string | null;
+  branchSerialNo?: string | null;
+  branchName?: string | null;
 };
 
 function toNumber(value: unknown) {
@@ -205,6 +210,7 @@ export class LedgerReportService {
       debit_total: string | number | null;
       credit_total: string | number | null;
       is_active: boolean | null;
+      created_at: string | null;
     }>;
 
     const accountIds = unique(rows.map((r) => r.account_id));
@@ -367,7 +373,8 @@ export class LedgerReportService {
         stateName,
         cityId: branchCityId,
         cityName,
-        address
+        address,
+        createdAt: row.created_at ?? null
       };
     });
 
@@ -467,7 +474,7 @@ export class LedgerReportService {
       supabase
         .from("ledger_posting_lines")
         .select(
-          "id, batch_id, description, debit, credit, currency, usd_rate, usd_amount, created_at, ledger_posting_batches!inner(entry_date, reference_no, created_by)"
+          "id, batch_id, description, debit, credit, currency, usd_rate, usd_amount, created_at, ledger_posting_batches!inner(entry_date, reference_no, created_by, city_branch_id, country_branch_id)"
         )
         .eq("ledger_id", input.ledgerId)
         .gte("ledger_posting_batches.entry_date", input.fromDate)
@@ -477,14 +484,11 @@ export class LedgerReportService {
       supabase
         .from("roznamcha_lines")
         .select(
-          // NOTE: roznamcha_lines does not have created_at in our schema; use entry header timestamps for ordering.
-          "id, roznamcha_entry_id, description, debit, credit, currency, usd_rate, usd_amount, roznamcha_entries!inner(entry_date, voucher_no, created_by, created_at)"
+          "id, roznamcha_entry_id, description, debit, credit, currency, usd_rate, usd_amount, roznamcha_entries!inner(entry_date, voucher_no, created_by, created_at, city_branch_id, country_branch_id, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number)"
         )
         .eq("ledger_id", input.ledgerId)
         .gte("roznamcha_entries.entry_date", input.fromDate)
         .lte("roznamcha_entries.entry_date", input.toDate)
-        // Always order using the entry header timestamps (NOT the line table).
-        // Supabase JS uses `foreignTable` (not `referencedTable`) for ordering on joined tables.
         .order("entry_date", { ascending: true, foreignTable: "roznamcha_entries" })
         .order("created_at", { ascending: true, foreignTable: "roznamcha_entries" })
         .order("id", { ascending: true })
@@ -505,12 +509,17 @@ export class LedgerReportService {
         referenceNo: (row.ledger_posting_batches?.reference_no as string | null) ?? null,
         description: (row.description as string | null) ?? null,
         createdById: (row.ledger_posting_batches?.created_by as string | null) ?? null,
+        cityBranchId: (row.ledger_posting_batches?.city_branch_id as string | null) ?? null,
+        countryBranchId: (row.ledger_posting_batches?.country_branch_id as string | null) ?? null,
         debit: toNumber(row.debit),
         credit: toNumber(row.credit),
         currency: (row.currency as string) ?? header.ledgerCurrency,
         usdRate: toNumber(row.usd_rate) || 1,
         usdAmount: toNumber(row.usd_amount),
-        createdAt: row.created_at as string
+        createdAt: row.created_at as string,
+        superAdminSerialNo: null,
+        countrySerialNo: null,
+        branchSerialNo: null
       })),
       ...rozLines.map((row) => ({
         entryDate: row.roznamcha_entries?.entry_date as string,
@@ -519,12 +528,17 @@ export class LedgerReportService {
         referenceNo: (row.roznamcha_entries?.voucher_no as string | null) ?? null,
         description: (row.description as string | null) ?? null,
         createdById: (row.roznamcha_entries?.created_by as string | null) ?? null,
+        cityBranchId: (row.roznamcha_entries?.city_branch_id as string | null) ?? null,
+        countryBranchId: (row.roznamcha_entries?.country_branch_id as string | null) ?? null,
         debit: toNumber(row.debit),
         credit: toNumber(row.credit),
         currency: (row.currency as string) ?? header.ledgerCurrency,
         usdRate: toNumber(row.usd_rate) || 1,
         usdAmount: toNumber(row.usd_amount),
-        createdAt: (row.roznamcha_entries?.created_at as string | null) ?? (row.roznamcha_entries?.entry_date as string)
+        createdAt: (row.roznamcha_entries?.created_at as string | null) ?? (row.roznamcha_entries?.entry_date as string),
+        superAdminSerialNo: (row.roznamcha_entries?.super_admin_serial_number as string | null) ?? null,
+        countrySerialNo: (row.roznamcha_entries?.country_transaction_serial_number as string | null) ?? null,
+        branchSerialNo: (row.roznamcha_entries?.branch_transaction_serial_number as string | null) ?? null
       }))
     ]
       .filter((row) => Boolean(row.entryDate))
@@ -535,17 +549,42 @@ export class LedgerReportService {
       });
 
     const createdByIds = unique(merged.map((row) => row.createdById));
-    const { data: users, error: usersError } = createdByIds.length
-      ? await supabase.from("profiles").select("id, full_name").in("id", createdByIds).is("deleted_at", null)
-      : { data: [], error: null };
-    if (usersError) throw new Error(usersError.message);
+    const cityBranchIds = unique(merged.map((row) => row.cityBranchId));
+    const countryBranchIds = unique(merged.map((row) => row.countryBranchId));
 
-    const userById = new Map(((users ?? []) as Array<{ id: string; full_name: string | null }>).map((u) => [u.id, u]));
+    const [usersRes, countryBranchesRes, cityBranchesRes] = await Promise.all([
+      createdByIds.length
+        ? supabase.from("profiles").select("id, full_name").in("id", createdByIds).is("deleted_at", null)
+        : Promise.resolve({ data: [], error: null }),
+      countryBranchIds.length
+        ? supabase.from("country_branches").select("id, name, code").in("id", countryBranchIds).is("deleted_at", null)
+        : Promise.resolve({ data: [], error: null }),
+      cityBranchIds.length
+        ? supabase.from("city_branches").select("id, name, code").in("id", cityBranchIds).is("deleted_at", null)
+        : Promise.resolve({ data: [], error: null })
+    ]);
+
+    if (usersRes.error) throw new Error(usersRes.error.message);
+    if (countryBranchesRes.error) throw new Error(countryBranchesRes.error.message);
+    if (cityBranchesRes.error) throw new Error(cityBranchesRes.error.message);
+
+    const userById = new Map(((usersRes.data ?? []) as Array<{ id: string; full_name: string | null }>).map((u) => [u.id, u]));
+
+    const branchNameById = new Map<string, string>();
+    for (const b of (countryBranchesRes.data ?? [])) {
+      branchNameById.set(b.id, b.name);
+    }
+    for (const b of (cityBranchesRes.data ?? [])) {
+      branchNameById.set(b.id, b.name);
+    }
 
     const creditNormal = header.normalBalance === "credit";
     let running = 0;
     const lines: LedgerStatementLine[] = merged.map((row) => {
       running += creditNormal ? row.credit - row.debit : row.debit - row.credit;
+      const branchId = row.cityBranchId || row.countryBranchId;
+      const branchName = branchId ? branchNameById.get(branchId) ?? null : null;
+
       return {
         entryDate: row.entryDate,
         sourceTable: row.sourceTable,
@@ -560,7 +599,11 @@ export class LedgerReportService {
         usdRate: row.usdRate || 1,
         usdAmount: row.usdAmount,
         createdAt: row.createdAt,
-        runningBalance: running
+        runningBalance: running,
+        superAdminSerialNo: row.superAdminSerialNo,
+        countrySerialNo: row.countrySerialNo,
+        branchSerialNo: row.branchSerialNo,
+        branchName
       };
     });
 

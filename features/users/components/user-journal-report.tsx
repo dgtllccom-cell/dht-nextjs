@@ -45,6 +45,7 @@ type UserJournalRow = {
   userId: string;
   userCode: string;
   fullName: string;
+  email?: string | null;
   countryId: string | null;
   countryName: string;
   branchId: string | null;
@@ -135,6 +136,17 @@ export function UserJournalReport() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<UserJournalReportResponse | null>(null);
   const [sessionInfo, setSessionInfo] = useState<{ user: { id: string; email: string | null; fullName: string | null }; roles: string[] } | null>(null);
+
+  const [adminOnly, setAdminOnly] = useState(false);
+  const [recentLoginsOnly, setRecentLoginsOnly] = useState(false);
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (userId: string) => {
+    setRevealedPasswords((prev) => ({
+      ...prev,
+      [userId]: !prev[userId]
+    }));
+  };
 
   const [draftQuery, setDraftQuery] = useState("");
   const [draftCountryId, setDraftCountryId] = useState("all");
@@ -277,11 +289,14 @@ export function UserJournalReport() {
       if (status !== "all" && row.status !== status) return false;
       if (fromDate && row.registrationDate.slice(0, 10) < fromDate) return false;
       if (toDate && row.registrationDate.slice(0, 10) > toDate) return false;
+      if (adminOnly && !["super_admin", "country_admin", "main_branch_admin"].includes(row.role)) return false;
+      if (recentLoginsOnly && row.activityCounts.logins === 0) return false;
       if (!query) return true;
       return matchesText(
         [
           row.userCode,
           row.fullName,
+          row.email,
           row.countryName,
           row.branchName,
           row.branchType,
@@ -295,7 +310,7 @@ export function UserJournalReport() {
         query
       );
     });
-  }, [branchId, countryId, data?.rows, fromDate, query, role, shareBy, status, toDate]);
+  }, [branchId, countryId, data?.rows, fromDate, query, role, shareBy, status, toDate, adminOnly, recentLoginsOnly]);
 
   const summary = useMemo(() => {
     return {
@@ -320,7 +335,7 @@ export function UserJournalReport() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [branchId, countryId, fromDate, pageSize, query, role, shareBy, status, toDate]);
+  }, [branchId, countryId, fromDate, pageSize, query, role, shareBy, status, toDate, adminOnly, recentLoginsOnly]);
 
   useEffect(() => {
     if (currentPage > pageCount) setCurrentPage(pageCount);
@@ -426,6 +441,8 @@ export function UserJournalReport() {
     setFromDate("");
     setToDate("");
     setOpenMenu(null);
+    setAdminOnly(false);
+    setRecentLoginsOnly(false);
   }
 
   function printReport() {
@@ -442,16 +459,18 @@ export function UserJournalReport() {
 
   function exportExcel() {
     const rows: string[][] = [
-      ["User ID", "Full Name", "Country", "Branch", "Branch Type", "Role", "Registration Date", "Status", "Permissions", "Last Activity"]
+      ["User ID", "Full Name", "Email", "Country", "Branch", "Branch Type", "Role", "Password", "Registration Date", "Status", "Permissions", "Last Activity"]
     ];
     for (const row of filteredRows) {
       rows.push([
         row.userCode,
         row.fullName,
+        row.email || "-",
         row.countryName,
         row.branchName,
         row.branchType,
         row.role,
+        row.rawPassword || "••••••••",
         row.registrationDate,
         row.status,
         row.permissions.join("; "),
@@ -538,6 +557,23 @@ export function UserJournalReport() {
             whatsappReport={whatsappReport}
             shareReport={() => void shareReport()}
             openNewUser={openNewUser}
+            summary={summary}
+            status={status}
+            setStatus={setStatus}
+            setDraftStatus={setDraftStatus}
+            shareBy={shareBy}
+            setShareBy={setShareBy}
+            setDraftShareBy={setDraftShareBy}
+            adminOnly={adminOnly}
+            setAdminOnly={setAdminOnly}
+            recentLoginsOnly={recentLoginsOnly}
+            setRecentLoginsOnly={setRecentLoginsOnly}
+            query={query}
+            countryId={countryId}
+            branchId={branchId}
+            role={role}
+            fromDate={fromDate}
+            toDate={toDate}
           />
         </header>
 
@@ -593,21 +629,7 @@ export function UserJournalReport() {
           </div>
         </section>
 
-        {/* Upgraded KPI Dashboard Metrics Panel */}
-        <section className="mb-4 grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-          <JournalMetric icon={Users} label="Total Users" value={summary.totalUsers} tone="violet" />
-          <JournalMetric
-            icon={ShieldCheck}
-            label="Active Users"
-            value={summary.activeUsers}
-            tone="green"
-            percentage={summary.totalUsers ? Math.round((summary.activeUsers / summary.totalUsers) * 100) : 0}
-          />
-          <JournalMetric icon={Globe2} label="Country Users" value={summary.countryUsers} tone="blue" />
-          <JournalMetric icon={Building2} label="Branch Users" value={summary.branchUsers} tone="orange" />
-          <JournalMetric icon={UserCog} label="Admin Users" value={summary.adminUsers} tone="violet" />
-          <JournalMetric icon={Download} label="Recent Logins" value={summary.recentLogins} tone="cyan" />
-        </section>
+        {/* Metrics cards removed, now sitting in the header toolbar */}
 
         {error ? (
           <div className="mb-3 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
@@ -624,14 +646,14 @@ export function UserJournalReport() {
             <table className="min-w-[1300px] w-full border-collapse text-left text-[11px]">
               <thead>
                 <tr className="bg-[var(--ujr-table-head)] text-[11px] font-black uppercase tracking-wide text-[var(--ujr-title)]">
-                  {["#", "Country", "Branch", "Branch Code", "User Name", "User ID", "Login User ID", "Role", "Purpose / Work", "Status", "Actions"].map((head) => (
+                  {["#", "Country", "Branch", "Branch Code", "User Name", "User ID", "Login User ID", "Email", "Role", "Password", "Purpose / Work", "Status", "Actions"].map((head) => (
                     <th key={head} className="border-b border-r border-[var(--ujr-line)] px-3 py-2.5 last:border-r-0">{head}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={11} className="px-4 py-8 text-center text-[var(--ujr-muted)]">Loading user journal report...</td></tr>
+                  <tr><td colSpan={13} className="px-4 py-8 text-center text-[var(--ujr-muted)]">Loading user journal report...</td></tr>
                 ) : paginatedRows.length ? (
                   paginatedRows.map((row, index) => (
                     <tr key={row.userId} className="bg-[var(--ujr-card)] text-[var(--ujr-title)] transition hover:bg-[var(--ujr-row-hover)]">
@@ -659,9 +681,33 @@ export function UserJournalReport() {
                       </td>
                       {/* Login User ID */}
                       <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-black text-[#1455ff]">{row.userCode}</td>
+                      {/* Email */}
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-medium text-[var(--ujr-muted)]">{row.email || "—"}</td>
                       {/* Role */}
                       <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 text-[11px]">
                         <span className="font-semibold text-slate-800 dark:text-slate-200">{formatRoleName(row.role)}</span>
+                      </td>
+                      {/* Password */}
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-mono text-[10px]">
+                        <div className="flex items-center gap-1.5 justify-between">
+                          <span>
+                            {revealedPasswords[row.userId]
+                              ? (row.rawPassword || "—")
+                              : "••••••••"}
+                          </span>
+                          <button
+                            type="button"
+                            className="ujr-pw-toggle-btn text-[var(--ujr-muted)] hover:text-[#1455ff] transition shrink-0"
+                            onClick={() => togglePasswordVisibility(row.userId)}
+                            title={revealedPasswords[row.userId] ? "Hide password" : "Show password"}
+                          >
+                            {revealedPasswords[row.userId] ? (
+                              <EyeOff className="h-3.5 w-3.5" />
+                            ) : (
+                              <Eye className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
                       </td>
                       {/* Purpose / Work */}
                       <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 text-[11px] font-semibold text-[var(--ujr-muted)]">
@@ -750,7 +796,7 @@ export function UserJournalReport() {
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={11} className="px-4 py-8 text-center text-[var(--ujr-muted)]">No user journal records found for the selected filters.</td></tr>
+                  <tr><td colSpan={13} className="px-4 py-8 text-center text-[var(--ujr-muted)]">No user journal records found for the selected filters.</td></tr>
                 )}
               </tbody>
             </table>
@@ -868,6 +914,21 @@ type TopToolbarProps = {
   whatsappReport: () => void;
   shareReport: () => void;
   openNewUser: () => void;
+  summary: any;
+  status: string;
+  setStatus: (v: string) => void;
+  shareBy: string;
+  setShareBy: (v: string) => void;
+  adminOnly: boolean;
+  setAdminOnly: (v: boolean) => void;
+  recentLoginsOnly: boolean;
+  setRecentLoginsOnly: (v: boolean) => void;
+  query: string;
+  countryId: string;
+  branchId: string;
+  role: string;
+  fromDate: string;
+  toDate: string;
 };
 
 function TopToolbar({
@@ -899,15 +960,186 @@ function TopToolbar({
   emailReport,
   whatsappReport,
   shareReport,
-  openNewUser
+  openNewUser,
+  summary,
+  status,
+  setStatus,
+  shareBy,
+  setShareBy,
+  adminOnly,
+  setAdminOnly,
+  recentLoginsOnly,
+  setRecentLoginsOnly,
+  query,
+  countryId,
+  branchId,
+  role,
+  fromDate,
+  toDate
 }: TopToolbarProps) {
   function toggle(menu: ToolbarMenuKey) {
     setOpenMenu(openMenu === menu ? null : menu);
   }
 
+  const isTotalUsersActive =
+    status === "all" &&
+    shareBy === "all" &&
+    !adminOnly &&
+    !recentLoginsOnly &&
+    query === "" &&
+    countryId === "all" &&
+    branchId === "all" &&
+    role === "all" &&
+    fromDate === "" &&
+    toDate === "";
+
+  const handleTotalUsersClick = () => {
+    resetFilters();
+    setAdminOnly(false);
+    setRecentLoginsOnly(false);
+  };
+
   return (
-    <div className="ujr-toolbar">
-      <button className="ujr-primary-btn h-9 px-3 text-xs" type="button" onClick={openNewUser}>
+    <div className="ujr-toolbar flex-wrap items-center gap-1.5">
+      {/* Interactive Metric Filter Buttons */}
+      <button
+        type="button"
+        className={cn(
+          "ujr-metric-btn border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50",
+          isTotalUsersActive
+            ? "bg-slate-900 border-slate-900 text-white shadow-sm dark:bg-slate-800 dark:border-slate-800"
+            : "text-[var(--ujr-title)]"
+        )}
+        onClick={handleTotalUsersClick}
+        title="Show all users"
+      >
+        <Users className="h-3.5 w-3.5" />
+        <span>Total</span>
+        <span className={cn(
+          "ujr-metric-badge leading-none",
+          isTotalUsersActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700 dark:bg-slate-950 dark:text-slate-300"
+        )}>
+          {summary.totalUsers}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className={cn(
+          "ujr-metric-btn border-emerald-200 dark:border-emerald-900/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/20",
+          status === "active"
+            ? "bg-emerald-600 border-emerald-600 text-white shadow-sm dark:bg-emerald-750 dark:border-emerald-750"
+            : "text-[var(--ujr-title)]"
+        )}
+        onClick={() => {
+          setStatus(status === "active" ? "all" : "active");
+          setDraftStatus(status === "active" ? "all" : "active");
+        }}
+        title="Filter active users"
+      >
+        <ShieldCheck className="h-3.5 w-3.5" />
+        <span>Active</span>
+        <span className={cn(
+          "ujr-metric-badge leading-none",
+          status === "active" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+        )}>
+          {summary.activeUsers}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className={cn(
+          "ujr-metric-btn border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-950/20",
+          shareBy === "country"
+            ? "bg-blue-600 border-blue-600 text-white shadow-sm dark:bg-blue-750 dark:border-blue-750"
+            : "text-[var(--ujr-title)]"
+        )}
+        onClick={() => {
+          setShareBy(shareBy === "country" ? "all" : "country");
+          setDraftShareBy(shareBy === "country" ? "all" : "country");
+        }}
+        title="Filter country scope users"
+      >
+        <Globe2 className="h-3.5 w-3.5" />
+        <span>Country Users</span>
+        <span className={cn(
+          "ujr-metric-badge leading-none",
+          shareBy === "country" ? "bg-white/20 text-white" : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+        )}>
+          {summary.countryUsers}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className={cn(
+          "ujr-metric-btn border-orange-200 dark:border-orange-900/40 hover:bg-orange-50 dark:hover:bg-orange-950/20",
+          shareBy === "branch"
+            ? "bg-orange-600 border-orange-600 text-white shadow-sm dark:bg-orange-750 dark:border-orange-750"
+            : "text-[var(--ujr-title)]"
+        )}
+        onClick={() => {
+          setShareBy(shareBy === "branch" ? "all" : "branch");
+          setDraftShareBy(shareBy === "branch" ? "all" : "branch");
+        }}
+        title="Filter branch scope users"
+      >
+        <Building2 className="h-3.5 w-3.5" />
+        <span>Branch Users</span>
+        <span className={cn(
+          "ujr-metric-badge leading-none",
+          shareBy === "branch" ? "bg-white/20 text-white" : "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+        )}>
+          {summary.branchUsers}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className={cn(
+          "ujr-metric-btn border-violet-200 dark:border-violet-900/40 hover:bg-violet-50 dark:hover:bg-violet-950/20",
+          adminOnly
+            ? "bg-violet-600 border-violet-600 text-white shadow-sm dark:bg-violet-750 dark:border-violet-750"
+            : "text-[var(--ujr-title)]"
+        )}
+        onClick={() => setAdminOnly(!adminOnly)}
+        title="Filter administrator users"
+      >
+        <UserCog className="h-3.5 w-3.5" />
+        <span>Admins</span>
+        <span className={cn(
+          "ujr-metric-badge leading-none",
+          adminOnly ? "bg-white/20 text-white" : "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+        )}>
+          {summary.adminUsers}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className={cn(
+          "ujr-metric-btn border-cyan-200 dark:border-cyan-900/40 hover:bg-cyan-50 dark:hover:bg-cyan-950/20",
+          recentLoginsOnly
+            ? "bg-cyan-600 border-cyan-600 text-white shadow-sm dark:bg-cyan-750 dark:border-cyan-750"
+            : "text-[var(--ujr-title)]"
+        )}
+        onClick={() => setRecentLoginsOnly(!recentLoginsOnly)}
+        title="Filter users with recent logins"
+      >
+        <Download className="h-3.5 w-3.5" />
+        <span>Recent Logins</span>
+        <span className={cn(
+          "ujr-metric-badge leading-none",
+          recentLoginsOnly ? "bg-white/20 text-white" : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300"
+        )}>
+          {summary.recentLogins}
+        </span>
+      </button>
+
+      <div className="border-l border-[var(--ujr-line)] h-6 mx-1 my-auto hidden lg:block"></div>
+
+      <button className="ujr-primary-btn h-9 px-3 text-xs shadow-none border border-transparent" type="button" onClick={openNewUser}>
         <UserPlus className="h-4 w-4" /> New User
       </button>
 
@@ -1308,6 +1540,33 @@ function UserJournalStyles() {
       .ujr-saved-filter:hover {
         background:rgba(36,92,255,.08);
         color:#1455ff;
+      }
+      .ujr-metric-btn {
+        display:flex;
+        height:34px;
+        align-items:center;
+        gap:6.5px;
+        border-radius:9px;
+        border:1px solid var(--ujr-line);
+        background:var(--ujr-card);
+        padding:0 10.5px;
+        color:var(--ujr-title);
+        font-size:11px;
+        font-weight:900;
+        box-shadow:0 4px 12px rgba(15,23,42,.03);
+        transition:all 0.15s ease;
+      }
+      .ujr-metric-btn:hover {
+        border-color:#245cff;
+        background:rgba(36,92,255,.03);
+      }
+      .ujr-metric-badge {
+        padding:2px 5.5px;
+        border-radius:5px;
+        font-family:monospace;
+        font-size:9.5px;
+        font-weight:800;
+        line-height:1;
       }
       .ujr-saved-filter {
         display:block;
