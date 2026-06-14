@@ -150,6 +150,8 @@ export type UiKey =
   | "nav.document_type"
   | "nav.account_type"
   | "nav.goods_master"
+  | "nav.loading_port_master"
+  | "nav.received_port_master"
   | "nav.chs_products"
   | "nav.dashboard_settings"
   | "nav.template_color"
@@ -473,6 +475,8 @@ const en: Dict = {
   "nav.document_type": "Document Type",
   "nav.account_type": "Account Type",
   "nav.goods_master": "Goods Master",
+  "nav.loading_port_master": "Loading Port Master",
+  "nav.received_port_master": "Received Port Master",
   "nav.chs_products": "CHS Product Management",
   "nav.dashboard_settings": "Dashboard Settings",
   "nav.template_color": "Template Color",
@@ -789,6 +793,8 @@ const ur: Dict = {
   "nav.document_type": "ڈاکومنٹ ٹائپ",
   "nav.account_type": "اکاؤنٹ ٹائپ",
   "nav.goods_master": "گڈز ماسٹر",
+  "nav.loading_port_master": "لوڈنگ پورٹ ماسٹر",
+  "nav.received_port_master": "ریسیوڈ پورٹ ماسٹر",
   "nav.chs_products": "سی ایچ ایس پروڈکٹ مینجمنٹ",
   "nav.dashboard_settings": "ڈیش بورڈ سیٹنگز",
   "nav.template_color": "ٹیمپلیٹ کلر",
@@ -1071,6 +1077,8 @@ const ar: Dict = {
   "nav.document_type": "نوع الوثيقة",
   "nav.account_type": "نوع الحساب",
   "nav.goods_master": "سجل البضائع",
+  "nav.loading_port_master": "سجل موانئ الشحن",
+  "nav.received_port_master": "سجل موانئ الوصول",
   "nav.chs_products": "إدارة منتجات CHS",
   "nav.dashboard_settings": "إعدادات لوحة التحكم",
   "nav.template_color": "لون القالب",

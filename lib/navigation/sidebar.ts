@@ -656,6 +656,16 @@ export const sidebarTree: SidebarNode[] = [
             href: "/dashboard/settings/management/goods" as Route
           },
           {
+            key: "mgmt-loading-port-master",
+            labelKey: "nav.loading_port_master",
+            href: "/dashboard/settings/ports/loading" as Route
+          },
+          {
+            key: "mgmt-received-port-master",
+            labelKey: "nav.received_port_master",
+            href: "/dashboard/settings/ports/received" as Route
+          },
+          {
             key: "mgmt-chs-products",
             labelKey: "nav.chs_products",
             href: "/dashboard/settings/management/chs-products" as Route

@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
     let countries = await locationsRepository.listCountries({ query: q, limit: 500 });
 
     // Scope: super admin can see all; others see only assigned countries.
-    if (!session.isSuperAdmin) {
+    // Pass ?all=true to bypass scoping (used for transit country pickers in purchase wizard).
+    const bypassScope = request.nextUrl.searchParams.get("all") === "true";
+    if (!session.isSuperAdmin && !bypassScope) {
       const allowed = new Set(session.countryIds);
       countries = countries.filter((c) => allowed.has(c.id));
     }

@@ -485,3 +485,15 @@ export const financialPeriodCreateSchema = scopeSchema.extend({
   startDate: z.string().date(),
   endDate: z.string().date()
 });
+
+// ─── Port Masters ────────────────────────────────────────────────────────────
+export const portCreateSchema = z.object({
+  portName: z.string().trim().min(2).max(200),
+  countryId: optionalUuidSchema,
+  portCode: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().max(80).nullable().optional()),
+  transportType: z.enum(["sea", "road", "air"]).default("sea"),
+  isActive: z.boolean().default(true)
+});
+
+export const portUpdateSchema = portCreateSchema.partial();
+

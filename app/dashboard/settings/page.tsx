@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { Building2, Landmark, MapPin, Settings, SlidersHorizontal } from "lucide-react";
+import { Anchor, Building2, Landmark, MapPin, Settings, Ship, SlidersHorizontal } from "lucide-react";
 
 const settingsItems = [
   {
@@ -20,6 +20,18 @@ const settingsItems = [
     description: "Create banks once and use them everywhere — accounts, payments, receipts, ledger, purchases, and reports.",
     href: "/dashboard/settings/bank" as Route,
     icon: Landmark
+  },
+  {
+    title: "Loading Port Master",
+    description: "Manage centralized departure ports, border checkpoints, and airports for shipments.",
+    href: "/dashboard/settings/ports/loading" as Route,
+    icon: Anchor
+  },
+  {
+    title: "Received Port Master",
+    description: "Manage centralized arrival ports, border crossings, and airports for shipments.",
+    href: "/dashboard/settings/ports/received" as Route,
+    icon: Ship
   },
   {
     title: "Management",
