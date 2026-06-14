@@ -33,6 +33,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CustomerPicker } from "@/features/customers/components/customer-picker";
 import { CompanyPicker } from "@/features/companies/components/company-picker";
+import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-window";
 
 // ── Non-location constants (static values, not from master forms) ─────────────
 const CURRENCY_OPTIONS = ["USD", "AED", "PKR", "AFN", "INR"];
@@ -43,6 +44,13 @@ const QTY_TYPE_OPTIONS = ["BAGS", "CARTONS", "Loose", "KGS", "Ton"];
 const SIZE_OPTIONS = ["Large", "Medium", "Standard", "Small"];
 const BRAND_OPTIONS = ["Premium", "Choice", "Organic", "Standard"];
 const GOODS_OPTIONS = ["PISTACHIOS KERNEL", "CASHEW NUTS (W320)", "WALNUTS INSHELL", "ALMONDS", "HAZELNUTS"];
+const GOODS_HS_CODES = {
+  "PISTACHIOS KERNEL": "0802.51",
+  "CASHEW NUTS (W320)": "0801.32",
+  "WALNUTS INSHELL": "0802.31",
+  "ALMONDS": "0802.12",
+  "HAZELNUTS": "0802.22"
+};
 // NOTE: COUNTRY_OPTIONS and ORIGIN_OPTIONS removed — countries now come from Location Master.
 
 const MOCK_ACCOUNTS = [
@@ -159,6 +167,11 @@ const DEFAULT_FORM = {
   transportAgent: "",
   airlineName: "",
   receivedAgentName: "",
+  containerCount: 1,
+  containerSize: "40 FT",
+  containerNumbers: "",
+  vesselName: "",
+  sealNumber: "",
   
   // Step 2 Active Item inputs
   goodsName: "",
@@ -452,8 +465,16 @@ export function PurchaseOrderWizard() {
   const [newCountryLoading, setNewCountryLoading] = useState(false);
   const [newCountryError, setNewCountryError] = useState("");
 
+  const [newPortModal, setNewPortModal] = useState(false);
+  const [newPortForm, setNewPortForm] = useState({ portName: "", countryName: "", transportType: "sea", side: "loading" });
+  const [newPortError, setNewPortError] = useState("");
+  const [newPortLoading, setNewPortLoading] = useState(false);
+
+  const [customVariationModal, setCustomVariationModal] = useState(false);
+  const [customVariationForm, setCustomVariationForm] = useState({ goodsName: "", brand: "", size: "", originCountryId: "" });
+
   const [newGoodModal, setNewGoodModal] = useState(false);
-  const [newGoodForm, setNewGoodForm] = useState({ goodsName: "", chsCode: "", size: "", brand: "" });
+  const [newGoodForm, setNewGoodForm] = useState({ goodsName: "", chsCode: "", size: "", brand: "", originCountryId: "" });
   const [newGoodLoading, setNewGoodLoading] = useState(false);
   const [newGoodError, setNewGoodError] = useState("");
 
@@ -480,8 +501,9 @@ export function PurchaseOrderWizard() {
       try {
         const response = await fetch("/api/erp/locations/countries");
         const res = await response.json();
-        if (!cancelled && res?.countries) {
-          setCountries(res.countries);
+        const countriesData = res?.data?.countries || res?.countries;
+        if (!cancelled && countriesData) {
+          setCountries(countriesData);
         }
       } catch (err) {
         console.error("Failed to load countries:", err);
@@ -491,8 +513,9 @@ export function PurchaseOrderWizard() {
       try {
         const response = await fetch("/api/erp/locations/countries?all=true&limit=500");
         const res = await response.json();
-        if (!cancelled && res?.countries) {
-          setAllCountries(res.countries);
+        const countriesData = res?.data?.countries || res?.countries;
+        if (!cancelled && countriesData) {
+          setAllCountries(countriesData);
         }
       } catch (err) {
         console.error("Failed to load all countries:", err);
@@ -502,8 +525,9 @@ export function PurchaseOrderWizard() {
       try {
         const response = await fetch("/api/erp/goods?limit=500");
         const res = await response.json();
-        if (!cancelled && res?.goods) {
-          setDbGoods(res.goods);
+        const goodsData = res?.data?.goods || res?.goods;
+        if (!cancelled && goodsData) {
+          setDbGoods(goodsData);
         }
       } catch (err) {
         console.error("Failed to load goods master:", err);
@@ -534,11 +558,13 @@ export function PurchaseOrderWizard() {
         ]);
         const loadJson = await loadRes.json();
         const recJson = await recRes.json();
-        if (!cancelled && loadJson?.ports) {
-          setDbLoadingPorts(loadJson.ports);
+        const loadPorts = loadJson?.data?.ports || loadJson?.ports;
+        const recPorts = recJson?.data?.ports || recJson?.ports;
+        if (!cancelled && loadPorts) {
+          setDbLoadingPorts(loadPorts);
         }
-        if (!cancelled && recJson?.ports) {
-          setDbReceivedPorts(recJson.ports);
+        if (!cancelled && recPorts) {
+          setDbReceivedPorts(recPorts);
         }
       } catch (err) {
         console.error("Failed to load ports master data:", err);
@@ -589,19 +615,31 @@ export function PurchaseOrderWizard() {
   }, [dbReceivedPorts, form.receivedCountry]);
 
   const selectedDbGood = useMemo(() => dbGoods.find(g => g.goods_name === form.goodsName || g.goodsName === form.goodsName), [dbGoods, form.goodsName]);
-  const availableBrands = useMemo(() => {
-    const variations = selectedDbGood?.variations || selectedDbGood?.goods_variations || [];
-    const brands = [...new Set(variations.map(v => v.brand).filter(Boolean))];
-    return brands.length > 0 ? brands : BRAND_OPTIONS;
-  }, [selectedDbGood]);
   const availableSizes = useMemo(() => {
     const variations = selectedDbGood?.variations || selectedDbGood?.goods_variations || [];
-    const filtered = form.brand
-      ? variations.filter(v => (v.brand || "").trim().toLowerCase() === (form.brand || "").trim().toLowerCase())
-      : variations;
+    let filtered = variations;
+    if (form.origin) {
+      const originCountry = transitCountryOptions.find(c => c.name === form.origin);
+      const originCountryId = originCountry?.id || null;
+      filtered = variations.filter(v => v.origin_country_id === originCountryId);
+    }
     const sizes = [...new Set(filtered.map(v => v.size).filter(Boolean))];
     return sizes.length > 0 ? sizes : SIZE_OPTIONS;
-  }, [selectedDbGood, form.brand]);
+  }, [selectedDbGood, form.origin, transitCountryOptions]);
+  const availableBrands = useMemo(() => {
+    const variations = selectedDbGood?.variations || selectedDbGood?.goods_variations || [];
+    let filtered = variations;
+    if (form.origin) {
+      const originCountry = transitCountryOptions.find(c => c.name === form.origin);
+      const originCountryId = originCountry?.id || null;
+      filtered = filtered.filter(v => v.origin_country_id === originCountryId);
+    }
+    if (form.size) {
+      filtered = filtered.filter(v => (v.size || "").trim().toLowerCase() === (form.size || "").trim().toLowerCase());
+    }
+    const brands = [...new Set(filtered.map(v => v.brand).filter(Boolean))];
+    return brands.length > 0 ? brands : BRAND_OPTIONS;
+  }, [selectedDbGood, form.origin, form.size, transitCountryOptions]);
 
   // Load existing purchase order if purchaseOrderNo is in URL query parameters
   useEffect(() => {
@@ -949,8 +987,9 @@ export function PurchaseOrderWizard() {
           
           // Reload goods list to update local state
           const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
-          if (reloadRes?.goods) {
-            setDbGoods(reloadRes.goods);
+          const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+          if (goodsData) {
+            setDbGoods(goodsData);
           }
           setSaveMessage("Variation registered successfully.");
         } catch (err) {
@@ -998,6 +1037,10 @@ export function PurchaseOrderWizard() {
     setForm((prev) => ({
       ...prev,
       goodsName: "",
+      size: "",
+      brand: "",
+      origin: "",
+      hsCode: "",
       qtyNo: 0,
       qtyKgs: 0,
       emptyKgs: 0,
@@ -1038,8 +1081,10 @@ export function PurchaseOrderWizard() {
         fetch("/api/erp/ports/received?all=true&limit=500").then(r => r.json()).catch(() => ({}))
       ]);
 
-      if (loadRes?.ports) setDbLoadingPorts(loadRes.ports);
-      if (recRes?.ports) setDbReceivedPorts(recRes.ports);
+      const loadPorts = loadRes?.data?.ports || loadRes?.ports;
+      const recPorts = recRes?.data?.ports || recRes?.ports;
+      if (loadPorts) setDbLoadingPorts(loadPorts);
+      if (recPorts) setDbReceivedPorts(recPorts);
 
       // Set the newly created port value in form
       if (side === "loading") {
@@ -1200,9 +1245,17 @@ export function PurchaseOrderWizard() {
       const created = payload.data?.country;
       if (created) {
         setAllCountries(prev => [...prev, created]);
+        if (newGoodModal) {
+          setNewGoodForm(p => ({ ...p, originCountryId: created.id }));
+        } else if (customVariationModal) {
+          setCustomVariationForm(p => ({ ...p, originCountryId: created.id }));
+        } else {
+          setValue("origin", created.name);
+        }
       }
       const reloadRes = await fetch("/api/erp/locations/countries?all=true&limit=500").then(r => r.json()).catch(() => ({}));
-      if (reloadRes?.countries) setAllCountries(reloadRes.countries);
+      const countriesData = reloadRes?.data?.countries || reloadRes?.countries;
+      if (countriesData) setAllCountries(countriesData);
       setNewCountryModal(false);
       setNewCountryForm({ name: "" });
       setSaveMessage(`Country "${trimmed}" saved to master.`);
@@ -1242,18 +1295,82 @@ export function PurchaseOrderWizard() {
       }
       // Refresh goods list and auto-select the new good
       const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
-      if (reloadRes?.goods) setDbGoods(reloadRes.goods);
+      const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+      if (goodsData) setDbGoods(goodsData);
       setValue("goodsName", goodsName.trim().toUpperCase());
       setValue("hsCode", chsCode.trim());
       setValue("size", size.trim());
       setValue("brand", brand.trim());
+      if (originCountryId) {
+        const matching = transitCountryOptions.find(c => c.id === originCountryId);
+        if (matching) {
+          setValue("origin", matching.name);
+        }
+      } else {
+        setValue("origin", "");
+      }
       setNewGoodModal(false);
-      setNewGoodForm({ goodsName: "", chsCode: "", size: "", brand: "" });
+      setNewGoodForm({ goodsName: "", chsCode: "", size: "", brand: "", originCountryId: "" });
       setSaveMessage(`Good "${goodsName.trim().toUpperCase()}" saved to master.`);
     } catch (err) {
       setNewGoodError(err instanceof Error ? err.message : "Failed to create good.");
     } finally {
       setNewGoodLoading(false);
+    }
+  };
+
+  const handleSaveCustomVariation = async () => {
+    const { goodsName, brand, size, originCountryId } = customVariationForm;
+    if (!brand.trim() || !size.trim()) {
+      alert("Please fill both Brand and Size.");
+      return;
+    }
+
+    const selectedGood = dbGoods.find(g => (g.goods_name || g.goodsName) === goodsName);
+    if (!selectedGood) {
+      alert("Selected Good not found in Master.");
+      return;
+    }
+
+    setSavingOrder(true);
+    setSaveMessage(`Registering variation ${brand.trim().toUpperCase()} - ${size.trim().toUpperCase()}...`);
+    try {
+      const response = await fetch("/api/erp/goods/variations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goodsId: selectedGood.id,
+          originCountryId: originCountryId || null,
+          size: size.trim().toUpperCase(),
+          brand: brand.trim().toUpperCase()
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || "Failed to save variation.");
+      }
+
+      const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
+      const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+      if (goodsData) {
+        setDbGoods(goodsData);
+      }
+
+      setValue("brand", brand.trim().toUpperCase());
+      setValue("size", size.trim().toUpperCase());
+      if (originCountryId) {
+        const matching = transitCountryOptions.find(c => c.id === originCountryId);
+        if (matching) {
+          setValue("origin", matching.name);
+        }
+      }
+      setCustomVariationModal(false);
+      setSaveMessage(`Variation "${brand.trim().toUpperCase()} - ${size.trim().toUpperCase()}" saved successfully.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error saving variation.");
+    } finally {
+      setSavingOrder(false);
     }
   };
 
@@ -1390,13 +1507,45 @@ export function PurchaseOrderWizard() {
               type="button"
               onClick={() => {
                 setViewDropdownOpen(false);
-                setPreviewType("booking_report");
-                setPreviewModalOpen(true);
+                openTradeDocumentWindow("contract", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
               }}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
             >
-              <Printer className="h-3.5 w-3.5 text-blue-500" />
-              <span>Print</span>
+              <FileSignature className="h-3.5 w-3.5 text-purple-500" />
+              <span>Print Contract</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewDropdownOpen(false);
+                openTradeDocumentWindow("proforma", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+            >
+              <FileText className="h-3.5 w-3.5 text-blue-500" />
+              <span>Print Proforma Invoice</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewDropdownOpen(false);
+                openTradeDocumentWindow("commercial", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+            >
+              <Receipt className="h-3.5 w-3.5 text-rose-500" />
+              <span>Print Commercial Invoice</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewDropdownOpen(false);
+                openTradeDocumentWindow("packing", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+            >
+              <Package className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Print Packing List</span>
             </button>
             <button
               type="button"
@@ -1404,7 +1553,7 @@ export function PurchaseOrderWizard() {
                 setViewDropdownOpen(false);
                 alert("Email action triggered!");
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition border-t border-border/40 pt-2 mt-1"
             >
               <Mail className="h-3.5 w-3.5 text-indigo-500" />
               <span>Email</span>
@@ -1430,30 +1579,6 @@ export function PurchaseOrderWizard() {
             >
               <CheckSquare className="h-3.5 w-3.5 text-yellow-500" />
               <span>Checkup</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewDropdownOpen(false);
-                setPreviewType("contract");
-                setPreviewModalOpen(true);
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
-            >
-              <FileSignature className="h-3.5 w-3.5 text-purple-500" />
-              <span>Print Contract</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewDropdownOpen(false);
-                setPreviewType("invoice");
-                setPreviewModalOpen(true);
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
-            >
-              <Receipt className="h-3.5 w-3.5 text-rose-500" />
-              <span>Invoice</span>
             </button>
           </div>
         )}
@@ -1497,7 +1622,7 @@ export function PurchaseOrderWizard() {
             </Button>
 
             {verifyDropdownOpen && (
-              <div className="absolute right-0 top-10 w-48 rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute right-0 top-10 w-52 rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 <button
                   type="button"
                   onClick={() => {
@@ -1513,37 +1638,45 @@ export function PurchaseOrderWizard() {
                   type="button"
                   onClick={() => {
                     setVerifyDropdownOpen(false);
-                    setPreviewType("invoice");
-                    setPreviewModalOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
-                >
-                  <Receipt className="h-3.5 w-3.5 text-rose-500" />
-                  <span>Print Invoice / Packing List</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setVerifyDropdownOpen(false);
-                    setPreviewType("contract");
-                    setPreviewModalOpen(true);
+                    openTradeDocumentWindow("contract", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
                 >
                   <FileSignature className="h-3.5 w-3.5 text-purple-500" />
-                  <span>Print Contract</span>
+                  <span>Purchase Contract</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setVerifyDropdownOpen(false);
-                    setPreviewType("booking_report");
-                    setPreviewModalOpen(true);
+                    openTradeDocumentWindow("proforma", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
                 >
                   <FileText className="h-3.5 w-3.5 text-blue-500" />
-                  <span>Print Proforma Invoice</span>
+                  <span>Proforma Invoice</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifyDropdownOpen(false);
+                    openTradeDocumentWindow("commercial", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                >
+                  <Receipt className="h-3.5 w-3.5 text-rose-500" />
+                  <span>Commercial Invoice</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifyDropdownOpen(false);
+                    openTradeDocumentWindow("packing", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                >
+                  <Package className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>Packing List</span>
                 </button>
               </div>
             )}
@@ -1876,43 +2009,42 @@ export function PurchaseOrderWizard() {
                 Remarks Narration Log
               </span>
               
-              {/* Document Previews / Reports Buttons Moved to Top Header */}
               <div className="flex items-center gap-1.5 bg-muted/65 p-0.5 rounded-lg border border-border/80">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setPreviewType("booking_report");
-                    setPreviewModalOpen(true);
-                  }}
+                  onClick={() => openTradeDocumentWindow("contract", { form_data: { form, goodsEntries }, containerCount: form.containerCount })}
                   className="h-6 px-1.5 text-[8px] font-bold flex items-center gap-1 bg-background hover:bg-muted transition-all border-none"
                 >
-                  <FileText className="h-3 w-3 text-blue-500" />
-                  Order Report
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setPreviewType("contract");
-                    setPreviewModalOpen(true);
-                  }}
-                  className="h-6 px-1.5 text-[8px] font-bold flex items-center gap-1 bg-background hover:bg-muted transition-all border-none"
-                >
-                  <FileSignature className="h-3 w-3 text-purple-500" />
+                  <FileSignature className="h-3.5 w-3.5 text-purple-500" />
                   Contract
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setPreviewType("invoice");
-                    setPreviewModalOpen(true);
-                  }}
+                  onClick={() => openTradeDocumentWindow("proforma", { form_data: { form, goodsEntries }, containerCount: form.containerCount })}
                   className="h-6 px-1.5 text-[8px] font-bold flex items-center gap-1 bg-background hover:bg-muted transition-all border-none"
                 >
-                  <Receipt className="h-3 w-3 text-rose-500" />
-                  Invoice
+                  <FileText className="h-3.5 w-3.5 text-blue-500" />
+                  Proforma
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => openTradeDocumentWindow("commercial", { form_data: { form, goodsEntries }, containerCount: form.containerCount })}
+                  className="h-6 px-1.5 text-[8px] font-bold flex items-center gap-1 bg-background hover:bg-muted transition-all border-none"
+                >
+                  <Receipt className="h-3.5 w-3.5 text-rose-500" />
+                  Commercial
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => openTradeDocumentWindow("packing", { form_data: { form, goodsEntries }, containerCount: form.containerCount })}
+                  className="h-6 px-1.5 text-[8px] font-bold flex items-center gap-1 bg-background hover:bg-muted transition-all border-none"
+                >
+                  <Package className="h-3.5 w-3.5 text-emerald-500" />
+                  Packing
                 </Button>
               </div>
             </div>
@@ -2230,22 +2362,57 @@ export function PurchaseOrderWizard() {
                   type="button"
                   onClick={() => {
                     setViewDropdownOpen(false);
-                    setPreviewType("booking_report");
-                    setPreviewModalOpen(true);
+                    openTradeDocumentWindow("contract", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
                 >
-                  <Printer className="h-3.5 w-3.5 text-blue-500" />
-                  <span>Print</span>
+                  <FileSignature className="h-3.5 w-3.5 text-purple-500" />
+                  <span>Print Contract</span>
                 </button>
-                
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewDropdownOpen(false);
+                    openTradeDocumentWindow("proforma", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                >
+                  <FileText className="h-3.5 w-3.5 text-blue-500" />
+                  <span>Print Proforma Invoice</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewDropdownOpen(false);
+                    openTradeDocumentWindow("commercial", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                >
+                  <Receipt className="h-3.5 w-3.5 text-rose-500" />
+                  <span>Print Commercial Invoice</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewDropdownOpen(false);
+                    openTradeDocumentWindow("packing", { form_data: { form, goodsEntries }, containerCount: form.containerCount });
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                >
+                  <Package className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>Print Packing List</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
                     setViewDropdownOpen(false);
                     alert("Email action triggered!");
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition border-t border-border/40 pt-2 mt-1"
                 >
                   <Mail className="h-3.5 w-3.5 text-indigo-500" />
                   <span>Email</span>
@@ -2273,32 +2440,6 @@ export function PurchaseOrderWizard() {
                 >
                   <CheckSquare className="h-3.5 w-3.5 text-yellow-500" />
                   <span>Checkup</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewDropdownOpen(false);
-                    setPreviewType("contract");
-                    setPreviewModalOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
-                >
-                  <FileSignature className="h-3.5 w-3.5 text-purple-500" />
-                  <span>Print Contract</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewDropdownOpen(false);
-                    setPreviewType("invoice");
-                    setPreviewModalOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
-                >
-                  <Receipt className="h-3.5 w-3.5 text-rose-500" />
-                  <span>Invoice</span>
                 </button>
               </div>
             )}
@@ -2784,10 +2925,15 @@ export function PurchaseOrderWizard() {
                             }
                             const chosen = dbGoods.find(g => (g.goods_name || g.goodsName) === e.target.value);
                             setValue("goodsName", e.target.value);
+                            setValue("origin", "");
                             setValue("brand", "");
                             setValue("size", "");
                             if (chosen?.chs_code || chosen?.chsCode) {
                               setValue("hsCode", chosen.chs_code || chosen.chsCode);
+                            } else if (GOODS_HS_CODES[e.target.value]) {
+                              setValue("hsCode", GOODS_HS_CODES[e.target.value]);
+                            } else {
+                              setValue("hsCode", "");
                             }
                           }}
                           className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
@@ -2813,16 +2959,23 @@ export function PurchaseOrderWizard() {
                           value={form.size}
                           onChange={(e) => {
                             if (e.target.value === "__ADD_CUSTOM_SIZE__") {
-                              const message = `You are adding a new Size for '${form.goodsName || "selected Good"}' under Brand '${form.brand || "selected Brand"}'.\n\nDo you want to proceed?`;
-                              if (confirm(message)) {
-                                const spec = prompt(`Enter custom Size specification for ${form.goodsName || "selected Good"} (${form.brand || "selected Brand"}):`);
-                                if (spec && spec.trim()) {
-                                  setValue("size", spec.trim().toUpperCase());
-                                }
+                              e.target.value = form.size || "";
+                              if (!form.goodsName) {
+                                alert("Please select a Good first.");
+                                return;
                               }
+                              const curOrigin = transitCountryOptions.find(c => c.name === form.origin);
+                              setCustomVariationForm({
+                                goodsName: form.goodsName,
+                                brand: form.brand || "",
+                                size: form.size || "",
+                                originCountryId: curOrigin?.id || ""
+                              });
+                              setCustomVariationModal(true);
                               return;
                             }
                             setValue("size", e.target.value);
+                            setValue("brand", "");
                           }}
                           className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
                         >
@@ -2843,14 +2996,19 @@ export function PurchaseOrderWizard() {
                           value={form.brand}
                           onChange={(e) => {
                             if (e.target.value === "__ADD_CUSTOM_BRAND__") {
-                              const message = `You are adding a new Brand for '${form.goodsName || "selected Good"}'.\n\nDo you want to proceed?`;
-                              if (confirm(message)) {
-                                const name = prompt(`Enter custom Brand name for ${form.goodsName || "selected Good"}:`);
-                                if (name && name.trim()) {
-                                  setValue("brand", name.trim().toUpperCase());
-                                  setValue("size", "");
-                                }
+                              e.target.value = form.brand || "";
+                              if (!form.goodsName) {
+                                alert("Please select a Good first.");
+                                return;
                               }
+                              const curOrigin = transitCountryOptions.find(c => c.name === form.origin);
+                              setCustomVariationForm({
+                                goodsName: form.goodsName,
+                                brand: form.brand || "",
+                                size: form.size || "",
+                                originCountryId: curOrigin?.id || ""
+                              });
+                              setCustomVariationModal(true);
                               return;
                             }
                             setValue("brand", e.target.value);
@@ -2878,6 +3036,8 @@ export function PurchaseOrderWizard() {
                               return;
                             }
                             setValue("origin", e.target.value);
+                            setValue("size", "");
+                            setValue("brand", "");
                           }}
                           className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
                         >
@@ -3285,13 +3445,17 @@ export function PurchaseOrderWizard() {
                                 value={form.loadingPort || ""}
                                 onChange={(e) => {
                                   if (e.target.value === "__ADD_NEW_PORT__") {
-                                    const message = `You are adding a new Loading Port for country: '${form.loadingCountry || "selected Country"}'.\n\nDo you want to proceed?`;
-                                    if (confirm(message)) {
-                                      const name = prompt(`Enter new Loading Port name for ${form.loadingCountry || "selected Country"}:`);
-                                      if (name && name.trim()) {
-                                        handleCreatePort(name.trim(), form.loadingCountry, "sea", "loading");
-                                      }
+                                    if (!form.loadingCountry) {
+                                      alert("Please select Loading Country first.");
+                                      return;
                                     }
+                                    setNewPortForm({
+                                      portName: "",
+                                      countryName: form.loadingCountry,
+                                      transportType: "sea",
+                                      side: "loading"
+                                    });
+                                    setNewPortModal(true);
                                     return;
                                   }
                                   setValue("loadingPort", e.target.value);
@@ -3353,13 +3517,17 @@ export function PurchaseOrderWizard() {
                                 value={form.receivedPort || ""}
                                 onChange={(e) => {
                                   if (e.target.value === "__ADD_NEW_PORT__") {
-                                    const message = `You are adding a new Received Port for country: '${form.receivedCountry || "selected Country"}'.\n\nDo you want to proceed?`;
-                                    if (confirm(message)) {
-                                      const name = prompt(`Enter new Received Port name for ${form.receivedCountry || "selected Country"}:`);
-                                      if (name && name.trim()) {
-                                        handleCreatePort(name.trim(), form.receivedCountry, "sea", "received");
-                                      }
+                                    if (!form.receivedCountry) {
+                                      alert("Please select Received Country first.");
+                                      return;
                                     }
+                                    setNewPortForm({
+                                      portName: "",
+                                      countryName: form.receivedCountry,
+                                      transportType: "sea",
+                                      side: "received"
+                                    });
+                                    setNewPortModal(true);
                                     return;
                                   }
                                   setValue("receivedPort", e.target.value);
@@ -3384,6 +3552,31 @@ export function PurchaseOrderWizard() {
                                 type="date"
                                 value={form.receivedDate || ""}
                                 onChange={(e) => setValue("receivedDate", e.target.value)}
+                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 border-t border-border/40 pt-2 mt-2">
+                            <div>
+                              <label className="block text-[9px] text-muted-foreground mb-0.5">Container Size</label>
+                              <select
+                                value={form.containerSize || "40 FT"}
+                                onChange={(e) => setValue("containerSize", e.target.value)}
+                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
+                              >
+                                {CONTAINER_TYPES.map(ct => (
+                                  <option key={ct} value={ct}>{ct}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[9px] text-muted-foreground mb-0.5">Container Name / Number(s)</label>
+                              <input
+                                type="text"
+                                value={form.containerNumbers || ""}
+                                onChange={(e) => setValue("containerNumbers", e.target.value)}
+                                placeholder="e.g. CONT-001"
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               />
                             </div>
@@ -3424,13 +3617,17 @@ export function PurchaseOrderWizard() {
                                 value={form.loadingBorder || ""}
                                 onChange={(e) => {
                                   if (e.target.value === "__ADD_NEW_PORT__") {
-                                    const message = `You are adding a new Loading Border for country: '${form.loadingCountry || "selected Country"}'.\n\nDo you want to proceed?`;
-                                    if (confirm(message)) {
-                                      const name = prompt(`Enter new Loading Border name for ${form.loadingCountry || "selected Country"}:`);
-                                      if (name && name.trim()) {
-                                        handleCreatePort(name.trim(), form.loadingCountry, "road", "loading");
-                                      }
+                                    if (!form.loadingCountry) {
+                                      alert("Please select Loading Country first.");
+                                      return;
                                     }
+                                    setNewPortForm({
+                                      portName: "",
+                                      countryName: form.loadingCountry,
+                                      transportType: "road",
+                                      side: "loading"
+                                    });
+                                    setNewPortModal(true);
                                     return;
                                   }
                                   setValue("loadingBorder", e.target.value);
@@ -3492,13 +3689,17 @@ export function PurchaseOrderWizard() {
                                 value={form.receivedBorder || ""}
                                 onChange={(e) => {
                                   if (e.target.value === "__ADD_NEW_PORT__") {
-                                    const message = `You are adding a new Received Border for country: '${form.receivedCountry || "selected Country"}'.\n\nDo you want to proceed?`;
-                                    if (confirm(message)) {
-                                      const name = prompt(`Enter new Received Border name for ${form.receivedCountry || "selected Country"}:`);
-                                      if (name && name.trim()) {
-                                        handleCreatePort(name.trim(), form.receivedCountry, "road", "received");
-                                      }
+                                    if (!form.receivedCountry) {
+                                      alert("Please select Received Country first.");
+                                      return;
                                     }
+                                    setNewPortForm({
+                                      portName: "",
+                                      countryName: form.receivedCountry,
+                                      transportType: "road",
+                                      side: "received"
+                                    });
+                                    setNewPortModal(true);
                                     return;
                                   }
                                   setValue("receivedBorder", e.target.value);
@@ -3563,13 +3764,17 @@ export function PurchaseOrderWizard() {
                                 value={form.airportName || ""}
                                 onChange={(e) => {
                                   if (e.target.value === "__ADD_NEW_PORT__") {
-                                    const message = `You are adding a new Loading Airport for country: '${form.loadingCountry || "selected Country"}'.\n\nDo you want to proceed?`;
-                                    if (confirm(message)) {
-                                      const name = prompt(`Enter new Loading Airport name for ${form.loadingCountry || "selected Country"}:`);
-                                      if (name && name.trim()) {
-                                        handleCreatePort(name.trim(), form.loadingCountry, "air", "loading");
-                                      }
+                                    if (!form.loadingCountry) {
+                                      alert("Please select Loading Country first.");
+                                      return;
                                     }
+                                    setNewPortForm({
+                                      portName: "",
+                                      countryName: form.loadingCountry,
+                                      transportType: "air",
+                                      side: "loading"
+                                    });
+                                    setNewPortModal(true);
                                     return;
                                   }
                                   setValue("airportName", e.target.value);
@@ -3641,13 +3846,17 @@ export function PurchaseOrderWizard() {
                                 value={form.receivedPortName || ""}
                                 onChange={(e) => {
                                   if (e.target.value === "__ADD_NEW_PORT__") {
-                                    const message = `You are adding a new Received Airport for country: '${form.receivedCountry || "selected Country"}'.\n\nDo you want to proceed?`;
-                                    if (confirm(message)) {
-                                      const name = prompt(`Enter new Received Airport name for ${form.receivedCountry || "selected Country"}:`);
-                                      if (name && name.trim()) {
-                                        handleCreatePort(name.trim(), form.receivedCountry, "air", "received");
-                                      }
+                                    if (!form.receivedCountry) {
+                                      alert("Please select Received Country first.");
+                                      return;
                                     }
+                                    setNewPortForm({
+                                      portName: "",
+                                      countryName: form.receivedCountry,
+                                      transportType: "air",
+                                      side: "received"
+                                    });
+                                    setNewPortModal(true);
                                     return;
                                   }
                                   setValue("receivedPortName", e.target.value);
@@ -4426,7 +4635,7 @@ export function PurchaseOrderWizard() {
                     className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
                   />
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="block text-[10px] text-muted-foreground mb-1">Initial Brand *</label>
                   <input
                     type="text"
@@ -4435,6 +4644,26 @@ export function PurchaseOrderWizard() {
                     placeholder="e.g. Premium"
                     className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
                   />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-muted-foreground mb-1">Origin Country</label>
+                  <select
+                    value={newGoodForm.originCountryId || ""}
+                    onChange={(e) => {
+                      if (e.target.value === "__ADD_NEW_COUNTRY__") {
+                        setNewCountryModal(true);
+                        return;
+                      }
+                      setNewGoodForm(p => ({ ...p, originCountryId: e.target.value }));
+                    }}
+                    className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                  >
+                    <option value="">Select Origin...</option>
+                    {transitCountryOptions.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                    <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
+                  </select>
                 </div>
               </div>
               <p className="text-[9px] text-muted-foreground/60">After saving, this good will be auto-selected with HS Code pre-filled.</p>
@@ -4451,6 +4680,171 @@ export function PurchaseOrderWizard() {
                 disabled={newGoodLoading}
                 className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
               >{newGoodLoading ? "Saving…" : "Save Good"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── NEW PORT / BORDER / AIRPORT MODAL ───────────────────────────────── */}
+      {newPortModal && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xs rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div>
+                <h3 className="text-sm font-bold tracking-tight text-foreground uppercase">
+                  Add New {newPortForm.transportType === "sea" ? "Port" : newPortForm.transportType === "road" ? "Border" : "Airport"}
+                </h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Adding to {newPortForm.side === "loading" ? "Loading" : "Received"} registry
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setNewPortModal(false); setNewPortError(""); setNewPortForm(p => ({ ...p, portName: "" })); }}
+                className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
+              >✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              {newPortError && (
+                <div className="bg-destructive/10 border border-destructive/30 text-destructive text-[10px] rounded px-3 py-2">{newPortError}</div>
+              )}
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Country Name</label>
+                <input
+                  type="text"
+                  value={newPortForm.countryName}
+                  disabled
+                  className="w-full bg-muted border border-input rounded px-3 py-1.5 text-muted-foreground text-[11px] outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">
+                  {newPortForm.transportType === "sea" ? "Port" : newPortForm.transportType === "road" ? "Border" : "Airport"} Name *
+                </label>
+                <input
+                  type="text"
+                  value={newPortForm.portName}
+                  onChange={(e) => setNewPortForm(p => ({ ...p, portName: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newPortForm.portName.trim()) {
+                      handleCreatePort(newPortForm.portName.trim(), newPortForm.countryName, newPortForm.transportType, newPortForm.side);
+                      setNewPortModal(false);
+                    }
+                  }}
+                  placeholder={`e.g. ${newPortForm.transportType === "sea" ? "Karachi Port" : newPortForm.transportType === "road" ? "Torkham" : "Kabul Airport"}`}
+                  autoFocus
+                  className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-5 pb-4">
+              <button
+                type="button"
+                onClick={() => { setNewPortModal(false); setNewPortError(""); setNewPortForm(p => ({ ...p, portName: "" })); }}
+                className="px-4 py-1.5 text-[11px] rounded border border-input text-muted-foreground hover:text-foreground transition-colors"
+              >Cancel</button>
+              <button
+                type="button"
+                disabled={!newPortForm.portName.trim()}
+                onClick={() => {
+                  if (newPortForm.portName.trim()) {
+                    handleCreatePort(newPortForm.portName.trim(), newPortForm.countryName, newPortForm.transportType, newPortForm.side);
+                    setNewPortModal(false);
+                  }
+                }}
+                className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+              >Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── NEW GOOD VARIATION MODAL ───────────────────────────────────────── */}
+      {customVariationModal && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xs rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div>
+                <h3 className="text-sm font-bold tracking-tight text-foreground uppercase">
+                  Add Good Variation
+                </h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Specify size/brand under selected good
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomVariationModal(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
+              >✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Goods Name</label>
+                <input
+                  type="text"
+                  value={customVariationForm.goodsName}
+                  disabled
+                  className="w-full bg-muted border border-input rounded px-3 py-1.5 text-muted-foreground text-[11px] outline-none uppercase"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Origin Country</label>
+                <select
+                  value={customVariationForm.originCountryId || ""}
+                  onChange={(e) => {
+                    if (e.target.value === "__ADD_NEW_COUNTRY__") {
+                      setNewCountryModal(true);
+                      return;
+                    }
+                    setCustomVariationForm(p => ({ ...p, originCountryId: e.target.value }));
+                  }}
+                  className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                >
+                  <option value="">Select Origin...</option>
+                  {transitCountryOptions.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                  <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Brand Name *</label>
+                <input
+                  type="text"
+                  value={customVariationForm.brand}
+                  onChange={(e) => setCustomVariationForm(p => ({ ...p, brand: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. PREMIUM"
+                  className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary uppercase"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Size Specification *</label>
+                <input
+                  type="text"
+                  value={customVariationForm.size}
+                  onChange={(e) => setCustomVariationForm(p => ({ ...p, size: e.target.value.toUpperCase() }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSaveCustomVariation();
+                    }
+                  }}
+                  placeholder="e.g. 20/22"
+                  className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary uppercase"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-5 pb-4">
+              <button
+                type="button"
+                onClick={() => setCustomVariationModal(false)}
+                className="px-4 py-1.5 text-[11px] rounded border border-input text-muted-foreground hover:text-foreground transition-colors"
+              >Cancel</button>
+              <button
+                type="button"
+                onClick={handleSaveCustomVariation}
+                className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
+              >Save</button>
             </div>
           </div>
         </div>

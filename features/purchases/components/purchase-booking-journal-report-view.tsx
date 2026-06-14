@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
+import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-window";
 
 type PurchaseReport = {
   id: string;
@@ -575,22 +576,25 @@ function ReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[]; onExpor
   );
 }
 
-function RowActionsMenu({ onSelect, onEdit, onPrint, onExportPdf }: { onSelect: () => void; onEdit: () => void; onPrint: () => void; onExportPdf: () => void }) {
+function RowActionsMenu({
+  report,
+  onSelect
+}: {
+  report: any;
+  onSelect: () => void;
+}) {
   return (
-    <details className="relative inline-block">
+    <details className="relative inline-block" onClick={(e) => e.stopPropagation()}>
       <summary className="grid h-8 w-8 cursor-pointer list-none place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted [&::-webkit-details-marker]:hidden" aria-label="Row actions" title="Row actions">
         <MoreVertical className="h-4 w-4" />
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
         <MenuAction icon={<Eye />} label="View Details" onClick={onSelect} />
-        <MenuAction icon={<Edit3 />} label="Edit" onClick={onEdit} />
-        <MenuAction icon={<Landmark />} label="Journal" onClick={onSelect} />
-        <MenuAction icon={<WalletCards />} label="Payment History" onClick={onSelect} />
-        <MenuAction icon={<Boxes />} label="Container Details" onClick={onSelect} />
-        <MenuAction icon={<ClipboardList />} label="Documents" onClick={onSelect} />
-        <MenuAction icon={<ClipboardList />} label="Timeline" onClick={onSelect} />
-        <MenuAction icon={<Printer />} label="Print" onClick={onPrint} />
-        <MenuAction icon={<Download />} label="Export PDF" onClick={onExportPdf} />
+        <div className="border-t border-border my-1" />
+        <MenuAction icon={<FileText />} label="Generate Purchase Contract" onClick={() => openTradeDocumentWindow("contract", report)} />
+        <MenuAction icon={<ClipboardList />} label="Generate Proforma Invoice" onClick={() => openTradeDocumentWindow("proforma", report)} />
+        <MenuAction icon={<Printer />} label="Generate Commercial Invoice" onClick={() => openTradeDocumentWindow("commercial", report)} />
+        <MenuAction icon={<Boxes />} label="Generate Packing List" onClick={() => openTradeDocumentWindow("packing", report)} />
       </div>
     </details>
   );
@@ -1262,7 +1266,8 @@ export function PurchaseBookingJournalReportView() {
               "Loading",
               "Date",
               "Receiving",
-              "Date"
+              "Date",
+              "Actions"
             ]}
           >
             {registerRows.map((report, index) => {
@@ -1327,6 +1332,15 @@ export function PurchaseBookingJournalReportView() {
                   <Td center className="font-mono text-slate-500">{loadingDate}</Td>
                   <Td className="text-slate-700">{receivingLoc}</Td>
                   <Td center className="font-mono text-slate-500">{receivingDate}</Td>
+                  <Td center>
+                    <RowActionsMenu
+                      report={report}
+                      onSelect={() => {
+                        setSelectedId(report.id);
+                        setIsDrawerOpen(true);
+                      }}
+                    />
+                  </Td>
                 </tr>
               );
             })}
@@ -1449,17 +1463,53 @@ export function PurchaseBookingJournalReportView() {
           subtitle={selected?.purchaseBookingOrderNumber}
           actions={
             <div className="flex items-center gap-1.5">
+              <details className="relative">
+                <summary className="flex items-center gap-1.5 cursor-pointer list-none rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-2.5 py-1.5 transition-all h-8 [&::-webkit-details-marker]:hidden">
+                  <span>Generate Document</span>
+                  <span className="text-[8px]">▼</span>
+                </summary>
+                <div className="absolute right-0 mt-1 w-52 rounded-xl bg-card border border-border shadow-2xl z-50 p-1 space-y-0.5 animate-in fade-in slide-in-from-top-2 duration-150 text-foreground">
+                  <button
+                    type="button"
+                    onClick={() => selected && openTradeDocumentWindow("contract", selected)}
+                    className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold hover:bg-muted"
+                  >
+                    <span>📄</span> Purchase Contract
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selected && openTradeDocumentWindow("proforma", selected)}
+                    className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold hover:bg-muted"
+                  >
+                    <span>📑</span> Proforma Invoice
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selected && openTradeDocumentWindow("commercial", selected)}
+                    className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold hover:bg-muted"
+                  >
+                    <span>🧾</span> Commercial Invoice
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selected && openTradeDocumentWindow("packing", selected)}
+                    className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold hover:bg-muted"
+                  >
+                    <span>📦</span> Packing List
+                  </button>
+                </div>
+              </details>
               <Button
                 type="button"
                 onClick={() => selected && openReportWindow(selected, false)}
-                className="bg-slate-700 hover:bg-slate-650 text-white font-bold text-xs"
+                className="bg-slate-700 hover:bg-slate-650 text-white font-bold text-xs h-8"
               >
                 PDF Preview
               </Button>
               <Button
                 type="button"
                 onClick={() => selected && openReportWindow(selected, true)}
-                className="bg-slate-700 hover:bg-slate-650 text-white font-bold text-xs"
+                className="bg-slate-700 hover:bg-slate-650 text-white font-bold text-xs h-8"
               >
                 Print
               </Button>
@@ -1467,7 +1517,7 @@ export function PurchaseBookingJournalReportView() {
                 type="button"
                 onClick={handleTransfer}
                 disabled={transferring}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8"
               >
                 {transferring ? "Transferring..." : "Transfer"}
               </Button>
