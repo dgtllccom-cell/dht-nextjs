@@ -448,7 +448,7 @@ export function PurchaseOrderWizard() {
 
   // Inline Master-Creation Modal States
   const [newCountryModal, setNewCountryModal] = useState(false);
-  const [newCountryForm, setNewCountryForm] = useState({ name: "", iso2: "", iso3: "", currencyCode: "", whatsappNumber: "" });
+  const [newCountryForm, setNewCountryForm] = useState({ name: "" });
   const [newCountryLoading, setNewCountryLoading] = useState(false);
   const [newCountryError, setNewCountryError] = useState("");
 
@@ -588,18 +588,20 @@ export function PurchaseOrderWizard() {
     return dbReceivedPorts.filter(p => p.transport_type === "air" && (!form.receivedCountry || !p.country?.name || p.country?.name === form.receivedCountry));
   }, [dbReceivedPorts, form.receivedCountry]);
 
-  // Available sizes & brands derived from the selected good's variations (falls back to static constants)
   const selectedDbGood = useMemo(() => dbGoods.find(g => g.goods_name === form.goodsName || g.goodsName === form.goodsName), [dbGoods, form.goodsName]);
-  const availableSizes = useMemo(() => {
-    const variations = selectedDbGood?.variations || selectedDbGood?.goods_variations || [];
-    const sizes = [...new Set(variations.map(v => v.size).filter(Boolean))];
-    return sizes.length > 0 ? sizes : SIZE_OPTIONS;
-  }, [selectedDbGood]);
   const availableBrands = useMemo(() => {
     const variations = selectedDbGood?.variations || selectedDbGood?.goods_variations || [];
     const brands = [...new Set(variations.map(v => v.brand).filter(Boolean))];
     return brands.length > 0 ? brands : BRAND_OPTIONS;
   }, [selectedDbGood]);
+  const availableSizes = useMemo(() => {
+    const variations = selectedDbGood?.variations || selectedDbGood?.goods_variations || [];
+    const filtered = form.brand
+      ? variations.filter(v => (v.brand || "").trim().toLowerCase() === (form.brand || "").trim().toLowerCase())
+      : variations;
+    const sizes = [...new Set(filtered.map(v => v.size).filter(Boolean))];
+    return sizes.length > 0 ? sizes : SIZE_OPTIONS;
+  }, [selectedDbGood, form.brand]);
 
   // Load existing purchase order if purchaseOrderNo is in URL query parameters
   useEffect(() => {
@@ -848,6 +850,50 @@ export function PurchaseOrderWizard() {
     }));
   };
 
+  const lookupTimers = React.useRef({ purchase: null, sales: null });
+
+  const triggerBackgroundLookup = async (type, query) => {
+    if (!query || query.trim().length < 2) return;
+    try {
+      const account = await lookupAccountMaster(query, form.countryId, form.countryBranchId, form.cityBranchId, isSuperAdmin);
+      if (account) {
+        applyAccountMaster(type, account);
+      }
+    } catch (err) {
+      console.error("Background lookup failed:", err);
+    }
+  };
+
+  const handleTextChange = (type, val) => {
+    setValue(type === "purchase" ? "purchaseAccountNo" : "salesAccountNo", val);
+    
+    // Set search filter
+    if (type === "purchase") {
+      setPurchaseSearch(val);
+      setPurchaseDropdownOpen(true);
+    } else {
+      setSalesSearch(val);
+      setSalesDropdownOpen(true);
+    }
+
+    const matched = dbAccounts.find(acc => 
+      (acc.accountCode || "").trim().toLowerCase() === val.trim().toLowerCase() ||
+      (acc.accountName || "").trim().toLowerCase() === val.trim().toLowerCase()
+    );
+
+    if (matched) {
+      applyAccountMaster(type, matched);
+    } else {
+      // Debounced background lookup
+      if (lookupTimers.current[type]) {
+        clearTimeout(lookupTimers.current[type]);
+      }
+      lookupTimers.current[type] = setTimeout(() => {
+        triggerBackgroundLookup(type, val);
+      }, 500);
+    }
+  };
+
   const handleAccountLookup = async (type) => {
     const query = type === "purchase" ? form.purchaseAccountNo : form.salesAccountNo;
     setAccountLookupLoading(type);
@@ -868,8 +914,56 @@ export function PurchaseOrderWizard() {
       setAccountLookupLoading(null);
     }
   };
+  const handleAddGoodsEntry = async () => {
+    // Check if the variation exists in dbGoods and auto-register if missing
+    const selectedGood = dbGoods.find(g => (g.goods_name || g.goodsName) === form.goodsName);
+    if (selectedGood) {
+      const originCountry = transitCountryOptions.find(c => c.name === form.origin);
+      const originCountryId = originCountry?.id || null;
+      const variations = selectedGood.variations || selectedGood.goods_variations || [];
+      
+      const exists = variations.some(v => 
+        (v.size || "").trim().toLowerCase() === (form.size || "").trim().toLowerCase() && 
+        (v.brand || "").trim().toLowerCase() === (form.brand || "").trim().toLowerCase() && 
+        (v.origin_country_id === originCountryId)
+      );
 
-  const handleAddGoodsEntry = () => {
+      if (!exists && form.size.trim() && form.brand.trim()) {
+        try {
+          setSavingOrder(true);
+          setSaveMessage("Registering brand & size combination under Goods Master...");
+          const res = await fetch("/api/erp/goods/variations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              goodsId: selectedGood.id,
+              originCountryId,
+              size: form.size.trim(),
+              brand: form.brand.trim()
+            })
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok || !payload.ok) {
+            throw new Error(payload?.error?.message || payload?.error || "Failed to auto-register variation.");
+          }
+          
+          // Reload goods list to update local state
+          const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
+          if (reloadRes?.goods) {
+            setDbGoods(reloadRes.goods);
+          }
+          setSaveMessage("Variation registered successfully.");
+        } catch (err) {
+          console.error("Auto-registering variation failed:", err);
+          alert(err instanceof Error ? err.message : "Failed to auto-register variation. Please try again.");
+          setSavingOrder(false);
+          return;
+        } finally {
+          setSavingOrder(false);
+        }
+      }
+    }
+
     const calculated = calculateItemTotals(form);
     setGoodsEntries((prev) => [
       ...prev,
@@ -910,6 +1004,60 @@ export function PurchaseOrderWizard() {
       coursePrice: 0,
       allotName: `ALT-${Math.floor(4424 + Math.random() * 1000)}`
     }));
+
+  };
+
+  const handleCreatePort = async (portName, countryName, transportType, side) => {
+    const country = transitCountryOptions.find(c => c.name === countryName);
+    const countryId = country?.id || null;
+
+    setSavingOrder(true);
+    setSaveMessage(`Creating ${transportType} port "${portName}"...`);
+    try {
+      const endpoint = side === "loading" ? "/api/erp/ports/loading" : "/api/erp/ports/received";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          portName,
+          countryId,
+          portCode: null,
+          transportType,
+          isActive: true
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || "Failed to create port.");
+      }
+
+      // Re-fetch port list
+      const [loadRes, recRes] = await Promise.all([
+        fetch("/api/erp/ports/loading?all=true&limit=500").then(r => r.json()).catch(() => ({})),
+        fetch("/api/erp/ports/received?all=true&limit=500").then(r => r.json()).catch(() => ({}))
+      ]);
+
+      if (loadRes?.ports) setDbLoadingPorts(loadRes.ports);
+      if (recRes?.ports) setDbReceivedPorts(recRes.ports);
+
+      // Set the newly created port value in form
+      if (side === "loading") {
+        if (transportType === "sea") setValue("loadingPort", portName);
+        else if (transportType === "road") setValue("loadingBorder", portName);
+        else if (transportType === "air") setValue("airportName", portName);
+      } else {
+        if (transportType === "sea") setValue("receivedPort", portName);
+        else if (transportType === "road") setValue("receivedBorder", portName);
+        else if (transportType === "air") setValue("receivedPortName", portName);
+      }
+
+      setSaveMessage(`Port "${portName}" created successfully.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error creating port.");
+    } finally {
+      setSavingOrder(false);
+    }
   };
 
   const handleSavePurchaseOrder = async () => {
@@ -1020,26 +1168,29 @@ export function PurchaseOrderWizard() {
 
   // ── Inline Master Creation Handlers ─────────────────────────────────────────
   const handleAddNewCountry = async () => {
-    const { name, iso2, iso3, currencyCode, whatsappNumber } = newCountryForm;
-    if (!name.trim() || !currencyCode.trim()) {
-      setNewCountryError("Country name and currency code are required.");
+    const { name } = newCountryForm;
+    if (!name.trim()) {
+      setNewCountryError("Country name is required.");
       return;
     }
     setNewCountryLoading(true);
     setNewCountryError("");
     try {
-      const code = (iso2 || name.slice(0, 2)).toUpperCase();
+      const trimmed = name.trim();
+      const iso2 = trimmed.slice(0, 2).toUpperCase();
+      const iso3 = trimmed.slice(0, 3).toUpperCase();
+      const code = iso2.toLowerCase();
       const response = await fetch("/api/erp/locations/countries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name.trim(),
-          iso2: iso2.trim().toUpperCase() || null,
-          iso3: iso3.trim().toUpperCase() || null,
-          currencyCode: currencyCode.trim().toUpperCase(),
-          officialEmail: `official.${code.toLowerCase()}@dgtllc.com`,
-          adminEmail: `admin.${code.toLowerCase()}@dgtllc.com`,
-          whatsappNumber: whatsappNumber.trim() || null
+          name: trimmed,
+          iso2,
+          iso3,
+          currencyCode: "USD",
+          officialEmail: `official.${code}@dgtllc.com`,
+          adminEmail: `admin.${code}@dgtllc.com`,
+          whatsappNumber: null
         })
       });
       const payload = await response.json().catch(() => ({}));
@@ -1050,12 +1201,11 @@ export function PurchaseOrderWizard() {
       if (created) {
         setAllCountries(prev => [...prev, created]);
       }
-      // Refresh scoped countries too
       const reloadRes = await fetch("/api/erp/locations/countries?all=true&limit=500").then(r => r.json()).catch(() => ({}));
       if (reloadRes?.countries) setAllCountries(reloadRes.countries);
       setNewCountryModal(false);
-      setNewCountryForm({ name: "", iso2: "", iso3: "", currencyCode: "", whatsappNumber: "" });
-      setSaveMessage(`Country "${name}" saved to master.`);
+      setNewCountryForm({ name: "" });
+      setSaveMessage(`Country "${trimmed}" saved to master.`);
     } catch (err) {
       setNewCountryError(err instanceof Error ? err.message : "Failed to create country.");
     } finally {
@@ -2309,40 +2459,29 @@ export function PurchaseOrderWizard() {
                   <div className="space-y-3">
                     <div className="relative" ref={purchaseDropdownRef}>
                       <label className="block text-[10px] text-muted-foreground mb-1">Purchase Account No*</label>
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setPurchaseDropdownOpen(!purchaseDropdownOpen)}
-                          className="flex-1 bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] text-left flex justify-between items-center h-8"
-                        >
-                          <span className="truncate">
-                            {form.purchaseAccountNo ? `${form.purchaseAccountNo} - ${form.purchaseAccountName}` : "Select Account"}
+                      <input
+                        type="text"
+                        value={form.purchaseAccountNo || ""}
+                        onChange={(e) => handleTextChange("purchase", e.target.value)}
+                        onFocus={() => {
+                          setPurchaseDropdownOpen(true);
+                          setPurchaseSearch(form.purchaseAccountNo || "");
+                        }}
+                        placeholder="Type account name or code..."
+                        className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8"
+                      />
+
+                      {form.purchaseAccountName && (
+                        <div className="mt-1 text-[9px] text-muted-foreground flex justify-between items-center bg-muted/30 px-2 py-1 rounded border border-border/40">
+                          <span className="font-semibold text-foreground truncate">{form.purchaseAccountName}</span>
+                          <span className="font-mono text-[8px] uppercase bg-background px-1 py-0.5 rounded text-muted-foreground">
+                            {form.purchaseAccountCurrency} • {form.purchaseAccountBranch}
                           </span>
-                          <span className="text-muted-foreground text-[8px]">▼</span>
-                        </button>
-                        <Button
-                          type="button"
-                          onClick={() => handleAccountLookup("purchase")}
-                          className="h-8 w-8 p-0 flex items-center justify-center transition shrink-0"
-                        >
-                          <Search className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                        </div>
+                      )}
 
                       {purchaseDropdownOpen && (
                         <div className="absolute left-0 mt-1 w-full max-w-[280px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                          <div className="p-1 border-b border-border/40 mb-1">
-                            <div className="relative flex items-center">
-                              <Search className="absolute left-2 h-3 w-3 text-muted-foreground" />
-                              <input
-                                type="text"
-                                value={purchaseSearch}
-                                onChange={(e) => setPurchaseSearch(e.target.value)}
-                                placeholder="Search by name or code..."
-                                className="w-full bg-background border border-input rounded pl-6 pr-2.5 py-1 text-[9px] outline-none focus:border-primary text-foreground"
-                              />
-                            </div>
-                          </div>
                           <div className="max-h-48 overflow-y-auto space-y-0.5">
                             {(() => {
                               const filtered = dbAccounts.filter(acc =>
@@ -2386,12 +2525,12 @@ export function PurchaseOrderWizard() {
                           <div className="border-t border-border/40 pt-1 mt-1">
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 setPurchaseDropdownOpen(false);
                                 const newCode = prompt("Enter new purchase account code:");
-                                if (newCode) {
-                                  setValue("purchaseAccountNo", newCode);
-                                  handleAccountLookup("purchase");
+                                if (newCode && newCode.trim()) {
+                                  setValue("purchaseAccountNo", newCode.trim());
+                                  await triggerBackgroundLookup("purchase", newCode.trim());
                                 }
                               }}
                               className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-primary hover:bg-primary/5 transition text-left"
@@ -2406,40 +2545,29 @@ export function PurchaseOrderWizard() {
 
                     <div className="relative" ref={salesDropdownRef}>
                       <label className="block text-[10px] text-muted-foreground mb-1">Sales Account / Code No*</label>
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setSalesDropdownOpen(!salesDropdownOpen)}
-                          className="flex-1 bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] text-left flex justify-between items-center h-8"
-                        >
-                          <span className="truncate">
-                            {form.salesAccountNo ? `${form.salesAccountNo} - ${form.salesAccountName}` : "Select Account"}
+                      <input
+                        type="text"
+                        value={form.salesAccountNo || ""}
+                        onChange={(e) => handleTextChange("sales", e.target.value)}
+                        onFocus={() => {
+                          setSalesDropdownOpen(true);
+                          setSalesSearch(form.salesAccountNo || "");
+                        }}
+                        placeholder="Type account name or code..."
+                        className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8"
+                      />
+
+                      {form.salesAccountName && (
+                        <div className="mt-1 text-[9px] text-muted-foreground flex justify-between items-center bg-muted/30 px-2 py-1 rounded border border-border/40">
+                          <span className="font-semibold text-foreground truncate">{form.salesAccountName}</span>
+                          <span className="font-mono text-[8px] uppercase bg-background px-1 py-0.5 rounded text-muted-foreground">
+                            {form.salesAccountCurrency} • {form.salesAccountBranch}
                           </span>
-                          <span className="text-muted-foreground text-[8px]">▼</span>
-                        </button>
-                        <Button
-                          type="button"
-                          onClick={() => handleAccountLookup("sales")}
-                          className="h-8 w-8 p-0 flex items-center justify-center transition shrink-0"
-                        >
-                          <Search className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                        </div>
+                      )}
 
                       {salesDropdownOpen && (
                         <div className="absolute left-0 mt-1 w-full max-w-[280px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                          <div className="p-1 border-b border-border/40 mb-1">
-                            <div className="relative flex items-center">
-                              <Search className="absolute left-2 h-3 w-3 text-muted-foreground" />
-                              <input
-                                type="text"
-                                value={salesSearch}
-                                onChange={(e) => setSalesSearch(e.target.value)}
-                                placeholder="Search by name or code..."
-                                className="w-full bg-background border border-input rounded pl-6 pr-2.5 py-1 text-[9px] outline-none focus:border-primary text-foreground"
-                              />
-                            </div>
-                          </div>
                           <div className="max-h-48 overflow-y-auto space-y-0.5">
                             {(() => {
                               const filtered = dbAccounts.filter(acc =>
@@ -2483,12 +2611,12 @@ export function PurchaseOrderWizard() {
                           <div className="border-t border-border/40 pt-1 mt-1">
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 setSalesDropdownOpen(false);
                                 const newCode = prompt("Enter new sales account code:");
-                                if (newCode) {
-                                  setValue("salesAccountNo", newCode);
-                                  handleAccountLookup("sales");
+                                if (newCode && newCode.trim()) {
+                                  setValue("salesAccountNo", newCode.trim());
+                                  await triggerBackgroundLookup("sales", newCode.trim());
                                 }
                               }}
                               className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-primary hover:bg-primary/5 transition text-left"
@@ -2645,19 +2773,19 @@ export function PurchaseOrderWizard() {
                   <div className="space-y-2.5">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-[10px] text-muted-foreground">Goods Name*</label>
-                          <button
-                            type="button"
-                            onClick={() => setNewGoodModal(true)}
-                            className="text-[9px] text-primary hover:underline font-semibold leading-none"
-                          >+ New Good</button>
-                        </div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Goods Name*</label>
                         <select
                           value={form.goodsName}
                           onChange={(e) => {
+                            if (e.target.value === "__ADD_NEW_GOOD__") {
+                              e.target.value = form.goodsName || "";
+                              setNewGoodModal(true);
+                              return;
+                            }
                             const chosen = dbGoods.find(g => (g.goods_name || g.goodsName) === e.target.value);
                             setValue("goodsName", e.target.value);
+                            setValue("brand", "");
+                            setValue("size", "");
                             if (chosen?.chs_code || chosen?.chsCode) {
                               setValue("hsCode", chosen.chs_code || chosen.chsCode);
                             }
@@ -2675,6 +2803,7 @@ export function PurchaseOrderWizard() {
                           {form.goodsName && !dbGoods.some(g => (g.goods_name || g.goodsName) === form.goodsName) && (
                             <option value={form.goodsName}>{form.goodsName}</option>
                           )}
+                          <option value="__ADD_NEW_GOOD__" className="text-primary font-semibold">+ Add New Good...</option>
                         </select>
                       </div>
                       
@@ -2682,7 +2811,19 @@ export function PurchaseOrderWizard() {
                         <label className="block text-[10px] text-muted-foreground mb-1">Size Specification</label>
                         <select
                           value={form.size}
-                          onChange={(e) => setValue("size", e.target.value)}
+                          onChange={(e) => {
+                            if (e.target.value === "__ADD_CUSTOM_SIZE__") {
+                              const message = `You are adding a new Size for '${form.goodsName || "selected Good"}' under Brand '${form.brand || "selected Brand"}'.\n\nDo you want to proceed?`;
+                              if (confirm(message)) {
+                                const spec = prompt(`Enter custom Size specification for ${form.goodsName || "selected Good"} (${form.brand || "selected Brand"}):`);
+                                if (spec && spec.trim()) {
+                                  setValue("size", spec.trim().toUpperCase());
+                                }
+                              }
+                              return;
+                            }
+                            setValue("size", e.target.value);
+                          }}
                           className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
                         >
                           <option value="">Select Size</option>
@@ -2690,6 +2831,7 @@ export function PurchaseOrderWizard() {
                           {form.size && !availableSizes.some(s => s === form.size) && (
                             <option value={form.size}>{form.size}</option>
                           )}
+                          <option value="__ADD_CUSTOM_SIZE__" className="text-primary font-semibold">+ Add Custom Size...</option>
                         </select>
                       </div>
                     </div>
@@ -2699,7 +2841,21 @@ export function PurchaseOrderWizard() {
                         <label className="block text-[10px] text-muted-foreground mb-1">Brand</label>
                         <select
                           value={form.brand}
-                          onChange={(e) => setValue("brand", e.target.value)}
+                          onChange={(e) => {
+                            if (e.target.value === "__ADD_CUSTOM_BRAND__") {
+                              const message = `You are adding a new Brand for '${form.goodsName || "selected Good"}'.\n\nDo you want to proceed?`;
+                              if (confirm(message)) {
+                                const name = prompt(`Enter custom Brand name for ${form.goodsName || "selected Good"}:`);
+                                if (name && name.trim()) {
+                                  setValue("brand", name.trim().toUpperCase());
+                                  setValue("size", "");
+                                }
+                              }
+                              return;
+                            }
+                            setValue("brand", e.target.value);
+                            setValue("size", "");
+                          }}
                           className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
                         >
                           <option value="">Select Brand</option>
@@ -2707,21 +2863,22 @@ export function PurchaseOrderWizard() {
                           {form.brand && !availableBrands.some(b => b === form.brand) && (
                             <option value={form.brand}>{form.brand}</option>
                           )}
+                          <option value="__ADD_CUSTOM_BRAND__" className="text-primary font-semibold">+ Add Custom Brand...</option>
                         </select>
                       </div>
                       
                       <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-[10px] text-muted-foreground">Origin Country</label>
-                          <button
-                            type="button"
-                            onClick={() => setNewCountryModal(true)}
-                            className="text-[9px] text-primary hover:underline font-semibold leading-none"
-                          >+ New Country</button>
-                        </div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Origin Country</label>
                         <select
                           value={form.origin}
-                          onChange={(e) => setValue("origin", e.target.value)}
+                          onChange={(e) => {
+                            if (e.target.value === "__ADD_NEW_COUNTRY__") {
+                              e.target.value = form.origin || "";
+                              setNewCountryModal(true);
+                              return;
+                            }
+                            setValue("origin", e.target.value);
+                          }}
                           className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
                         >
                           <option value="">Select Origin</option>
@@ -2731,6 +2888,7 @@ export function PurchaseOrderWizard() {
                           {form.origin && !transitCountryOptions.some(c => c.name === form.origin) && (
                             <option value={form.origin}>{form.origin}</option>
                           )}
+                          <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
                         </select>
                       </div>
                     </div>
@@ -3098,13 +3256,17 @@ export function PurchaseOrderWizard() {
                         <div className="space-y-2 text-[10px]">
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <label className="text-[9px] text-muted-foreground">Loading Country</label>
-                                <button type="button" onClick={() => setNewCountryModal(true)} className="text-[8px] text-primary hover:underline font-semibold">+ New</button>
-                              </div>
+                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
                               <select
                                 value={form.loadingCountry || ""}
-                                onChange={(e) => setValue("loadingCountry", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
+                                    e.target.value = form.loadingCountry || "";
+                                    setNewCountryModal(true);
+                                    return;
+                                  }
+                                  setValue("loadingCountry", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Country</option>
@@ -3114,13 +3276,26 @@ export function PurchaseOrderWizard() {
                                 {form.loadingCountry && !transitCountryOptions.some(c => c.name === form.loadingCountry) && (
                                   <option value={form.loadingCountry}>{form.loadingCountry}</option>
                                 )}
+                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
                               </select>
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Port</label>
                               <select
                                 value={form.loadingPort || ""}
-                                onChange={(e) => setValue("loadingPort", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                    const message = `You are adding a new Loading Port for country: '${form.loadingCountry || "selected Country"}'.\n\nDo you want to proceed?`;
+                                    if (confirm(message)) {
+                                      const name = prompt(`Enter new Loading Port name for ${form.loadingCountry || "selected Country"}:`);
+                                      if (name && name.trim()) {
+                                        handleCreatePort(name.trim(), form.loadingCountry, "sea", "loading");
+                                      }
+                                    }
+                                    return;
+                                  }
+                                  setValue("loadingPort", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Port</option>
@@ -3129,6 +3304,9 @@ export function PurchaseOrderWizard() {
                                 ))}
                                 {form.loadingPort && !seaLoadingPorts.some(p => p.port_name === form.loadingPort) && (
                                   <option value={form.loadingPort}>{form.loadingPort}</option>
+                                )}
+                                {form.loadingCountry && (
+                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Port...</option>
                                 )}
                               </select>
                             </div>
@@ -3144,13 +3322,17 @@ export function PurchaseOrderWizard() {
                               />
                             </div>
                             <div>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <label className="text-[9px] text-muted-foreground">Received Country</label>
-                                <button type="button" onClick={() => setNewCountryModal(true)} className="text-[8px] text-primary hover:underline font-semibold">+ New</button>
-                              </div>
+                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
                               <select
                                 value={form.receivedCountry || ""}
-                                onChange={(e) => setValue("receivedCountry", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
+                                    e.target.value = form.receivedCountry || "";
+                                    setNewCountryModal(true);
+                                    return;
+                                  }
+                                  setValue("receivedCountry", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Country</option>
@@ -3160,6 +3342,7 @@ export function PurchaseOrderWizard() {
                                 {form.receivedCountry && !transitCountryOptions.some(c => c.name === form.receivedCountry) && (
                                   <option value={form.receivedCountry}>{form.receivedCountry}</option>
                                 )}
+                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
                               </select>
                             </div>
                           </div>
@@ -3168,7 +3351,19 @@ export function PurchaseOrderWizard() {
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Port</label>
                               <select
                                 value={form.receivedPort || ""}
-                                onChange={(e) => setValue("receivedPort", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                    const message = `You are adding a new Received Port for country: '${form.receivedCountry || "selected Country"}'.\n\nDo you want to proceed?`;
+                                    if (confirm(message)) {
+                                      const name = prompt(`Enter new Received Port name for ${form.receivedCountry || "selected Country"}:`);
+                                      if (name && name.trim()) {
+                                        handleCreatePort(name.trim(), form.receivedCountry, "sea", "received");
+                                      }
+                                    }
+                                    return;
+                                  }
+                                  setValue("receivedPort", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Port</option>
@@ -3177,6 +3372,9 @@ export function PurchaseOrderWizard() {
                                 ))}
                                 {form.receivedPort && !seaReceivedPorts.some(p => p.port_name === form.receivedPort) && (
                                   <option value={form.receivedPort}>{form.receivedPort}</option>
+                                )}
+                                {form.receivedCountry && (
+                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Port...</option>
                                 )}
                               </select>
                             </div>
@@ -3197,13 +3395,17 @@ export function PurchaseOrderWizard() {
                         <div className="space-y-2 text-[10px]">
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <label className="text-[9px] text-muted-foreground">Loading Country</label>
-                                <button type="button" onClick={() => setNewCountryModal(true)} className="text-[8px] text-primary hover:underline font-semibold">+ New</button>
-                              </div>
+                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
                               <select
                                 value={form.loadingCountry || ""}
-                                onChange={(e) => setValue("loadingCountry", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
+                                    e.target.value = form.loadingCountry || "";
+                                    setNewCountryModal(true);
+                                    return;
+                                  }
+                                  setValue("loadingCountry", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Country</option>
@@ -3213,13 +3415,26 @@ export function PurchaseOrderWizard() {
                                 {form.loadingCountry && !transitCountryOptions.some(c => c.name === form.loadingCountry) && (
                                   <option value={form.loadingCountry}>{form.loadingCountry}</option>
                                 )}
+                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
                               </select>
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Border</label>
                               <select
                                 value={form.loadingBorder || ""}
-                                onChange={(e) => setValue("loadingBorder", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                    const message = `You are adding a new Loading Border for country: '${form.loadingCountry || "selected Country"}'.\n\nDo you want to proceed?`;
+                                    if (confirm(message)) {
+                                      const name = prompt(`Enter new Loading Border name for ${form.loadingCountry || "selected Country"}:`);
+                                      if (name && name.trim()) {
+                                        handleCreatePort(name.trim(), form.loadingCountry, "road", "loading");
+                                      }
+                                    }
+                                    return;
+                                  }
+                                  setValue("loadingBorder", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Border</option>
@@ -3228,6 +3443,9 @@ export function PurchaseOrderWizard() {
                                 ))}
                                 {form.loadingBorder && !roadLoadingPorts.some(p => p.port_name === form.loadingBorder) && (
                                   <option value={form.loadingBorder}>{form.loadingBorder}</option>
+                                )}
+                                {form.loadingCountry && (
+                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Border...</option>
                                 )}
                               </select>
                             </div>
@@ -3243,13 +3461,17 @@ export function PurchaseOrderWizard() {
                               />
                             </div>
                             <div>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <label className="text-[9px] text-muted-foreground">Received Country</label>
-                                <button type="button" onClick={() => setNewCountryModal(true)} className="text-[8px] text-primary hover:underline font-semibold">+ New</button>
-                              </div>
+                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
                               <select
                                 value={form.receivedCountry || ""}
-                                onChange={(e) => setValue("receivedCountry", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
+                                    e.target.value = form.receivedCountry || "";
+                                    setNewCountryModal(true);
+                                    return;
+                                  }
+                                  setValue("receivedCountry", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Country</option>
@@ -3259,6 +3481,7 @@ export function PurchaseOrderWizard() {
                                 {form.receivedCountry && !transitCountryOptions.some(c => c.name === form.receivedCountry) && (
                                   <option value={form.receivedCountry}>{form.receivedCountry}</option>
                                 )}
+                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
                               </select>
                             </div>
                           </div>
@@ -3267,7 +3490,19 @@ export function PurchaseOrderWizard() {
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Border</label>
                               <select
                                 value={form.receivedBorder || ""}
-                                onChange={(e) => setValue("receivedBorder", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                    const message = `You are adding a new Received Border for country: '${form.receivedCountry || "selected Country"}'.\n\nDo you want to proceed?`;
+                                    if (confirm(message)) {
+                                      const name = prompt(`Enter new Received Border name for ${form.receivedCountry || "selected Country"}:`);
+                                      if (name && name.trim()) {
+                                        handleCreatePort(name.trim(), form.receivedCountry, "road", "received");
+                                      }
+                                    }
+                                    return;
+                                  }
+                                  setValue("receivedBorder", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Border</option>
@@ -3276,6 +3511,9 @@ export function PurchaseOrderWizard() {
                                 ))}
                                 {form.receivedBorder && !roadReceivedPorts.some(p => p.port_name === form.receivedBorder) && (
                                   <option value={form.receivedBorder}>{form.receivedBorder}</option>
+                                )}
+                                {form.receivedCountry && (
+                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Border...</option>
                                 )}
                               </select>
                             </div>
@@ -3296,13 +3534,17 @@ export function PurchaseOrderWizard() {
                         <div className="space-y-2 text-[10px]">
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <label className="text-[9px] text-muted-foreground">Loading Country</label>
-                                <button type="button" onClick={() => setNewCountryModal(true)} className="text-[8px] text-primary hover:underline font-semibold">+ New</button>
-                              </div>
+                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
                               <select
                                 value={form.loadingCountry || ""}
-                                onChange={(e) => setValue("loadingCountry", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
+                                    e.target.value = form.loadingCountry || "";
+                                    setNewCountryModal(true);
+                                    return;
+                                  }
+                                  setValue("loadingCountry", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Country</option>
@@ -3312,13 +3554,26 @@ export function PurchaseOrderWizard() {
                                 {form.loadingCountry && !transitCountryOptions.some(c => c.name === form.loadingCountry) && (
                                   <option value={form.loadingCountry}>{form.loadingCountry}</option>
                                 )}
+                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
                               </select>
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Airport Name</label>
                               <select
                                 value={form.airportName || ""}
-                                onChange={(e) => setValue("airportName", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                    const message = `You are adding a new Loading Airport for country: '${form.loadingCountry || "selected Country"}'.\n\nDo you want to proceed?`;
+                                    if (confirm(message)) {
+                                      const name = prompt(`Enter new Loading Airport name for ${form.loadingCountry || "selected Country"}:`);
+                                      if (name && name.trim()) {
+                                        handleCreatePort(name.trim(), form.loadingCountry, "air", "loading");
+                                      }
+                                    }
+                                    return;
+                                  }
+                                  setValue("airportName", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Airport</option>
@@ -3327,6 +3582,9 @@ export function PurchaseOrderWizard() {
                                 ))}
                                 {form.airportName && !airLoadingPorts.some(p => p.port_name === form.airportName) && (
                                   <option value={form.airportName}>{form.airportName}</option>
+                                )}
+                                {form.loadingCountry && (
+                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Airport...</option>
                                 )}
                               </select>
                             </div>
@@ -3354,13 +3612,17 @@ export function PurchaseOrderWizard() {
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <label className="text-[9px] text-muted-foreground">Received Country</label>
-                                <button type="button" onClick={() => setNewCountryModal(true)} className="text-[8px] text-primary hover:underline font-semibold">+ New</button>
-                              </div>
+                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
                               <select
                                 value={form.receivedCountry || ""}
-                                onChange={(e) => setValue("receivedCountry", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
+                                    e.target.value = form.receivedCountry || "";
+                                    setNewCountryModal(true);
+                                    return;
+                                  }
+                                  setValue("receivedCountry", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Country</option>
@@ -3370,13 +3632,26 @@ export function PurchaseOrderWizard() {
                                 {form.receivedCountry && !transitCountryOptions.some(c => c.name === form.receivedCountry) && (
                                   <option value={form.receivedCountry}>{form.receivedCountry}</option>
                                 )}
+                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
                               </select>
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Airport Name</label>
                               <select
                                 value={form.receivedPortName || ""}
-                                onChange={(e) => setValue("receivedPortName", e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                    const message = `You are adding a new Received Airport for country: '${form.receivedCountry || "selected Country"}'.\n\nDo you want to proceed?`;
+                                    if (confirm(message)) {
+                                      const name = prompt(`Enter new Received Airport name for ${form.receivedCountry || "selected Country"}:`);
+                                      if (name && name.trim()) {
+                                        handleCreatePort(name.trim(), form.receivedCountry, "air", "received");
+                                      }
+                                    }
+                                    return;
+                                  }
+                                  setValue("receivedPortName", e.target.value);
+                                }}
                                 className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
                               >
                                 <option value="">Select Airport</option>
@@ -3385,6 +3660,9 @@ export function PurchaseOrderWizard() {
                                 ))}
                                 {form.receivedPortName && !airReceivedPorts.some(p => p.port_name === form.receivedPortName) && (
                                   <option value={form.receivedPortName}>{form.receivedPortName}</option>
+                                )}
+                                {form.receivedCountry && (
+                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Airport...</option>
                                 )}
                               </select>
                             </div>
@@ -4051,15 +4329,15 @@ export function PurchaseOrderWizard() {
       {/* ── NEW COUNTRY MODAL ───────────────────────────────────────────────── */}
       {newCountryModal && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-xs rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div>
                 <h3 className="text-sm font-bold tracking-tight text-foreground">Add New Country</h3>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Creates a new country in the Location Master</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">ISO codes and emails are auto-generated</p>
               </div>
               <button
                 type="button"
-                onClick={() => { setNewCountryModal(false); setNewCountryError(""); setNewCountryForm({ name: "", iso2: "", iso3: "", currencyCode: "", whatsappNumber: "" }); }}
+                onClick={() => { setNewCountryModal(false); setNewCountryError(""); setNewCountryForm({ name: "" }); }}
                 className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
               >✕</button>
             </div>
@@ -4067,67 +4345,24 @@ export function PurchaseOrderWizard() {
               {newCountryError && (
                 <div className="bg-destructive/10 border border-destructive/30 text-destructive text-[10px] rounded px-3 py-2">{newCountryError}</div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="block text-[10px] text-muted-foreground mb-1">Country Name *</label>
-                  <input
-                    type="text"
-                    value={newCountryForm.name}
-                    onChange={(e) => setNewCountryForm(p => ({ ...p, name: e.target.value }))}
-                    placeholder="e.g. Iran"
-                    className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-muted-foreground mb-1">ISO-2 Code</label>
-                  <input
-                    type="text"
-                    maxLength={2}
-                    value={newCountryForm.iso2}
-                    onChange={(e) => setNewCountryForm(p => ({ ...p, iso2: e.target.value }))}
-                    placeholder="IR"
-                    className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary uppercase"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-muted-foreground mb-1">ISO-3 Code</label>
-                  <input
-                    type="text"
-                    maxLength={3}
-                    value={newCountryForm.iso3}
-                    onChange={(e) => setNewCountryForm(p => ({ ...p, iso3: e.target.value }))}
-                    placeholder="IRN"
-                    className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary uppercase"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-muted-foreground mb-1">Currency Code *</label>
-                  <input
-                    type="text"
-                    maxLength={3}
-                    value={newCountryForm.currencyCode}
-                    onChange={(e) => setNewCountryForm(p => ({ ...p, currencyCode: e.target.value }))}
-                    placeholder="IRR"
-                    className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary uppercase"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-muted-foreground mb-1">WhatsApp No.</label>
-                  <input
-                    type="text"
-                    value={newCountryForm.whatsappNumber}
-                    onChange={(e) => setNewCountryForm(p => ({ ...p, whatsappNumber: e.target.value }))}
-                    placeholder="+98 21 ..."
-                    className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
-                  />
-                </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Country Name *</label>
+                <input
+                  type="text"
+                  value={newCountryForm.name}
+                  onChange={(e) => setNewCountryForm({ name: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddNewCountry(); }}
+                  placeholder="e.g. Iran"
+                  autoFocus
+                  className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                />
               </div>
-              <p className="text-[9px] text-muted-foreground/60">System emails will be auto-generated from the country code. Only Super Admins can create countries.</p>
+              <p className="text-[9px] text-muted-foreground/60">ISO-2, ISO-3, currency code and system emails will be auto-generated. You can update them later in Location Setup.</p>
             </div>
             <div className="flex justify-end gap-2 px-5 pb-4">
               <button
                 type="button"
-                onClick={() => { setNewCountryModal(false); setNewCountryError(""); setNewCountryForm({ name: "", iso2: "", iso3: "", currencyCode: "", whatsappNumber: "" }); }}
+                onClick={() => { setNewCountryModal(false); setNewCountryError(""); setNewCountryForm({ name: "" }); }}
                 className="px-4 py-1.5 text-[11px] rounded border border-input text-muted-foreground hover:text-foreground transition-colors"
               >Cancel</button>
               <button

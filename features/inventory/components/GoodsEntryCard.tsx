@@ -147,15 +147,113 @@ export function GoodsEntryCard({
     }
     return list;
   }, [goodsRows]);
+  // Unique Goods from goodsRows
+  const uniqueGoods = useMemo(() => {
+    return goodsRows.map(g => ({
+      id: g.id,
+      goodsName: g.goods_name,
+      chsCode: g.chs_code
+    }));
+  }, [goodsRows]);
 
-  const goodsOptions = useMemo(() => {
-    return flatVariations.map((v) => {
-      const originName = v.originCountryId ? countries.find((c) => c.id === v.originCountryId)?.name : null;
-      const parts = [v.goodsName, v.chsCode, originName, v.size, v.brand].filter(Boolean).join(" | ");
-      const keywords = [v.goodsName, v.chsCode, originName, v.size, v.brand].filter(Boolean).join(" ");
-      return { value: v.id, label: parts || v.goodsName, keywords } satisfies SearchSelectOption;
+  // Selected master goods object
+  const selectedMasterGoods = useMemo(() => {
+    const foundVar = flatVariations.find(v => v.id === value.goodsId);
+    const mId = foundVar ? foundVar.goodsId : value.goodsId;
+    return goodsRows.find(g => g.id === mId) ?? null;
+  }, [goodsRows, flatVariations, value.goodsId]);
+
+  // Unique Brands filtered by selected Goods
+  const filteredBrands = useMemo(() => {
+    if (!selectedMasterGoods) return [];
+    const vars = selectedMasterGoods.variations || [];
+    return [...new Set(vars.map(v => v.brand).filter(Boolean))];
+  }, [selectedMasterGoods]);
+
+  // Unique Sizes filtered by selected Goods and selected Brand
+  const filteredSizes = useMemo(() => {
+    if (!selectedMasterGoods) return [];
+    const vars = selectedMasterGoods.variations || [];
+    const filtered = value.brand
+      ? vars.filter(v => (v.brand || "").trim().toLowerCase() === (value.brand || "").trim().toLowerCase())
+      : vars;
+    return [...new Set(filtered.map(v => v.size).filter(Boolean))];
+  }, [selectedMasterGoods, value.brand]);
+
+  const uniqueGoodsOptions = useMemo(() => {
+    return uniqueGoods.map((g) => {
+      const parts = [g.goodsName, g.chsCode].filter(Boolean).join(" | ");
+      const keywords = [g.goodsName, g.chsCode].filter(Boolean).join(" ");
+      return { value: g.id, label: parts || g.goodsName, keywords } satisfies SearchSelectOption;
     });
-  }, [flatVariations, countries]);
+  }, [uniqueGoods]);
+
+  const handleGoodsChange = (goodsId: string) => {
+    const g = goodsRows.find(x => x.id === goodsId);
+    if (!g) return;
+    onChange({
+      ...value,
+      goodsId: g.id,
+      goodsName: g.goods_name,
+      productCode: g.chs_code,
+      hsCode: "",
+      size: "",
+      brand: "",
+      originCountryId: "",
+      imageUrl: ""
+    });
+  };
+
+  const handleBrandChange = (brand: string) => {
+    if (brand === "__ADD_NEW_BRAND__") {
+      const message = `You are adding a new Brand for '${value.goodsName || "selected Good"}'.\n\nDo you want to proceed?`;
+      if (confirm(message)) {
+        const name = prompt(`Enter custom Brand name for ${value.goodsName || "selected Good"}:`);
+        if (name && name.trim()) {
+          onChange({
+            ...value,
+            brand: name.trim().toUpperCase(),
+            size: ""
+          });
+        }
+      }
+      return;
+    }
+    onChange({
+      ...value,
+      brand,
+      size: ""
+    });
+  };
+
+  const handleSizeChange = (size: string) => {
+    if (size === "__ADD_NEW_SIZE__") {
+      const message = `You are adding a new Size for '${value.goodsName || "selected Good"}' under Brand '${value.brand || "selected Brand"}'.\n\nDo you want to proceed?`;
+      if (confirm(message)) {
+        const spec = prompt(`Enter custom Size specification for ${value.goodsName || "selected Good"} (${value.brand || "selected Brand"}):`);
+        if (spec && spec.trim()) {
+          onChange({
+            ...value,
+            size: spec.trim().toUpperCase()
+          });
+        }
+      }
+      return;
+    }
+
+    const masterId = selectedMasterGoods?.id || value.goodsId;
+    const matchedVar = flatVariations.find(v => 
+      v.goodsId === masterId && 
+      (v.brand || "").trim().toLowerCase() === (value.brand || "").trim().toLowerCase() && 
+      (v.size || "").trim().toLowerCase() === size.trim().toLowerCase()
+    );
+    onChange({
+      ...value,
+      goodsId: matchedVar ? matchedVar.id : masterId,
+      size,
+      originCountryId: matchedVar?.originCountryId ?? value.originCountryId
+    });
+  };
 
   const selectedGoods = useMemo(() => flatVariations.find((v) => v.id === value.goodsId) ?? null, [flatVariations, value.goodsId]);
   const originName = useMemo(() => {
@@ -209,29 +307,15 @@ export function GoodsEntryCard({
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-lg border border-border bg-background p-2">
                 <SearchSelect
                   label="Select Goods"
-                  value={value.goodsId}
-                  options={goodsOptions}
-                  placeholder={value.countryId ? "Search goods name / chs code / brand" : "Select country first"}
+                  value={selectedMasterGoods?.id ?? value.goodsId}
+                  options={uniqueGoodsOptions}
+                  placeholder={value.countryId ? "Search goods / code" : "Select country first"}
                   disabled={!value.countryId}
-                  onValueChange={(id) => {
-                    const v = flatVariations.find((x) => x.id === id);
-                    if (!v) return onChange({ ...value, goodsId: id });
-                    onChange({
-                      ...value,
-                      goodsId: v.id,
-                      goodsName: v.goodsName ?? "",
-                      productCode: v.chsCode ?? "",
-                      hsCode: "",
-                      size: v.size ?? "",
-                      brand: v.brand ?? "",
-                      originCountryId: v.originCountryId ?? "",
-                      imageUrl: ""
-                    });
-                  }}
+                  onValueChange={handleGoodsChange}
                   createLabel="Add New Goods"
                   onCreateNew={() => {
                     window.location.href = goodsManagementHref;
@@ -241,7 +325,43 @@ export function GoodsEntryCard({
               </div>
 
               <label className="grid gap-1">
-                <span className="text-xs text-muted-foreground">Divide Type</span>
+                <span className="text-xs text-muted-foreground font-semibold">Select Brand</span>
+                <select
+                  value={value.brand}
+                  onChange={(e) => handleBrandChange(e.target.value)}
+                  disabled={!selectedMasterGoods}
+                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
+                >
+                  <option value="">Select Brand</option>
+                  {filteredBrands.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                  <option value="__ADD_NEW_BRAND__" className="text-primary font-semibold">+ Add Custom Brand...</option>
+                </select>
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-xs text-muted-foreground font-semibold">Select Size</span>
+                <select
+                  value={value.size}
+                  onChange={(e) => handleSizeChange(e.target.value)}
+                  disabled={!value.brand}
+                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
+                >
+                  <option value="">Select Size</option>
+                  {filteredSizes.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                  <option value="__ADD_NEW_SIZE__" className="text-primary font-semibold">+ Add Custom Size...</option>
+                </select>
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-xs text-muted-foreground font-semibold">Divide Type</span>
                 <select
                   value={value.divideType}
                   onChange={(e) => onChange({ ...value, divideType: e.target.value as DivideType })}
