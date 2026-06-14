@@ -2168,46 +2168,26 @@ export function PurchaseOrderWizard() {
                         <td className="px-2 py-1 text-right font-bold">${item.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         <td className="px-2 py-1 text-right font-black text-blue-900">{item.finalAmountPkr.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Summary Totals Grid */}
-              <div className="border border-slate-200 rounded overflow-hidden grid grid-cols-4 text-center mt-1">
-                <div className="border-r border-b border-slate-200 p-2">
-                  <div className="text-[6.5px] uppercase font-bold text-slate-400">Total Quantity</div>
-                  <div className="text-[10px] font-black text-slate-800">{reportTotals.totalQty.toLocaleString()} Units</div>
+                    </tbody>
+                    <tfoot className="border-t-[1.5px] border-slate-350 bg-slate-50 font-bold">
+                      <tr className="text-slate-800">
+                        <td colSpan={4} className="px-2 py-1 text-right text-slate-500 font-extrabold uppercase text-[7px]">Totals:</td>
+                        <td className="px-2 py-1 text-right text-slate-900 font-black">{reportTotals.totalQty.toLocaleString()} Units</td>
+                        <td className="px-2 py-1"></td>
+                        <td className="px-2 py-1 text-right text-slate-950 font-bold">{reportTotals.totalGross.toLocaleString()} kg</td>
+                        <td className="px-2 py-1 text-right text-slate-950 font-bold">{reportTotals.totalNet.toLocaleString()} kg</td>
+                        <td className="px-2 py-1 text-right text-slate-500 text-[6.5px]">Avg: ${avgRateKg.toFixed(2)}</td>
+                        <td className="px-2 py-1 text-right text-blue-600 font-black">${reportTotals.grandPrimaryFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td className="px-2 py-1 text-right text-teal-700 font-black">{reportTotals.grandFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</td>
+                      </tr>
+                      <tr className="text-[7.5px] text-slate-550 border-t border-slate-200/60 font-semibold">
+                        <td colSpan={4} className="px-2 py-0.5 text-right uppercase text-[6.5px]">Containers & Dues:</td>
+                        <td colSpan={3} className="px-2 py-0.5 text-left">FCL: <span className="font-bold text-slate-800">{form.containerCount || 1} FCL ({form.containerSize})</span></td>
+                        <td colSpan={4} className="px-2 py-0.5 text-left">Avg Rate/Ton: <span className="font-bold text-slate-800">${avgRateTon.toFixed(2)}</span></td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
-                <div className="border-r border-b border-slate-200 p-2">
-                  <div className="text-[6.5px] uppercase font-bold text-slate-400">Total Gross Weight</div>
-                  <div className="text-[10px] font-black text-slate-800">{reportTotals.totalGross.toLocaleString()} kg</div>
-                </div>
-                <div className="border-r border-b border-slate-200 p-2">
-                  <div className="text-[6.5px] uppercase font-bold text-slate-400">Total Net Weight</div>
-                  <div className="text-[10px] font-black text-slate-800">{reportTotals.totalNet.toLocaleString()} kg</div>
-                </div>
-                <div className="border-b border-slate-200 p-2">
-                  <div className="text-[6.5px] uppercase font-bold text-slate-400">Total Containers</div>
-                  <div className="text-[10px] font-black text-slate-800">{form.containerCount || 1} FCL ({form.containerSize})</div>
-                </div>
-                <div className="border-r border-slate-200 p-2">
-                  <div className="text-[6.5px] uppercase font-bold text-slate-400">Avg Rate/KG</div>
-                  <div className="text-[10px] font-black text-slate-800">${avgRateKg.toFixed(2)}</div>
-                </div>
-                <div className="border-r border-slate-200 p-2">
-                  <div className="text-[6.5px] uppercase font-bold text-slate-400">Avg Rate/Ton</div>
-                  <div className="text-[10px] font-black text-slate-800">${avgRateTon.toFixed(2)}</div>
-                </div>
-                <div className="border-r border-slate-200 p-2">
-                  <div className="text-[6.5px] uppercase font-bold text-blue-500">Total Amount (USD)</div>
-                  <div className="text-[10px] font-black text-blue-600">${reportTotals.grandPrimaryFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                </div>
-                <div className="p-2 bg-teal-500/5">
-                  <div className="text-[6.5px] uppercase font-bold text-teal-600">Total Amount ({goodsEntries[0]?.secondaryCurrency || "PKR"})</div>
-                  <div className="text-[10px] font-black text-teal-700">{reportTotals.grandFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</div>
-                </div>
-              </div>
 
               {/* Shipment & Scheduling Info */}
               <div className="grid grid-cols-2 gap-2.5 mt-1">

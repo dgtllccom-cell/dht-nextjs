@@ -1786,6 +1786,24 @@ export function PurchaseBookingJournalReportView() {
                           );
                         })}
                       </tbody>
+                      <tfoot className="border-t-[1.5px] border-slate-350 bg-slate-50 font-bold text-[8px]">
+                        <tr className="text-slate-800">
+                          <td colSpan={5} className="p-1 text-right text-slate-500 font-extrabold uppercase text-[7.5px]">Totals:</td>
+                          <td className="p-1 text-right text-slate-900 font-black">{totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || "Units"}</td>
+                          <td className="p-1"></td>
+                          <td className="p-1 text-right text-slate-950 font-bold">{totalGross.toLocaleString()} kg</td>
+                          <td className="p-1 text-right text-slate-950 font-bold">{totalNet.toLocaleString()} kg</td>
+                          <td className="p-1 text-right text-slate-550 text-[7px]">Avg: ${avgRateKg.toFixed(2)}</td>
+                          <td className="p-1 text-right text-blue-600 font-black">${totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="p-1"></td>
+                          <td className="p-1 text-right text-emerald-600 font-black">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</td>
+                        </tr>
+                        <tr className="text-[7.5px] text-slate-550 border-t border-slate-200/60 font-semibold">
+                          <td colSpan={5} className="p-1 text-right uppercase text-[7px]">Containers & Dues:</td>
+                          <td colSpan={3} className="p-1 text-left">FCL: <span className="font-bold text-slate-800">{containerCount}</span></td>
+                          <td colSpan={5} className="p-1 text-left">Avg Rate/Ton: <span className="font-bold text-slate-800">${avgRateTon.toFixed(2)}</span></td>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
 
@@ -1868,48 +1886,6 @@ export function PurchaseBookingJournalReportView() {
                           </tr>
                         </tbody>
                       </table>
-                    </div>
-                  </div>
-
-                  {/* Summary Totals Cards block */}
-                  <div className="border border-slate-200 rounded overflow-hidden">
-                    <div className="bg-slate-150 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                      📊 Summary Totals
-                    </div>
-                    <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-slate-50/50">
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Quantity</span>
-                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || "BAGS"}</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Gross Weight</span>
-                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{totalGross.toLocaleString()} kg</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Net Weight</span>
-                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{totalNet.toLocaleString()} kg</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Volume / Containers</span>
-                        <span className="text-[9px] font-black text-slate-800 mt-1 leading-none">{containerCount}</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Average Rate / KG</span>
-                        <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${avgRateKg.toFixed(2)}</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Average Rate / Ton</span>
-                        <span className="text-[9px] font-black text-blue-600 mt-1 leading-none">${avgRateTon.toFixed(2)}</span>
-                      </div>
-                      <div className="border border-slate-200 rounded p-1 bg-white flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-slate-455 uppercase font-black tracking-wider leading-none">Total Amount (USD)</span>
-                        <span className="text-[9px] font-black text-blue-700 mt-1 leading-none">${totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="border border-emerald-300 rounded p-1 bg-emerald-50/35 flex flex-col justify-between min-h-[36px]">
-                        <span className="text-[7px] text-emerald-650 uppercase font-black tracking-wider leading-none">Total Amount (PKR)</span>
-                        <span className="text-[10px] font-black text-emerald-700 mt-1 leading-none">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</span>
-                      </div>
-                      </div>
                     </div>
                   </div>
 
