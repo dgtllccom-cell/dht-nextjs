@@ -84,6 +84,48 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     }
     patch.updated_at = new Date().toISOString();
 
+    const shouldPost = (before as any)?.ledger_posting_status !== "posted" && patch.ledger_posting_status === "posted";
+
+    if (shouldPost) {
+      const orderId = params.id;
+      const orderTotal = body.orderTotal !== undefined ? body.orderTotal : (before as any).order_total;
+      const currencyCode = body.currencyCode !== undefined ? body.currencyCode : (before as any).currency_code;
+      const exchangeRate = body.exchangeRate !== undefined ? body.exchangeRate : (before as any).exchange_rate;
+      const formData = body.formData !== undefined ? body.formData : (before as any).form_data;
+      
+      const form = formData?.form ?? {};
+      const advancePercent = Number(form.advancePercent ?? 10);
+      const advanceAmount = (Number(orderTotal) * advancePercent) / 100;
+      const entryDate = form.advancePaymentDate || form.purchaseDate || new Date().toISOString().slice(0, 10);
+      
+      const debitLedgerId = await getLedgerIdByCode(supabase, form.purchaseAccountNo);
+      const creditLedgerId = await getLedgerIdByCode(supabase, form.salesAccountNo);
+      
+      if (!debitLedgerId) {
+        throw new Error(`Debit Ledger not found for account code: ${form.purchaseAccountNo}`);
+      }
+      if (!creditLedgerId) {
+        throw new Error(`Credit Ledger not found for account code: ${form.salesAccountNo}`);
+      }
+
+      const { error: paymentError } = await supabase.rpc("post_purchase_order_payment", {
+        p_purchase_order_id: orderId,
+        p_kind: "advance",
+        p_entry_date: entryDate,
+        p_amount: advanceAmount,
+        p_currency_code: currencyCode || "USD",
+        p_exchange_rate: Number(exchangeRate || 1),
+        p_debit_ledger_id: debitLedgerId,
+        p_credit_ledger_id: creditLedgerId,
+        p_reference_no: body.purchaseContractNo || (before as any).purchase_contract_no || null,
+        p_narration: `Advance payment for Purchase Order ${(before as any).purchase_order_no}`
+      });
+
+      if (paymentError) {
+        throw new Error(`Failed to post ledger entry: ${paymentError.message}`);
+      }
+    }
+
     const updated = await requireSupabaseData(
       supabase.from("purchase_orders").update(patch).eq("id", params.id).select("id").single()
     );
@@ -101,4 +143,16 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+async function getLedgerIdByCode(supabase: any, code: string) {
+  if (!code) return null;
+  const { data, error } = await supabase
+    .from("ledgers")
+    .select("id")
+    .eq("code", code)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.id;
 }

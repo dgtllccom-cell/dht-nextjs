@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -700,8 +701,8 @@ export function LedgerReportView({
               {menuOpen ? (
                 <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border bg-background shadow-xl bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
                   <MenuAction icon={<Printer className="h-4 w-4" />} label={t(lang, "ledger.print")} onClick={() => openPrint(true)} />
-                  <MenuAction icon={<Download className="h-4 w-4" />} label="PDF Export" onClick={() => openPrint(false)} />
-                  <MenuAction icon={<Download className="h-4 w-4" />} label={t(lang, "ledger.export_csv")} onClick={exportReportCsv} />
+                  <MenuAction icon={<DownloadActionIcon className="h-4 w-4" />} label="PDF Export" onClick={() => openPrint(false)} />
+                  <MenuAction icon={<DownloadActionIcon className="h-4 w-4" />} label={t(lang, "ledger.export_csv")} onClick={exportReportCsv} />
                   <MenuAction
                     icon={<Search className="h-4 w-4" />}
                     label="View Ledger"
@@ -801,7 +802,7 @@ export function LedgerReportView({
                   Print
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="gap-2" onClick={exportReportCsv}>
-                  <Download className="h-4 w-4" aria-hidden />
+                  <DownloadActionIcon className="h-4 w-4" aria-hidden />
                   PDF / Excel
                 </Button>
               </div>

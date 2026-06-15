@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -1873,7 +1874,7 @@ export function CashEntryForm({
                   onClick={() => setHeaderMenuOpen(false)}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
                 >
-                  <Download className="h-3.5 w-3.5" />
+                  <DownloadActionIcon className="h-3.5 w-3.5" />
                   Export PDF
                 </button>
                 <button
@@ -2560,7 +2561,7 @@ export function CashEntryForm({
                         URL.revokeObjectURL(url);
                       }}
                     >
-                      <Download className="h-4 w-4" />
+                      <DownloadActionIcon className="h-4 w-4" />
                       Export Draft (JSON)
                     </Button>
                   </CardContent>

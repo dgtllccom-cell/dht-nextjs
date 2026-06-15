@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import {
   Banknote,
@@ -493,9 +494,9 @@ function ReportActions({ rows, mode }: { rows: PurchaseOrderRow[]; mode: Payment
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
         <MenuAction icon={<Eye />} label="Plate View" onClick={() => undefined} />
-        <MenuAction icon={<Download />} label="Download" onClick={() => exportRows(rows, mode)} />
+        <MenuAction icon={<DownloadActionIcon />} label="Download" onClick={() => exportRows(rows, mode)} />
         <MenuAction icon={<FileSpreadsheet />} label="Export Excel" onClick={() => exportRows(rows, mode)} />
-        <MenuAction icon={<Download />} label="Export PDF" onClick={() => window.print()} />
+        <MenuAction icon={<DownloadActionIcon />} label="Export PDF" onClick={() => window.print()} />
         <MenuAction icon={<Printer />} label="Print" onClick={() => window.print()} />
       </div>
     </details>
@@ -513,7 +514,7 @@ function RowActions({ onSelect }: { onSelect: () => void }) {
         <MenuAction icon={<WalletCards />} label="Payment History" onClick={onSelect} />
         <MenuAction icon={<Banknote />} label="Journal" onClick={onSelect} />
         <MenuAction icon={<Printer />} label="Print" onClick={() => window.print()} />
-        <MenuAction icon={<Download />} label="Export PDF" onClick={() => window.print()} />
+        <MenuAction icon={<DownloadActionIcon />} label="Export PDF" onClick={() => window.print()} />
       </div>
     </details>
   );

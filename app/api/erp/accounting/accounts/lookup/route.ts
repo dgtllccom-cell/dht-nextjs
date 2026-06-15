@@ -66,7 +66,25 @@ async function findLedgerIdsFromAccountMaster(query: string, limit: number) {
   const value = query.trim();
   const likeValue = `%${value}%`;
 
-  const [accountNoRes, manualRefRes, customerNoRes, codeRes, nameRes, legacyCodeRes, legacyNameRes, ledgerCodeRes, ledgerNameRes] =
+  const customerAccountPromise = (async () => {
+    const { data: customers, error } = await supabase
+      .from("customers")
+      .select("id")
+      .or(`mobile.eq.${value},whatsapp.eq.${value},mobile.ilike.%${value}%,whatsapp.ilike.%${value}%`)
+      .is("deleted_at", null)
+      .limit(limit);
+    if (error) return { data: [], error };
+    const customerIds = (customers ?? []).map((c: any) => c.id);
+    if (customerIds.length === 0) return { data: [], error: null };
+    return supabase
+      .from("enterprise_accounts")
+      .select("id")
+      .in("customer_id", customerIds)
+      .is("deleted_at", null)
+      .limit(limit);
+  })();
+
+  const [accountNoRes, manualRefRes, customerNoRes, codeRes, nameRes, legacyCodeRes, legacyNameRes, ledgerCodeRes, ledgerNameRes, customerAccountRes] =
     await Promise.all([
       supabase
         .from("enterprise_accounts")
@@ -121,10 +139,11 @@ async function findLedgerIdsFromAccountMaster(query: string, limit: number) {
         .select("id")
         .ilike("name", likeValue)
         .is("deleted_at", null)
-        .limit(limit)
+        .limit(limit),
+      customerAccountPromise
     ]);
 
-  for (const res of [accountNoRes, manualRefRes, customerNoRes, codeRes, nameRes, legacyCodeRes, legacyNameRes, ledgerCodeRes, ledgerNameRes]) {
+  for (const res of [accountNoRes, manualRefRes, customerNoRes, codeRes, nameRes, legacyCodeRes, legacyNameRes, ledgerCodeRes, ledgerNameRes, customerAccountRes]) {
     if (res.error) throw new Error(res.error.message);
   }
 
@@ -133,7 +152,8 @@ async function findLedgerIdsFromAccountMaster(query: string, limit: number) {
     ...(manualRefRes.data ?? []),
     ...(customerNoRes.data ?? []),
     ...(codeRes.data ?? []),
-    ...(nameRes.data ?? [])
+    ...(nameRes.data ?? []),
+    ...(customerAccountRes.data ?? [])
   ].map((row: { id: string }) => row.id);
   const legacyAccountIds = [...(legacyCodeRes.data ?? []), ...(legacyNameRes.data ?? [])].map((row: { id: string }) => row.id);
   const ledgerIds = [...(ledgerCodeRes.data ?? []), ...(ledgerNameRes.data ?? [])].map((row: { id: string }) => row.id);

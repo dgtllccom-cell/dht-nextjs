@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import {
   Search, UserRound, Building2, Landmark, Hash,
   Phone, Mail, MoreVertical, Download, FileSpreadsheet,
@@ -269,7 +270,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                 <div className="asr-action-section-label">Print</div>
                 {[
                   { icon: Printer, label: "Print Report", action: () => window.print() },
-                  { icon: Download, label: "Download Report", action: () => exportCSV(filtered) },
+                  { icon: DownloadActionIcon, label: "Download Report", action: () => exportCSV(filtered) },
                 ].map(({ icon: Icon, label, action }) => (
                   <button key={label} type="button" className="asr-action-item" onClick={() => { action(); setActionMenuOpen(false); }}>
                     <Icon className="h-3.5 w-3.5 shrink-0 text-slate-500" />

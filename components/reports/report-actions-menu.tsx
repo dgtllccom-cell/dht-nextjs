@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileDown, FileSpreadsheet, MoreVertical, Printer } from "lucide-react";
+import { FileSpreadsheet, MoreVertical, Printer } from "lucide-react";
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +58,7 @@ export function ReportActionsMenu({ disabled, onPrint, onPdf, onExcel, ariaLabel
             Print
           </button>
           <button type="button" onClick={() => run(onPdf)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted">
-            <FileDown className="h-4 w-4" aria-hidden />
+            <DownloadActionIcon className="h-4 w-4" aria-hidden />
             PDF Export
           </button>
           <button type="button" onClick={() => run(onExcel)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted">

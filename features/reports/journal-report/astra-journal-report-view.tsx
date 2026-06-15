@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
@@ -522,9 +523,9 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
         <Kpi icon={<ClipboardList className="h-5 w-5" />} label="Total Accounts in Branch" value={String(summary.accounts)} tone="blue" />
         <Kpi icon={<Building2 className="h-5 w-5" />} label="Active Accounts" value={String(summary.active)} tone="purple" />
         <Kpi icon={<FileSpreadsheet className="h-5 w-5" />} label="Credit Accounts" value={String(summary.creditAccounts)} tone="green" />
-        <Kpi icon={<Download className="h-5 w-5" />} label="Debit Accounts" value={String(summary.debitAccounts)} tone="red" />
+        <Kpi icon={<DownloadActionIcon className="h-5 w-5" />} label="Debit Accounts" value={String(summary.debitAccounts)} tone="red" />
         <Kpi icon={<FileSpreadsheet className="h-5 w-5" />} label="Total Credit" value={fmt(summary.credit)} tone="green" />
-        <Kpi icon={<Download className="h-5 w-5" />} label="Total Debit" value={fmt(summary.debit)} tone="red" />
+        <Kpi icon={<DownloadActionIcon className="h-5 w-5" />} label="Total Debit" value={fmt(summary.debit)} tone="red" />
         <Kpi icon={<BookOpen className="h-5 w-5" />} label="Final Balance" value={fmt(summary.balance)} tone="slate" />
         {scope === "construction" ? (
           <>
@@ -555,7 +556,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
               Export Excel
             </Button>
             <Button size="sm" variant="outline" onClick={() => openPrint(false)} className="h-8 rounded-md px-2.5 text-xs">
-              <Download className="mr-1.5 h-3.5 w-3.5" />
+              <DownloadActionIcon className="mr-1.5 h-3.5 w-3.5" />
               Export PDF
             </Button>
             <Button size="sm" variant="outline" onClick={() => openPrint(true)} className="h-8 rounded-md px-2.5 text-xs">
@@ -791,7 +792,7 @@ function ReportActions({ rows, scope }: { rows: JournalRow[]; scope: JournalScop
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-44 rounded-lg border border-slate-200 bg-popover p-1 text-sm text-popover-foreground shadow-2xl dark:border-slate-800">
         <MenuAction icon={<Eye />} label="Plate View" onClick={() => undefined} />
-        <MenuAction icon={<Download />} label="Download" onClick={() => exportCsv(rows, scope)} />
+        <MenuAction icon={<DownloadActionIcon />} label="Download" onClick={() => exportCsv(rows, scope)} />
       </div>
     </details>
   );
@@ -810,7 +811,7 @@ function RowActions() {
         <MenuAction icon={<FileText />} label="Attachments" onClick={() => undefined} />
         <MenuAction icon={<ClipboardList />} label="Timeline Audit" onClick={() => undefined} />
         <MenuAction icon={<Printer />} label="Print Voucher" onClick={() => window.print()} />
-        <MenuAction icon={<Download />} label="Export PDF" onClick={() => window.print()} />
+        <MenuAction icon={<DownloadActionIcon />} label="Export PDF" onClick={() => window.print()} />
       </div>
     </details>
   );

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Eye, FileDown, FileSpreadsheet, Mail, MoreVertical, PencilLine, Printer } from "lucide-react";
+import { Eye, FileSpreadsheet, Mail, MoreVertical, PencilLine, Printer } from "lucide-react";
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -116,7 +117,7 @@ export function BranchReportActionsMenu({
               onClick={() => closeAndRun(onPdf)}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
             >
-              <FileDown className="h-4 w-4" aria-hidden />
+              <DownloadActionIcon className="h-4 w-4" aria-hidden />
               PDF Download
             </button>
             <button

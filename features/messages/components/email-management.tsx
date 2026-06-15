@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeftRight,
@@ -698,7 +699,7 @@ export function EmailManagementWorkspace({ channel }: { channel: EmailChannel })
                     <div className="mb-3 flex items-center justify-between">
                       <div className="text-sm font-semibold text-foreground">Attachments ({selected.attachmentCount})</div>
                       <Button type="button" variant="outline" size="sm" onClick={downloadAttachmentSummary}>
-                        <Download className="mr-2 h-4 w-4" aria-hidden />
+                        <DownloadActionIcon className="mr-2 h-4 w-4" aria-hidden />
                         Download
                       </Button>
                     </div>

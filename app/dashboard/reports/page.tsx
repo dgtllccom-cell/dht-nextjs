@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
@@ -278,7 +279,7 @@ export default function ReportsHub() {
                   className="p-1.5 rounded-lg border bg-white text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 hover:text-indigo-600 transition-colors disabled:opacity-40"
                   title="Export to CSV"
                 >
-                  <Download className="h-4 w-4" />
+                  <DownloadActionIcon className="h-4 w-4" />
                 </button>
                 <button
                   onClick={handleShareWhatsApp}

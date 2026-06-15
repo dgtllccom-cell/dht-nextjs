@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import {
   Calendar,
@@ -492,7 +493,7 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
                   <Printer className="h-4 w-4" /> Print
                 </button>
                 <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted" onClick={downloadCsv}>
-                  <Download className="h-4 w-4" /> Export CSV
+                  <DownloadActionIcon className="h-4 w-4" /> Export CSV
                 </button>
                 <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted" onClick={printLedger}>
                   <FileText className="h-4 w-4" /> PDF

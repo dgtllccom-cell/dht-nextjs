@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { BookOpen, Download, Eye, FileText, Filter, Link2, Maximize2, MoreVertical, Printer, RefreshCcw, Search, Globe, Building2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1234,9 +1235,9 @@ export function SuperAdminRoznamchaReportView({
                 <MenuAction icon={<Maximize2 className="h-4 w-4" />} label="Full Screen" onClick={openFullScreen} />
                 <MenuAction icon={<RefreshCcw className={cn("h-4 w-4", refreshing ? "animate-spin" : "")} />} label={refreshing ? "Refreshing" : "Refresh"} onClick={() => void loadReport()} />
                 <MenuDivider />
-                <MenuAction icon={<Download className="h-4 w-4" />} label="Export PDF" onClick={() => openSelectedReport(false, "journal")} />
+                <MenuAction icon={<DownloadActionIcon className="h-4 w-4" />} label="Export PDF" onClick={() => openSelectedReport(false, "journal")} />
                 <MenuAction icon={<Printer className="h-4 w-4" />} label="Print Report" onClick={() => openSelectedReport(true, "journal")} />
-                <MenuAction icon={<Download className="h-4 w-4" />} label="Excel Export" onClick={exportCsv} />
+                <MenuAction icon={<DownloadActionIcon className="h-4 w-4" />} label="Excel Export" onClick={exportCsv} />
                 <MenuDivider />
                 <MenuAction icon={<Eye className="h-4 w-4" />} label="View Voucher" onClick={() => openSelectedReport(false, "voucher")} />
                 <MenuAction icon={<BookOpen className="h-4 w-4" />} label="Open Ledger" onClick={openSelectedLedger} />

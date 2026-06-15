@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Expand, Eye, FileSpreadsheet, FileText, MoreVertical, PencilLine, Printer, Search, Trash2 } from "lucide-react";
@@ -394,7 +395,7 @@ function AccountRowActionsMenu({
           {item("Ledger", <FileText className="h-4 w-4" aria-hidden />, onOpenLedger)}
           {item("Journal", <Printer className="h-4 w-4" aria-hidden />, onViewJournal)}
           {item("Print", <Printer className="h-4 w-4" aria-hidden />, onPrint)}
-          {item("PDF", <Download className="h-4 w-4" aria-hidden />, onPdf)}
+          {item("PDF", <DownloadActionIcon className="h-4 w-4" aria-hidden />, onPdf)}
           {item("Excel", <FileSpreadsheet className="h-4 w-4" aria-hidden />, onExcel)}
           {onDelete
             ? item("Delete", <Trash2 className="h-4 w-4" aria-hidden />, onDelete, "danger")
@@ -874,7 +875,7 @@ export function AccountGeneralReportView({
                     window.print();
                   }}
                 >
-                  <Download className="h-4 w-4" aria-hidden />
+                  <DownloadActionIcon className="h-4 w-4" aria-hidden />
                   PDF Export
                   </button>
                   <button
@@ -1363,7 +1364,7 @@ export function AccountGeneralReportView({
                 Print
               </Button>
                 <Button type="button" variant="outline" size="sm" onClick={() => window.print()} disabled={!selectedRow}>
-                  <Download className="h-4 w-4" aria-hidden />
+                  <DownloadActionIcon className="h-4 w-4" aria-hidden />
                   PDF Export
                 </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => exportCsv()} disabled={loading}>

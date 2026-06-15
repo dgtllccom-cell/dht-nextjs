@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import {
   BadgeDollarSign,
@@ -583,9 +584,9 @@ function ReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[]; onExpor
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
         <MenuAction icon={<Eye />} label="Plate View" onClick={() => undefined} />
-        <MenuAction icon={<Download />} label="Download" onClick={onExport} />
+        <MenuAction icon={<DownloadActionIcon />} label="Download" onClick={onExport} />
         <MenuAction icon={<FileSpreadsheet />} label="Export Excel" onClick={onExport} />
-        <MenuAction icon={<Download />} label="Export PDF" onClick={printReport} />
+        <MenuAction icon={<DownloadActionIcon />} label="Export PDF" onClick={printReport} />
         <MenuAction icon={<Printer />} label="Print" onClick={printReport} />
         <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">{rows.length} report rows selected</div>
       </div>
@@ -726,14 +727,14 @@ function BranchFilterRow({
   );
 }
 
-export function PurchaseBookingJournalReportView() {
+export function PurchaseBookingJournalReportView({ onNewBooking }: { onNewBooking?: () => void }) {
   const router = useRouter();
   const [reports, setReports] = useState<PurchaseReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [scope, setScope] = useState<ReportScope | null>(null);
   const [selectedId, setSelectedId] = useState("");
-  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("purchase");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [transferring, setTransferring] = useState(false);
 
@@ -1020,82 +1021,132 @@ export function PurchaseBookingJournalReportView() {
   const remainingContainers = Math.max(0, allContainers.length - confirmedContainers);
 
   return (
-    <div className="min-h-screen bg-[#081120] text-slate-100">
-      <div className="mx-auto w-full max-w-[1920px] px-4 py-4">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/70 pb-4">
+    <div className="w-full bg-slate-50/50 dark:bg-background text-foreground animate-in fade-in duration-200">
+      <div className="mx-auto w-full max-w-[1920px] px-4 py-4 space-y-4">
+        
+        {/* Unified Header & Toolbar */}
+        <div className="rounded-xl border border-border bg-card shadow-sm p-3.5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-            <button type="button" className="rounded-lg border border-slate-700 bg-slate-900/90 p-2 text-slate-300">
-              <ShipWheel className="h-5 w-5" />
-            </button>
+            <div className="rounded-lg border border-border bg-muted p-2 text-muted-foreground">
+              <ShipWheel className="h-5 w-5 animate-pulse" />
+            </div>
             <div>
-              <h1 className="text-xl font-black tracking-tight text-white md:text-2xl">Purchase Booking Order - Report Templates</h1>
-              <p className="text-xs text-slate-400">PURCHASE BOOKING ORDER REPORTS · Wholesaler / Import Export / Dry Fruits / Container Trading</p>
+              <h1 className="text-sm sm:text-base font-black tracking-tight text-foreground uppercase">
+                Purchase Booking Register
+              </h1>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                Wholesaler / Import Export / Container Trading
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button type="button" size="sm" onClick={() => router.push("/dashboard/purchase/new-purchase-booking-order")} className="bg-emerald-600 text-white hover:bg-emerald-550 font-black shadow-md shadow-emerald-950/20">
-              <Plus className="h-4 w-4 mr-1" />
-              New Booking
+          
+          <div className="flex flex-1 flex-col gap-2 lg:max-w-5xl lg:flex-row lg:items-center lg:justify-end">
+            <select
+              value={filters.draftStatus}
+              onChange={(event) => setFilters((previous) => ({ ...previous, draftStatus: event.target.value }))}
+              className="h-9 min-w-[140px] rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground outline-none focus:border-primary"
+              aria-label="Draft status"
+            >
+              <option value="">Draft Dropdown</option>
+              <option value="open">Open</option>
+              <option value="partial">Partial Confirmed</option>
+              <option value="fully">Fully Confirmed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            
+            <div className="relative min-w-[200px] flex-1 lg:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Search booking, supplier, branch..."
+                className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-xs text-foreground outline-none focus:border-primary"
+              />
+            </div>
+            
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setFiltersOpen((open) => !open)}
+              className="h-9 font-semibold text-xs"
+            >
+              <Filter className="mr-1.5 h-4 w-4" />
+              Filter
             </Button>
-            <Button type="button" variant="secondary" size="sm" onClick={() => void loadReport()} disabled={loading} className="bg-slate-800 text-slate-100 hover:bg-slate-700">
-              <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+            
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSearchText("");
+                setFilters((previous) => ({
+                  ...previous,
+                  supplier: "",
+                  branch: "",
+                  country: "",
+                  status: "",
+                  currency: "",
+                  bookingNo: "",
+                  containerNo: "",
+                  blNo: "",
+                  confirmationStatus: "",
+                  financialSupplier: "",
+                  financialCurrency: "",
+                  draftStatus: ""
+                }));
+              }}
+              className="h-9 font-semibold text-xs"
+            >
+              <RefreshCcw className="mr-1.5 h-4 w-4" />
+              Reset
+            </Button>
+            
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void loadReport()}
+              disabled={loading}
+              className="h-9 font-semibold text-xs"
+            >
+              <RefreshCcw className={loading ? "mr-1.5 h-4 w-4 animate-spin" : "mr-1.5 h-4 w-4"} />
               Refresh
             </Button>
-            <Button type="button" variant="secondary" size="sm" onClick={() => window.print()} className="bg-slate-800 text-slate-100 hover:bg-slate-700">
-              <Printer className="h-4 w-4" />
-              Print
+            
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (onNewBooking) {
+                  onNewBooking();
+                } else {
+                  router.push("/dashboard/purchase/new-purchase-booking-order");
+                }
+              }}
+              className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase px-4 shadow border-none"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              New Booking
             </Button>
-            <Button type="button" size="sm" onClick={() => exportCsv(registerRows, "purchase-booking-register.csv")} className="bg-blue-600 text-white hover:bg-blue-500">
-              <FileSpreadsheet className="h-4 w-4" />
-              Export Excel
-            </Button>
+            
+            <ReportActionsMenu rows={registerRows} onExport={() => exportCsv(registerRows, "purchase-booking-register.csv")} />
           </div>
         </div>
 
         {message ? (
-          <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
+          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 font-semibold shadow-sm animate-in fade-in">
             {message}
           </div>
         ) : !reports.length ? (
-          <div className="mb-3 rounded-lg border border-blue-400/30 bg-blue-500/10 px-4 py-2 text-xs text-blue-100">
+          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-800 font-semibold shadow-sm animate-in fade-in">
             No live purchase booking records found for this scope. The register is not showing demo or cross-scope records.
           </div>
         ) : null}
 
-        <ScopeRegisterPanel scope={scope} rows={registerRows.length} totals={totals} />
-
-        <ReportToolbar
-          title="Purchase Booking Report"
-          rows={registerRows}
-          draftStatus={filters.draftStatus}
-          searchText={searchText}
-          filtersOpen={filtersOpen}
-          onDraftChange={(value) => setFilters((previous) => ({ ...previous, draftStatus: value }))}
-          onSearchChange={setSearchText}
-          onToggleFilters={() => setFiltersOpen((open) => !open)}
-          onReset={() => {
-            setSearchText("");
-            setFilters((previous) => ({
-              ...previous,
-              supplier: "",
-              branch: "",
-              country: "",
-              status: "",
-              currency: "",
-              bookingNo: "",
-              containerNo: "",
-              blNo: "",
-              confirmationStatus: "",
-              financialSupplier: "",
-              financialCurrency: "",
-              draftStatus: ""
-            }));
-          }}
-          onExport={() => exportCsv(registerRows, "purchase-booking-register.csv")}
-        />
-
         {filtersOpen ? (
-          <div className="mt-3 rounded-xl border border-border bg-card p-3 shadow-sm">
+          <div className="mt-3 rounded-xl border border-border bg-card p-3.5 shadow-sm animate-in slide-in-from-top-2 duration-150">
             <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-7">
               <DarkInput label="From Date" type="date" value={filters.fromDate} onChange={(value) => setFilters((previous) => ({ ...previous, fromDate: value }))} />
               <DarkInput label="To Date" type="date" value={filters.toDate} onChange={(value) => setFilters((previous) => ({ ...previous, toDate: value }))} />
@@ -1108,165 +1159,7 @@ export function PurchaseBookingJournalReportView() {
           </div>
         ) : null}
 
-        <TabNavigation activeTab={activeTab} onChange={setActiveTab} isBranchAdmin={isBranchAdmin} />
-
-        {activeTab === "overview" ? (
-          <div className="space-y-3">
-            <section className="rounded-xl border border-slate-700 bg-[#0b1730] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.25)]">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-black text-white">Dashboard Overview</h2>
-                  <p className="text-xs text-slate-400">Super Branch management view. Super branch users can monitor all branch purchase booking activity; branch users receive only their session-scoped records from the API.</p>
-                </div>
-                <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-xs font-bold text-blue-200">Real API scope + branch isolation</span>
-              </div>
-              <div className="grid gap-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-900/50 md:grid-cols-3 xl:grid-cols-6">
-                <SummaryCard icon={<PackageCheck />} label="Total Purchase Bookings" value={totals.totalBookings} accent="blue" />
-                <SummaryCard icon={<Boxes />} label="Total Containers" value={totals.totalContainers} accent="emerald" />
-                <SummaryCard icon={<PackageCheck />} label="Confirmed Containers" value={dashboardTotals.confirmedContainers} accent="violet" />
-                <SummaryCard icon={<Filter />} label="Pending Containers" value={dashboardTotals.pendingContainers} accent="amber" />
-                <SummaryCard icon={<BadgeDollarSign />} label="Purchase Amount" value={`$${formatMoney(totals.totalAmount)}`} accent="blue" />
-                <SummaryCard icon={<WalletCards />} label="Outstanding Amount" value={`$${formatMoney(totals.outstanding)}`} accent="red" />
-              </div>
-            </section>
-
-            <div className={`grid gap-3 ${isBranchAdmin ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_420px]"}`}>
-              <section className="rounded-xl border border-slate-700 bg-[#0b1730] p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-blue-300" />
-                  <h3 className="text-sm font-black text-white">Daily Reports Snapshot</h3>
-                </div>
-                <DarkTable headers={["Daily Report", "Entries", "Amount", "Status", "Open"]}>
-                  {dailyReportRows.map((row) => (
-                    <tr key={row.name} className="border-b border-slate-700/70 hover:bg-blue-500/10">
-                      <Td className="font-bold text-slate-100">{row.name}</Td>
-                      <Td center>{row.entries}</Td>
-                      <Td right>{formatMoney(row.amount)}</Td>
-                      <Td><StatusBadge status={row.status} /></Td>
-                      <Td><a className="font-bold text-blue-300 hover:text-blue-200" href={row.route}>Open</a></Td>
-                    </tr>
-                  ))}
-                </DarkTable>
-              </section>
-
-              {!isBranchAdmin && (
-                <section className="rounded-xl border border-slate-700 bg-[#0b1730] p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <PieChart className="h-4 w-4 text-emerald-300" />
-                    <h3 className="text-sm font-black text-white">Branch Summary Widget</h3>
-                  </div>
-                  <div className="space-y-2">
-                    {branchSummary.slice(0, 5).map((row) => (
-                      <div key={`${row.country}-${row.branch}`} className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-bold text-white">{row.branch}</div>
-                            <div className="text-xs text-slate-400">{row.country} · {row.bookings} bookings</div>
-                          </div>
-                          <div className="text-right text-xs">
-                            <div className="font-black text-blue-300">${formatMoney(row.amount)}</div>
-                            <div className="text-slate-400">{row.containers} containers</div>
-                          </div>
-                        </div>
-                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                          <div className="h-full bg-blue-500" style={{ width: `${Math.min(100, (row.amount / Math.max(1, totals.totalAmount)) * 105)}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-            </div>
-          </div>
-        ) : null}
-
-        {activeTab === "daily" ? (
-          <ReportSection number="D" title="DAILY REPORTS INTEGRATION" actions={<FilterActions onApply={() => undefined} onReset={() => undefined} />} filters={<DailyFilterRow filters={filters} setFilters={setFilters} suppliers={suppliers} currencies={currencies} />}>
-            <DarkTable headers={["Daily Report", "Entries", "Daily Amount", "Linked Module", "Status", "Action"]}>
-              {dailyReportRows.map((row) => (
-                <tr key={row.name} className="border-b border-slate-200 hover:bg-slate-50/80 transition">
-                  <Td className="font-bold text-blue-700">{row.name}</Td>
-                  <Td center className="text-slate-700">{row.entries}</Td>
-                  <Td right className="text-slate-800 font-mono">{formatMoney(row.amount)}</Td>
-                  <Td className="text-slate-605">{row.route}</Td>
-                  <Td><StatusBadge status={row.status} /></Td>
-                  <Td><a className="font-bold text-blue-600 hover:text-blue-500" href={row.route}>Open Report</a></Td>
-                </tr>
-              ))}
-            </DarkTable>
-          </ReportSection>
-        ) : null}
-
-        {activeTab === "general" ? (
-          <ReportSection number="G" title="GENERAL REPORTS INTEGRATION" actions={<FilterActions onApply={() => undefined} onReset={() => undefined} />} filters={<GeneralFilterRow filters={filters} setFilters={setFilters} branches={branches} countries={countries} disabledCountry={!!lockedCountryName} disabledBranch={!!lockedBranchName} />}>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              {generalReportRows.map((row) => (
-                <a key={row.name} href={row.route} className="rounded-xl border border-slate-700 bg-slate-900/50 p-4 transition hover:border-blue-400/60 hover:bg-blue-500/10">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg border border-blue-400/30 bg-blue-500/15 text-blue-300">
-                    <Landmark className="h-5 w-5" />
-                  </div>
-                  <div className="text-sm font-black text-white">{row.name}</div>
-                  <p className="mt-2 min-h-10 text-xs text-slate-400">{row.description}</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded border border-slate-700 bg-slate-950/40 p-2">
-                      <div className="text-slate-500">Records</div>
-                      <div className="font-black text-white">{row.count}</div>
-                    </div>
-                    <div className="rounded border border-slate-700 bg-slate-950/40 p-2">
-                      <div className="text-slate-500">Amount</div>
-                      <div className="font-black text-blue-300">{formatMoney(row.amount)}</div>
-                    </div>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </ReportSection>
-        ) : null}
-
-        {activeTab === "branch" ? (
-          <ReportSection number="B" title="BRANCH SUMMARY" actions={<FilterActions onApply={() => undefined} onReset={() => setFilters((previous) => ({ ...previous, branch: "", country: "" }))} />} filters={<BranchFilterRow filters={filters} setFilters={setFilters} branches={branches} countries={countries} disabledCountry={!!lockedCountryName} disabledBranch={!!lockedBranchName} />}>
-            <DarkTable headers={["Branch", "Country", "Bookings", "Branch-wise Containers", "Branch-wise Purchase Amount", "Outstanding Balance", "Status"]}>
-              {branchSummary.map((row) => (
-                <tr key={`${row.country}-${row.branch}`} className="border-b border-slate-200 hover:bg-slate-50/80 transition">
-                  <Td className="font-bold text-blue-700">{row.branch}</Td>
-                  <Td className="text-slate-700">{row.country}</Td>
-                  <Td center className="text-slate-700">{row.bookings}</Td>
-                  <Td center className="text-slate-700">{row.containers}</Td>
-                  <Td right className="text-slate-800 font-mono">{formatMoney(row.amount)}</Td>
-                  <Td right className={`font-mono ${row.outstanding > 0 ? "text-red-650" : "text-emerald-650"}`}>{formatMoney(row.outstanding)}</Td>
-                  <Td><StatusBadge status={row.outstanding > 0 ? "Outstanding" : "Clear"} /></Td>
-                </tr>
-              ))}
-            </DarkTable>
-          </ReportSection>
-        ) : null}
-
-        {activeTab === "purchase" ? (
-          <>
-        <ReportSection
-          number="1"
-          title="PURCHASE BOOKING REGISTER REPORT"
-          actions={<FilterActions onApply={() => void loadReport()} onReset={() => setFilters((previous) => ({ ...previous, supplier: "", branch: "", country: "", status: "", currency: "" }))} />}
-          filters={
-            <>
-              <DarkInput label="From Date" type="date" value={filters.fromDate} onChange={(value) => setFilters((previous) => ({ ...previous, fromDate: value }))} />
-              <DarkInput label="To Date" type="date" value={filters.toDate} onChange={(value) => setFilters((previous) => ({ ...previous, toDate: value }))} />
-              <DarkSelect label="Supplier" value={filters.supplier} options={suppliers} placeholder="All Suppliers" onChange={(value) => setFilters((previous) => ({ ...previous, supplier: value }))} />
-              <DarkSelect label="Booking Status" value={filters.status} options={["Open", "Partial Confirmed", "Fully Confirmed", "Cancelled"]} placeholder="All Status" onChange={(value) => setFilters((previous) => ({ ...previous, status: value }))} />
-              <DarkSelect label="Branch" value={filters.branch} options={branches} placeholder="All Branches" onChange={(value) => setFilters((previous) => ({ ...previous, branch: value }))} />
-              <DarkSelect label="Country" value={filters.country} options={countries} placeholder="All Countries" onChange={(value) => setFilters((previous) => ({ ...previous, country: value }))} />
-              <DarkSelect label="Currency" value={filters.currency} options={currencies} placeholder="All" onChange={(value) => setFilters((previous) => ({ ...previous, currency: value }))} />
-            </>
-          }
-        >
-          <div className="grid gap-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-900/50 md:grid-cols-5">
-            <SummaryCard icon={<PackageCheck />} label="Total Bookings" value={totals.totalBookings} accent="blue" />
-            <SummaryCard icon={<Boxes />} label="Total Containers" value={totals.totalContainers} accent="emerald" />
-            <SummaryCard icon={<Filter />} label="Total Quantity" value={`${formatNumber(totals.totalQuantity)} MT`} accent="violet" />
-            <SummaryCard icon={<BadgeDollarSign />} label="Total Amount (USD)" value={`$${formatMoney(totals.totalAmount)}`} accent="amber" />
-            <SummaryCard icon={<WalletCards />} label="Total Outstanding (USD)" value={`$${formatMoney(totals.outstanding)}`} accent="red" />
-          </div>
-
+        <div className="mt-4 space-y-3">
           <DarkTable
             headers={[
               "P#",
@@ -1289,7 +1182,7 @@ export function PurchaseBookingJournalReportView() {
               "Date",
               "Receiving",
               "Date",
-              "A4",
+              "Report",
               "Actions"
             ]}
           >
@@ -1336,12 +1229,12 @@ export function PurchaseBookingJournalReportView() {
 
               const isPosted = report.status === "Posted";
               const transferBadge = isPosted ? (
-                <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700">
+                <span className="inline-flex rounded border border-slate-800 bg-slate-900 text-slate-100 dark:border-slate-350 dark:bg-slate-100 dark:text-slate-900 px-2 py-0.5 text-[10px] font-black uppercase shadow-sm">
                   Transferred
                 </span>
               ) : (
-                <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700">
-                  In Building
+                <span className="inline-flex rounded border border-red-300 bg-red-50 text-red-700 px-2 py-0.5 text-[10px] font-black uppercase shadow-sm animate-pulse">
+                  Not Transferred
                 </span>
               );
 
@@ -1374,10 +1267,11 @@ export function PurchaseBookingJournalReportView() {
                         e.stopPropagation();
                         openReportWindow(report, false);
                       }}
-                      className="p-1 text-slate-400 hover:text-blue-600 transition"
-                      title="Open A4 Report Preview"
+                      className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 transition text-[9px] font-bold shadow-sm"
+                      title="Open Voucher A4 Report Preview"
                     >
-                      <Pin className="h-4 w-4" />
+                      <FileText className="h-3 w-3" />
+                      Report
                     </button>
                   </Td>
                   <Td center>
@@ -1394,115 +1288,9 @@ export function PurchaseBookingJournalReportView() {
             })}
           </DarkTable>
           <TableFooter text={`Showing 1 to ${registerRows.length} of ${reports.length} scoped entries`} />
-        </ReportSection>
+        </div>
 
-        <ReportSection
-          number="2"
-          title="CONTAINER CONFIRMATION REPORT"
-          actions={
-            <div className="flex items-end gap-2">
-              <FilterActions onApply={() => undefined} onReset={() => setFilters((previous) => ({ ...previous, containerNo: "", blNo: "", confirmationStatus: "" }))} />
-              <Button type="button" size="sm" onClick={() => exportCsv(registerRows, "container-confirmation.csv")} className="h-9 bg-emerald-600 text-white hover:bg-emerald-500">
-                <Download className="h-4 w-4" />
-                Export Excel
-              </Button>
-            </div>
-          }
-          filters={
-            <>
-              <DarkSelect label="Booking No" value={selected?.purchaseBookingOrderNumber ?? ""} options={sourceReports.map((report) => report.purchaseBookingOrderNumber)} placeholder="Booking No" onChange={(value) => setSelectedId(sourceReports.find((report) => report.purchaseBookingOrderNumber === value)?.id ?? "")} />
-              <DarkInput label="Container No" value={filters.containerNo} onChange={(value) => setFilters((previous) => ({ ...previous, containerNo: value }))} />
-              <DarkInput label="BL No" value={filters.blNo} onChange={(value) => setFilters((previous) => ({ ...previous, blNo: value }))} />
-              <DarkSelect label="Confirmation Status" value={filters.confirmationStatus} options={["confirmed", "pending", "cancelled"]} placeholder="All" onChange={(value) => setFilters((previous) => ({ ...previous, confirmationStatus: value }))} />
-            </>
-          }
-        >
-          <div className="grid gap-3 xl:grid-cols-[440px_minmax(0,1fr)]">
-            <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-4">
-              <div className="mb-3 text-xs font-black uppercase tracking-wide text-slate-300">Booking Summary</div>
-              <InfoRow label="Booking No" value={selected?.purchaseBookingOrderNumber ?? "-"} />
-              <InfoRow label="Supplier" value={selected?.supplierName ?? "-"} />
-              <InfoRow label="Total Containers" value={selected?.containerCount ?? 0} />
-              <InfoRow label="Confirmed Containers" value={confirmedContainers} />
-              <InfoRow label="Pending Containers" value={remainingContainers} />
-              <InfoRow label="Status" value={selected?.status ?? "-"} highlight />
-            </div>
-            <div className="min-w-0">
-              <DarkTable headers={["SR #", "Container No", "BL No", "Truck No", "Loading Date", "Receiving Date", "Seal No", "Status", "Confirmed On"]}>
-                {filteredContainers.map((row, index) => (
-                  <tr key={row.id} className="border-b border-slate-200 hover:bg-slate-50/80 transition">
-                    <Td center className="text-slate-500">{index + 1}</Td>
-                    <Td center className="text-slate-850">{row.containerNo}</Td>
-                    <Td center className="text-slate-800 font-mono">{row.blNo}</Td>
-                    <Td center className="text-slate-700">{row.truckNo}</Td>
-                    <Td center className="text-slate-655 font-mono">{formatDate(row.loadingDate)}</Td>
-                    <Td center className="text-slate-655 font-mono">{formatDate(row.receivingDate)}</Td>
-                    <Td center className="text-slate-700">{row.sealNo}</Td>
-                    <Td center><ContainerStatus status={row.status} /></Td>
-                    <Td center className="text-slate-600 font-mono">{formatDate(row.confirmedOn)}</Td>
-                  </tr>
-                ))}
-              </DarkTable>
-              <TableFooter text={`Showing 1 to ${filteredContainers.length} of ${allContainers.length} entries`} />
-            </div>
-          </div>
-        </ReportSection>
-
-        <ReportSection
-          number="3"
-          title="PURCHASE BOOKING FINANCIAL REPORT"
-          actions={
-            <div className="flex items-end gap-2">
-              <FilterActions onApply={() => undefined} onReset={() => setFilters((previous) => ({ ...previous, financialSupplier: "", financialCurrency: "" }))} />
-              <Button type="button" size="sm" onClick={() => exportCsv(financialRows, "purchase-booking-financial.csv")} className="h-9 bg-emerald-600 text-white hover:bg-emerald-500">
-                <Download className="h-4 w-4" />
-                Export Excel
-              </Button>
-            </div>
-          }
-          filters={
-            <>
-              <DarkInput label="From Date" type="date" value={filters.fromDate} onChange={(value) => setFilters((previous) => ({ ...previous, fromDate: value }))} />
-              <DarkInput label="To Date" type="date" value={filters.toDate} onChange={(value) => setFilters((previous) => ({ ...previous, toDate: value }))} />
-              <DarkSelect label="Supplier" value={filters.financialSupplier} options={suppliers} placeholder="All Suppliers" onChange={(value) => setFilters((previous) => ({ ...previous, financialSupplier: value }))} />
-              <DarkSelect label="Currency" value={filters.financialCurrency} options={currencies} placeholder="All" onChange={(value) => setFilters((previous) => ({ ...previous, financialCurrency: value }))} />
-            </>
-          }
-        >
-          <div className="mb-3 grid gap-3 md:grid-cols-4">
-            <MiniFinancial label="Total Booking Amount" value={formatMoney(financialRows.reduce((sum, row) => sum + row.totalPurchaseAmount, 0))} tone="blue" />
-            <MiniFinancial label="Total Paid" value={formatMoney(totals.totalPaid)} tone="emerald" />
-            <MiniFinancial label="Total Outstanding" value={formatMoney(totals.outstanding)} tone="red" />
-            <MiniFinancial label="Average Booking Value" value={formatMoney(totals.average)} tone="amber" />
-          </div>
-          <DarkTable headers={["Date", "Booking No", "Supplier / Wholesaler", "Currency", "Booking Amount", "Paid Amount", "Outstanding Amount", "Payment Status", "Remarks"]}>
-            {financialRows.map((report) => {
-              const paid = report.paymentStatus.toLowerCase().includes("full")
-                ? report.totalPurchaseAmount
-                : report.paymentStatus.toLowerCase().includes("advance")
-                  ? report.totalPurchaseAmount * 0.32
-                  : report.paymentStatus.toLowerCase().includes("partial")
-                    ? report.totalPurchaseAmount * 0.5
-                    : 0;
-              const outstanding = Math.max(0, report.totalPurchaseAmount - paid);
-              return (
-                <tr key={`${report.id}-financial`} className="border-b border-slate-200 hover:bg-slate-50/80 transition">
-                  <Td className="text-slate-650 font-mono">{formatDate(report.purchaseDate)}</Td>
-                  <Td className="font-bold text-blue-700 font-mono">{report.purchaseBookingOrderNumber}</Td>
-                  <Td className="text-slate-850">{report.supplierName}</Td>
-                  <Td center className="text-slate-700 font-mono">{report.currency}</Td>
-                  <Td right className="text-slate-850 font-mono">{formatMoney(report.totalPurchaseAmount)}</Td>
-                  <Td right className="text-emerald-700 font-mono">{formatMoney(paid)}</Td>
-                  <Td right className={`font-mono ${outstanding > 0 ? "text-red-655" : ""}`}>{formatMoney(outstanding)}</Td>
-                  <Td><StatusBadge status={report.paymentStatus} /></Td>
-                  <Td className="text-slate-750">{report.paymentStatus || "-"}</Td>
-                </tr>
-              );
-            })}
-          </DarkTable>
-        </ReportSection>
-          </>
-        ) : null}        <DetailDrawer
+        <DetailDrawer
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
           title="Purchase Transfer Verification Screen"
@@ -2019,7 +1807,7 @@ function DarkSelect({ label, value, options, placeholder, onChange, disabled }: 
   return (
     <label className="block min-w-[130px]">
       <span className="mb-1 block text-[10px] font-bold text-muted-foreground">{label}</span>
-      <select disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50 disabled:bg-slate-800 disabled:text-slate-500">
+      <select disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500">
         <option value="">{placeholder}</option>
         {options.map((option) => (
           <option key={option} value={option}>{option}</option>
@@ -2113,12 +1901,12 @@ function MiniFinancial({ label, value, tone }: { label: string; value: string; t
 
 function TableFooter({ text }: { text: string }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-2 text-xs text-slate-400">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-2 text-xs text-muted-foreground">
       <span>{text}</span>
       <div className="flex items-center gap-1">
-        <button className="rounded border border-slate-700 bg-blue-600 px-3 py-1 text-white">1</button>
-        <button className="rounded border border-slate-700 px-3 py-1 text-slate-300">2</button>
-        <button className="rounded border border-slate-700 px-3 py-1 text-slate-300">3</button>
+        <button type="button" className="rounded border border-border bg-primary px-3 py-1 text-primary-foreground font-semibold">1</button>
+        <button type="button" className="rounded border border-border bg-background px-3 py-1 text-foreground hover:bg-muted font-semibold transition">2</button>
+        <button type="button" className="rounded border border-border bg-background px-3 py-1 text-foreground hover:bg-muted font-semibold transition">3</button>
       </div>
     </div>
   );

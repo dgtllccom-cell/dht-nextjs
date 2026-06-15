@@ -160,6 +160,9 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createApiSupabaseClient();
 
+    const lps = String(body.ledgerPostingStatus || "draft").toLowerCase();
+    const ledgerPostingStatus = lps === "posted" ? "posted" : lps === "cancelled" ? "cancelled" : "draft";
+
     const purchaseOrderNo = randomCode("PO");
     const payload = {
       country_id: effective.countryId,
@@ -172,27 +175,75 @@ export async function POST(request: NextRequest) {
       exchange_rate: body.exchangeRate,
       order_total: body.orderTotal,
       form_data: body.formData ?? null,
-      ledger_posting_status: body.ledgerPostingStatus || "Pending"
+      ledger_posting_status: ledgerPostingStatus
     };
 
     const inserted = await requireSupabaseData(
       supabase.from("purchase_orders").insert(payload).select("id, purchase_order_no").single()
     );
 
+    const orderId = (inserted as any).id;
+
+    if (ledgerPostingStatus === "posted") {
+      const form = (body.formData as any)?.form ?? {};
+      const advancePercent = Number(form.advancePercent ?? 10);
+      const advanceAmount = (Number(body.orderTotal) * advancePercent) / 100;
+      const entryDate = form.advancePaymentDate || form.purchaseDate || new Date().toISOString().slice(0, 10);
+      
+      const debitLedgerId = await getLedgerIdByCode(supabase, form.purchaseAccountNo);
+      const creditLedgerId = await getLedgerIdByCode(supabase, form.salesAccountNo);
+      
+      if (!debitLedgerId) {
+        throw new Error(`Debit Ledger not found for account code: ${form.purchaseAccountNo}`);
+      }
+      if (!creditLedgerId) {
+        throw new Error(`Credit Ledger not found for account code: ${form.salesAccountNo}`);
+      }
+
+      const { error: paymentError } = await supabase.rpc("post_purchase_order_payment", {
+        p_purchase_order_id: orderId,
+        p_kind: "advance",
+        p_entry_date: entryDate,
+        p_amount: advanceAmount,
+        p_currency_code: body.currencyCode || "USD",
+        p_exchange_rate: Number(body.exchangeRate || 1),
+        p_debit_ledger_id: debitLedgerId,
+        p_credit_ledger_id: creditLedgerId,
+        p_reference_no: body.purchaseContractNo || null,
+        p_narration: `Advance payment for Purchase Order ${purchaseOrderNo}`
+      });
+
+      if (paymentError) {
+        throw new Error(`Failed to post ledger entry: ${paymentError.message}`);
+      }
+    }
+
     await writeAuditLog({
       action: "create",
       entityTable: "purchase_orders",
-      entityId: (inserted as any).id ?? null,
+      entityId: orderId ?? null,
       before: null,
       after: payload,
       ipAddress: request.headers.get("x-forwarded-for") ?? null
     });
 
     return apiCreated({
-      purchaseOrderId: (inserted as any).id as string,
+      purchaseOrderId: orderId as string,
       purchaseOrderNo: (inserted as any).purchase_order_no as string
     });
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+async function getLedgerIdByCode(supabase: any, code: string) {
+  if (!code) return null;
+  const { data, error } = await supabase
+    .from("ledgers")
+    .select("id")
+    .eq("code", code)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.id;
 }

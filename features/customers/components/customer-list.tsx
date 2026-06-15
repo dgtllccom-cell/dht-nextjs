@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
@@ -629,7 +630,7 @@ export function CustomerList({ lang }: { lang: SupportedLanguage }) {
                                       }}
                                       className="text-[9px] text-teal-400 hover:text-teal-300 font-bold underline ml-2 cursor-pointer flex items-center gap-0.5"
                                     >
-                                      <Download className="h-2.5 w-2.5" />
+                                      <DownloadActionIcon className="h-2.5 w-2.5" />
                                       Download
                                     </button>
                                   </div>

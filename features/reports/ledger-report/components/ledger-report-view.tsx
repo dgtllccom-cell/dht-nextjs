@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, MoreVertical, Printer, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -615,7 +616,7 @@ export function LedgerReportView({
                       exportCsv();
                     }}
                   >
-                    <Download className="h-4 w-4" aria-hidden />
+                    <DownloadActionIcon className="h-4 w-4" aria-hidden />
                     {t(lang, "ledger.export_csv")}
                   </button>
                 </div>

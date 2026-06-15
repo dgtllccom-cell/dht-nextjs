@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Mail, MoreVertical, Printer, RefreshCcw, Save, Search, Ship, SquareArrowOutUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -461,9 +462,9 @@ export function BlEntryView({ context = "purchase" }: { context?: "purchase" }) 
               <div className="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-lg border bg-popover py-1 text-popover-foreground shadow-2xl">
                 <MenuAction icon={<SquareArrowOutUpRight className="h-4 w-4" />} label="View B/L Report" onClick={() => setMenuOpen(false)} />
                 <MenuAction icon={<Printer className="h-4 w-4" />} label="Print B/L" onClick={printReport} />
-                <MenuAction icon={<Download className="h-4 w-4" />} label="PDF Download" onClick={printReport} />
+                <MenuAction icon={<DownloadActionIcon className="h-4 w-4" />} label="PDF Download" onClick={printReport} />
                 <MenuAction icon={<Mail className="h-4 w-4" />} label="Email B/L" onClick={() => setMenuOpen(false)} />
-                <MenuAction icon={<Download className="h-4 w-4" />} label="Export CSV" onClick={exportCsv} />
+                <MenuAction icon={<DownloadActionIcon className="h-4 w-4" />} label="Export CSV" onClick={exportCsv} />
                 <MenuAction icon={<SquareArrowOutUpRight className="h-4 w-4" />} label="Full Screen View" onClick={() => document.documentElement.requestFullscreen?.()} />
               </div>
             ) : null}

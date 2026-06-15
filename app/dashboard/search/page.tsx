@@ -11,7 +11,6 @@ import {
   Eye,
   Pencil,
   Printer,
-  FileDown,
   Mail,
   MessageSquare,
   ArrowRight,
@@ -23,6 +22,7 @@ import {
   Layers,
   Sparkles
 } from "lucide-react";
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -606,7 +606,7 @@ export default function SearchPage() {
                                 <Printer className="h-3.5 w-3.5" />
                               </Button>
                               <Button size="icon" variant="ghost" className="h-7 w-7 text-teal-600" title="Export JSON" onClick={() => handleExportPDF(`Voucher_${t.voucher_no}`, t)}>
-                                <FileDown className="h-3.5 w-3.5" />
+                                <DownloadActionIcon className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </td>

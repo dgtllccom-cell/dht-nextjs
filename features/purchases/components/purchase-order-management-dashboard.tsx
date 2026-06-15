@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import {
   BadgeDollarSign,
@@ -763,9 +764,9 @@ function PurchaseReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[];
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-slate-200 bg-white p-1 text-sm text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
         <ActionItem icon={<Eye />} label="Plate View" onClick={() => undefined} />
-        <ActionItem icon={<Download />} label="Download" onClick={onExport} />
+        <ActionItem icon={<DownloadActionIcon />} label="Download" onClick={onExport} />
         <ActionItem icon={<FileSpreadsheet />} label="Export Excel" onClick={onExport} />
-        <ActionItem icon={<Download />} label="Export PDF" onClick={() => window.print()} />
+        <ActionItem icon={<DownloadActionIcon />} label="Export PDF" onClick={() => window.print()} />
         <ActionItem icon={<Printer />} label="Print" onClick={() => window.print()} />
         <div className="border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-800">{rows.length} rows</div>
       </div>
@@ -788,7 +789,7 @@ function PurchaseRowActionsMenu({ onSelect, onEdit, onPrint, onExportPdf }: { on
         <ActionItem icon={<FileText />} label="Documents" onClick={onSelect} />
         <ActionItem icon={<ClipboardList />} label="Timeline" onClick={onSelect} />
         <ActionItem icon={<Printer />} label="Print" onClick={onPrint} />
-        <ActionItem icon={<Download />} label="Export PDF" onClick={onExportPdf} />
+        <ActionItem icon={<DownloadActionIcon />} label="Export PDF" onClick={onExportPdf} />
       </div>
     </details>
   );
@@ -1106,10 +1107,18 @@ export function PurchaseOrderManagementDashboard() {
 
         {/* Row 2: Document Title Panel */}
         <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-100/60 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
-          <div>
+          <div className="flex items-center gap-3">
             <h1 className="text-base font-black tracking-widest text-[#0f2942] dark:text-white uppercase leading-none">
               Purchase Transfer Payment
             </h1>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => router.push("/dashboard/purchase/new-purchase-booking-order")}
+              className="bg-emerald-600 hover:bg-emerald-550 text-white font-bold text-[10px] uppercase tracking-wider px-3 h-7 rounded shadow"
+            >
+              + New Booking
+            </Button>
           </div>
           <div className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
@@ -1661,7 +1670,7 @@ export function PurchaseOrderManagementDashboard() {
                         }}
                         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
                       >
-                        <Download className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                        <DownloadActionIcon className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
                         Export PDF
                       </button>
                       <button

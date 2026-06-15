@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Download, Eye, FileText, Link2, MoreVertical, Printer, RefreshCcw, Search } from "lucide-react";
 import { DetailDrawer } from "@/components/ui/detail-drawer";
@@ -419,11 +420,11 @@ export function RoznamchaReportView({
                     Print
                   </button>
                   <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => openSelectedReport(false, "journal")}>
-                    <Download className="h-4 w-4 text-muted-foreground" />
+                    <DownloadActionIcon className="h-4 w-4 text-muted-foreground" />
                     PDF Export
                   </button>
                   <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted" onClick={exportCsv}>
-                    <Download className="h-4 w-4 text-muted-foreground" />
+                    <DownloadActionIcon className="h-4 w-4 text-muted-foreground" />
                     Excel Export
                   </button>
                   <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => openSelectedReport(false, "voucher")}>

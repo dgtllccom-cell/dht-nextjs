@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
@@ -423,7 +424,7 @@ export function CustomerProfile({
             title="Download Document Scan"
             className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-emerald-400 hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            <Download className="h-4 w-4" />
+            <DownloadActionIcon className="h-4 w-4" />
           </button>
           {/* Edit details redirect */}
           <button
@@ -634,7 +635,7 @@ export function CustomerProfile({
                                 }}
                                 className="text-[9px] text-teal-600 font-bold hover:underline cursor-pointer flex items-center gap-0.5 ml-2"
                               >
-                                <Download className="h-2.5 w-2.5" />
+                                <DownloadActionIcon className="h-2.5 w-2.5" />
                                 Download Scan
                               </button>
                             </div>

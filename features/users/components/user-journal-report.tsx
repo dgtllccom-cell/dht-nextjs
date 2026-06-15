@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
 
 import { useEffect, useMemo, useState } from "react";
@@ -1127,7 +1128,7 @@ function TopToolbar({
         onClick={() => setRecentLoginsOnly(!recentLoginsOnly)}
         title="Filter users with recent logins"
       >
-        <Download className="h-3.5 w-3.5" />
+        <DownloadActionIcon className="h-3.5 w-3.5" />
         <span>Recent Logins</span>
         <span className={cn(
           "ujr-metric-badge leading-none",
@@ -1266,7 +1267,7 @@ function TopToolbar({
             <MenuActionButton icon={Edit3} label="Edit" onClick={editReport} />
             <MenuActionButton icon={Printer} label="Print" onClick={printReport} />
             <MenuActionButton icon={Printer} label="Export PDF" onClick={exportPdf} />
-            <MenuActionButton icon={Download} label="Export CSV" onClick={exportExcel} />
+            <MenuActionButton icon={DownloadActionIcon} label="Export CSV" onClick={exportExcel} />
             <MenuActionButton icon={Mail} label="Email" onClick={emailReport} />
             <MenuActionButton icon={MessageCircle} label="WhatsApp" onClick={whatsappReport} />
             <MenuActionButton icon={Share2} label="Share" onClick={shareReport} />

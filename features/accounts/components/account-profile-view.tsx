@@ -1,5 +1,6 @@
 "use client";
 
+import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -234,7 +235,7 @@ export function AccountProfileView({
             }}
             className="gap-1.5"
           >
-            <Download className="h-4 w-4" /> PDF
+            <DownloadActionIcon className="h-4 w-4" /> PDF
           </Button>
           <Button
             type="button" variant="outline" size="sm"
