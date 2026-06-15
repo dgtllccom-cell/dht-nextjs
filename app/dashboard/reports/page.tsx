@@ -467,7 +467,7 @@ export default function ReportsHub() {
                 <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800">
                   <p className="text-[10px] font-black uppercase text-slate-400">Security Clearance</p>
                   <span className="mt-2 inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-extrabold text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400">
-                    {session?.roles?.[0] || "Authorized User"}
+                    Authorized User
                   </span>
                 </div>
               </>

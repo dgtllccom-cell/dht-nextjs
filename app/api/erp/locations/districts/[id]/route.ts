@@ -57,3 +57,23 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     return handleApiError(error);
   }
 }
+
+export async function DELETE(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await requireErpSession();
+    const { id } = await context.params;
+    if (!isUuid(id)) {
+      throw new Error("Invalid district id");
+    }
+
+    const district = await locationsRepository.getDistrictById(id);
+    if (!session.isSuperAdmin && !session.countryIds.includes(district.country_id)) {
+      throw new Error("Country scope is not allowed.");
+    }
+
+    await locationsRepository.deleteDistrict(id);
+    return apiOk({ success: true });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

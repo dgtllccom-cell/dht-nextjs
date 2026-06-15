@@ -128,7 +128,7 @@ export function CountryDashboardOverview({ data }: CountryDashboardOverviewProps
   }, [data.cityBranches, data.salesTotal, data.purchaseTotal, data.stockValueTotal, data.profitLossTotal]);
 
   const stats = [
-    { label: "Total Branches", value: String(data.branchesCount), icon: <GitBranch className="h-5 w-5 text-blue-600 dark:text-blue-400" />, link: "/dashboard/settings/location-setup" },
+    { label: "Total Branches", value: String(data.branchesCount), icon: <GitBranch className="h-5 w-5 text-blue-600 dark:text-blue-400" />, link: "/dashboard/settings/location" },
     { label: "Total Users", value: String(data.usersCount), icon: <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />, link: "#" },
     { label: "Total Accounts", value: String(data.accountsCount), icon: <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />, link: "#" },
     { label: "Total Products", value: String(data.productsCount || 1245), icon: <Database className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />, link: "/dashboard/settings/management/goods" },

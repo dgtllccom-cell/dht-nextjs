@@ -22,12 +22,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       whatsappNumber?: string | null;
     };
 
-    if (body.officialEmail !== undefined && body.officialEmail !== null && !body.officialEmail.trim()) {
-      throw new Error("Official email cannot be empty");
-    }
-    if (body.adminEmail !== undefined && body.adminEmail !== null && !body.adminEmail.trim()) {
-      throw new Error("Admin email cannot be empty");
-    }
+    // Email checks removed as these are no longer required in location setup
 
     const country = await locationsRepository.updateCountry({
       countryId: id,
@@ -53,6 +48,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
 
     return apiOk({ country });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await requireErpSession();
+    if (!session.isSuperAdmin) throw new Error("Only Super Admin can delete countries.");
+
+    const { id } = await params;
+    await locationsRepository.deleteCountry(id);
+
+    return apiOk({ success: true });
   } catch (error) {
     return handleApiError(error);
   }

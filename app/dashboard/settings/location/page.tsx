@@ -1,7 +1,10 @@
-import type { Route } from "next";
-import { redirect } from "next/navigation";
+import { LocationManagementWizard } from "@/features/locations/components/location-management-wizard";
 
-export default function LocationSettingsRedirect() {
-  redirect("/dashboard/settings/location-setup" as Route);
+export default async function LocationSettingsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  return <LocationManagementWizard activeTab={tab} />;
 }
-

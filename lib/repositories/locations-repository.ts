@@ -7,6 +7,7 @@ export type CountryRow = {
   iso3: string | null;
   currency_code: string;
   default_language_code: string | null;
+  phone_code: string | null;
   is_active: boolean;
   official_email: string;
   admin_email: string;
@@ -32,6 +33,8 @@ export type StateRow = {
   country_id: string;
   name: string;
   code: string | null;
+  postal_code: string | null;
+  phone_area_code: string | null;
   is_active: boolean;
 };
 
@@ -41,6 +44,8 @@ export type DistrictRow = {
   state_province_id: string;
   name: string;
   code: string | null;
+  postal_code: string | null;
+  phone_area_code: string | null;
   is_active: boolean;
 };
 
@@ -52,6 +57,7 @@ export type CityRow = {
   name: string;
   code: string | null;
   zip_code: string | null;
+  phone_area_code: string | null;
   is_active: boolean;
 };
 
@@ -63,6 +69,8 @@ export type AreaRow = {
   city_id: string;
   name: string;
   code: string | null;
+  postal_code: string | null;
+  phone_area_code: string | null;
   is_active: boolean;
 };
 
@@ -102,7 +110,7 @@ export class LocationsRepository {
 
     let query = supabase
       .from("countries")
-      .select("id, name, iso2, iso3, currency_code, default_language_code, is_active, official_email, admin_email, whatsapp_number")
+      .select("id, name, iso2, iso3, currency_code, default_language_code, phone_code, is_active, official_email, admin_email, whatsapp_number")
       .is("deleted_at", null)
       .order("name", { ascending: true });
 
@@ -123,6 +131,7 @@ export class LocationsRepository {
     iso3?: string | null;
     currencyCode: string;
     defaultLanguageCode?: string | null;
+    phoneCode?: string | null;
     officialEmail: string;
     adminEmail: string;
     whatsappNumber?: string | null;
@@ -136,13 +145,14 @@ export class LocationsRepository {
         iso3: input.iso3 ? input.iso3.trim().toUpperCase() : null,
         currency_code: input.currencyCode.trim().toUpperCase(),
         default_language_code: input.defaultLanguageCode ?? null,
+        phone_code: input.phoneCode?.trim() || null,
         official_email: input.officialEmail.trim().toLowerCase(),
         admin_email: input.adminEmail.trim().toLowerCase(),
         whatsapp_number: input.whatsappNumber?.trim() || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .select("id, name, iso2, iso3, currency_code, default_language_code, is_active, official_email, admin_email, whatsapp_number")
+      .select("id, name, iso2, iso3, currency_code, default_language_code, phone_code, is_active, official_email, admin_email, whatsapp_number")
       .single();
     if (error) throw new Error(error.message);
     return data as CountryRow;
@@ -177,7 +187,7 @@ export class LocationsRepository {
       .update(patch)
       .eq("id", input.countryId)
       .is("deleted_at", null)
-      .select("id, name, iso2, iso3, currency_code, default_language_code, is_active, official_email, admin_email, whatsapp_number")
+      .select("id, name, iso2, iso3, currency_code, default_language_code, phone_code, is_active, official_email, admin_email, whatsapp_number")
       .single();
     if (error) throw new Error(error.message);
     return data as CountryRow;
@@ -190,7 +200,7 @@ export class LocationsRepository {
 
     let query = supabase
       .from("states_provinces")
-      .select("id, country_id, name, code, is_active")
+      .select("id, country_id, name, code, postal_code, phone_area_code, is_active")
       .eq("country_id", input.countryId)
       .is("deleted_at", null)
       .order("name", { ascending: true });
@@ -209,7 +219,7 @@ export class LocationsRepository {
 
     let query = supabase
       .from("districts")
-      .select("id, country_id, state_province_id, name, code, is_active")
+      .select("id, country_id, state_province_id, name, code, postal_code, phone_area_code, is_active")
       .eq("state_province_id", input.stateProvinceId)
       .is("deleted_at", null)
       .order("name", { ascending: true });
@@ -234,7 +244,7 @@ export class LocationsRepository {
 
     let query = supabase
       .from("cities")
-      .select("id, country_id, state_province_id, district_id, name, code, zip_code, is_active")
+      .select("id, country_id, state_province_id, district_id, name, code, zip_code, phone_area_code, is_active")
       .eq("country_id", input.countryId)
       .is("deleted_at", null)
       .order("name", { ascending: true });
@@ -258,7 +268,7 @@ export class LocationsRepository {
 
     let query = supabase
       .from("areas_locations")
-      .select("id, country_id, state_province_id, district_id, city_id, name, code, is_active")
+      .select("id, country_id, state_province_id, district_id, city_id, name, code, postal_code, phone_area_code, is_active")
       .eq("city_id", input.cityId)
       .is("deleted_at", null)
       .order("name", { ascending: true });
@@ -274,7 +284,7 @@ export class LocationsRepository {
     const supabase = createSupabaseAdminClient() as any;
     const { data, error } = await supabase
       .from("cities")
-      .select("id, country_id, state_province_id, district_id, name, code, zip_code, is_active")
+      .select("id, country_id, state_province_id, district_id, name, code, zip_code, phone_area_code, is_active")
       .eq("id", cityId)
       .is("deleted_at", null)
       .single();
@@ -307,7 +317,7 @@ export class LocationsRepository {
 
     const { data: existingState, error: existingStateError } = await supabase
       .from("states_provinces")
-      .select("id, country_id, name, code, is_active")
+      .select("id, country_id, name, code, postal_code, phone_area_code, is_active")
       .eq("country_id", input.countryId)
       .is("deleted_at", null)
       .ilike("name", normalizedName)
@@ -320,7 +330,7 @@ export class LocationsRepository {
           .update({ code: normalizedCode, updated_at: new Date().toISOString() })
           .eq("id", existingState.id)
           .is("deleted_at", null)
-          .select("id, country_id, name, code, is_active")
+          .select("id, country_id, name, code, postal_code, phone_area_code, is_active")
           .single();
         if (updateError) throw new Error(updateError.message);
         return updatedState as StateRow;
@@ -338,13 +348,13 @@ export class LocationsRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .select("id, country_id, name, code, is_active")
+      .select("id, country_id, name, code, postal_code, phone_area_code, is_active")
       .single();
     if (error) {
       if (error.code === "23505" || error.message?.includes("states_provinces_country_name_idx")) {
         const { data: duplicateState, error: duplicateError } = await supabase
           .from("states_provinces")
-          .select("id, country_id, name, code, is_active")
+          .select("id, country_id, name, code, postal_code, phone_area_code, is_active")
           .eq("country_id", input.countryId)
           .is("deleted_at", null)
           .ilike("name", normalizedName)
@@ -368,7 +378,7 @@ export class LocationsRepository {
       .update(patch)
       .eq("id", input.stateId)
       .is("deleted_at", null)
-      .select("id, country_id, name, code, is_active")
+      .select("id, country_id, name, code, postal_code, phone_area_code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as StateRow;
@@ -387,7 +397,7 @@ export class LocationsRepository {
 
     const { data: existingDistrict, error: existingDistrictError } = await supabase
       .from("districts")
-      .select("id, country_id, state_province_id, name, code, is_active")
+      .select("id, country_id, state_province_id, name, code, postal_code, phone_area_code, is_active")
       .eq("state_province_id", input.stateProvinceId)
       .is("deleted_at", null)
       .ilike("name", normalizedName)
@@ -401,7 +411,7 @@ export class LocationsRepository {
           .update({ code: normalizedCode, updated_at: new Date().toISOString() })
           .eq("id", existingDistrict.id)
           .is("deleted_at", null)
-          .select("id, country_id, state_province_id, name, code, is_active")
+          .select("id, country_id, state_province_id, name, code, postal_code, phone_area_code, is_active")
           .single();
         if (updateError) throw new Error(updateError.message);
         return updatedDistrict as DistrictRow;
@@ -420,14 +430,14 @@ export class LocationsRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .select("id, country_id, state_province_id, name, code, is_active")
+      .select("id, country_id, state_province_id, name, code, postal_code, phone_area_code, is_active")
       .single();
 
     if (error) {
       if (error.code === "23505" || error.message?.includes("districts_state_name_idx")) {
         const { data: duplicateDistrict, error: duplicateError } = await supabase
           .from("districts")
-          .select("id, country_id, state_province_id, name, code, is_active")
+          .select("id, country_id, state_province_id, name, code, postal_code, phone_area_code, is_active")
           .eq("state_province_id", input.stateProvinceId)
           .is("deleted_at", null)
           .ilike("name", normalizedName)
@@ -443,7 +453,7 @@ export class LocationsRepository {
     const supabase = createSupabaseAdminClient() as any;
     const { data, error } = await supabase
       .from("districts")
-      .select("id, country_id, state_province_id, name, code, is_active")
+      .select("id, country_id, state_province_id, name, code, postal_code, phone_area_code, is_active")
       .eq("id", districtId)
       .is("deleted_at", null)
       .single();
@@ -463,7 +473,7 @@ export class LocationsRepository {
       .update(patch)
       .eq("id", input.districtId)
       .is("deleted_at", null)
-      .select("id, country_id, state_province_id, name, code, is_active")
+      .select("id, country_id, state_province_id, name, code, postal_code, phone_area_code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as DistrictRow;
@@ -486,7 +496,7 @@ export class LocationsRepository {
     if (normalizedCode) {
       let duplicateCodeQuery = supabase
         .from("cities")
-        .select("id, name, code, state_province_id, district_id, zip_code")
+        .select("id, name, code, state_province_id, district_id, zip_code, phone_area_code")
         .eq("country_id", input.countryId)
         .is("deleted_at", null)
         .eq("code", normalizedCode);
@@ -503,7 +513,7 @@ export class LocationsRepository {
 
     let duplicateNameQuery = supabase
         .from("cities")
-        .select("id, name, code, state_province_id, district_id, zip_code")
+        .select("id, name, code, state_province_id, district_id, zip_code, phone_area_code")
         .eq("country_id", input.countryId)
         .is("deleted_at", null)
         .eq("name", normalizedName);
@@ -530,7 +540,7 @@ export class LocationsRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .select("id, country_id, state_province_id, district_id, name, code, zip_code, is_active")
+      .select("id, country_id, state_province_id, district_id, name, code, zip_code, phone_area_code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as CityRow;
@@ -566,7 +576,7 @@ export class LocationsRepository {
       const normalizedCode = input.code.trim().toUpperCase();
       let duplicateCodeQuery = supabase
         .from("cities")
-        .select("id, name, code, state_province_id, district_id, zip_code")
+        .select("id, name, code, state_province_id, district_id, zip_code, phone_area_code")
         .eq("country_id", currentCity.country_id)
         .is("deleted_at", null)
         .eq("code", normalizedCode)
@@ -590,7 +600,7 @@ export class LocationsRepository {
       if (normalizedName) {
         let duplicateNameQuery = supabase
           .from("cities")
-          .select("id, name, code, state_province_id, district_id, zip_code")
+          .select("id, name, code, state_province_id, district_id, zip_code, phone_area_code")
           .eq("country_id", currentCity.country_id)
           .is("deleted_at", null)
           .eq("name", normalizedName)
@@ -617,7 +627,7 @@ export class LocationsRepository {
       .update(patch)
       .eq("id", input.cityId)
       .is("deleted_at", null)
-      .select("id, country_id, state_province_id, district_id, name, code, zip_code, is_active")
+      .select("id, country_id, state_province_id, district_id, name, code, zip_code, phone_area_code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as CityRow;
@@ -647,7 +657,7 @@ export class LocationsRepository {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .select("id, country_id, state_province_id, district_id, city_id, name, code, is_active")
+      .select("id, country_id, state_province_id, district_id, city_id, name, code, postal_code, phone_area_code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as AreaRow;
@@ -666,10 +676,76 @@ export class LocationsRepository {
       .update(patch)
       .eq("id", input.areaId)
       .is("deleted_at", null)
-      .select("id, country_id, state_province_id, district_id, city_id, name, code, is_active")
+      .select("id, country_id, state_province_id, district_id, city_id, name, code, postal_code, phone_area_code, is_active")
       .single();
     if (error) throw new Error(error.message);
     return data as AreaRow;
+  }
+
+  async deleteCountry(countryId: string) {
+    const supabase = createSupabaseAdminClient() as any;
+    const now = new Date().toISOString();
+
+    const { error: cError } = await supabase
+      .from("countries")
+      .update({ deleted_at: now, updated_at: now })
+      .eq("id", countryId)
+      .is("deleted_at", null);
+    if (cError) throw new Error(cError.message);
+
+    await supabase.from("states_provinces").update({ deleted_at: now, updated_at: now }).eq("country_id", countryId).is("deleted_at", null);
+    await supabase.from("districts").update({ deleted_at: now, updated_at: now }).eq("country_id", countryId).is("deleted_at", null);
+    await supabase.from("cities").update({ deleted_at: now, updated_at: now }).eq("country_id", countryId).is("deleted_at", null);
+    await supabase.from("areas_locations").update({ deleted_at: now, updated_at: now }).eq("country_id", countryId).is("deleted_at", null);
+    return true;
+  }
+
+  async deleteState(stateId: string) {
+    const supabase = createSupabaseAdminClient() as any;
+    const now = new Date().toISOString();
+
+    const { error: sError } = await supabase
+      .from("states_provinces")
+      .update({ deleted_at: now, updated_at: now })
+      .eq("id", stateId)
+      .is("deleted_at", null);
+    if (sError) throw new Error(sError.message);
+
+    await supabase.from("districts").update({ deleted_at: now, updated_at: now }).eq("state_province_id", stateId).is("deleted_at", null);
+    await supabase.from("cities").update({ deleted_at: now, updated_at: now }).eq("state_province_id", stateId).is("deleted_at", null);
+    await supabase.from("areas_locations").update({ deleted_at: now, updated_at: now }).eq("state_province_id", stateId).is("deleted_at", null);
+    return true;
+  }
+
+  async deleteDistrict(districtId: string) {
+    const supabase = createSupabaseAdminClient() as any;
+    const now = new Date().toISOString();
+
+    const { error: dError } = await supabase
+      .from("districts")
+      .update({ deleted_at: now, updated_at: now })
+      .eq("id", districtId)
+      .is("deleted_at", null);
+    if (dError) throw new Error(dError.message);
+
+    await supabase.from("cities").update({ deleted_at: now, updated_at: now }).eq("district_id", districtId).is("deleted_at", null);
+    await supabase.from("areas_locations").update({ deleted_at: now, updated_at: now }).eq("district_id", districtId).is("deleted_at", null);
+    return true;
+  }
+
+  async deleteCity(cityId: string) {
+    const supabase = createSupabaseAdminClient() as any;
+    const now = new Date().toISOString();
+
+    const { error: cError } = await supabase
+      .from("cities")
+      .update({ deleted_at: now, updated_at: now })
+      .eq("id", cityId)
+      .is("deleted_at", null);
+    if (cError) throw new Error(cError.message);
+
+    await supabase.from("areas_locations").update({ deleted_at: now, updated_at: now }).eq("city_id", cityId).is("deleted_at", null);
+    return true;
   }
 }
 

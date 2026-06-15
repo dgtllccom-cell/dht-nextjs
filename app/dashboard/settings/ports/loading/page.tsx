@@ -1,15 +1,6 @@
-import { requireErpSession } from "@/lib/auth/session";
-import { PortMasterClient } from "@/features/ports/components/port-master-client";
+import { redirect } from "next/navigation";
+import type { Route } from "next";
 
-export default async function LoadingPortsPage() {
-  await requireErpSession();
-
-  return (
-    <PortMasterClient
-      type="loading"
-      title="Loading Port Master"
-      description="Manage centralized departure ports, border checkpoints, and airports for shipments."
-      apiEndpoint="/api/erp/ports/loading"
-    />
-  );
+export default function LoadingPortsRedirect() {
+  redirect("/dashboard/settings/ports" as Route);
 }

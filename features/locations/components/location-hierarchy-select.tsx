@@ -47,7 +47,9 @@ function toOptions<T extends { id: string; name: string }>(rows: T[]): SearchSel
       anyRow.iso3,
       anyRow.currency_code,
       anyRow.zip_code,
-      anyRow.phone_code
+      anyRow.postal_code,
+      anyRow.phone_code,
+      anyRow.phone_area_code
     ]
       .filter(Boolean)
       .join(" ");
@@ -273,7 +275,7 @@ export function LocationHierarchySelect({
               {allowManageLink ? (
                 <div className="flex justify-end">
                   <Button asChild type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs">
-                    <Link href="/dashboard/settings/location-setup">
+                    <Link href="/dashboard/settings/location">
                       Manage Locations <ExternalLink className="ms-1 h-3.5 w-3.5" aria-hidden />
                     </Link>
                   </Button>
@@ -307,9 +309,9 @@ export function LocationHierarchySelect({
 
           {showDistrict && (
             <SearchSelect
-              label={loadingDistricts ? "District (Loading...)" : "District"}
+              label={loadingDistricts ? "District / City (Loading...)" : "District / City"}
               value={value.districtId}
-              placeholder={value.stateProvinceId ? "Select district" : "Select state first"}
+              placeholder={value.stateProvinceId ? "Select district / city" : "Select state first"}
               disabled={disabled || !value.stateProvinceId || loadingDistricts}
               options={toOptions(districts)}
               onValueChange={(districtId) => {
@@ -321,7 +323,7 @@ export function LocationHierarchySelect({
                   area: null
                 });
               }}
-              createLabel="+ New District"
+              createLabel="+ New District / City"
               createButtonPlacement="both"
               onCreateNew={async () => setOpenCreateType("district")}
             />
@@ -350,7 +352,7 @@ export function LocationHierarchySelect({
 
           {showArea && (
             <SearchSelect
-              label={loadingAreas ? "Tehsil / Area / Postal Code (Loading...)" : "Tehsil / Area / Postal Code"}
+              label={loadingAreas ? "Tehsil / Sub-District / Postal Code (Loading...)" : "Tehsil / Sub-District / Postal Code"}
               value={value.areaId ?? ""}
               placeholder={value.cityId ? "Select tehsil/area" : "Select city first"}
               disabled={disabled || !value.cityId || loadingAreas}
@@ -451,24 +453,19 @@ function LocationQuickCreateModal({
 
   // Country-specific fields
   const [iso2, setIso2] = useState("");
-  const [iso3, setIso3] = useState("");
-  const [currencyCode, setCurrencyCode] = useState("USD");
-  const [defaultLanguageCode, setDefaultLanguageCode] = useState("en");
-  const [phoneCode, setPhoneCode] = useState("");
-  const [officialEmail, setOfficialEmail] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [whatsappNumber, setWhatsappNumber] = useState("");
 
   // State/District/City-specific fields
   const [code, setCode] = useState("");
   const [zipCode, setZipCode] = useState("");
 
+  const typeLabel = type === "district" ? "District / City" : type.charAt(0).toUpperCase() + type.slice(1);
+
   const canSave = useMemo(() => {
     if (type === "country") {
-      return Boolean(name.trim() && currencyCode.trim() && officialEmail.trim() && adminEmail.trim());
+      return Boolean(name.trim() && iso2.trim());
     }
     return Boolean(name.trim());
-  }, [type, name, currencyCode, officialEmail, adminEmail]);
+  }, [type, name, iso2]);
 
   async function handleSave() {
     if (!canSave) return;
@@ -478,14 +475,7 @@ function LocationQuickCreateModal({
       if (type === "country") {
         const res = await apiPost<{ country: LocationCountry }>("/api/erp/locations/countries", {
           name: name.trim(),
-          iso2: iso2.trim() || null,
-          iso3: iso3.trim() || null,
-          currencyCode: currencyCode.trim(),
-          defaultLanguageCode: defaultLanguageCode.trim() || null,
-          phoneCode: phoneCode.trim() || null,
-          officialEmail: officialEmail.trim(),
-          adminEmail: adminEmail.trim(),
-          whatsappNumber: whatsappNumber.trim() || null
+          iso2: iso2.trim()
         });
         onCreated(res.country.id, res.country);
       } else if (type === "state") {
@@ -521,7 +511,7 @@ function LocationQuickCreateModal({
     }
   }
 
-  const title = `New ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+  const title = `New ${typeLabel}`;
 
   return (
     <SimpleModal title={title} onClose={onClose} className="max-w-md">
@@ -533,105 +523,33 @@ function LocationQuickCreateModal({
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label>{type.charAt(0).toUpperCase() + type.slice(1)} Name *</Label>
+          <Label>{typeLabel} Name *</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={`Enter ${type} name`}
+            placeholder={`Enter ${typeLabel.toLowerCase()} name`}
           />
         </div>
 
         {type === "country" && (
-          <>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>ISO2 (2 chars)</Label>
-                <Input
-                  maxLength={2}
-                  value={iso2}
-                  onChange={(e) => setIso2(e.target.value.toUpperCase())}
-                  placeholder="US"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>ISO3 (3 chars)</Label>
-                <Input
-                  maxLength={3}
-                  value={iso3}
-                  onChange={(e) => setIso3(e.target.value.toUpperCase())}
-                  placeholder="USA"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Currency Code *</Label>
-                <Input
-                  value={currencyCode}
-                  onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())}
-                  placeholder="USD"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Default Language</Label>
-                <Input
-                  value={defaultLanguageCode}
-                  onChange={(e) => setDefaultLanguageCode(e.target.value)}
-                  placeholder="en"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Phone Code</Label>
-                <Input
-                  value={phoneCode}
-                  onChange={(e) => setPhoneCode(e.target.value)}
-                  placeholder="+1"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Official Email *</Label>
-              <Input
-                type="email"
-                value={officialEmail}
-                onChange={(e) => setOfficialEmail(e.target.value)}
-                placeholder="official@domain.com"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Admin Email *</Label>
-              <Input
-                type="email"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                placeholder="admin@domain.com"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>WhatsApp Number</Label>
-              <Input
-                value={whatsappNumber}
-                onChange={(e) => setWhatsappNumber(e.target.value)}
-                placeholder="+123456789"
-              />
-            </div>
-          </>
+          <div className="space-y-2">
+            <Label>Country Code (ISO2) *</Label>
+            <Input
+              maxLength={2}
+              value={iso2}
+              onChange={(e) => setIso2(e.target.value.toUpperCase())}
+              placeholder="e.g. PK"
+            />
+          </div>
         )}
 
         {(type === "state" || type === "district" || type === "city") && (
           <div className="space-y-2">
-            <Label>Code</Label>
+            <Label>{typeLabel} Code</Label>
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Enter code"
+              placeholder={`Enter ${typeLabel.toLowerCase()} code`}
             />
           </div>
         )}

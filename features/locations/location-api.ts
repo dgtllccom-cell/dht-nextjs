@@ -18,6 +18,8 @@ export type LocationState = {
   country_id: string;
   name: string;
   code: string | null;
+  postal_code: string | null;
+  phone_area_code: string | null;
   is_active: boolean;
 };
 
@@ -27,6 +29,8 @@ export type LocationDistrict = {
   state_province_id: string;
   name: string;
   code: string | null;
+  postal_code: string | null;
+  phone_area_code: string | null;
   is_active: boolean;
 };
 
@@ -38,6 +42,7 @@ export type LocationCity = {
   name: string;
   code: string | null;
   zip_code: string | null;
+  phone_area_code: string | null;
   is_active: boolean;
 };
 
@@ -49,6 +54,8 @@ export type LocationArea = {
   city_id: string;
   name: string;
   code: string | null;
+  postal_code: string | null;
+  phone_area_code: string | null;
   is_active: boolean;
 };
 

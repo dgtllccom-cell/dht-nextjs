@@ -1,14 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Edit3, Globe2, Info, Map, MapPin, Plus, Save, Search, Workflow } from "lucide-react";
+import {
+  Globe2,
+  Map,
+  MapPin,
+  Plus,
+  Save,
+  Search,
+  Workflow,
+  Download,
+  Upload,
+  Trash2,
+  Edit3,
+  Loader2,
+  Info,
+  CheckCircle2,
+  ChevronRight,
+  AlertTriangle,
+  X
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import { SimpleModal } from "@/components/ui/simple-modal";
-import { apiGet, apiPatch, apiPost } from "@/lib/api/client";
+import { apiGet, apiPatch, apiPost, apiDelete } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 type CountryRow = {
@@ -19,9 +37,6 @@ type CountryRow = {
   currency_code: string;
   default_language_code: string | null;
   is_active: boolean;
-  official_email: string;
-  admin_email: string;
-  whatsapp_number: string | null;
 };
 
 type StateRow = {
@@ -52,947 +67,1714 @@ type CityRow = {
   is_active: boolean;
 };
 
-type ZipRow = {
-  id: string;
-  country_id: string;
-  state_province_id: string | null;
-  district_id: string | null;
-  city_id: string;
-  name: string;
-  code: string | null;
-  is_active: boolean;
+type TabType = "country" | "state" | "city" | "tehsil";
+
+type ImportRow = {
+  countryCode: string;
+  countryName: string;
+  stateCode: string;
+  stateName: string;
+  cityCode: string;
+  cityName: string;
+  tehsilCode: string;
+  tehsilName: string;
 };
 
-type ModalMode =
-  | "add-country"
-  | "edit-country"
-  | "add-state"
-  | "edit-state"
-  | "add-district"
-  | "edit-district"
-  | "add-city"
-  | "edit-city"
-  | "add-zip"
-  | "edit-zip";
-
-const MAX_STATES_PER_COUNTRY = 15;
-const MAX_DISTRICTS_PER_STATE = 40;
-const MAX_CITIES_PER_DISTRICT = 100;
-
-function normalizeText(value: string) {
-  return value.trim().replace(/\s+/g, " ");
+interface LocationManagementWizardProps {
+  activeTab?: string;
 }
 
-function option(value: string, label: string, keywords?: string): SearchSelectOption {
-  return { value, label, keywords };
-}
+export function LocationManagementWizard({ activeTab: initialTab }: LocationManagementWizardProps) {
+  const [activeTab, setActiveTab] = useState<TabType>("country");
+  const [banner, setBanner] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
 
-function StatusPill({ active }: { active?: boolean }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-        active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"
-      )}
-    >
-      {active ? "Active" : "Inactive"}
-    </span>
-  );
-}
-
-function DetailLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-dashed py-1.5 text-xs last:border-0">
-      <span className="font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
-      <span className="truncate text-right font-semibold text-foreground">{value || "-"}</span>
-    </div>
-  );
-}
-
-function LimitNote({ text, reached = false }: { text: string; reached?: boolean }) {
-  return (
-    <div
-      className={cn(
-        "mt-2 flex items-start gap-1.5 rounded-md border px-2.5 py-2 text-xs font-medium",
-        reached
-          ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
-          : "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200"
-      )}
-    >
-      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-      <span>{text}</span>
-    </div>
-  );
-}
-
-function SpecGroup({ items }: { items: string[] }) {
-  return (
-    <div className="space-y-2 rounded-xl border bg-background p-3">
-      {items.map((item) => (
-        <div key={item} className="flex items-start gap-2 text-xs font-medium text-muted-foreground">
-          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-          <span>{item}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function LocationManagementWizard() {
-  const [banner, setBanner] = useState<string | null>(null);
-  const [loading, setLoading] = useState({ countries: false, states: false, districts: false, cities: false, zips: false });
-
+  // Raw list states
   const [countries, setCountries] = useState<CountryRow[]>([]);
   const [states, setStates] = useState<StateRow[]>([]);
   const [districts, setDistricts] = useState<DistrictRow[]>([]);
   const [cities, setCities] = useState<CityRow[]>([]);
-  const [zips, setZips] = useState<ZipRow[]>([]);
 
-  const [countryId, setCountryId] = useState("");
-  const [stateId, setStateId] = useState("");
-  const [districtId, setDistrictId] = useState("");
-  const [cityId, setCityId] = useState("");
-  const [zipId, setZipId] = useState("");
-  const [modal, setModal] = useState<ModalMode | null>(null);
-  const [saving, setSaving] = useState(false);
+  // Search queries & Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
 
-  const selectedCountry = useMemo(() => countries.find((row) => row.id === countryId) ?? null, [countries, countryId]);
-  const selectedState = useMemo(() => states.find((row) => row.id === stateId) ?? null, [states, stateId]);
-  const selectedDistrict = useMemo(() => districts.find((row) => row.id === districtId) ?? null, [districts, districtId]);
-  const selectedCity = useMemo(() => cities.find((row) => row.id === cityId) ?? null, [cities, cityId]);
-  const selectedZip = useMemo(() => zips.find((row) => row.id === zipId) ?? null, [zips, zipId]);
+  // Cascading filters in lists
+  const [selectedCountryId, setSelectedCountryId] = useState("");
+  const [selectedStateId, setSelectedStateId] = useState("");
+  const [selectedDistrictId, setSelectedDistrictId] = useState("");
 
-  const stateLimitReached = Boolean(countryId && states.length >= MAX_STATES_PER_COUNTRY);
-  const districtLimitReached = Boolean(stateId && districts.length >= MAX_DISTRICTS_PER_STATE);
-  const cityLimitReached = Boolean(districtId && cities.length >= MAX_CITIES_PER_DISTRICT);
-
-  const [draft, setDraft] = useState({
-    countryName: "",
-    countryCode: "",
-    countryIso3: "",
-    currency: "USD",
-    language: "en",
-    stateName: "",
-    stateCode: "",
-    districtName: "",
-    districtCode: "",
-    cityName: "",
-    cityCode: "",
-    cityZip: "",
-    zipCode: "",
-    areaName: "",
-    isActive: true,
-    officialEmail: "",
-    adminEmail: "",
-    whatsappNumber: ""
+  // Loading indicators
+  const [loading, setLoading] = useState({
+    countries: false,
+    states: false,
+    districts: false,
+    cities: false,
+    saving: false,
+    deleting: false
   });
 
-  const countryOptions = useMemo(
-    () => countries.map((row) => option(row.id, `${row.name} (${row.iso2 ?? row.currency_code})`, `${row.name} ${row.iso2 ?? ""} ${row.iso3 ?? ""} ${row.currency_code}`)),
-    [countries]
-  );
-  const stateOptions = useMemo(() => states.map((row) => option(row.id, row.code ? `${row.name} (${row.code})` : row.name, `${row.name} ${row.code ?? ""}`)), [states]);
-  const districtOptions = useMemo(() => districts.map((row) => option(row.id, row.code ? `${row.name} (${row.code})` : row.name, `${row.name} ${row.code ?? ""}`)), [districts]);
-  const cityOptions = useMemo(
-    () => cities.map((row) => option(row.id, row.code ? `${row.name} (${row.code})` : row.name, `${row.name} ${row.code ?? ""} ${row.zip_code ?? ""}`)),
-    [cities]
-  );
-  const zipOptions = useMemo(() => zips.map((row) => option(row.id, `${row.code ?? "-"} · ${row.name}`, `${row.code ?? ""} ${row.name}`)), [zips]);
+  // Create & Edit modal states
+  const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [editRecordId, setEditRecordId] = useState<string | null>(null);
 
-  async function loadCountries(q?: string) {
-    setLoading((cur) => ({ ...cur, countries: true }));
-    try {
-      const qp = new URLSearchParams();
-      const query = normalizeText(q ?? "");
-      if (query) qp.set("q", query);
-      const res = await apiGet<{ countries: CountryRow[] }>(`/api/erp/locations/countries?${qp.toString()}`);
-      setCountries(res.countries ?? []);
-    } finally {
-      setLoading((cur) => ({ ...cur, countries: false }));
-    }
-  }
+  // Cascading dropdowns inside Form Modals
+  const [modalCountryId, setModalCountryId] = useState("");
+  const [modalStateId, setModalStateId] = useState("");
+  const [modalDistrictId, setModalDistrictId] = useState("");
+  const [modalStates, setModalStates] = useState<StateRow[]>([]);
+  const [modalDistricts, setModalDistricts] = useState<DistrictRow[]>([]);
 
-  async function loadStates(nextCountryId: string, q?: string) {
-    setLoading((cur) => ({ ...cur, states: true }));
-    try {
-      const qp = new URLSearchParams({ countryId: nextCountryId });
-      const query = normalizeText(q ?? "");
-      if (query) qp.set("q", query);
-      const res = await apiGet<{ states: StateRow[] }>(`/api/erp/locations/states?${qp.toString()}`);
-      setStates(res.states ?? []);
-    } finally {
-      setLoading((cur) => ({ ...cur, states: false }));
-    }
-  }
+  // Bulk Import
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importProgress, setImportProgress] = useState<{ total: number; current: number } | null>(null);
+  const [importLogs, setImportLogs] = useState<string[]>([]);
 
-  async function loadDistricts(nextStateId: string, q?: string) {
-    setLoading((cur) => ({ ...cur, districts: true }));
-    try {
-      const qp = new URLSearchParams({ stateProvinceId: nextStateId });
-      const query = normalizeText(q ?? "");
-      if (query) qp.set("q", query);
-      const res = await apiGet<{ districts: DistrictRow[] }>(`/api/erp/locations/districts?${qp.toString()}`);
-      setDistricts(res.districts ?? []);
-    } finally {
-      setLoading((cur) => ({ ...cur, districts: false }));
-    }
-  }
+  // Deletion confirm
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
+    id: string;
+    name: string;
+    type: TabType;
+  } | null>(null);
 
-  async function loadCities(nextCountryId: string, nextStateId: string, nextDistrictId: string, q?: string) {
-    setLoading((cur) => ({ ...cur, cities: true }));
-    try {
-      const qp = new URLSearchParams({ countryId: nextCountryId });
-      if (nextStateId) qp.set("stateProvinceId", nextStateId);
-      if (nextDistrictId) qp.set("districtId", nextDistrictId);
-      const query = normalizeText(q ?? "");
-      if (query) qp.set("q", query);
-      const res = await apiGet<{ cities: CityRow[] }>(`/api/erp/locations/cities?${qp.toString()}`);
-      setCities(res.cities ?? []);
-    } finally {
-      setLoading((cur) => ({ ...cur, cities: false }));
-    }
-  }
+  // Simplified Form states
+  const [formCountry, setFormCountry] = useState({
+    name: "",
+    iso2: "",
+    isActive: true
+  });
 
-  async function loadZips(nextCityId: string, q?: string) {
-    setLoading((cur) => ({ ...cur, zips: true }));
-    try {
-      const qp = new URLSearchParams({ cityId: nextCityId });
-      const query = normalizeText(q ?? "");
-      if (query) qp.set("q", query);
-      const res = await apiGet<{ areas: ZipRow[] }>(`/api/erp/locations/areas?${qp.toString()}`);
-      setZips(res.areas ?? []);
-    } finally {
-      setLoading((cur) => ({ ...cur, zips: false }));
-    }
-  }
+  const [formState, setFormState] = useState({
+    name: "",
+    codeSuffix: "",
+    isActive: true
+  });
 
+  const [formCity, setFormCity] = useState({
+    name: "",
+    codeSuffix: "",
+    isActive: true
+  });
+
+  const [formTehsil, setFormTehsil] = useState({
+    name: "",
+    codeSuffix: "",
+    zipCode: "",
+    isActive: true
+  });
+
+  // Sync url param tabs
   useEffect(() => {
-    loadCountries().catch((e: any) => setBanner(e?.message || "Failed to load countries"));
+    if (initialTab && ["country", "state", "city", "tehsil"].includes(initialTab)) {
+      setActiveTab(initialTab as TabType);
+      setSearchQuery("");
+      setBanner(null);
+    }
+  }, [initialTab]);
+
+  // Load countries
+  useEffect(() => {
+    loadCountries();
   }, []);
 
+  // Set default scoped country filter
   useEffect(() => {
-    setStateId("");
-    setDistrictId("");
-    setCityId("");
-    setZipId("");
-    setStates([]);
-    setDistricts([]);
-    setCities([]);
-    setZips([]);
-    if (countryId) loadStates(countryId).catch((e: any) => setBanner(e?.message || "Failed to load states"));
-  }, [countryId]);
-
-  useEffect(() => {
-    setDistrictId("");
-    setCityId("");
-    setZipId("");
-    setDistricts([]);
-    setCities([]);
-    setZips([]);
-    if (stateId) loadDistricts(stateId).catch((e: any) => setBanner(e?.message || "Failed to load districts"));
-  }, [stateId]);
-
-  useEffect(() => {
-    setCityId("");
-    setZipId("");
-    setCities([]);
-    setZips([]);
-    if (countryId && stateId && districtId) loadCities(countryId, stateId, districtId).catch((e: any) => setBanner(e?.message || "Failed to load cities"));
-  }, [countryId, stateId, districtId]);
-
-  useEffect(() => {
-    setZipId("");
-    setZips([]);
-    if (cityId) loadZips(cityId).catch((e: any) => setBanner(e?.message || "Failed to load zip codes"));
-  }, [cityId]);
-
-  function openModal(mode: ModalMode) {
-    setBanner(null);
-    if (mode === "add-state" && stateLimitReached) {
-      setBanner(`This country already has ${MAX_STATES_PER_COUNTRY} States / Provinces.`);
-      return;
+    if (countries.length > 0 && !selectedCountryId) {
+      const pk = countries.find(c => c.iso2 === "PK");
+      setSelectedCountryId(pk ? pk.id : countries[0].id);
     }
-    if (mode === "add-district" && districtLimitReached) {
-      setBanner(`This State / Province already has ${MAX_DISTRICTS_PER_STATE} Districts.`);
-      return;
+  }, [countries]);
+
+  // Load cascade listings on selection change
+  useEffect(() => {
+    if (selectedCountryId) {
+      loadStates(selectedCountryId);
+      setSelectedStateId("");
+      setSelectedDistrictId("");
+      setStates([]);
+      setDistricts([]);
+      setCities([]);
     }
-    if (mode === "add-city" && cityLimitReached) {
-      setBanner(`This District already has ${MAX_CITIES_PER_DISTRICT} Cities.`);
-      return;
+  }, [selectedCountryId]);
+
+  useEffect(() => {
+    if (selectedStateId) {
+      loadDistricts(selectedStateId);
+      setSelectedDistrictId("");
+      setDistricts([]);
+      setCities([]);
     }
-    if (mode === "edit-country" && selectedCountry) {
-      setDraft({
-        ...draft,
-        countryName: selectedCountry.name,
-        countryCode: selectedCountry.iso2 ?? "",
-        countryIso3: selectedCountry.iso3 ?? "",
-        currency: selectedCountry.currency_code,
-        language: selectedCountry.default_language_code ?? "en",
-        isActive: selectedCountry.is_active,
-        officialEmail: selectedCountry.official_email ?? "",
-        adminEmail: selectedCountry.admin_email ?? "",
-        whatsappNumber: selectedCountry.whatsapp_number ?? ""
-      });
-    } else if (mode === "edit-state" && selectedState) {
-      setDraft({ ...draft, stateName: selectedState.name, stateCode: selectedState.code ?? "", isActive: selectedState.is_active });
-    } else if (mode === "edit-district" && selectedDistrict) {
-      setDraft({ ...draft, districtName: selectedDistrict.name, districtCode: selectedDistrict.code ?? "", isActive: selectedDistrict.is_active });
-    } else if (mode === "edit-city" && selectedCity) {
-      setDraft({ ...draft, cityName: selectedCity.name, cityCode: selectedCity.code ?? "", cityZip: selectedCity.zip_code ?? "", isActive: selectedCity.is_active });
-    } else if (mode === "edit-zip" && selectedZip) {
-      setDraft({ ...draft, zipCode: selectedZip.code ?? "", areaName: selectedZip.name, isActive: selectedZip.is_active });
+  }, [selectedStateId]);
+
+  useEffect(() => {
+    if (selectedCountryId && selectedStateId && selectedDistrictId) {
+      loadCities(selectedCountryId, selectedStateId, selectedDistrictId);
     } else {
-      setDraft({
-        countryName: "",
-        countryCode: "",
-        countryIso3: "",
-        currency: selectedCountry?.currency_code ?? "USD",
-        language: selectedCountry?.default_language_code ?? "en",
-        stateName: "",
-        stateCode: "",
-        districtName: "",
-        districtCode: "",
-        cityName: "",
-        cityCode: "",
-        cityZip: "",
-        zipCode: "",
-        areaName: "",
-        isActive: true,
-        officialEmail: "",
-        adminEmail: "",
-        whatsappNumber: ""
+      setCities([]);
+    }
+  }, [selectedCountryId, selectedStateId, selectedDistrictId]);
+
+  // Modal cascade dropdown updates
+  useEffect(() => {
+    if (modalCountryId) {
+      loadModalStates(modalCountryId);
+      // Only reset selections if we are in create mode or changing selection
+      if (modalMode === "add") {
+        setModalStateId("");
+        setModalDistrictId("");
+      }
+      setModalStates([]);
+      setModalDistricts([]);
+    }
+  }, [modalCountryId]);
+
+  useEffect(() => {
+    if (modalStateId) {
+      loadModalDistricts(modalStateId);
+      if (modalMode === "add") {
+        setModalDistrictId("");
+      }
+      setModalDistricts([]);
+    }
+  }, [modalStateId]);
+
+  // API loaders
+  async function loadCountries() {
+    setLoading(prev => ({ ...prev, countries: true }));
+    try {
+      const res = await apiGet<{ countries: CountryRow[] }>("/api/erp/locations/countries");
+      setCountries(res.countries || []);
+    } catch (e: any) {
+      showBanner("error", e.message || "Failed to load countries");
+    } finally {
+      setLoading(prev => ({ ...prev, countries: false }));
+    }
+  }
+
+  async function loadStates(countryId: string) {
+    setLoading(prev => ({ ...prev, states: true }));
+    try {
+      const res = await apiGet<{ states: StateRow[] }>(`/api/erp/locations/states?countryId=${countryId}`);
+      setStates(res.states || []);
+    } catch (e: any) {
+      showBanner("error", e.message || "Failed to load states");
+    } finally {
+      setLoading(prev => ({ ...prev, states: false }));
+    }
+  }
+
+  async function loadDistricts(stateId: string) {
+    setLoading(prev => ({ ...prev, districts: true }));
+    try {
+      const res = await apiGet<{ districts: DistrictRow[] }>(`/api/erp/locations/districts?stateProvinceId=${stateId}`);
+      setDistricts(res.districts || []);
+    } catch (e: any) {
+      showBanner("error", e.message || "Failed to load districts/cities");
+    } finally {
+      setLoading(prev => ({ ...prev, districts: false }));
+    }
+  }
+
+  async function loadCities(countryId: string, stateId: string, districtId: string) {
+    setLoading(prev => ({ ...prev, cities: true }));
+    try {
+      const res = await apiGet<{ cities: CityRow[] }>(
+        `/api/erp/locations/cities?countryId=${countryId}&stateProvinceId=${stateId}&districtId=${districtId}`
+      );
+      setCities(res.cities || []);
+    } catch (e: any) {
+      showBanner("error", e.message || "Failed to load tehsils");
+    } finally {
+      setLoading(prev => ({ ...prev, cities: false }));
+    }
+  }
+
+  // Modal cascade dropdown data fetching
+  async function loadModalStates(countryId: string) {
+    try {
+      const res = await apiGet<{ states: StateRow[] }>(`/api/erp/locations/states?countryId=${countryId}`);
+      setModalStates(res.states || []);
+    } catch (e) {
+      console.error("Failed to load modal states", e);
+    }
+  }
+
+  async function loadModalDistricts(stateId: string) {
+    try {
+      const res = await apiGet<{ districts: DistrictRow[] }>(`/api/erp/locations/districts?stateProvinceId=${stateId}`);
+      setModalDistricts(res.districts || []);
+    } catch (e) {
+      console.error("Failed to load modal districts", e);
+    }
+  }
+
+  function showBanner(type: "success" | "error" | "info", message: string) {
+    setBanner({ type, message });
+    setTimeout(() => setBanner(null), 8000);
+  }
+
+  // Options converters
+  const countryOptions = useMemo(() => {
+    return countries.map(c => ({
+      value: c.id,
+      label: `${c.name} (${c.iso2})`,
+      keywords: `${c.name} ${c.iso2}`
+    }));
+  }, [countries]);
+
+  const stateOptions = useMemo(() => {
+    return states.map(s => ({
+      value: s.id,
+      label: s.code ? `${s.name} (${s.code})` : s.name,
+      keywords: `${s.name} ${s.code}`
+    }));
+  }, [states]);
+
+  const districtOptions = useMemo(() => {
+    return districts.map(d => ({
+      value: d.id,
+      label: d.code ? `${d.name} (${d.code})` : d.name,
+      keywords: `${d.name} ${d.code}`
+    }));
+  }, [districts]);
+
+  // Client side listing filters
+  const filteredCountries = useMemo(() => {
+    return countries.filter(c => {
+      const matchesSearch =
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.iso2 || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus =
+        statusFilter === "all" ? true : statusFilter === "active" ? c.is_active : !c.is_active;
+      return matchesSearch && matchesStatus;
+    });
+  }, [countries, searchQuery, statusFilter]);
+
+  const filteredStates = useMemo(() => {
+    return states.filter(s => {
+      const matchesSearch =
+        s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.code || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus =
+        statusFilter === "all" ? true : statusFilter === "active" ? s.is_active : !s.is_active;
+      return matchesSearch && matchesStatus;
+    });
+  }, [states, searchQuery, statusFilter]);
+
+  const filteredDistricts = useMemo(() => {
+    return districts.filter(d => {
+      const matchesSearch =
+        d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (d.code || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus =
+        statusFilter === "all" ? true : statusFilter === "active" ? d.is_active : !d.is_active;
+      return matchesSearch && matchesStatus;
+    });
+  }, [districts, searchQuery, statusFilter]);
+
+  const filteredCities = useMemo(() => {
+    return cities.filter(c => {
+      const matchesSearch =
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.code || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.zip_code || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus =
+        statusFilter === "all" ? true : statusFilter === "active" ? c.is_active : !c.is_active;
+      return matchesSearch && matchesStatus;
+    });
+  }, [cities, searchQuery, statusFilter]);
+
+  // Code formats suffix rules
+  const modalStateCodePrefix = useMemo(() => {
+    const parent = countries.find(c => c.id === modalCountryId);
+    return parent ? `${parent.iso2 || "XX"}-` : "";
+  }, [countries, modalCountryId]);
+
+  const modalDistrictCodePrefix = useMemo(() => {
+    const parentCountry = countries.find(c => c.id === modalCountryId);
+    const parentState = modalStates.find(s => s.id === modalStateId);
+    const cCode = parentCountry ? parentCountry.iso2 || "XX" : "XX";
+    let sCode = parentState ? parentState.code || "XX" : "XX";
+    if (sCode.startsWith(`${cCode}-`)) sCode = sCode.substring(cCode.length + 1);
+    return `${cCode}-${sCode}-`;
+  }, [countries, modalStates, modalCountryId, modalStateId]);
+
+  const modalTehsilCodePrefix = useMemo(() => {
+    const parentCountry = countries.find(c => c.id === modalCountryId);
+    const parentState = modalStates.find(s => s.id === modalStateId);
+    const parentDistrict = modalDistricts.find(d => d.id === modalDistrictId);
+
+    const cCode = parentCountry ? parentCountry.iso2 || "XX" : "XX";
+    let sCode = parentState ? parentState.code || "XX" : "XX";
+    if (sCode.startsWith(`${cCode}-`)) sCode = sCode.substring(cCode.length + 1);
+    let dCode = parentDistrict ? parentDistrict.code || "XX" : "XX";
+    const prefix2 = `${cCode}-${sCode}-`;
+    if (dCode.startsWith(prefix2)) dCode = dCode.substring(prefix2.length);
+
+    return `${cCode}-${sCode}-${dCode}-`;
+  }, [countries, modalStates, modalDistricts, modalCountryId, modalStateId, modalDistrictId]);
+
+  // Form open methods
+  function handleOpenAddModal() {
+    setModalMode("add");
+    setEditRecordId(null);
+    setBanner(null);
+
+    setModalCountryId(selectedCountryId);
+    setModalStateId(selectedStateId);
+    setModalDistrictId(selectedDistrictId);
+
+    if (activeTab === "country") {
+      setFormCountry({ name: "", iso2: "", isActive: true });
+    } else if (activeTab === "state") {
+      setFormState({ name: "", codeSuffix: "", isActive: true });
+    } else if (activeTab === "city") {
+      setFormCity({ name: "", codeSuffix: "", isActive: true });
+    } else if (activeTab === "tehsil") {
+      setFormTehsil({ name: "", codeSuffix: "", zipCode: "", isActive: true });
+    }
+
+    setIsAddEditModalOpen(true);
+  }
+
+  async function handleOpenEditModal(record: any) {
+    setModalMode("edit");
+    setEditRecordId(record.id);
+    setBanner(null);
+
+    // Explicitly set the hierarchy scope
+    setModalCountryId(record.country_id || "");
+    setModalStateId(record.state_province_id || "");
+    setModalDistrictId(record.district_id || "");
+
+    // Pre-load cascading lists inside modal
+    if (record.country_id) {
+      await loadModalStates(record.country_id);
+    }
+    if (record.state_province_id) {
+      await loadModalDistricts(record.state_province_id);
+    }
+
+    if (activeTab === "country") {
+      setFormCountry({
+        name: record.name,
+        iso2: record.iso2 || "",
+        isActive: record.is_active
+      });
+    } else if (activeTab === "state") {
+      const c = countries.find(x => x.id === record.country_id);
+      const prefix = c ? `${c.iso2}-` : "";
+      let codeSuff = record.code || "";
+      if (prefix && codeSuff.startsWith(prefix)) codeSuff = codeSuff.substring(prefix.length);
+
+      setFormState({
+        name: record.name,
+        codeSuffix: codeSuff,
+        isActive: record.is_active
+      });
+    } else if (activeTab === "city") {
+      const c = countries.find(x => x.id === record.country_id);
+      const s = states.find(x => x.id === record.state_province_id) || modalStates.find(x => x.id === record.state_province_id);
+      
+      const cCode = c ? c.iso2 || "XX" : "XX";
+      let sCode = s ? s.code || "XX" : "XX";
+      if (sCode.startsWith(`${cCode}-`)) sCode = sCode.substring(cCode.length + 1);
+      const prefix = `${cCode}-${sCode}-`;
+      let codeSuff = record.code || "";
+      if (codeSuff.startsWith(prefix)) codeSuff = codeSuff.substring(prefix.length);
+
+      setFormCity({
+        name: record.name,
+        codeSuffix: codeSuff,
+        isActive: record.is_active
+      });
+    } else if (activeTab === "tehsil") {
+      const c = countries.find(x => x.id === record.country_id);
+      const s = states.find(x => x.id === record.state_province_id) || modalStates.find(x => x.id === record.state_province_id);
+      const d = districts.find(x => x.id === record.district_id) || modalDistricts.find(x => x.id === record.district_id);
+
+      const cCode = c ? c.iso2 || "XX" : "XX";
+      let sCode = s ? s.code || "XX" : "XX";
+      if (sCode.startsWith(`${cCode}-`)) sCode = sCode.substring(cCode.length + 1);
+      let dCode = d ? d.code || "XX" : "XX";
+      const prefix2 = `${cCode}-${sCode}-`;
+      if (dCode.startsWith(prefix2)) dCode = dCode.substring(prefix2.length);
+      const prefix = `${cCode}-${sCode}-${dCode}-`;
+      
+      let codeSuff = record.code || "";
+      if (codeSuff.startsWith(prefix)) codeSuff = codeSuff.substring(prefix.length);
+
+      setFormTehsil({
+        name: record.name,
+        codeSuffix: codeSuff,
+        zipCode: record.zip_code || "",
+        isActive: record.is_active
       });
     }
-    setModal(mode);
+
+    setIsAddEditModalOpen(true);
   }
 
-  function updateDraft(key: keyof typeof draft, value: string | boolean) {
-    setDraft((cur) => ({ ...cur, [key]: value }));
-  }
-
-  async function saveModal() {
-    if (!modal) return;
-    setSaving(true);
-    setBanner(null);
+  // Create / Edit submits
+  async function handleSubmitForm() {
+    setLoading(prev => ({ ...prev, saving: true }));
     try {
-      if (modal === "add-country") {
-        if (!draft.officialEmail.trim()) {
-          throw new Error("Official Email is required");
+      if (activeTab === "country") {
+        if (!formCountry.name.trim() || !formCountry.iso2.trim()) {
+          throw new Error("Country Name and Code are required");
         }
-        if (!draft.adminEmail.trim()) {
-          throw new Error("Admin Email is required");
+        const payload = {
+          name: formCountry.name.trim(),
+          iso2: formCountry.iso2.trim().toUpperCase()
+        };
+
+        if (modalMode === "add") {
+          const res = await apiPost<{ country: CountryRow }>("/api/erp/locations/countries", payload);
+          setCountries(prev => [res.country, ...prev]);
+          showBanner("success", `Country ${res.country.name} created successfully.`);
+        } else {
+          const res = await apiPatch<{ country: CountryRow }>(`/api/erp/locations/countries/${editRecordId}`, {
+            ...payload,
+            isActive: formCountry.isActive
+          });
+          setCountries(prev => prev.map(c => (c.id === editRecordId ? res.country : c)));
+          showBanner("success", `Country ${res.country.name} updated successfully.`);
         }
-        const res = await apiPost<{ country: CountryRow }>("/api/erp/locations/countries", {
-          name: draft.countryName,
-          iso2: draft.countryCode || null,
-          iso3: draft.countryIso3 || null,
-          currencyCode: draft.currency,
-          defaultLanguageCode: draft.language,
-          officialEmail: draft.officialEmail,
-          adminEmail: draft.adminEmail,
-          whatsappNumber: draft.whatsappNumber || null
-        });
-        setCountries((cur) => [res.country, ...cur.filter((row) => row.id !== res.country.id)]);
-        setCountryId(res.country.id);
-      }
-      if (modal === "edit-country" && selectedCountry) {
-        if (!draft.officialEmail.trim()) {
-          throw new Error("Official Email is required");
+      } else if (activeTab === "state") {
+        if (!modalCountryId) {
+          throw new Error("Please select a Country first");
         }
-        if (!draft.adminEmail.trim()) {
-          throw new Error("Admin Email is required");
+        if (!formState.name.trim() || !formState.codeSuffix.trim()) {
+          throw new Error("State Name and Code Suffix are required");
         }
-        const res = await apiPatch<{ country: CountryRow }>(`/api/erp/locations/countries/${selectedCountry.id}`, {
-          name: draft.countryName,
-          iso2: draft.countryCode || null,
-          iso3: draft.countryIso3 || null,
-          currencyCode: draft.currency,
-          defaultLanguageCode: draft.language,
-          isActive: draft.isActive,
-          officialEmail: draft.officialEmail,
-          adminEmail: draft.adminEmail,
-          whatsappNumber: draft.whatsappNumber || null
-        });
-        setCountries((cur) => cur.map((row) => (row.id === res.country.id ? res.country : row)));
+        const fullCode = `${modalStateCodePrefix}${formState.codeSuffix.trim().toUpperCase()}`;
+        const payload = {
+          countryId: modalCountryId,
+          name: formState.name.trim(),
+          code: fullCode
+        };
+
+        if (modalMode === "add") {
+          const res = await apiPost<{ state: StateRow }>("/api/erp/locations/states", payload);
+          if (modalCountryId === selectedCountryId) {
+            setStates(prev => [res.state, ...prev]);
+          }
+          showBanner("success", `State ${res.state.name} created successfully.`);
+        } else {
+          const res = await apiPatch<{ state: StateRow }>(`/api/erp/locations/states/${editRecordId}`, {
+            name: formState.name.trim(),
+            code: fullCode,
+            isActive: formState.isActive
+          });
+          if (modalCountryId === selectedCountryId) {
+            setStates(prev => prev.map(s => (s.id === editRecordId ? res.state : s)));
+          }
+          showBanner("success", `State ${res.state.name} updated successfully.`);
+        }
+      } else if (activeTab === "city") {
+        if (!modalCountryId || !modalStateId) {
+          throw new Error("Country and State selections are required");
+        }
+        if (!formCity.name.trim() || !formCity.codeSuffix.trim()) {
+          throw new Error("City Name and Code Suffix are required");
+        }
+        const fullCode = `${modalDistrictCodePrefix}${formCity.codeSuffix.trim().toUpperCase()}`;
+        const payload = {
+          countryId: modalCountryId,
+          stateProvinceId: modalStateId,
+          name: formCity.name.trim(),
+          code: fullCode
+        };
+
+        if (modalMode === "add") {
+          const res = await apiPost<{ district: DistrictRow }>("/api/erp/locations/districts", payload);
+          if (modalStateId === selectedStateId) {
+            setDistricts(prev => [res.district, ...prev]);
+          }
+          showBanner("success", `City ${res.district.name} created successfully.`);
+        } else {
+          const res = await apiPatch<{ district: DistrictRow }>(`/api/erp/locations/districts/${editRecordId}`, {
+            name: formCity.name.trim(),
+            code: fullCode,
+            isActive: formCity.isActive
+          });
+          if (modalStateId === selectedStateId) {
+            setDistricts(prev => prev.map(d => (d.id === editRecordId ? res.district : d)));
+          }
+          showBanner("success", `City ${res.district.name} updated successfully.`);
+        }
+      } else if (activeTab === "tehsil") {
+        if (!modalCountryId || !modalStateId || !modalDistrictId) {
+          throw new Error("Country, State, and City selections are required");
+        }
+        if (!formTehsil.name.trim() || !formTehsil.codeSuffix.trim()) {
+          throw new Error("Tehsil Name and Code Suffix are required");
+        }
+        const fullCode = `${modalTehsilCodePrefix}${formTehsil.codeSuffix.trim().toUpperCase()}`;
+        const payload = {
+          countryId: modalCountryId,
+          stateProvinceId: modalStateId,
+          districtId: modalDistrictId,
+          name: formTehsil.name.trim(),
+          code: fullCode,
+          zipCode: formTehsil.zipCode.trim() || null
+        };
+
+        if (modalMode === "add") {
+          const res = await apiPost<{ city: CityRow }>("/api/erp/locations/cities", payload);
+          if (modalDistrictId === selectedDistrictId) {
+            setCities(prev => [res.city, ...prev]);
+          }
+          showBanner("success", `Tehsil ${res.city.name} created successfully.`);
+        } else {
+          const res = await apiPatch<{ city: CityRow }>(`/api/erp/locations/cities/${editRecordId}`, {
+            name: formTehsil.name.trim(),
+            code: fullCode,
+            zipCode: formTehsil.zipCode.trim() || null,
+            isActive: formTehsil.isActive,
+            districtId: modalDistrictId
+          });
+          if (modalDistrictId === selectedDistrictId) {
+            setCities(prev => prev.map(c => (c.id === editRecordId ? res.city : c)));
+          }
+          showBanner("success", `Tehsil ${res.city.name} updated successfully.`);
+        }
       }
-      if (modal === "add-state") {
-        if (stateLimitReached) throw new Error(`Maximum ${MAX_STATES_PER_COUNTRY} States / Provinces are allowed per Country.`);
-        const res = await apiPost<{ state: StateRow }>("/api/erp/locations/states", { countryId, name: draft.stateName, code: draft.stateCode || null });
-        setStates((cur) => [res.state, ...cur.filter((row) => row.id !== res.state.id)]);
-        setStateId(res.state.id);
-      }
-      if (modal === "edit-state" && selectedState) {
-        const res = await apiPatch<{ state: StateRow }>(`/api/erp/locations/states/${selectedState.id}`, {
-          name: draft.stateName,
-          code: draft.stateCode || null,
-          isActive: draft.isActive
-        });
-        setStates((cur) => cur.map((row) => (row.id === res.state.id ? res.state : row)));
-      }
-      if (modal === "add-district") {
-        if (districtLimitReached) throw new Error(`Maximum ${MAX_DISTRICTS_PER_STATE} Districts are allowed per State.`);
-        const res = await apiPost<{ district: DistrictRow }>("/api/erp/locations/districts", {
-          countryId,
-          stateProvinceId: stateId,
-          name: draft.districtName,
-          code: draft.districtCode || null
-        });
-        setDistricts((cur) => [res.district, ...cur.filter((row) => row.id !== res.district.id)]);
-        setDistrictId(res.district.id);
-      }
-      if (modal === "edit-district" && selectedDistrict) {
-        const res = await apiPatch<{ district: DistrictRow }>(`/api/erp/locations/districts/${selectedDistrict.id}`, {
-          name: draft.districtName,
-          code: draft.districtCode || null,
-          isActive: draft.isActive
-        });
-        setDistricts((cur) => cur.map((row) => (row.id === res.district.id ? res.district : row)));
-      }
-      if (modal === "add-city") {
-        if (cityLimitReached) throw new Error(`Maximum ${MAX_CITIES_PER_DISTRICT} Cities are allowed per District.`);
-        const res = await apiPost<{ city: CityRow }>("/api/erp/locations/cities", {
-          countryId,
-          stateProvinceId: stateId,
-          districtId,
-          name: draft.cityName,
-          code: draft.cityCode || null,
-          zipCode: draft.cityZip || null
-        });
-        setCities((cur) => [res.city, ...cur.filter((row) => row.id !== res.city.id)]);
-        setCityId(res.city.id);
-      }
-      if (modal === "edit-city" && selectedCity) {
-        const res = await apiPatch<{ city: CityRow }>(`/api/erp/locations/cities/${selectedCity.id}`, {
-          name: draft.cityName,
-          code: draft.cityCode || null,
-          zipCode: draft.cityZip || null,
-          isActive: draft.isActive,
-          districtId
-        });
-        setCities((cur) => cur.map((row) => (row.id === res.city.id ? res.city : row)));
-      }
-      if (modal === "add-zip") {
-        const res = await apiPost<{ area: ZipRow }>("/api/erp/locations/areas", {
-          countryId,
-          stateProvinceId: stateId,
-          districtId,
-          cityId,
-          name: draft.areaName,
-          code: draft.zipCode || null
-        });
-        setZips((cur) => [res.area, ...cur.filter((row) => row.id !== res.area.id)]);
-        setZipId(res.area.id);
-      }
-      if (modal === "edit-zip" && selectedZip) {
-        const res = await apiPatch<{ area: ZipRow }>(`/api/erp/locations/areas/${selectedZip.id}`, {
-          name: draft.areaName,
-          code: draft.zipCode || null,
-          isActive: draft.isActive
-        });
-        setZips((cur) => cur.map((row) => (row.id === res.area.id ? res.area : row)));
-      }
-      setModal(null);
+      setIsAddEditModalOpen(false);
     } catch (e: any) {
-      setBanner(e?.message || "Unable to save location");
+      showBanner("error", e.message || "Failed to save location data.");
     } finally {
-      setSaving(false);
+      setLoading(prev => ({ ...prev, saving: false }));
     }
   }
 
-  const path = [selectedCountry?.name, selectedState?.name, selectedDistrict?.name, selectedCity?.name, selectedZip?.code].filter(Boolean).join(" -> ");
-  const hierarchyLabel = selectedCountry
-    ? `You can add up to ${MAX_STATES_PER_COUNTRY} States in ${selectedCountry.name}. Each State can have up to ${MAX_DISTRICTS_PER_STATE} Districts and ${MAX_CITIES_PER_DISTRICT} Cities per District.`
-    : `Select a Country to manage up to ${MAX_STATES_PER_COUNTRY} States, ${MAX_DISTRICTS_PER_STATE} Districts, ${MAX_CITIES_PER_DISTRICT} Cities, and unlimited Zip/Tehsil Codes.`;
+  // Deletions
+  function triggerDelete(id: string, name: string, type: TabType) {
+    setDeleteConfirmTarget({ id, name, type });
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirmTarget) return;
+    setLoading(prev => ({ ...prev, deleting: true }));
+    const { id, name, type } = deleteConfirmTarget;
+
+    try {
+      if (type === "country") {
+        await apiDelete(`/api/erp/locations/countries/${id}`);
+        setCountries(prev => prev.filter(c => c.id !== id));
+        if (selectedCountryId === id) setSelectedCountryId("");
+      } else if (type === "state") {
+        await apiDelete(`/api/erp/locations/states/${id}`);
+        setStates(prev => prev.filter(s => s.id !== id));
+        if (selectedStateId === id) setSelectedStateId("");
+      } else if (type === "city") {
+        await apiDelete(`/api/erp/locations/districts/${id}`);
+        setDistricts(prev => prev.filter(d => d.id !== id));
+        if (selectedDistrictId === id) setSelectedDistrictId("");
+      } else if (type === "tehsil") {
+        await apiDelete(`/api/erp/locations/cities/${id}`);
+        setCities(prev => prev.filter(c => c.id !== id));
+      }
+      showBanner("success", `${name} deleted successfully.`);
+      setDeleteConfirmTarget(null);
+    } catch (e: any) {
+      showBanner("error", e.message || `Failed to delete ${name}`);
+    } finally {
+      setLoading(prev => ({ ...prev, deleting: false }));
+    }
+  }
+
+  // Import parsing
+  function handleCsvDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith(".csv")) {
+      parseImportFile(file);
+    } else {
+      setImportLogs(["Please select a valid CSV file."]);
+    }
+  }
+
+  function handleCsvSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      parseImportFile(file);
+    }
+  }
+
+  function parseImportFile(file: File) {
+    setImportFile(file);
+    setImportLogs([]);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      try {
+        const rows = parseCSV(text);
+        if (rows.length < 2) {
+          throw new Error("CSV file does not contain enough data rows.");
+        }
+
+        const headers = rows[0].map(h => h.trim().toLowerCase());
+        const expectedHeaders = [
+          "country code",
+          "country name",
+          "state code",
+          "state name",
+          "city code",
+          "city name",
+          "tehsil code",
+          "tehsil name"
+        ];
+
+        const missing = expectedHeaders.filter(h => !headers.includes(h));
+        if (missing.length > 0) {
+          throw new Error(`CSV is missing required headers: ${missing.join(", ")}`);
+        }
+
+        const mapped: ImportRow[] = [];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length < headers.length) continue;
+          
+          const item: Record<string, string> = {};
+          headers.forEach((header, index) => {
+            item[header] = row[index] || "";
+          });
+
+          mapped.push({
+            countryCode: item["country code"],
+            countryName: item["country name"],
+            stateCode: item["state code"],
+            stateName: item["state name"],
+            cityCode: item["city code"],
+            cityName: item["city name"],
+            tehsilCode: item["tehsil code"],
+            tehsilName: item["tehsil name"]
+          });
+        }
+
+        setImportRows(mapped);
+        setImportLogs([`Successfully parsed ${mapped.length} rows for import.`]);
+      } catch (err: any) {
+        setImportLogs([`Parsing Error: ${err.message}`]);
+        setImportRows([]);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function parseCSV(text: string): string[][] {
+    const lines: string[][] = [];
+    let row: string[] = [];
+    let inQuotes = false;
+    let currentVal = "";
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentVal += '"';
+          i++; 
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        row.push(currentVal.trim());
+        currentVal = "";
+      } else if ((char === '\r' || char === '\n') && !inQuotes) {
+        if (char === '\r' && nextChar === '\n') {
+          i++;
+        }
+        row.push(currentVal.trim());
+        if (row.length > 1 || row[0] !== "") {
+          lines.push(row);
+        }
+        row = [];
+        currentVal = "";
+      } else {
+        currentVal += char;
+      }
+    }
+    if (row.length > 0 || currentVal !== "") {
+      row.push(currentVal.trim());
+      lines.push(row);
+    }
+    return lines;
+  }
+
+  async function executeBulkImport() {
+    if (importRows.length === 0) return;
+    setImportProgress({ total: importRows.length, current: 0 });
+    setImportLogs(prev => [...prev, "Uploading data to server for transactional processing..."]);
+
+    try {
+      const res = await apiPost<{
+        success: boolean;
+        countriesCreated: number;
+        statesCreated: number;
+        districtsCreated: number;
+        citiesCreated: number;
+      }>("/api/erp/locations/bulk-import", { rows: importRows });
+
+      if (res.success) {
+        setImportLogs(prev => [
+          ...prev,
+          "Import Completed Successfully!",
+          `Countries validated: ${res.countriesCreated}`,
+          `States created: ${res.statesCreated}`,
+          `Cities created: ${res.districtsCreated}`,
+          `Tehsils created: ${res.citiesCreated}`
+        ]);
+        loadCountries();
+        if (selectedCountryId) loadStates(selectedCountryId);
+      }
+    } catch (e: any) {
+      setImportLogs(prev => [...prev, `Import Failed: ${e.message}`]);
+    } finally {
+      setImportProgress(null);
+    }
+  }
+
+  // Export CSV
+  function handleExportCsv() {
+    let headers: string[] = [];
+    let rows: string[][] = [];
+    let filename = "";
+
+    if (activeTab === "country") {
+      filename = "Country_Master_Export.csv";
+      headers = ["Country Code", "Country Name", "Status"];
+      rows = filteredCountries.map(c => [
+        c.iso2 || "",
+        c.name,
+        c.is_active ? "Active" : "Inactive"
+      ]);
+    } else if (activeTab === "state") {
+      filename = "State_Master_Export.csv";
+      const c = countries.find(x => x.id === selectedCountryId);
+      headers = ["Country Code", "Country Name", "State Code", "State Name", "Status"];
+      rows = filteredStates.map(s => [
+        c?.iso2 || "",
+        c?.name || "",
+        s.code || "",
+        s.name,
+        s.is_active ? "Active" : "Inactive"
+      ]);
+    } else if (activeTab === "city") {
+      filename = "City_Master_Export.csv";
+      const c = countries.find(x => x.id === selectedCountryId);
+      const s = states.find(x => x.id === selectedStateId);
+      headers = ["Country Code", "Country Name", "State Code", "State Name", "City Code", "City Name", "Status"];
+      rows = filteredDistricts.map(d => [
+        c?.iso2 || "",
+        c?.name || "",
+        s?.code || "",
+        s?.name || "",
+        d.code || "",
+        d.name,
+        d.is_active ? "Active" : "Inactive"
+      ]);
+    } else if (activeTab === "tehsil") {
+      filename = "Tehsil_Master_Export.csv";
+      const c = countries.find(x => x.id === selectedCountryId);
+      const s = states.find(x => x.id === selectedStateId);
+      const d = districts.find(x => x.id === selectedDistrictId);
+      headers = [
+        "Country Code",
+        "Country Name",
+        "State Code",
+        "State Name",
+        "City Code",
+        "City Name",
+        "Tehsil Code",
+        "Tehsil Name",
+        "Zip Code",
+        "Status"
+      ];
+      rows = filteredCities.map(ct => [
+        c?.iso2 || "",
+        c?.name || "",
+        s?.code || "",
+        s?.name || "",
+        d?.code || "",
+        d?.name || "",
+        ct.code || "",
+        ct.name,
+        ct.zip_code || "",
+        ct.is_active ? "Active" : "Inactive"
+      ]);
+    }
+
+    downloadCSV(filename, headers, rows);
+  }
+
+  function downloadCSV(filename: string, headers: string[], rows: string[][]) {
+    const content = [
+      headers.map(h => `"${h.replace(/"/g, '""')}"`).join(","),
+      ...rows.map(row => row.map(cell => `"${(cell || "").replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-6">
+      {/* Title Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-5">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Settings / Management</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Location Management</h1>
-          <p className="text-sm text-muted-foreground">Centralized Country to State/Province to District to City to Zip Code hierarchy for the full ERP.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">ERP Settings</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground">Location Management Workspace</h1>
+          <p className="text-sm text-muted-foreground">
+            Configure the global 4-level location hierarchy: Country &rarr; State &rarr; City &rarr; Tehsil.
+          </p>
         </div>
-        <div className="rounded-full border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-          {path || "Select hierarchy"}
+
+        <div className="flex items-center gap-2 rounded-full border bg-muted/30 px-4 py-2 text-xs font-semibold text-muted-foreground shadow-sm">
+          <Workflow className="h-4 w-4 text-primary" />
+          <span>Hierarchy: Country &rarr; State &rarr; City &rarr; Tehsil</span>
         </div>
       </div>
 
       {banner ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-          {banner}
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium shadow-sm transition-all animate-in fade-in slide-in-from-top-2",
+            banner.type === "success" && "border-emerald-200 bg-emerald-50 text-emerald-800",
+            banner.type === "error" && "border-rose-200 bg-rose-50 text-rose-800",
+            banner.type === "info" && "border-sky-200 bg-sky-50 text-sky-800"
+          )}
+        >
+          {banner.type === "error" ? <AlertTriangle className="h-4 w-4 text-rose-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+          <span>{banner.message}</span>
         </div>
       ) : null}
 
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
-        {hierarchyLabel}
-      </div>
+      {/* Tabs navigation */}
+      <div className="flex flex-col gap-5">
+        <div className="flex border-b">
+          <button
+            onClick={() => { setActiveTab("country"); setSearchQuery(""); setBanner(null); }}
+            className={cn(
+              "px-5 py-3 text-sm font-semibold border-b-2 transition-colors",
+              activeTab === "country"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            1. Country Master
+          </button>
+          <button
+            onClick={() => { setActiveTab("state"); setSearchQuery(""); setBanner(null); }}
+            className={cn(
+              "px-5 py-3 text-sm font-semibold border-b-2 transition-colors",
+              activeTab === "state"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            2. State Master
+          </button>
+          <button
+            onClick={() => { setActiveTab("city"); setSearchQuery(""); setBanner(null); }}
+            className={cn(
+              "px-5 py-3 text-sm font-semibold border-b-2 transition-colors",
+              activeTab === "city"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            3. City Master
+          </button>
+          <button
+            onClick={() => { setActiveTab("tehsil"); setSearchQuery(""); setBanner(null); }}
+            className={cn(
+              "px-5 py-3 text-sm font-semibold border-b-2 transition-colors",
+              activeTab === "tehsil"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            4. Tehsil Master
+          </button>
+        </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Workflow className="h-4 w-4 text-primary" /> Location Workflow
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 lg:grid-cols-2">
-            <PickerCard
-              icon={Globe2}
-              title="1. Country"
-              selected={selectedCountry?.name ?? ""}
-              meta={selectedCountry ? `${selectedCountry.iso2 ?? "-"} · ${selectedCountry.currency_code}` : "Country Name / Code / Status"}
-              active={selectedCountry?.is_active}
-              canEdit={Boolean(selectedCountry)}
-              onEdit={() => openModal("edit-country")}
-            >
-              <SearchSelect
-                label={loading.countries ? "Country (Loading...)" : "Country"}
-                value={countryId}
-                options={countryOptions}
-                placeholder="Search country"
-                disabled={loading.countries}
-                onValueChange={setCountryId}
-                createLabel="+ New Country"
-                createButtonPlacement="below"
-                onCreateNew={() => openModal("add-country")}
-              />
-            </PickerCard>
+        {/* Filter scopes card */}
+        <Card className="shadow-sm">
+          <CardContent className="pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                {activeTab !== "country" && (
+                  <div className="w-56">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Country</Label>
+                    <SearchSelect
+                      label=""
+                      value={selectedCountryId}
+                      options={countryOptions}
+                      placeholder="Select Country"
+                      onValueChange={setSelectedCountryId}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
 
-            <PickerCard
-              icon={Map}
-              title="2. State / Province"
-              selected={selectedState?.name ?? ""}
-              meta={selectedState ? `${selectedState.code ?? "-"} · Parent: ${selectedCountry?.name ?? "-"}` : "Select country first"}
-              active={selectedState?.is_active}
-              canEdit={Boolean(selectedState)}
-              onEdit={() => openModal("edit-state")}
-            >
-              <SearchSelect
-                label={loading.states ? "State / Province (Loading...)" : "State / Province"}
-                value={stateId}
-                options={stateOptions}
-                placeholder={countryId ? "Search state/province" : "Select country first"}
-                disabled={!countryId || loading.states}
-                onValueChange={setStateId}
-                createLabel={stateLimitReached ? `Max ${MAX_STATES_PER_COUNTRY} States Reached` : "+ New State"}
-                createButtonPlacement="below"
-                onCreateNew={() => openModal("add-state")}
-              />
-              <LimitNote
-                text={
-                  countryId
-                    ? states.length
-                      ? `${states.length}/${MAX_STATES_PER_COUNTRY} States available under ${selectedCountry?.name ?? "selected country"}`
-                      : `No State saved under ${selectedCountry?.name ?? "selected country"} yet. Click + New State.`
-                    : `Maximum ${MAX_STATES_PER_COUNTRY} States per Country`
-                }
-                reached={stateLimitReached}
-              />
-            </PickerCard>
+                {(activeTab === "city" || activeTab === "tehsil") && (
+                  <div className="w-56">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select State</Label>
+                    <SearchSelect
+                      label=""
+                      value={selectedStateId}
+                      options={stateOptions}
+                      placeholder={selectedCountryId ? "Select State" : "Select Country First"}
+                      disabled={!selectedCountryId}
+                      onValueChange={setSelectedStateId}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
 
-            <PickerCard
-              icon={Map}
-              title="3. District"
-              selected={selectedDistrict?.name ?? ""}
-              meta={selectedDistrict ? `${selectedDistrict.code ?? "-"} · Parent: ${selectedState?.name ?? "-"}` : "Select state first"}
-              active={selectedDistrict?.is_active}
-              canEdit={Boolean(selectedDistrict)}
-              onEdit={() => openModal("edit-district")}
-            >
-              <SearchSelect
-                label={loading.districts ? "District (Loading...)" : "District"}
-                value={districtId}
-                options={districtOptions}
-                placeholder={stateId ? "Search district" : "Select state first"}
-                disabled={!stateId || loading.districts}
-                onValueChange={setDistrictId}
-                createLabel={districtLimitReached ? `Max ${MAX_DISTRICTS_PER_STATE} Districts Reached` : "+ New District"}
-                createButtonPlacement="below"
-                onCreateNew={() => openModal("add-district")}
-              />
-              <LimitNote
-                text={
-                  stateId
-                    ? districts.length
-                      ? `${districts.length}/${MAX_DISTRICTS_PER_STATE} Districts available under ${selectedState?.name ?? "selected state"}`
-                      : `No District saved under ${selectedState?.name ?? "selected state"} yet. Click + New District.`
-                    : `Maximum ${MAX_DISTRICTS_PER_STATE} Districts per State`
-                }
-                reached={districtLimitReached}
-              />
-            </PickerCard>
+                {activeTab === "tehsil" && (
+                  <div className="w-56">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select City</Label>
+                    <SearchSelect
+                      label=""
+                      value={selectedDistrictId}
+                      options={districtOptions}
+                      placeholder={selectedStateId ? "Select City" : "Select State First"}
+                      disabled={!selectedStateId}
+                      onValueChange={setSelectedDistrictId}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+              </div>
 
-            <PickerCard
-              icon={MapPin}
-              title="4. City"
-              selected={selectedCity?.name ?? ""}
-              meta={selectedCity ? `${selectedCity.code ?? "-"} · Parent: ${selectedDistrict?.name ?? "-"}` : "Select district first"}
-              active={selectedCity?.is_active}
-              canEdit={Boolean(selectedCity)}
-              onEdit={() => openModal("edit-city")}
-            >
-              <SearchSelect
-                label={loading.cities ? "City (Loading...)" : "City"}
-                value={cityId}
-                options={cityOptions}
-                placeholder={districtId ? "Search city" : "Select district first"}
-                disabled={!districtId || loading.cities}
-                onValueChange={setCityId}
-                createLabel={cityLimitReached ? `Max ${MAX_CITIES_PER_DISTRICT} Cities Reached` : "+ New City"}
-                createButtonPlacement="below"
-                onCreateNew={() => openModal("add-city")}
-              />
-              <LimitNote
-                text={
-                  districtId
-                    ? cities.length
-                      ? `${cities.length}/${MAX_CITIES_PER_DISTRICT} Cities available under ${selectedDistrict?.name ?? "selected district"}`
-                      : `No City saved under ${selectedDistrict?.name ?? "selected district"} yet. Click + New City.`
-                    : `Maximum ${MAX_CITIES_PER_DISTRICT} Cities per District`
-                }
-                reached={cityLimitReached}
-              />
-            </PickerCard>
-
-            <PickerCard
-              icon={Search}
-              title="5. Zip / Postal Code (Tehsil / Area)"
-              selected={selectedZip?.code ?? ""}
-              meta={selectedZip ? `${selectedZip.name} · Parent: ${selectedCity?.name ?? "-"}` : "Select city first"}
-              active={selectedZip?.is_active}
-              canEdit={Boolean(selectedZip)}
-              onEdit={() => openModal("edit-zip")}
-            >
-              <SearchSelect
-                label={loading.zips ? "Zip Code (Loading...)" : "Zip Code"}
-                value={zipId}
-                options={zipOptions}
-                placeholder={cityId ? "Search zip/postal code" : "Select city first"}
-                disabled={!cityId || loading.zips}
-                onValueChange={setZipId}
-                createLabel="+ New Zip Code"
-                createButtonPlacement="below"
-                onCreateNew={() => openModal("add-zip")}
-              />
-              <LimitNote
-                text={
-                  cityId
-                    ? zips.length
-                      ? `${zips.length} Zip Codes available under ${selectedCity?.name ?? "selected city"}. Unlimited allowed.`
-                      : `No Zip Code saved under ${selectedCity?.name ?? "selected city"} yet. Click + New Zip Code.`
-                    : "Unlimited Zip Codes per City"
-                }
-              />
-            </PickerCard>
-          </CardContent>
-        </Card>
-
-        <Card className="xl:sticky xl:top-20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Live Preview</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-xl border bg-muted/10 p-3">
-              <div className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Complete Hierarchy</div>
-              <div className="rounded-lg border bg-background px-3 py-2 text-sm font-semibold">{path || "Country to State to District to City to Zip Code"}</div>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsImportModalOpen(true)}>
+                  <Upload className="mr-1.5 h-4 w-4" /> Import Excel/CSV
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleExportCsv}>
+                  <Download className="mr-1.5 h-4 w-4" /> Export CSV
+                </Button>
+                <Button type="button" variant="default" size="sm" onClick={handleOpenAddModal}>
+                  <Plus className="mr-1.5 h-4 w-4" /> Add Record
+                </Button>
+              </div>
             </div>
-            <div className="rounded-xl border p-3">
-              <DetailLine label="Country" value={selectedCountry?.name ?? ""} />
-              <DetailLine label="Country Code" value={selectedCountry?.iso2 ?? ""} />
-              <DetailLine label="Total States" value={countryId ? `${states.length} (Max ${MAX_STATES_PER_COUNTRY})` : `Max ${MAX_STATES_PER_COUNTRY}`} />
-              <DetailLine label="Total Districts" value={stateId ? `${districts.length} (Max ${MAX_DISTRICTS_PER_STATE})` : `Max ${MAX_DISTRICTS_PER_STATE}`} />
-              <DetailLine label="Total Cities (Per District)" value={districtId ? `${cities.length} (Max ${MAX_CITIES_PER_DISTRICT})` : `Max ${MAX_CITIES_PER_DISTRICT}`} />
-              <DetailLine label="Total Zip Codes (Per City)" value={cityId ? `${zips.length} (Unlimited)` : "Unlimited"} />
-              <DetailLine label="State" value={selectedState?.name ?? ""} />
-              <DetailLine label="State Code" value={selectedState?.code ?? ""} />
-              <DetailLine label="District" value={selectedDistrict?.name ?? ""} />
-              <DetailLine label="District Code" value={selectedDistrict?.code ?? ""} />
-              <DetailLine label="City" value={selectedCity?.name ?? ""} />
-              <DetailLine label="City Code" value={selectedCity?.code ?? ""} />
-              <DetailLine label="Zip Code" value={selectedZip?.code ?? selectedCity?.zip_code ?? ""} />
-              <DetailLine label="Area Name" value={selectedZip?.name ?? ""} />
-            </div>
-            <div className="space-y-2 rounded-xl border bg-primary/5 p-3 text-xs font-semibold text-primary">
-              <div className="flex items-center gap-2">
-                <Info className="h-3.5 w-3.5" />
-                <span>Maximum {MAX_STATES_PER_COUNTRY} States / Provinces per Country.</span>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_200px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder={`Search listings by code or name...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
-              <div className="flex items-center gap-2">
-                <Info className="h-3.5 w-3.5" />
-                <span>Maximum {MAX_DISTRICTS_PER_STATE} Districts per State / Province.</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Info className="h-3.5 w-3.5" />
-                <span>Maximum {MAX_CITIES_PER_DISTRICT} Cities per District.</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Info className="h-3.5 w-3.5" />
-                <span>Unlimited Zip / Postal Codes per City.</span>
+
+              <div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="all">Status: All Records</option>
+                  <option value="active">Status: Active Only</option>
+                  <option value="inactive">Status: Inactive Only</option>
+                </select>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Tab content listings */}
+        <Card className="shadow-sm">
+          <CardContent className="pt-6">
+            {activeTab === "country" && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40 font-semibold text-muted-foreground">
+                      <th className="px-4 py-3">Country Code</th>
+                      <th className="px-4 py-3">Country Name</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCountries.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                          {loading.countries ? "Loading Countries..." : "No Country records found."}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCountries.map(c => (
+                        <tr key={c.id} className="border-b hover:bg-muted/10">
+                          <td className="px-4 py-3 font-mono font-semibold">{c.iso2 || "-"}</td>
+                          <td className="px-4 py-3 font-semibold text-foreground">{c.name}</td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                                c.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                              )}
+                            >
+                              {c.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(c)}>
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-rose-600 hover:bg-rose-50"
+                                onClick={() => triggerDelete(c.id, c.name, "country")}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {activeTab === "state" && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40 font-semibold text-muted-foreground">
+                      <th className="px-4 py-3">State Code</th>
+                      <th className="px-4 py-3">State Name</th>
+                      <th className="px-4 py-3">Parent Country</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!selectedCountryId ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                          Please select a Country from the dropdown above to load states.
+                        </td>
+                      </tr>
+                    ) : filteredStates.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                          {loading.states ? "Loading States..." : "No State records found for the selected country."}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStates.map(s => (
+                        <tr key={s.id} className="border-b hover:bg-muted/10">
+                          <td className="px-4 py-3 font-mono font-semibold">{s.code || "-"}</td>
+                          <td className="px-4 py-3 font-semibold text-foreground">{s.name}</td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {countries.find(c => c.id === s.country_id)?.name || "-"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                                s.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                              )}
+                            >
+                              {s.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(s)}>
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-rose-600 hover:bg-rose-50"
+                                onClick={() => triggerDelete(s.id, s.name, "state")}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {activeTab === "city" && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40 font-semibold text-muted-foreground">
+                      <th className="px-4 py-3">City Code</th>
+                      <th className="px-4 py-3">City Name</th>
+                      <th className="px-4 py-3">Parent State</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!selectedStateId ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                          Please select Country and State from the dropdowns above to load cities.
+                        </td>
+                      </tr>
+                    ) : filteredDistricts.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                          {loading.districts ? "Loading Cities..." : "No City records found for the selected state."}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDistricts.map(d => (
+                        <tr key={d.id} className="border-b hover:bg-muted/10">
+                          <td className="px-4 py-3 font-mono font-semibold">{d.code || "-"}</td>
+                          <td className="px-4 py-3 font-semibold text-foreground">{d.name}</td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {states.find(s => s.id === d.state_province_id)?.name || "-"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                                d.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                              )}
+                            >
+                              {d.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(d)}>
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-rose-600 hover:bg-rose-50"
+                                onClick={() => triggerDelete(d.id, d.name, "city")}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {activeTab === "tehsil" && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40 font-semibold text-muted-foreground">
+                      <th className="px-4 py-3">Tehsil Code</th>
+                      <th className="px-4 py-3">Tehsil Name</th>
+                      <th className="px-4 py-3">Zip Code</th>
+                      <th className="px-4 py-3">Parent City</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!selectedDistrictId ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                          Please select Country, State, and City from the dropdowns above to load tehsils.
+                        </td>
+                      </tr>
+                    ) : filteredCities.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                          {loading.cities ? "Loading Tehsils..." : "No Tehsil records found for the selected city."}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCities.map(ct => (
+                        <tr key={ct.id} className="border-b hover:bg-muted/10">
+                          <td className="px-4 py-3 font-mono font-semibold">{ct.code || "-"}</td>
+                          <td className="px-4 py-3 font-semibold text-foreground">{ct.name}</td>
+                          <td className="px-4 py-3 font-mono text-xs">{ct.zip_code || "-"}</td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {districts.find(d => d.id === ct.district_id)?.name || "-"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                                ct.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                              )}
+                            >
+                              {ct.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(ct)}>
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-rose-600 hover:bg-rose-50"
+                                onClick={() => triggerDelete(ct.id, ct.name, "tehsil")}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      <Card className="border-primary/25">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Workflow className="h-4 w-4 text-primary" /> Product Specifications
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 text-sm md:grid-cols-3">
-            <SpecGroup
-              items={[
-                "6-Level Hierarchy: Country to State to District to City to Tehsil to Postal Code",
-                `Maximum ${MAX_STATES_PER_COUNTRY} States / Provinces per Country`,
-                `Maximum ${MAX_DISTRICTS_PER_STATE} Districts per State / Province`,
-                `Maximum ${MAX_CITIES_PER_DISTRICT} Cities per District`
-              ]}
-            />
-            <SpecGroup
-              items={[
-                "Easy Add / Edit / Manage functionality",
-                "Real-time Live Preview of hierarchy",
-                "Active / Inactive status management",
-                "Centralized ERP location management"
-              ]}
-            />
-            <SpecGroup
-              items={[
-                "Multi-country support (Pakistan +92, Afghanistan +93, UAE +971)",
-                "Multi-branch support",
-                "Role-based permissions",
-                "Reusable across Branches, Accounts, Ledgers, Roznamcha and Reports"
-              ]}
-            />
+      {/* CREATE & EDIT FORM MODAL WITH CASCADING DROPDOWNS */}
+      {isAddEditModalOpen && (
+        <SimpleModal
+          title={modalMode === "add" ? `Add New ${activeTab.toUpperCase()}` : `Edit ${activeTab.toUpperCase()}`}
+          onClose={() => setIsAddEditModalOpen(false)}
+          className="max-w-xl"
+        >
+          <div className="space-y-4">
+            {activeTab === "country" && (
+              <div className="space-y-4">
+                <div>
+                  <Label>Country Name</Label>
+                  <Input
+                    value={formCountry.name}
+                    onChange={e => setFormCountry({ ...formCountry, name: e.target.value })}
+                    placeholder="e.g. Pakistan"
+                  />
+                </div>
+                <div>
+                  <Label>Country Code (ISO2)</Label>
+                  <Input
+                    value={formCountry.iso2}
+                    onChange={e => setFormCountry({ ...formCountry, iso2: e.target.value.toUpperCase().slice(0, 2) })}
+                    placeholder="e.g. PK"
+                    maxLength={2}
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === "state" && (
+              <div className="space-y-4">
+                <div>
+                  <Label>Select Country</Label>
+                  <select
+                    value={modalCountryId}
+                    onChange={e => setModalCountryId(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">-- Choose Country --</option>
+                    {countries.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.iso2})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>State / Province Name</Label>
+                  <Input
+                    value={formState.name}
+                    onChange={e => setFormState({ ...formState, name: e.target.value })}
+                    placeholder="e.g. Punjab"
+                  />
+                </div>
+                <div>
+                  <Label>State Code (Enforced Suffix)</Label>
+                  <div className="flex items-center rounded-md border bg-muted/30">
+                    <span className="bg-muted px-3 py-2 text-sm font-mono text-muted-foreground select-none">
+                      {modalStateCodePrefix}
+                    </span>
+                    <Input
+                      className="border-0 bg-transparent ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono"
+                      value={formState.codeSuffix}
+                      onChange={e => setFormState({ ...formState, codeSuffix: e.target.value.toUpperCase() })}
+                      placeholder="e.g. PB"
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground font-mono">
+                    Output: {modalStateCodePrefix}{formState.codeSuffix || "..."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "city" && (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label>Select Country</Label>
+                    <select
+                      value={modalCountryId}
+                      onChange={e => setModalCountryId(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">-- Choose Country --</option>
+                      {countries.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.iso2})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Select State</Label>
+                    <select
+                      value={modalStateId}
+                      onChange={e => setModalStateId(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      disabled={!modalCountryId}
+                    >
+                      <option value="">-- Choose State --</option>
+                      {modalStates.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <Label>City / District Name</Label>
+                  <Input
+                    value={formCity.name}
+                    onChange={e => setFormCity({ ...formCity, name: e.target.value })}
+                    placeholder="e.g. Lahore"
+                  />
+                </div>
+                <div>
+                  <Label>City Code (Enforced Suffix)</Label>
+                  <div className="flex items-center rounded-md border bg-muted/30">
+                    <span className="bg-muted px-3 py-2 text-sm font-mono text-muted-foreground select-none">
+                      {modalDistrictCodePrefix}
+                    </span>
+                    <Input
+                      className="border-0 bg-transparent ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono"
+                      value={formCity.codeSuffix}
+                      onChange={e => setFormCity({ ...formCity, codeSuffix: e.target.value.toUpperCase() })}
+                      placeholder="e.g. LHR"
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground font-mono">
+                    Output: {modalDistrictCodePrefix}{formCity.codeSuffix || "..."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "tehsil" && (
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div>
+                    <Label>Select Country</Label>
+                    <select
+                      value={modalCountryId}
+                      onChange={e => setModalCountryId(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
+                    >
+                      <option value="">-- Choose --</option>
+                      {countries.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Select State</Label>
+                    <select
+                      value={modalStateId}
+                      onChange={e => setModalStateId(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
+                      disabled={!modalCountryId}
+                    >
+                      <option value="">-- Choose --</option>
+                      {modalStates.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Select City</Label>
+                    <select
+                      value={modalDistrictId}
+                      onChange={e => setModalDistrictId(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
+                      disabled={!modalStateId}
+                    >
+                      <option value="">-- Choose --</option>
+                      {modalDistricts.map(d => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <Label>Tehsil Name</Label>
+                  <Input
+                    value={formTehsil.name}
+                    onChange={e => setFormTehsil({ ...formTehsil, name: e.target.value })}
+                    placeholder="e.g. Model Town"
+                  />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label>Tehsil Code (Suffix)</Label>
+                    <div className="flex items-center rounded-md border bg-muted/30">
+                      <span className="bg-muted px-2 py-2 text-[10px] font-mono text-muted-foreground select-none">
+                        {modalTehsilCodePrefix}
+                      </span>
+                      <Input
+                        className="border-0 bg-transparent ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono text-sm"
+                        value={formTehsil.codeSuffix}
+                        onChange={e => setFormTehsil({ ...formTehsil, codeSuffix: e.target.value.toUpperCase() })}
+                        placeholder="e.g. MDL"
+                      />
+                    </div>
+                    <p className="mt-1 text-[10px] text-muted-foreground font-mono">
+                      Output: {modalTehsilCodePrefix}{formTehsil.codeSuffix || "..."}
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Tehsil Zip Code</Label>
+                    <Input
+                      value={formTehsil.zipCode}
+                      onChange={e => setFormTehsil({ ...formTehsil, zipCode: e.target.value })}
+                      placeholder="e.g. 54700"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {modalMode === "edit" && (
+              <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={
+                    activeTab === "country"
+                      ? formCountry.isActive
+                      : activeTab === "state"
+                      ? formState.isActive
+                      : activeTab === "city"
+                      ? formCity.isActive
+                      : formTehsil.isActive
+                  }
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    if (activeTab === "country") setFormCountry({ ...formCountry, isActive: checked });
+                    else if (activeTab === "state") setFormState({ ...formState, isActive: checked });
+                    else if (activeTab === "city") setFormCity({ ...formCity, isActive: checked });
+                    else if (activeTab === "tehsil") setFormTehsil({ ...formTehsil, isActive: checked });
+                  }}
+                />
+                Is Active Master Record
+              </label>
+            )}
           </div>
-        </CardContent>
-      </Card>
 
-      {modal ? (
-        <LocationModal
-          mode={modal}
-          draft={draft}
-          saving={saving}
-          selectedCountry={selectedCountry}
-          selectedState={selectedState}
-          selectedDistrict={selectedDistrict}
-          selectedCity={selectedCity}
-          onChange={updateDraft}
-          onClose={() => setModal(null)}
-          onSave={saveModal}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function PickerCard({
-  icon: Icon,
-  title,
-  selected,
-  meta,
-  active,
-  canEdit,
-  onEdit,
-  children
-}: {
-  icon: typeof Globe2;
-  title: string;
-  selected: string;
-  meta: string;
-  active?: boolean;
-  canEdit: boolean;
-  onEdit: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border bg-background p-3 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-            <Icon className="h-4 w-4" />
+          <div className="mt-6 flex items-center justify-end gap-2 border-t pt-4">
+            <Button type="button" variant="outline" onClick={() => setIsAddEditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleSubmitForm} disabled={loading.saving}>
+              {loading.saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+              Save Record
+            </Button>
           </div>
-          <div className="min-w-0">
-            <div className="font-semibold">{title}</div>
-            <div className="truncate text-xs text-muted-foreground">{selected || meta}</div>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {selected ? <StatusPill active={active} /> : null}
-          <Button type="button" variant="outline" size="sm" className="h-8 px-2" disabled={!canEdit} onClick={onEdit}>
-            <Edit3 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
+        </SimpleModal>
+      )}
 
-function LocationModal({
-  mode,
-  draft,
-  saving,
-  selectedCountry,
-  selectedState,
-  selectedDistrict,
-  selectedCity,
-  onChange,
-  onClose,
-  onSave
-}: {
-  mode: ModalMode;
-  draft: {
-    countryName: string;
-    countryCode: string;
-    countryIso3: string;
-    currency: string;
-    language: string;
-    stateName: string;
-    stateCode: string;
-    districtName: string;
-    districtCode: string;
-    cityName: string;
-    cityCode: string;
-    cityZip: string;
-    zipCode: string;
-    areaName: string;
-    isActive: boolean;
-    officialEmail: string;
-    adminEmail: string;
-    whatsappNumber: string;
-  };
-  saving: boolean;
-  selectedCountry: CountryRow | null;
-  selectedState: StateRow | null;
-  selectedDistrict: DistrictRow | null;
-  selectedCity: CityRow | null;
-  onChange: (key: keyof typeof draft, value: string | boolean) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  const isCountry = mode.includes("country");
-  const isState = mode.includes("state");
-  const isDistrict = mode.includes("district");
-  const isCity = mode.includes("city");
-  const isZip = mode.includes("zip");
-  const isEdit = mode.startsWith("edit");
-
-  const title =
-    mode === "add-country"
-      ? "Add New Country"
-      : mode === "edit-country"
-        ? "Edit Country"
-        : mode === "add-state"
-          ? "Add New State / Province"
-          : mode === "edit-state"
-            ? "Edit State / Province"
-            : mode === "add-district"
-              ? "Add New District"
-              : mode === "edit-district"
-                ? "Edit District"
-                : mode === "add-city"
-                  ? "Add New City"
-                  : mode === "edit-city"
-                    ? "Edit City"
-                    : mode === "add-zip"
-                      ? "Add New Zip Code"
-                      : "Edit Zip Code";
-
-  return (
-    <SimpleModal title={title} onClose={onClose} className="max-w-xl">
-      <div className="space-y-3">
-        {isCountry ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Country Name" value={draft.countryName} onChange={(v) => onChange("countryName", v)} placeholder="Pakistan" />
-            <Field label="Country Code" value={draft.countryCode} onChange={(v) => onChange("countryCode", v)} placeholder="PK" />
-            <Field label="ISO3" value={draft.countryIso3} onChange={(v) => onChange("countryIso3", v)} placeholder="PAK" />
-            <Field label="Currency" value={draft.currency} onChange={(v) => onChange("currency", v)} placeholder="PKR" />
-            <Field label="Default Language" value={draft.language} onChange={(v) => onChange("language", v)} placeholder="en / ur / ps / ar / fa" />
-            <Field label="Official Email" value={draft.officialEmail} onChange={(v) => onChange("officialEmail", v)} placeholder="country@dgt.llc" />
-            <Field label="Admin Email" value={draft.adminEmail} onChange={(v) => onChange("adminEmail", v)} placeholder="admin.country@dgt.llc" />
-            <Field label="WhatsApp Number (Optional)" value={draft.whatsappNumber} onChange={(v) => onChange("whatsappNumber", v)} placeholder="+923001234567" />
-          </div>
-        ) : null}
-
-        {isState ? (
-          <div className="space-y-3">
-            <ReadOnly label="Parent Country" value={selectedCountry?.name ?? ""} />
-            <Field label="State / Province Name" value={draft.stateName} onChange={(v) => onChange("stateName", v)} placeholder="Balochistan" />
-            <Field label="State Code" value={draft.stateCode} onChange={(v) => onChange("stateCode", v)} placeholder="BAL" />
-          </div>
-        ) : null}
-
-        {isDistrict ? (
-          <div className="space-y-3">
-            <ReadOnly label="Parent State / Province" value={selectedState?.name ?? ""} />
-            <Field label="District Name" value={draft.districtName} onChange={(v) => onChange("districtName", v)} placeholder="Quetta District" />
-            <Field label="District Code (optional)" value={draft.districtCode} onChange={(v) => onChange("districtCode", v)} placeholder="QTA" />
-          </div>
-        ) : null}
-
-        {isCity ? (
-          <div className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-2">
-              <ReadOnly label="Parent State / Province" value={selectedState?.name ?? ""} />
-              <ReadOnly label="Parent District" value={selectedDistrict?.name ?? ""} />
+      {/* CASCADE DELETE CONFIRMATION MODAL */}
+      {deleteConfirmTarget && (
+        <SimpleModal title="Confirm Cascade Delete Action" onClose={() => setDeleteConfirmTarget(null)} className="max-w-md">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-rose-800">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 animate-bounce" />
+              <div>
+                <h4 className="font-bold text-sm">Critical Warning: Cascade Soft-Delete</h4>
+                <p className="mt-1 text-xs text-rose-700">
+                  You are about to delete **{deleteConfirmTarget.name}** ({deleteConfirmTarget.type.toUpperCase()}).
+                </p>
+                <p className="mt-2 text-xs text-rose-700">
+                  Since location records follow a hierarchy, deleting this record will **cascade** and soft-delete all states, cities/districts, and tehsils depending on it!
+                </p>
+              </div>
             </div>
-            <Field label="City Name" value={draft.cityName} onChange={(v) => onChange("cityName", v)} placeholder="Chaman" />
-            <div className="grid gap-3 md:grid-cols-2">
-              <Field label="City Code (optional)" value={draft.cityCode} onChange={(v) => onChange("cityCode", v)} placeholder="CHM" />
-              <Field label="Default Zip Code (optional)" value={draft.cityZip} onChange={(v) => onChange("cityZip", v)} placeholder="86000" />
+            <p className="text-xs text-muted-foreground">
+              This action updates `deleted_at = now()` on the target record and its children, preventing them from appearing in transaction forms.
+            </p>
+          </div>
+          <div className="mt-6 flex items-center justify-end gap-2 border-t pt-4">
+            <Button type="button" variant="outline" onClick={() => setDeleteConfirmTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={loading.deleting}
+              className="bg-rose-600 hover:bg-rose-700"
+            >
+              {loading.deleting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}
+              Yes, Delete with Cascade
+            </Button>
+          </div>
+        </SimpleModal>
+      )}
+
+      {/* EXCEL/CSV BULK IMPORT MODAL */}
+      {isImportModalOpen && (
+        <SimpleModal title="Bulk Location Import Setup" onClose={() => setIsImportModalOpen(false)} className="max-w-2xl">
+          <div className="space-y-4">
+            <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-4 text-sky-800 text-xs">
+              <div className="flex gap-2 font-bold text-sky-900 mb-1">
+                <Info className="h-4 w-4 text-sky-600" />
+                <span>Import File Guidelines</span>
+              </div>
+              <p>Please upload a CSV file matching this header structure exactly. Missing column fields will break validation checks.</p>
+              <pre className="mt-2 rounded bg-background p-2 text-[10px] font-mono text-muted-foreground border">
+                Country Code,Country Name,State Code,State Name,City Code,City Name,Tehsil Code,Tehsil Name{"\n"}
+                PK,Pakistan,PK-PB,Punjab,PK-PB-LHR,Lahore,PK-PB-LHR-MDL,Model Town
+              </pre>
             </div>
+
+            <div
+              className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 bg-muted/10 cursor-pointer hover:bg-muted/20 hover:border-primary/50 transition-colors relative"
+              onDragOver={e => e.preventDefault()}
+              onDrop={handleCsvDrop}
+            >
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCsvSelect}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <Upload className="h-10 w-10 text-muted-foreground mb-3" />
+              <p className="text-sm font-semibold">
+                {importFile ? importFile.name : "Drag & Drop CSV File here or Click to Select"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Accepts CSV files up to 10MB</p>
+            </div>
+
+            {importLogs.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-muted-foreground uppercase">Import status logs</Label>
+                <div className="max-h-40 overflow-y-auto rounded-lg border bg-muted/20 p-3 text-xs font-mono space-y-1">
+                  {importLogs.map((log, index) => (
+                    <div key={index} className="text-muted-foreground">
+                      &rarr; {log}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {importRows.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-muted-foreground uppercase">Preview (First 3 rows)</Label>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-left text-[11px] font-mono">
+                    <thead className="bg-muted/40 text-muted-foreground border-b">
+                      <tr>
+                        <th className="px-3 py-2">Country</th>
+                        <th className="px-3 py-2">State</th>
+                        <th className="px-3 py-2">City</th>
+                        <th className="px-3 py-2">Tehsil</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importRows.slice(0, 3).map((row, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="px-3 py-2">{row.countryName} ({row.countryCode})</td>
+                          <td className="px-3 py-2">{row.stateName} ({row.stateCode})</td>
+                          <td className="px-3 py-2">{row.cityName} ({row.cityCode})</td>
+                          <td className="px-3 py-2">{row.tehsilName} ({row.tehsilCode})</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
-        ) : null}
 
-        {isZip ? (
-          <div className="space-y-3">
-            <ReadOnly label="Parent City" value={selectedCity?.name ?? ""} />
-            <Field label="Zip / Postal Code" value={draft.zipCode} onChange={(v) => onChange("zipCode", v)} placeholder="87300" />
-            <Field label="Area / Tehsil Name" value={draft.areaName} onChange={(v) => onChange("areaName", v)} placeholder="Quetta Cantt" />
+          <div className="mt-6 flex items-center justify-end gap-2 border-t pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsImportModalOpen(false);
+                setImportFile(null);
+                setImportRows([]);
+                setImportLogs([]);
+              }}
+            >
+              Close
+            </Button>
+            <Button
+              type="button"
+              onClick={executeBulkImport}
+              disabled={importRows.length === 0 || importProgress !== null}
+            >
+              {importProgress ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-1.5 h-4 w-4" />
+                  Process Bulk Import
+                </>
+              )}
+            </Button>
           </div>
-        ) : null}
-
-        {isEdit ? (
-          <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-            <input type="checkbox" checked={draft.isActive} onChange={(e) => onChange("isActive", e.target.checked)} />
-            Active
-          </label>
-        ) : null}
-
-        <div className="rounded-lg border bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
-          Multilingual labels are supported by the global language system; these master records are saved by ID and reused across ERP forms.
-        </div>
-      </div>
-
-      <div className="flex items-center justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button type="button" onClick={onSave} disabled={saving}>
-          {saving ? <Save className="h-4 w-4 animate-pulse" /> : <Save className="h-4 w-4" />}
-          Save
-        </Button>
-      </div>
-    </SimpleModal>
-  );
-}
-
-function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
-    </div>
-  );
-}
-
-function ReadOnly({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Input value={value || "-"} readOnly className="bg-muted/50" />
+        </SimpleModal>
+      )}
     </div>
   );
 }

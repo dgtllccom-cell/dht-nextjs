@@ -775,7 +775,7 @@ export function PurchaseBookingJournalReportView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           formData: updatedFormData,
-          orderTotal: selected.totalPurchaseAmount || selected.order_total || 0,
+          orderTotal: selected.totalPurchaseAmount || (selected as any).order_total || 0,
           currencyCode: selected.currency || "USD",
           exchangeRate: Number(selected.exchange_rate || 1),
           purchaseContractNo: selected.purchaseContractNo || selected.purchaseBookingOrderNumber,

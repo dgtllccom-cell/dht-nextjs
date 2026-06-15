@@ -10,9 +10,9 @@ const settingsItems = [
     icon: Building2
   },
   {
-    title: "Location Setup",
-    description: "Country, state, city, zip code, currency, and status master data.",
-    href: "/dashboard/settings/location-setup" as Route,
+    title: "Location Management",
+    description: "Configure the global 4-level location hierarchy: Country, State, City, and Tehsil.",
+    href: "/dashboard/settings/location" as Route,
     icon: MapPin
   },
   {
@@ -22,16 +22,10 @@ const settingsItems = [
     icon: Landmark
   },
   {
-    title: "Loading Port Master",
-    description: "Manage centralized departure ports, border checkpoints, and airports for shipments.",
-    href: "/dashboard/settings/ports/loading" as Route,
+    title: "Port / Boundary Master",
+    description: "Manage departure and arrival ports, border checkpoints, and airports for shipments.",
+    href: "/dashboard/settings/ports" as Route,
     icon: Anchor
-  },
-  {
-    title: "Received Port Master",
-    description: "Manage centralized arrival ports, border crossings, and airports for shipments.",
-    href: "/dashboard/settings/ports/received" as Route,
-    icon: Ship
   },
   {
     title: "Management",

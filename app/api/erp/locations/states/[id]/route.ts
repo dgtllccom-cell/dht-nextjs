@@ -26,3 +26,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return handleApiError(error);
   }
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await requireErpSession();
+    if (!session.isSuperAdmin && !session.countryIds.length) throw new Error("Location write is not allowed.");
+
+    const { id } = await params;
+    const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createSupabaseAdminClient() as any;
+    const { data: state, error: fetchError } = await supabase
+      .from("states_provinces")
+      .select("country_id")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .single();
+
+    if (fetchError || !state) {
+      throw new Error("State not found or already deleted");
+    }
+
+    if (!session.isSuperAdmin && !session.countryIds.includes(state.country_id)) {
+      throw new Error("Country scope is not allowed.");
+    }
+
+    await locationsRepository.deleteState(id);
+    return apiOk({ success: true });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

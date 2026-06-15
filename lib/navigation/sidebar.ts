@@ -606,9 +606,30 @@ export const sidebarTree: SidebarNode[] = [
         iconKey: "settings",
         children: [
           {
-            key: "mgmt-location",
+            key: "mgmt-location-parent",
             labelKey: "nav.location_form",
-            href: "/dashboard/settings/location" as Route
+            children: [
+              {
+                key: "mgmt-location-country",
+                labelKey: "nav.location_country",
+                href: "/dashboard/settings/location?tab=country" as Route
+              },
+              {
+                key: "mgmt-location-state",
+                labelKey: "nav.location_state",
+                href: "/dashboard/settings/location?tab=state" as Route
+              },
+              {
+                key: "mgmt-location-city",
+                labelKey: "nav.location_city",
+                href: "/dashboard/settings/location?tab=city" as Route
+              },
+              {
+                key: "mgmt-location-tehsil",
+                labelKey: "nav.location_tehsil",
+                href: "/dashboard/settings/location?tab=tehsil" as Route
+              }
+            ]
           },
           {
             key: "mgmt-company",
@@ -656,14 +677,9 @@ export const sidebarTree: SidebarNode[] = [
             href: "/dashboard/settings/management/goods" as Route
           },
           {
-            key: "mgmt-loading-port-master",
-            labelKey: "nav.loading_port_master",
-            href: "/dashboard/settings/ports/loading" as Route
-          },
-          {
-            key: "mgmt-received-port-master",
-            labelKey: "nav.received_port_master",
-            href: "/dashboard/settings/ports/received" as Route
+            key: "mgmt-port-master",
+            labelKey: "nav.port_master",
+            href: "/dashboard/settings/ports" as Route
           },
           {
             key: "mgmt-chs-products",

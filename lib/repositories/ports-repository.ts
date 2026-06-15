@@ -40,7 +40,7 @@ export class LoadingPortsRepository {
     const limit = Math.min(Math.max(input.limit ?? 50, 1), 250);
 
     let query = supabase
-      .from("loading_ports")
+      .from("ports")
       .select(`
         id,
         port_name,
@@ -83,7 +83,7 @@ export class LoadingPortsRepository {
   async getById(id: string) {
     const supabase = createSupabaseAdminClient() as any;
     const { data, error } = await supabase
-      .from("loading_ports")
+      .from("ports")
       .select(`
         id,
         port_name,
@@ -106,7 +106,7 @@ export class LoadingPortsRepository {
   async create(input: PortInput, actorId?: string | null) {
     const supabase = createSupabaseAdminClient() as any;
     const { data, error } = await supabase
-      .from("loading_ports")
+      .from("ports")
       .insert({
         port_name: input.portName,
         country_id: input.countryId ?? null,
@@ -131,7 +131,7 @@ export class LoadingPortsRepository {
     if ("isActive" in input) patch.is_active = input.isActive;
 
     const { error } = await supabase
-      .from("loading_ports")
+      .from("ports")
       .update(patch)
       .eq("id", id)
       .is("deleted_at", null);
@@ -141,7 +141,7 @@ export class LoadingPortsRepository {
   async softDelete(id: string) {
     const supabase = createSupabaseAdminClient() as any;
     const { error } = await supabase
-      .from("loading_ports")
+      .from("ports")
       .update({
         deleted_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -165,7 +165,7 @@ export class ReceivedPortsRepository {
     const limit = Math.min(Math.max(input.limit ?? 50, 1), 250);
 
     let query = supabase
-      .from("received_ports")
+      .from("ports")
       .select(`
         id,
         port_name,
@@ -208,7 +208,7 @@ export class ReceivedPortsRepository {
   async getById(id: string) {
     const supabase = createSupabaseAdminClient() as any;
     const { data, error } = await supabase
-      .from("received_ports")
+      .from("ports")
       .select(`
         id,
         port_name,
@@ -231,7 +231,7 @@ export class ReceivedPortsRepository {
   async create(input: PortInput, actorId?: string | null) {
     const supabase = createSupabaseAdminClient() as any;
     const { data, error } = await supabase
-      .from("received_ports")
+      .from("ports")
       .insert({
         port_name: input.portName,
         country_id: input.countryId ?? null,
@@ -256,7 +256,7 @@ export class ReceivedPortsRepository {
     if ("isActive" in input) patch.is_active = input.isActive;
 
     const { error } = await supabase
-      .from("received_ports")
+      .from("ports")
       .update(patch)
       .eq("id", id)
       .is("deleted_at", null);
@@ -266,7 +266,7 @@ export class ReceivedPortsRepository {
   async softDelete(id: string) {
     const supabase = createSupabaseAdminClient() as any;
     const { error } = await supabase
-      .from("received_ports")
+      .from("ports")
       .update({
         deleted_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

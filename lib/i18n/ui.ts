@@ -125,6 +125,10 @@ export type UiKey =
   | "nav.settings"
   | "nav.management"
   | "nav.location_form"
+  | "nav.location_country"
+  | "nav.location_state"
+  | "nav.location_city"
+  | "nav.location_tehsil"
   | "nav.company_form"
   | "nav.customers_form"
   | "nav.profit_loss_report"
@@ -152,6 +156,7 @@ export type UiKey =
   | "nav.goods_master"
   | "nav.loading_port_master"
   | "nav.received_port_master"
+  | "nav.port_master"
   | "nav.chs_products"
   | "nav.dashboard_settings"
   | "nav.template_color"
@@ -465,7 +470,11 @@ const en: Dict = {
   "nav.master_forms": "Master Forms",
   "nav.form_settings": "Form Settings",
   "nav.system_settings": "System Settings",
-  "nav.location_form": "Location",
+  "nav.location_form": "Location Management",
+  "nav.location_country": "Country Master",
+  "nav.location_state": "State Master",
+  "nav.location_city": "City Master",
+  "nav.location_tehsil": "Tehsil Master",
   "nav.company_form": "Company Form",
   "nav.customers_form": "Customers Form",
   "nav.contract_type": "Contract Type",
@@ -477,6 +486,7 @@ const en: Dict = {
   "nav.goods_master": "Goods Master",
   "nav.loading_port_master": "Loading Port Master",
   "nav.received_port_master": "Received Port Master",
+  "nav.port_master": "Port / Boundary Master",
   "nav.chs_products": "CHS Product Management",
   "nav.dashboard_settings": "Dashboard Settings",
   "nav.template_color": "Template Color",
@@ -783,7 +793,11 @@ const ur: Dict = {
   "nav.notification_center": "نوٹیفکیشن سینٹر",
   "nav.settings": "سیٹنگز",
   "nav.management": "مینجمنٹ",
-  "nav.location_form": "لوکیشن",
+  "nav.location_form": "لوکیشن مینجمنٹ",
+  "nav.location_country": "کنٹری ماسٹر",
+  "nav.location_state": "اسٹیٹ ماسٹر",
+  "nav.location_city": "سٹی ماسٹر",
+  "nav.location_tehsil": "تحصیل ماسٹر",
   "nav.company_form": "کمپنی فارم",
   "nav.customers_form": "کسٹمر فارم",
   "nav.contract_type": "کانٹریکٹ ٹائپ",
@@ -795,6 +809,7 @@ const ur: Dict = {
   "nav.goods_master": "گڈز ماسٹر",
   "nav.loading_port_master": "لوڈنگ پورٹ ماسٹر",
   "nav.received_port_master": "ریسیوڈ پورٹ ماسٹر",
+  "nav.port_master": "پورٹ / باؤنڈری ماسٹر",
   "nav.chs_products": "سی ایچ ایس پروڈکٹ مینجمنٹ",
   "nav.dashboard_settings": "ڈیش بورڈ سیٹنگز",
   "nav.template_color": "ٹیمپلیٹ کلر",
@@ -1067,7 +1082,11 @@ const ar: Dict = {
   "nav.notification_center": "مركز الإشعارات",
   "nav.settings": "الإعدادات",
   "nav.management": "الإدارة",
-  "nav.location_form": "الموقع",
+  "nav.location_form": "إدارة المواقع",
+  "nav.location_country": "رئيسي الدولة",
+  "nav.location_state": "رئيسي الولاية",
+  "nav.location_city": "رئيسي المدينة",
+  "nav.location_tehsil": "رئيسي المقاطعة (التحصيل)",
   "nav.company_form": "نموذج الشركة",
   "nav.customers_form": "نموذج العملاء",
   "nav.contract_type": "نوع العقد",
@@ -1079,6 +1098,7 @@ const ar: Dict = {
   "nav.goods_master": "سجل البضائع",
   "nav.loading_port_master": "سجل موانئ الشحن",
   "nav.received_port_master": "سجل موانئ الوصول",
+  "nav.port_master": "رئيسي الموانئ والحدود",
   "nav.chs_products": "إدارة منتجات CHS",
   "nav.dashboard_settings": "إعدادات لوحة التحكم",
   "nav.template_color": "لون القالب",
@@ -1316,8 +1336,14 @@ const fa: Dict = {
   "nav.construction_journal_report": "گزارش ژورنال ساخت‌وساز",
   "nav.settings": "تنظیمات",
   "nav.management": "مدیریت",
+  "nav.location_form": "مدیریت مکان‌ها",
+  "nav.location_country": "مدیریت کشورها",
+  "nav.location_state": "مدیریت استان‌ها",
+  "nav.location_city": "مدیریت شهرها",
+  "nav.location_tehsil": "مدیریت بخش‌ها (تحصیل)",
   "nav.goods_master": "فهرست کالا",
   "nav.chs_products": "مدیریت محصولات CHS",
+  "nav.port_master": "مدیریت بنادر / مرزها",
   "nav.template_color": "رنگ قالب",
   "auth.welcome_back": "خوش آمدید",
   "auth.sign_in_continue": "برای ادامه وارد حساب خود شوید",
@@ -1530,6 +1556,11 @@ const ps: Dict = {
   "nav.city_journal_report": "د ښار جرنل راپور",
   "nav.construction_journal_report": "د ساختماني جرنل راپور",
   "nav.settings": "سیټنګونه",
+  "nav.location_form": "د موقعیت مدیریت",
+  "nav.location_country": "د هېواد ماسټر",
+  "nav.location_state": "د ایالت ماسټر",
+  "nav.location_city": "د ښار ماسټر",
+  "nav.location_tehsil": "د تحصیل ماسټر",
   "auth.forgot_password": "پاسورډ هېر شو؟",
   "auth.sign_in": "ننوتل",
   "auth.or_continue_with": "یا دوام ورکړئ",
@@ -1658,6 +1689,7 @@ const ps: Dict = {
   "ledger.reset": "ری سیٹ",
   "ledger.prev": "مخکینی",
   "ledger.next": "بل",
+  "nav.port_master": "د بندر او مرز ماسټر",
 
   // Ledger columns
   "ledger.col_branch": "څانګه",
