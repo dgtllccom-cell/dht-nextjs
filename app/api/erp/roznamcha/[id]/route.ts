@@ -4,6 +4,7 @@ import { requireErpSession } from "@/lib/auth/session";
 import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { uuidSchema } from "@/lib/api/erp-validation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createApiSupabaseClient } from "@/lib/api/supabase";
 
 type RoznamchaHeader = {
   id: string;
@@ -128,9 +129,9 @@ export async function DELETE(
     const params = await context.params;
     const id = uuidSchema.parse(params.id);
 
-    const supabase = createSupabaseAdminClient() as any;
+    const adminSupabase = createSupabaseAdminClient() as any;
 
-    const { data: header, error: headerError } = await supabase
+    const { data: header, error: headerError } = await adminSupabase
       .from("roznamcha_entries")
       .select("country_id, country_branch_id, city_branch_id")
       .eq("id", id)
@@ -150,7 +151,8 @@ export async function DELETE(
       cityBranchId: (header.city_branch_id as string | null) ?? null
     });
 
-    const { data, error } = await supabase.rpc("reverse_roznamcha_entry", {
+    const userSupabase = await createApiSupabaseClient();
+    const { data, error } = await userSupabase.rpc("reverse_roznamcha_entry", {
       p_original_entry_id: id,
       p_reason: "Deleted or edited from cash entry page",
       p_approval_request_id: null
@@ -163,4 +165,5 @@ export async function DELETE(
     return handleApiError(error);
   }
 }
+
 

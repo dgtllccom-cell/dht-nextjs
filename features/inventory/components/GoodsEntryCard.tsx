@@ -167,7 +167,8 @@ export function GoodsEntryCard({
   const filteredBrands = useMemo(() => {
     if (!selectedMasterGoods) return [];
     const vars = selectedMasterGoods.variations || [];
-    return [...new Set(vars.map(v => v.brand).filter(Boolean))];
+    const brands = vars.map(v => (v.brand || "").trim().toUpperCase()).filter(Boolean);
+    return [...new Set(brands)];
   }, [selectedMasterGoods]);
 
   // Unique Sizes filtered by selected Goods and selected Brand
@@ -177,7 +178,8 @@ export function GoodsEntryCard({
     const filtered = value.brand
       ? vars.filter(v => (v.brand || "").trim().toLowerCase() === (value.brand || "").trim().toLowerCase())
       : vars;
-    return [...new Set(filtered.map(v => v.size).filter(Boolean))];
+    const sizes = filtered.map(v => (v.size || "").trim().toUpperCase()).filter(Boolean);
+    return [...new Set(sizes)];
   }, [selectedMasterGoods, value.brand]);
 
   const uniqueGoodsOptions = useMemo(() => {

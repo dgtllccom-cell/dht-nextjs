@@ -256,14 +256,16 @@ export class GoodsRepository {
     createdBy?: string | null;
   }) {
     const supabase = createSupabaseAdminClient() as any;
+    const cleanSize = input.size.trim().toUpperCase();
+    const cleanBrand = input.brand.trim().toUpperCase();
     
     // Check duplication
     let dupCheckQuery = supabase
       .from("goods_variations")
       .select("id")
       .eq("goods_id", input.goodsId)
-      .eq("size", input.size.trim())
-      .eq("brand", input.brand.trim())
+      .eq("size", cleanSize)
+      .eq("brand", cleanBrand)
       .is("deleted_at", null);
 
     if (input.originCountryId) {
@@ -284,8 +286,8 @@ export class GoodsRepository {
       .insert({
         goods_id: input.goodsId,
         origin_country_id: input.originCountryId || null,
-        size: input.size.trim(),
-        brand: input.brand.trim(),
+        size: cleanSize,
+        brand: cleanBrand,
         is_active: true,
         created_by: input.createdBy || null,
         created_at: new Date().toISOString(),
@@ -313,9 +315,12 @@ export class GoodsRepository {
       updated_at: new Date().toISOString()
     };
 
+    const cleanSize = input.size !== undefined ? input.size.trim().toUpperCase() : undefined;
+    const cleanBrand = input.brand !== undefined ? input.brand.trim().toUpperCase() : undefined;
+
     if (input.originCountryId !== undefined) patch.origin_country_id = input.originCountryId;
-    if (input.size !== undefined) patch.size = input.size.trim();
-    if (input.brand !== undefined) patch.brand = input.brand.trim();
+    if (cleanSize !== undefined) patch.size = cleanSize;
+    if (cleanBrand !== undefined) patch.brand = cleanBrand;
     if (input.isActive !== undefined) patch.is_active = input.isActive;
 
     // Duplication check if changing key details
@@ -328,8 +333,8 @@ export class GoodsRepository {
       
       const checkGoodsId = input.goodsId;
       const checkOrigin = input.originCountryId !== undefined ? input.originCountryId : existingVar?.origin_country_id;
-      const checkSize = input.size !== undefined ? input.size.trim() : existingVar?.size;
-      const checkBrand = input.brand !== undefined ? input.brand.trim() : existingVar?.brand;
+      const checkSize = cleanSize !== undefined ? cleanSize : existingVar?.size;
+      const checkBrand = cleanBrand !== undefined ? cleanBrand : existingVar?.brand;
 
       let dupQuery = supabase
         .from("goods_variations")

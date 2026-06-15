@@ -755,7 +755,7 @@ export function PurchaseOrderWizard() {
       const originCountryId = originCountry?.id || null;
       filtered = variations.filter(v => v.origin_country_id === originCountryId);
     }
-    const sizes = [...new Set(filtered.map(v => v.size).filter(Boolean))];
+    const sizes = [...new Set(filtered.map(v => (v.size || "").trim().toUpperCase()).filter(Boolean))];
     return sizes.length > 0 ? sizes : SIZE_OPTIONS;
   }, [selectedDbGood, form.origin, transitCountryOptions]);
   const availableBrands = useMemo(() => {
@@ -769,7 +769,7 @@ export function PurchaseOrderWizard() {
     if (form.size) {
       filtered = filtered.filter(v => (v.size || "").trim().toLowerCase() === (form.size || "").trim().toLowerCase());
     }
-    const brands = [...new Set(filtered.map(v => v.brand).filter(Boolean))];
+    const brands = [...new Set(filtered.map(v => (v.brand || "").trim().toUpperCase()).filter(Boolean))];
     return brands.length > 0 ? brands : BRAND_OPTIONS;
   }, [selectedDbGood, form.origin, form.size, transitCountryOptions]);
 
@@ -1122,8 +1122,8 @@ export function PurchaseOrderWizard() {
             body: JSON.stringify({
               goodsId: selectedGood.id,
               originCountryId,
-              size: form.size.trim(),
-              brand: form.brand.trim()
+              size: form.size.trim().toUpperCase(),
+              brand: form.brand.trim().toUpperCase()
             })
           });
           const payload = await res.json().catch(() => ({}));
@@ -3450,7 +3450,7 @@ export function PurchaseOrderWizard() {
                             </span>
                           </div>
                           <div className="pt-1.5 border-t border-border/40 flex justify-between items-center relative">
-                            <span>Company Details:</span>
+                            <span>Company Name:</span>
                             <div className="flex items-center gap-1.5 relative" ref={purchaseCompanyDropdownRef}>
                               <span className="font-bold text-foreground truncate max-w-[120px]" title={form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}>
                                 {form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None Selected"}
@@ -3470,12 +3470,23 @@ export function PurchaseOrderWizard() {
                                     Select Company
                                   </div>
                                   <div className="max-h-40 overflow-y-auto space-y-0.5">
-                                    {dbCompanies.length === 0 ? (
-                                      <div className="px-2 py-3 text-center text-muted-foreground text-[10px] italic">
-                                        No companies found.
-                                      </div>
-                                    ) : (
-                                      dbCompanies.map((c) => {
+                                    {(() => {
+                                      const selectedPurchaseAccount = dbAccounts.find(acc =>
+                                        (acc.accountCode || "").trim().toLowerCase() === (form.purchaseAccountNo || "").trim().toLowerCase()
+                                      );
+                                      const purchaseCompanies = selectedPurchaseAccount?.companyId
+                                        ? dbCompanies.filter(c => c.id === selectedPurchaseAccount.companyId)
+                                        : dbCompanies;
+
+                                      if (purchaseCompanies.length === 0) {
+                                        return (
+                                          <div className="px-2 py-3 text-center text-muted-foreground text-[10px] italic">
+                                            No companies found.
+                                          </div>
+                                        );
+                                      }
+
+                                      return purchaseCompanies.map((c) => {
                                         const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
                                         return (
                                           <button
@@ -3493,8 +3504,8 @@ export function PurchaseOrderWizard() {
                                             {c.name} ({cCode})
                                           </button>
                                         );
-                                      })
-                                    )}
+                                      });
+                                    })()}
                                   </div>
                                 </div>
                               )}
@@ -3677,7 +3688,7 @@ export function PurchaseOrderWizard() {
                             </span>
                           </div>
                           <div className="pt-1.5 border-t border-border/40 flex justify-between items-center relative">
-                            <span>Company Details:</span>
+                            <span>Company Name:</span>
                             <div className="flex items-center gap-1.5 relative" ref={salesCompanyDropdownRef}>
                               <span className="font-bold text-foreground truncate max-w-[120px]" title={form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}>
                                 {form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None Selected"}
@@ -3697,12 +3708,23 @@ export function PurchaseOrderWizard() {
                                     Select Company
                                   </div>
                                   <div className="max-h-40 overflow-y-auto space-y-0.5">
-                                    {dbCompanies.length === 0 ? (
-                                      <div className="px-2 py-3 text-center text-muted-foreground text-[10px] italic">
-                                        No companies found.
-                                      </div>
-                                    ) : (
-                                      dbCompanies.map((c) => {
+                                    {(() => {
+                                      const selectedSalesAccount = dbAccounts.find(acc =>
+                                        (acc.accountCode || "").trim().toLowerCase() === (form.salesAccountNo || "").trim().toLowerCase()
+                                      );
+                                      const salesCompanies = selectedSalesAccount?.companyId
+                                        ? dbCompanies.filter(c => c.id === selectedSalesAccount.companyId)
+                                        : dbCompanies;
+
+                                      if (salesCompanies.length === 0) {
+                                        return (
+                                          <div className="px-2 py-3 text-center text-muted-foreground text-[10px] italic">
+                                            No companies found.
+                                          </div>
+                                        );
+                                      }
+
+                                      return salesCompanies.map((c) => {
                                         const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
                                         return (
                                           <button
@@ -3720,8 +3742,8 @@ export function PurchaseOrderWizard() {
                                             {c.name} ({cCode})
                                           </button>
                                         );
-                                      })
-                                    )}
+                                      });
+                                    })()}
                                   </div>
                                 </div>
                               )}
@@ -4069,8 +4091,8 @@ export function PurchaseOrderWizard() {
                         >
                           <option value="">Select Size</option>
                           {availableSizes.map((s) => <option key={s} value={s}>{s}</option>)}
-                          {form.size && !availableSizes.some(s => s === form.size) && (
-                            <option value={form.size}>{form.size}</option>
+                          {form.size && !availableSizes.some(s => s.trim().toUpperCase() === form.size.trim().toUpperCase()) && (
+                            <option value={form.size.trim().toUpperCase()}>{form.size.trim().toUpperCase()}</option>
                           )}
                           <option value="__ADD_CUSTOM_SIZE__" className="text-primary font-semibold">+ Add Custom Size...</option>
                         </select>
@@ -4106,8 +4128,8 @@ export function PurchaseOrderWizard() {
                         >
                           <option value="">Select Brand</option>
                           {availableBrands.map((b) => <option key={b} value={b}>{b}</option>)}
-                          {form.brand && !availableBrands.some(b => b === form.brand) && (
-                            <option value={form.brand}>{form.brand}</option>
+                          {form.brand && !availableBrands.some(b => b.trim().toUpperCase() === form.brand.trim().toUpperCase()) && (
+                            <option value={form.brand.trim().toUpperCase()}>{form.brand.trim().toUpperCase()}</option>
                           )}
                           <option value="__ADD_CUSTOM_BRAND__" className="text-primary font-semibold">+ Add Custom Brand...</option>
                         </select>
