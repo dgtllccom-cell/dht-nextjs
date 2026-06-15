@@ -25,7 +25,8 @@ import {
   Globe,
   Clock3,
   Pin,
-  FileText
+  FileText,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -76,6 +77,7 @@ type PurchaseReport = {
   finalAmount?: number;
   exchange_rate?: number;
   remarks?: string;
+  purchaseContractNo?: string;
   form_data?: any;
   audit: {
     userName: string;
@@ -827,7 +829,7 @@ export function PurchaseBookingJournalReportView() {
     setLoading(true);
     setMessage("");
     try {
-      const params = new URLSearchParams({ limit: "150" });
+      const params = new URLSearchParams({ limit: isSuperAdmin ? "1000" : "150" });
       if (nextFilters.fromDate) params.set("dateFrom", nextFilters.fromDate);
       if (nextFilters.toDate) params.set("dateTo", nextFilters.toDate);
       if (nextFilters.bookingNo) params.set("purchaseOrderNo", nextFilters.bookingNo);
@@ -1031,6 +1033,10 @@ export function PurchaseBookingJournalReportView() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button type="button" size="sm" onClick={() => router.push("/dashboard/purchase/new-purchase-booking-order")} className="bg-emerald-600 text-white hover:bg-emerald-550 font-black shadow-md shadow-emerald-950/20">
+              <Plus className="h-4 w-4 mr-1" />
+              New Booking
+            </Button>
             <Button type="button" variant="secondary" size="sm" onClick={() => void loadReport()} disabled={loading} className="bg-slate-800 text-slate-100 hover:bg-slate-700">
               <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
               Refresh

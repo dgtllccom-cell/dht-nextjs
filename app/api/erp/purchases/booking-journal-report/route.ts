@@ -15,7 +15,7 @@ const querySchema = z.object({
   countryId: uuidSchema.optional(),
   countryBranchId: uuidSchema.optional(),
   cityBranchId: uuidSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(80)
+  limit: z.coerce.number().int().min(1).max(2000).default(80)
 });
 
 type QueryResult<T> = {
