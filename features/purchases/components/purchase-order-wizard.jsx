@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { CustomerPicker } from "@/features/customers/components/customer-picker";
 import { CompanyPicker } from "@/features/companies/components/company-picker";
 import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-window";
+import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
 import { PurchaseBookingJournalReportView } from "./purchase-booking-journal-report-view";
 
 // ── Non-location constants (static values, not from master forms) ─────────────
@@ -120,10 +121,32 @@ const DEFAULT_FORM = {
   purchaseAccountName: "",
   purchaseAccountBranch: "",
   purchaseAccountCurrency: "",
+  purchaseAccountKind: "",
+  purchaseAccountIsControl: false,
+  purchaseAccountCurrentBalance: 0,
+  purchaseAccountOpeningBalance: 0,
+  purchaseAccountStatus: "active",
+  purchaseAccountSerialNumber: "",
+  purchaseAccountCountrySerialNumber: "",
+  purchaseAccountBranchSerialNumber: "",
+  purchaseAccountManualReferenceNumber: "",
+  purchaseAccountMobile: "",
+  purchaseAccountWhatsapp: "",
   salesAccountNo: "",
   salesAccountName: "",
   salesAccountBranch: "",
   salesAccountCurrency: "",
+  salesAccountKind: "",
+  salesAccountIsControl: false,
+  salesAccountCurrentBalance: 0,
+  salesAccountOpeningBalance: 0,
+  salesAccountStatus: "active",
+  salesAccountSerialNumber: "",
+  salesAccountCountrySerialNumber: "",
+  salesAccountBranchSerialNumber: "",
+  salesAccountManualReferenceNumber: "",
+  salesAccountMobile: "",
+  salesAccountWhatsapp: "",
   salesOrderNo: "",
   purchaseContractNo: "",
   purchaseOrderNo: "",
@@ -150,6 +173,7 @@ const DEFAULT_FORM = {
   orderReportRemarks: "",
   purchaseReportRemarks: "",
   purchaseInvoiceRemarks: "",
+  showRemarksOnA4: true,
   
   // Tab 3 details
   advancePercent: 10,
@@ -388,6 +412,7 @@ function LightStatusBadge({ status }) {
 export function PurchaseOrderWizard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("booking"); // "booking" | "goods" | "others"
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);
   const [isTransferred, setIsTransferred] = useState(false);
   const [transferredData, setTransferredData] = useState(null);
@@ -409,6 +434,7 @@ export function PurchaseOrderWizard() {
   const [editingRemarksType, setEditingRemarksType] = useState(null);
   const [tempRemarksText, setTempRemarksText] = useState("");
   const [reportType, setReportType] = useState("branch"); // "branch" | "totaling" | "payment"
+  const [previewRemarks, setPreviewRemarks] = useState(false);
 
   const previewItems = useMemo(() => {
     return goodsEntries.map((g, index) => {
@@ -458,6 +484,9 @@ export function PurchaseOrderWizard() {
   
   const [savingOrder, setSavingOrder] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [savedOrderId, setSavedOrderId] = useState("");
+  const [savedOrderNo, setSavedOrderNo] = useState("");
+  const [registerRefreshKey, setRegisterRefreshKey] = useState(0);
   const [accountLookupMessage, setAccountLookupMessage] = useState("");
   const [accountLookupLoading, setAccountLookupLoading] = useState(null);
 
@@ -534,6 +563,17 @@ export function PurchaseOrderWizard() {
   });
   const [createAccountLoading, setCreateAccountLoading] = useState(false);
   const [createAccountError, setCreateAccountError] = useState("");
+
+  // Inline Company Creation Modal States
+  const [createCompanyModalOpen, setCreateCompanyModalOpen] = useState(false);
+  const [createCompanyType, setCreateCompanyType] = useState("purchase"); // "purchase" | "sales"
+  const [createCompanyForm, setCreateCompanyForm] = useState({
+    name: "",
+    legalName: "",
+    baseCurrency: "USD"
+  });
+  const [createCompanyLoading, setCreateCompanyLoading] = useState(false);
+  const [createCompanyError, setCreateCompanyError] = useState("");
 
   // Inline Master-Creation Modal States
   const [newCountryModal, setNewCountryModal] = useState(false);
@@ -634,7 +674,16 @@ export function PurchaseOrderWizard() {
             customerId: acc.customer_id || acc.customerId || null,
             companyId: acc.company_id || null,
             mobile: acc.customers?.mobile || "",
-            whatsapp: acc.customers?.whatsapp || ""
+            whatsapp: acc.customers?.whatsapp || "",
+            kind: acc.kind || "",
+            isControlAccount: acc.is_control_account || false,
+            currentBalance: acc.current_balance || 0,
+            openingBalance: acc.opening_balance || 0,
+            status: acc.status || "active",
+            accountSerialNumber: acc.account_serial_number || "",
+            countrySerialNumber: acc.country_serial_number || "",
+            branchSerialNumber: acc.branch_serial_number || "",
+            manualReferenceNumber: acc.manual_reference_number || ""
           }));
           setDbAccounts(mapped);
         }
@@ -783,6 +832,7 @@ export function PurchaseOrderWizard() {
     const urlParams = new URLSearchParams(window.location.search);
     const poNo = urlParams.get("purchaseOrderNo");
     if (!poNo) return;
+    setIsFormOpen(true);
 
     let cancelled = false;
 
@@ -1006,11 +1056,17 @@ export function PurchaseOrderWizard() {
 
   const applyAccountMaster = (type, account) => {
     if (!account) return;
-    const accountNo = account.accountCode || account.rawAccountCode || account.ledgerCode || "";
-    const accountName = account.accountName || account.ledgerName || "";
-    const branchName = account.cityBranchName || account.countryBranchName || "";
-    const currency = (account.ledgerCurrency || "").toUpperCase();
-    const companyId = account.companyId || null;
+    const accountNo = account.accountCode || account.rawAccountCode || account.ledgerCode || account.code || "";
+    
+    // Find the rich account from dbAccounts if available to get extra attributes
+    const richAccount = dbAccounts.find(
+      (a) => (a.accountCode || "").trim().toLowerCase() === accountNo.trim().toLowerCase()
+    ) || account;
+
+    const accountName = richAccount.accountName || richAccount.ledgerName || richAccount.name || "";
+    const branchName = richAccount.cityBranchName || richAccount.countryBranchName || richAccount.branch_code || "";
+    const currency = (richAccount.ledgerCurrency || richAccount.currency || "").toUpperCase();
+    const companyId = richAccount.companyId || richAccount.company_id || null;
 
     let matchedComp = null;
     if (companyId && dbCompanies.length > 0) {
@@ -1031,6 +1087,17 @@ export function PurchaseOrderWizard() {
             purchaseCompanyId: companyId,
             purchaseCompanyName: cName,
             purchaseCompanyCode: cCode,
+            purchaseAccountKind: richAccount.kind || richAccount.accountKind || "",
+            purchaseAccountIsControl: richAccount.isControlAccount ?? richAccount.is_control_account ?? false,
+            purchaseAccountCurrentBalance: richAccount.currentBalance ?? richAccount.current_balance ?? 0,
+            purchaseAccountOpeningBalance: richAccount.openingBalance ?? richAccount.opening_balance ?? 0,
+            purchaseAccountStatus: richAccount.status || "active",
+            purchaseAccountSerialNumber: richAccount.accountSerialNumber ?? richAccount.account_serial_number ?? "",
+            purchaseAccountCountrySerialNumber: richAccount.countrySerialNumber ?? richAccount.country_serial_number ?? "",
+            purchaseAccountBranchSerialNumber: richAccount.branchSerialNumber ?? richAccount.branch_serial_number ?? "",
+            purchaseAccountManualReferenceNumber: richAccount.manualReferenceNumber ?? richAccount.manual_reference_number ?? "",
+            purchaseAccountMobile: richAccount.mobile ?? richAccount.customers?.mobile ?? "",
+            purchaseAccountWhatsapp: richAccount.whatsapp ?? richAccount.customers?.whatsapp ?? "",
           }
         : {
             salesAccountNo: accountNo,
@@ -1041,6 +1108,17 @@ export function PurchaseOrderWizard() {
             salesCompanyId: companyId,
             salesCompanyName: cName,
             salesCompanyCode: cCode,
+            salesAccountKind: richAccount.kind || richAccount.accountKind || "",
+            salesAccountIsControl: richAccount.isControlAccount ?? richAccount.is_control_account ?? false,
+            salesAccountCurrentBalance: richAccount.currentBalance ?? richAccount.current_balance ?? 0,
+            salesAccountOpeningBalance: richAccount.openingBalance ?? richAccount.opening_balance ?? 0,
+            salesAccountStatus: richAccount.status || "active",
+            salesAccountSerialNumber: richAccount.accountSerialNumber ?? richAccount.account_serial_number ?? "",
+            salesAccountCountrySerialNumber: richAccount.countrySerialNumber ?? richAccount.country_serial_number ?? "",
+            salesAccountBranchSerialNumber: richAccount.branchSerialNumber ?? richAccount.branch_serial_number ?? "",
+            salesAccountManualReferenceNumber: richAccount.manualReferenceNumber ?? richAccount.manual_reference_number ?? "",
+            salesAccountMobile: richAccount.mobile ?? richAccount.customers?.mobile ?? "",
+            salesAccountWhatsapp: richAccount.whatsapp ?? richAccount.customers?.whatsapp ?? "",
           }),
       currencyType: currency || prev.currencyType,
     }));
@@ -1068,7 +1146,7 @@ export function PurchaseOrderWizard() {
     }
   };
 
-  const handleTextChange = (type: string, val: string) => {
+  const handleTextChange = (type, val) => {
     // Update only the local search display state — do NOT overwrite the
     // form account code field with raw text. The account code will only be
     // set once a valid account is confirmed via selection or background lookup.
@@ -1077,20 +1155,48 @@ export function PurchaseOrderWizard() {
       setPurchaseDropdownOpen(true);
       // Clear the stored account if text is cleared
       if (!val.trim()) {
-        setValue("purchaseAccountNo", "");
-        setValue("purchaseAccountName", "");
-        setValue("purchaseAccountBranch", "");
-        setValue("purchaseAccountCurrency", "");
+        setForm((prev) => ({
+          ...prev,
+          purchaseAccountNo: "",
+          purchaseAccountName: "",
+          purchaseAccountBranch: "",
+          purchaseAccountCurrency: "",
+          purchaseAccountKind: "",
+          purchaseAccountIsControl: false,
+          purchaseAccountCurrentBalance: 0,
+          purchaseAccountOpeningBalance: 0,
+          purchaseAccountStatus: "active",
+          purchaseAccountSerialNumber: "",
+          purchaseAccountCountrySerialNumber: "",
+          purchaseAccountBranchSerialNumber: "",
+          purchaseAccountManualReferenceNumber: "",
+          purchaseAccountMobile: "",
+          purchaseAccountWhatsapp: "",
+        }));
       }
     } else {
       setSalesSearch(val);
       setSalesDropdownOpen(true);
       // Clear the stored account if text is cleared
       if (!val.trim()) {
-        setValue("salesAccountNo", "");
-        setValue("salesAccountName", "");
-        setValue("salesAccountBranch", "");
-        setValue("salesAccountCurrency", "");
+        setForm((prev) => ({
+          ...prev,
+          salesAccountNo: "",
+          salesAccountName: "",
+          salesAccountBranch: "",
+          salesAccountCurrency: "",
+          salesAccountKind: "",
+          salesAccountIsControl: false,
+          salesAccountCurrentBalance: 0,
+          salesAccountOpeningBalance: 0,
+          salesAccountStatus: "active",
+          salesAccountSerialNumber: "",
+          salesAccountCountrySerialNumber: "",
+          salesAccountBranchSerialNumber: "",
+          salesAccountManualReferenceNumber: "",
+          salesAccountMobile: "",
+          salesAccountWhatsapp: "",
+        }));
       }
     }
 
@@ -1285,6 +1391,38 @@ export function PurchaseOrderWizard() {
     }
   };
 
+  const buildPurchaseOrderPayload = (ledgerPostingStatus = "Pending") => ({
+    countryId: form.countryId || null,
+    countryBranchId: form.countryBranchId || null,
+    cityBranchId: form.cityBranchId || null,
+    supplierCompanyId: form.purchaseCompanyId || null,
+    purchaseContractNo: form.purchaseContractNo || form.purchaseOrderNo,
+    currencyCode: form.currencyType,
+    exchangeRate: Number(form.exchangeRate || 1),
+    orderTotal: reportTotals.grandFinal,
+    paymentStatus: ledgerPostingStatus === "Posted" ? "partial" : "pending",
+    ledgerPostingStatus,
+    formData: {
+      form,
+      totals: reportTotals,
+      goodsEntries: goodsEntries,
+      workflow: {
+        currentStep: ledgerPostingStatus === "Posted" ? "Journal Entry & Payment" : "Booking Purchase Order",
+        nextStep: ledgerPostingStatus === "Posted" ? "Payment & Documents" : "Booking Confirm",
+        bookingStatus: "Saved",
+        confirmationStatus: ledgerPostingStatus === "Posted" ? "Confirmed" : "Pending",
+        journalStatus: ledgerPostingStatus === "Posted" ? "Posted" : "Pending",
+        paymentStatus: ledgerPostingStatus === "Posted" ? "Advance Posted" : "Pending",
+        containerStatus: "Pending",
+        inventoryStatus: "Pending",
+        deliveryStatus: "Pending",
+        savedAt: new Date().toISOString(),
+      },
+      savedFrom: "purchase-order-wizard-redesign",
+      savedAt: new Date().toISOString()
+    }
+  });
+
   const handleSavePurchaseOrder = async () => {
     setSavingOrder(true);
     setSaveMessage("");
@@ -1292,32 +1430,20 @@ export function PurchaseOrderWizard() {
       const response = await fetch("/api/erp/purchases/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          countryId: form.countryId || null,
-          countryBranchId: form.countryBranchId || null,
-          cityBranchId: form.cityBranchId || null,
-          purchaseContractNo: form.purchaseContractNo || form.purchaseOrderNo,
-          currencyCode: form.currencyType,
-          exchangeRate: Number(form.exchangeRate || 1),
-          orderTotal: reportTotals.grandFinal,
-          ledgerPostingStatus: "Pending",
-          formData: {
-            form,
-            totals: reportTotals,
-            goodsEntries: goodsEntries,
-            savedFrom: "purchase-order-wizard-redesign",
-            savedAt: new Date().toISOString()
-          }
-        })
+        body: JSON.stringify(buildPurchaseOrderPayload("Pending"))
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
         throw new Error(payload?.error?.message || payload?.error || "Purchase order failed to save.");
       }
-      setSaveMessage(`Successfully saved Purchase Order: ${payload.data?.purchaseOrderNo || form.purchaseOrderNo}`);
-      setTimeout(() => {
-        router.push("/dashboard/purchase/purchase-booking-journal-report");
-      }, 1500);
+      const nextOrderId = payload.data?.purchaseOrderId || "";
+      const nextOrderNo = payload.data?.purchaseOrderNo || form.purchaseOrderNo;
+      setSavedOrderId(nextOrderId);
+      setSavedOrderNo(nextOrderNo);
+      setSaveMessage(`Successfully saved Purchase Order: ${nextOrderNo}.`);
+      setRegisterRefreshKey((key) => key + 1);
+      setActiveTab("report");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       setSaveMessage(err instanceof Error ? err.message : "Error saving order.");
     } finally {
@@ -1329,39 +1455,81 @@ export function PurchaseOrderWizard() {
     setSavingOrder(true);
     setSaveMessage("");
     try {
-      const response = await fetch("/api/erp/purchases/orders", {
-        method: "POST",
+      const transferPayload = buildPurchaseOrderPayload("Posted");
+      const response = await fetch(savedOrderId ? `/api/erp/purchases/orders/${savedOrderId}` : "/api/erp/purchases/orders", {
+        method: savedOrderId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          countryId: form.countryId || null,
-          countryBranchId: form.countryBranchId || null,
-          cityBranchId: form.cityBranchId || null,
-          purchaseContractNo: form.purchaseContractNo || form.purchaseOrderNo,
-          currencyCode: form.currencyType,
-          exchangeRate: Number(form.exchangeRate || 1),
-          orderTotal: reportTotals.grandFinal,
-          ledgerPostingStatus: "Posted",
-          formData: {
-            form,
-            totals: reportTotals,
-            goodsEntries: goodsEntries,
-            savedFrom: "purchase-order-wizard-redesign",
-            savedAt: new Date().toISOString()
-          }
-        })
+        body: JSON.stringify(transferPayload)
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
         throw new Error(payload?.error?.message || payload?.error || "Purchase order failed to save.");
       }
-      setSaveMessage(`Successfully saved Purchase Order: ${payload.data?.purchaseOrderNo || form.purchaseOrderNo}`);
-      setTransferredData(payload.data || { purchaseOrderNo: form.purchaseOrderNo });
+      const nextOrderId = payload.data?.purchaseOrderId || savedOrderId;
+      const nextOrderNo = payload.data?.purchaseOrderNo || savedOrderNo || form.purchaseOrderNo;
+      setSavedOrderId(nextOrderId || "");
+      setSavedOrderNo(nextOrderNo);
+      setSaveMessage(`Transferred Purchase Order ${nextOrderNo} to Journal / Payment and ledger posting.`);
+      setTransferredData(payload.data || { purchaseOrderNo: nextOrderNo });
       setIsTransferred(true);
+      setRegisterRefreshKey((key) => key + 1);
+      // Navigate to the Purchase Transfer Payment / Journal Report page, pre-selecting this order
+      router.push(`/dashboard/purchase/purchase-booking-journal-report?purchaseOrderNo=${encodeURIComponent(nextOrderNo)}`);
     } catch (err) {
       setSaveMessage(err instanceof Error ? err.message : "Error saving order.");
     } finally {
       setSavingOrder(false);
     }
+  };
+
+  const handleOpenA4Report = (autoPrint = false) => {
+    const firstGoodName = goodsEntries[0]?.goodsName || "Cargo";
+    const firstQtyUnit = goodsEntries[0]?.qtyName || "BAGS";
+    const rawRemarks = form.remarks || form.orderReportRemarks || "";
+    
+    const reportData = {
+      id: savedOrderId || "new-temp",
+      purchaseBookingOrderNumber: form.purchaseOrderNo,
+      purchaseDate: form.purchaseDate,
+      bookingDate: form.purchaseDate,
+      purchaseAccountName: form.purchaseAccountName,
+      purchaseAccountNumber: form.purchaseAccountNo,
+      salesAccountName: form.salesAccountName,
+      salesAccountNumber: form.salesAccountNo,
+      supplierName: form.supplierName || "N/A",
+      buyerName: form.customerName || "N/A",
+      productName: firstGoodName,
+      goodsDescription: rawRemarks,
+      quantity: reportTotals.totalQty,
+      unit: firstQtyUnit,
+      totalWeight: reportTotals.totalNet,
+      containerCount: form.containerCount || 0,
+      purchaseRate: avgRateKg,
+      totalPurchaseAmount: reportTotals.grandPrimaryFinal,
+      currency: form.currencyType,
+      status: isTransferred ? "Posted" : "Pending",
+      paymentStatus: isTransferred ? "partial" : "pending",
+      branchName: form.branchName || "Kabul Main Branch",
+      countryName: form.branchCountry || "Afghanistan",
+      createdAt: new Date().toISOString(),
+      totalGrossWeight: reportTotals.totalGross,
+      totalNetWeight: reportTotals.totalNet,
+      purchaseAmount: reportTotals.grandPrimaryFinal,
+      finalAmount: reportTotals.grandFinal,
+      form_data: { form, goodsEntries },
+      audit: {
+        userName: form.userName || "Admin User",
+        userId: form.userId || "USR-1001",
+        branchCode: form.branchCode || "BR-KBL-001"
+      }
+    };
+
+    openPurchaseA4ReportWindow({
+      title: "Purchase Booking Order",
+      subtitle: "DGT Accounts Purchase Registry",
+      purchaseData: reportData,
+      autoPrint
+    });
   };
 
   const handleReset = () => {
@@ -1385,6 +1553,7 @@ export function PurchaseOrderWizard() {
       orderReportRemarks: "",
       purchaseReportRemarks: "",
       purchaseInvoiceRemarks: "",
+      showRemarksOnA4: true,
     });
     setGoodsEntries([]);
     setReportSaved(false);
@@ -1595,6 +1764,70 @@ export function PurchaseOrderWizard() {
     }
   };
 
+  const handleAddNewCompany = async () => {
+    const { name, legalName, baseCurrency } = createCompanyForm;
+    if (!name.trim()) {
+      setCreateCompanyError("Company name is required.");
+      return;
+    }
+    setCreateCompanyLoading(true);
+    setCreateCompanyError("");
+
+    try {
+      const lang = (typeof document !== "undefined" ? document.documentElement.lang : "en") || "en";
+      const originalLanguage = ["ar", "ur", "fa", "ps"].includes(lang) ? lang : "en";
+
+      const response = await fetch("/api/erp/companies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          legalName: legalName.trim() || name.trim(),
+          baseCurrency: baseCurrency || "USD",
+          originalLanguage
+        })
+      });
+
+      const payloadData = await response.json().catch(() => ({}));
+      if (!response.ok || !payloadData.ok) {
+        throw new Error(payloadData?.error?.message || payloadData?.error || "Failed to create company.");
+      }
+
+      const createdId = payloadData.companyId || payloadData.data?.companyId;
+      const finalName = name.trim();
+      const finalCode = "COM-" + finalName.slice(0, 3).toUpperCase();
+
+      // Refresh companies list from database
+      const reloadRes = await fetch("/api/erp/companies?limit=100").then(r => r.json()).catch(() => ({}));
+      const companiesData = reloadRes?.data?.companies || reloadRes?.companies;
+      if (companiesData) {
+        setDbCompanies(companiesData);
+      } else {
+        // Fallback: append locally
+        setDbCompanies(prev => [...prev, { id: createdId, name: finalName, legal_name: legalName.trim() || finalName }]);
+      }
+
+      // Automatically select the newly created company for the active card
+      if (createCompanyType === "purchase") {
+        setValue("purchaseCompanyId", createdId);
+        setValue("purchaseCompanyName", finalName);
+        setValue("purchaseCompanyCode", finalCode);
+      } else {
+        setValue("salesCompanyId", createdId);
+        setValue("salesCompanyName", finalName);
+        setValue("salesCompanyCode", finalCode);
+      }
+
+      setCreateCompanyModalOpen(false);
+      setCreateCompanyForm({ name: "", legalName: "", baseCurrency: "USD" });
+      setSaveMessage(`Company "${finalName}" created successfully.`);
+    } catch (err) {
+      setCreateCompanyError(err instanceof Error ? err.message : "Failed to create company.");
+    } finally {
+      setCreateCompanyLoading(false);
+    }
+  };
+
   const handleSaveCustomVariation = async () => {
     const { goodsName, brand, size, originCountryId } = customVariationForm;
     if (!brand.trim() || !size.trim()) {
@@ -1717,6 +1950,17 @@ export function PurchaseOrderWizard() {
 
       {/* Actions */}
       <div className="flex items-center gap-1.5 shrink-0 relative" ref={dropdownRef}>
+        <Button
+          type="button"
+          onClick={() => {
+            setIsFormOpen(false);
+            handleReset();
+          }}
+          variant="outline"
+          className="flex items-center gap-1.5 h-7.5 px-2 text-xs font-bold text-foreground border-border hover:bg-muted"
+        >
+          Close Form
+        </Button>
         <Button
           type="button"
           onClick={handleReset}
@@ -2489,6 +2733,24 @@ export function PurchaseOrderWizard() {
     );
   }
 
+  if (!isFormOpen) {
+    return (
+      <div className="space-y-6 text-foreground bg-background">
+        <PurchaseBookingJournalReportView
+          refreshKey={registerRefreshKey}
+          highlightPurchaseOrderNo={savedOrderNo}
+          onNewBooking={() => {
+            handleReset();
+            setSavedOrderId("");
+            setSavedOrderNo("");
+            setIsFormOpen(true);
+            setActiveTab("booking");
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 text-foreground bg-background">
       {isTransferred ? (
@@ -2588,6 +2850,17 @@ export function PurchaseOrderWizard() {
           </div>
 
           <div className="flex gap-2 relative" ref={dropdownRef}>
+            <Button
+              type="button"
+              onClick={() => {
+                setIsFormOpen(false);
+                handleReset();
+              }}
+              variant="outline"
+              className="flex items-center gap-1.5 h-9 text-xs font-bold text-foreground border-border hover:bg-muted"
+            >
+              Close Form
+            </Button>
             <Button
               type="button"
               onClick={handleReset}
@@ -2758,22 +3031,28 @@ export function PurchaseOrderWizard() {
                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
-                    variant="outline"
-                    onClick={() => {
-                      window.print();
-                    }}
-                    className="flex items-center gap-1.5 h-9 text-xs font-bold"
+                    onClick={() => handleOpenA4Report(false)}
+                    className="flex items-center gap-1.5 h-9 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
                   >
-                    <Printer className="h-4 w-4" /> Print Ledger Voucher
+                    <Eye className="h-4 w-4" /> Preview A4 Report
                   </Button>
                   <Button
                     type="button"
-                    onClick={() => {
-                      router.push("/dashboard/purchase/purchase-booking-journal-report");
-                    }}
-                    className="flex items-center gap-1.5 h-9 bg-primary text-primary-foreground font-bold text-xs uppercase px-4 shadow border-none"
+                    onClick={() => handleOpenA4Report(true)}
+                    className="flex items-center gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
                   >
-                    Done & View Dashboard
+                    <Printer className="h-4 w-4" /> Print A4 Report
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsFormOpen(false);
+                      handleReset();
+                    }}
+                    className="flex items-center gap-1.5 h-9 text-xs font-bold"
+                  >
+                    Done (Back to List)
                   </Button>
                 </div>
               </div>
@@ -2932,97 +3211,131 @@ export function PurchaseOrderWizard() {
                   <h3 className="text-base font-black text-foreground uppercase tracking-wider">Purchase Transfer Verification Details</h3>
                   <p className="text-xs text-muted-foreground font-semibold">Verify all booking details and complete ledger transfer</p>
                 </div>
-                <Button
-                  type="button"
-                  onClick={handleTransfer}
-                  disabled={savingOrder || goodsEntries.length === 0}
-                  className="flex items-center gap-1.5 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase px-5 shadow transition-all"
-                >
-                  <Check className="h-4 w-4" /> {savingOrder ? "Transferring..." : "Transfer Payment"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => handleOpenA4Report(false)}
+                    className="flex items-center gap-1.5 h-10 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
+                  >
+                    <Eye className="h-4 w-4" /> Preview A4 Report
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleTransfer}
+                    disabled={savingOrder || goodsEntries.length === 0}
+                    className="flex items-center gap-1.5 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase px-5 shadow transition-all"
+                  >
+                    <Check className="h-4 w-4" /> Transfer Payment
+                  </Button>
+                </div>
               </div>
 
-              {/* Grid 2-Column: Summary and Accounting */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 1. Booking Summary Card */}
-                <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-sm">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5 border-b border-border pb-2">
-                    👤 Booking & Logistics Summary
-                  </h4>
-                  <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 text-xs">
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Booking Reference</span>
-                      <span className="font-bold text-foreground font-mono">{form.purchaseOrderNo}</span>
+              {/* Top Row: Booking Details | Purchase Account | Sale Account */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+                {/* Card A: Booking Details */}
+                <div className="bg-card border border-border shadow-sm rounded-xl p-4 hover:shadow-md hover:border-primary/30 transition duration-200">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <span className="p-1 rounded-md bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
+                      <Building2 className="h-3.5 w-3.5" />
+                    </span>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Booking Details</h4>
+                  </div>
+                  <div className="space-y-1.5 text-[10px]">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Booking Ref:</span> <span className="font-bold text-foreground font-mono">{form.purchaseOrderNo}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Booking Date:</span> <span className="font-semibold text-foreground">{form.purchaseDate}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Bill No:</span> <span className="font-semibold text-foreground font-mono">{form.billNo || "N/A"}</span></div>
+                    <div className="pt-1 border-t border-border/20 space-y-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Supplier (Seller):</span>
+                      <span className="font-bold text-primary truncate block" title={form.supplierName}>{form.supplierName || "N/A"}</span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Booking Date</span>
-                      <span className="font-bold text-foreground">{form.purchaseDate}</span>
+                    <div className="space-y-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Buyer (Customer):</span>
+                      <span className="font-semibold text-foreground truncate block" title={form.customerName}>{form.customerName || "N/A"}</span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Supplier (Seller)</span>
-                      <span className="font-bold text-foreground truncate block max-w-[200px]" title={form.supplierName}>{form.supplierName || "N/A"}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Buyer (Customer)</span>
-                      <span className="font-bold text-foreground truncate block max-w-[200px]" title={form.customerName}>{form.customerName || "N/A"}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Condition</span>
-                      <span className="font-bold text-blue-600 dark:text-blue-400">{form.paymentType || "Advance Payment"}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Exchange Rate</span>
-                      <span className="font-bold text-foreground font-mono">{form.exchangeRate}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Shipping Route</span>
-                      <span className="font-bold text-foreground">{form.shippingMode || "By Sea"} {form.loadingPort ? `(${form.loadingPort} ➔ ${form.receivedPort})` : ""}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Containers (FCL)</span>
-                      <span className="font-bold text-foreground">{form.containerCount || 0} Containers ({form.containerSize})</span>
-                    </div>
+                    <div className="flex justify-between pt-1 border-t border-border/20"><span className="text-muted-foreground">Condition:</span> <span className="font-bold text-blue-600 dark:text-blue-400">{form.paymentType || "Advance Payment"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Exchange Rate:</span> <span className="font-semibold text-foreground font-mono">{form.exchangeRate}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Shipping Route:</span> <span className="font-semibold text-foreground">{form.shippingMode || "By Sea"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Containers (FCL):</span> <span className="font-bold text-foreground">{form.containerCount || 0} ({form.containerSize})</span></div>
                   </div>
                 </div>
 
-                {/* 2. Accounting Preview Card */}
-                <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-sm">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5 border-b border-border pb-2">
-                    📊 Ledger Posting Preview
-                  </h4>
-                  <div className="overflow-x-auto rounded border border-border bg-background">
-                    <table className="w-full text-xs text-left border-collapse">
-                      <thead>
-                        <tr className="bg-muted text-muted-foreground border-b border-border font-bold uppercase tracking-wider text-[9px]">
-                          <th className="px-3 py-2">Debit / Credit Type</th>
-                          <th className="px-3 py-2">Account Title / Branch</th>
-                          <th className="px-3 py-2 text-right">Amount (USD)</th>
-                          <th className="px-3 py-2 text-right">Amount ({goodsEntries[0]?.secondaryCurrency?.replace(" - Rs", "") || "PKR"})</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        <tr className="hover:bg-muted/10 transition">
-                          <td className="px-3 py-2 font-bold text-blue-600">DEBIT (Dr)</td>
-                          <td className="px-3 py-2">
-                            <span className="font-bold text-foreground block">{form.purchaseAccountName || "Dubai Purchase Account"}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">{form.purchaseAccountNo}</span>
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono font-bold">${reportTotals.grandPrimaryFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                          <td className="px-3 py-2 text-right font-mono font-bold">{reportTotals.grandFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        </tr>
-                        <tr className="hover:bg-muted/10 transition">
-                          <td className="px-3 py-2 font-bold text-emerald-600">CREDIT (Cr)</td>
-                          <td className="px-3 py-2">
-                            <span className="font-bold text-foreground block">{form.salesAccountName || "Damaan Sales Account"}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">{form.salesAccountNo}</span>
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono text-muted-foreground">-</td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-emerald-600">{reportTotals.grandFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                {/* Card B: Purchase Account Details */}
+                <div className="bg-card border border-indigo-500/20 shadow-sm rounded-xl p-4 hover:shadow-md hover:border-indigo-500/40 transition duration-200">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <span className="p-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+                      <ArrowDownLeft className="h-3.5 w-3.5" />
+                    </span>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Purchase Account</h4>
+                  </div>
+                  <div className="space-y-1.5 text-[10px]">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-bold text-foreground font-mono">{form.purchaseAccountNo || "N/A"}</span></div>
+                    <div className="space-y-0.5 pt-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Account Name:</span>
+                      <span className="font-semibold text-indigo-600 dark:text-indigo-400 truncate block" title={form.purchaseAccountName}>{form.purchaseAccountName || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Currency:</span> <span className="font-bold text-foreground">{form.purchaseAccountCurrency || "N/A"}</span></div>
+                    <div className="pt-1 border-t border-border/20 space-y-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Company:</span>
+                      <span className="font-semibold text-foreground truncate block" title={form.purchaseCompanyName}>{form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Branch:</span>
+                      <span className="font-semibold text-foreground truncate block" title={form.purchaseAccountBranch}>{form.purchaseAccountBranch || "N/A"}</span>
+                    </div>
+                    {form.purchaseAccountKind && (
+                      <div className="flex justify-between pt-1 border-t border-border/20"><span className="text-muted-foreground">Kind:</span> <span className="font-bold text-foreground uppercase">{form.purchaseAccountKind}</span></div>
+                    )}
+                    {form.purchaseAccountSerialNumber && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Account S/N:</span> <span className="font-semibold text-foreground font-mono">{form.purchaseAccountSerialNumber}</span></div>
+                    )}
+                    {form.purchaseAccountBranchSerialNumber && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Branch S/N:</span> <span className="font-semibold text-foreground font-mono">{form.purchaseAccountBranchSerialNumber}</span></div>
+                    )}
+                    {form.purchaseAccountManualReferenceNumber && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Manual Ref:</span> <span className="font-semibold text-foreground font-mono">{form.purchaseAccountManualReferenceNumber}</span></div>
+                    )}
                   </div>
                 </div>
+
+                {/* Card C: Sale Account Details */}
+                <div className="bg-card border border-violet-500/20 shadow-sm rounded-xl p-4 hover:shadow-md hover:border-violet-500/40 transition duration-200">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <span className="p-1 rounded-md bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400">
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </span>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Sale Account</h4>
+                  </div>
+                  <div className="space-y-1.5 text-[10px]">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-bold text-foreground font-mono">{form.salesAccountNo || "N/A"}</span></div>
+                    <div className="space-y-0.5 pt-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Account Name:</span>
+                      <span className="font-semibold text-violet-600 dark:text-violet-400 truncate block" title={form.salesAccountName}>{form.salesAccountName || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Currency:</span> <span className="font-bold text-foreground">{form.salesAccountCurrency || "N/A"}</span></div>
+                    <div className="pt-1 border-t border-border/20 space-y-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Company:</span>
+                      <span className="font-semibold text-foreground truncate block" title={form.salesCompanyName}>{form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Branch:</span>
+                      <span className="font-semibold text-foreground truncate block" title={form.salesAccountBranch}>{form.salesAccountBranch || "N/A"}</span>
+                    </div>
+                    {form.salesAccountKind && (
+                      <div className="flex justify-between pt-1 border-t border-border/20"><span className="text-muted-foreground">Kind:</span> <span className="font-bold text-foreground uppercase">{form.salesAccountKind}</span></div>
+                    )}
+                    {form.salesAccountSerialNumber && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Account S/N:</span> <span className="font-semibold text-foreground font-mono">{form.salesAccountSerialNumber}</span></div>
+                    )}
+                    {form.salesAccountBranchSerialNumber && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Branch S/N:</span> <span className="font-semibold text-foreground font-mono">{form.salesAccountBranchSerialNumber}</span></div>
+                    )}
+                    {form.salesAccountManualReferenceNumber && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Manual Ref:</span> <span className="font-semibold text-foreground font-mono">{form.salesAccountManualReferenceNumber}</span></div>
+                    )}
+                  </div>
+                </div>
+
               </div>
 
               {/* 3. Cargo Specification Table Card */}
@@ -3090,25 +3403,116 @@ export function PurchaseOrderWizard() {
                 </div>
               </div>
 
+              {/* Bottom Details Grid: Payment & Loading (2-column) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                {/* Card: Payment Details */}
+                <div className="bg-card border border-border shadow-sm rounded-xl p-4 hover:shadow-md hover:border-primary/30 transition duration-200">
+                  <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
+                    <span className="p-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-450">
+                      <Receipt className="h-3.5 w-3.5" />
+                    </span>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Payment Details</h4>
+                  </div>
+                  <div className="space-y-1.5 text-[10px]">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Payment Condition:</span> <span className="font-bold text-foreground">{form.paymentType || "N/A"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Advance Percentage:</span> <span className="font-semibold text-foreground font-mono">{form.advancePercent || 0}%</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Advance Date:</span> <span className="font-semibold text-foreground">{form.advancePaymentDate || "N/A"}</span></div>
+                    <div className="flex justify-between pt-1 border-t border-border/20"><span className="text-muted-foreground">Advance (USD):</span> <span className="font-bold text-emerald-600">${((reportTotals.grandPrimaryFinal * (form.advancePercent || 0)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Advance ({goodsEntries[0]?.secondaryCurrency?.replace(" - Rs", "") || "PKR"}):</span> <span className="font-bold text-emerald-600">{(reportTotals.grandFinal * (form.advancePercent || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between pt-1 border-t border-border/20"><span className="text-muted-foreground">Balance (USD):</span> <span className="font-bold text-foreground">${(reportTotals.grandPrimaryFinal - (reportTotals.grandPrimaryFinal * (form.advancePercent || 0)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Balance ({goodsEntries[0]?.secondaryCurrency?.replace(" - Rs", "") || "PKR"}):</span> <span className="font-bold text-foreground">{(reportTotals.grandFinal - (reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Balance Date:</span> <span className="font-semibold text-foreground">{form.paymentDate || "N/A"}</span></div>
+                  </div>
+                </div>
+
+                {/* Card: Loading & Logistics Details */}
+                <div className="bg-card border border-border shadow-sm rounded-xl p-4 hover:shadow-md hover:border-primary/30 transition duration-200">
+                  <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
+                    <span className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+                      <Ship className="h-3.5 w-3.5" />
+                    </span>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Loading & Logistics Details</h4>
+                  </div>
+                  <div className="space-y-1.5 text-[10px]">
+                    <div className="space-y-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Loading Location:</span>
+                      <span className="font-semibold text-foreground block truncate text-[9.5px]" title={form.loadingPort}>{form.loadingCountry || "N/A"}{form.loadingPort ? `, ${form.loadingPort}` : ""}{form.loadingBorder ? `, ${form.loadingBorder}` : ""}{form.airportName ? `, ${form.airportName}` : ""}</span>
+                      {form.loadingDate && <span className="text-[8.5px] font-bold text-muted-foreground font-mono block">📅 {form.loadingDate}</span>}
+                    </div>
+                    <div className="space-y-0.5 pt-0.5">
+                      <span className="text-muted-foreground block text-[9px]">Receiving Location:</span>
+                      <span className="font-semibold text-foreground block truncate text-[9.5px]" title={form.receivedPort}>{form.receivedCountry || "N/A"}{form.receivedPort ? `, ${form.receivedPort}` : ""}{form.receivedBorder ? `, ${form.receivedBorder}` : ""}{form.receivedPortName ? `, ${form.receivedPortName}` : ""}</span>
+                      {form.receivedDate && <span className="text-[8.5px] font-bold text-muted-foreground font-mono block">📅 {form.receivedDate}</span>}
+                    </div>
+                    <div className="flex justify-between pt-1"><span className="text-muted-foreground">Carrier:</span> <span className="font-bold text-foreground truncate" title={form.vesselName || form.airlineName}>{form.vesselName || form.airlineName || "N/A"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Agent:</span> <span className="font-semibold text-foreground truncate" title={form.transportAgent}>{form.transportAgent || "N/A"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Seal No:</span> <span className="font-semibold text-foreground font-mono">{form.sealNumber || "N/A"}</span></div>
+                    <div className="space-y-0.5 pt-0.5 font-mono">
+                      <span className="text-muted-foreground block text-[9px] font-sans">Container Numbers:</span>
+                      <span className="font-semibold text-foreground block truncate" title={form.containerNumbers}>{form.containerNumbers || "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
               {/* 4. Editable Remarks Section */}
               <Card className="w-full bg-card border-border shadow-md rounded-xl overflow-hidden">
-                <CardHeader className="bg-muted/40 border-b border-border/80 px-6 py-4">
+                <CardHeader className="bg-muted/40 border-b border-border/80 px-6 py-4 flex flex-row items-center justify-between flex-wrap gap-4">
                   <CardTitle className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-2">
                     <PenLine className="h-4 w-4" /> Report Remarks / Narration
                   </CardTitle>
+                  
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {/* Checkbox to show/hide on A4 report */}
+                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-700 dark:text-slate-350 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={form.showRemarksOnA4 ?? true}
+                        onChange={(e) => setValue("showRemarksOnA4", e.target.checked)}
+                        className="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>A4 Print View par dikhayein (Show)</span>
+                    </label>
+
+                    {/* Mode selector tab-like buttons */}
+                    <div className="flex items-center bg-background rounded-lg p-0.5 border border-border text-[9px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewRemarks(false)}
+                        className={`px-2 py-1 rounded-md transition ${!previewRemarks ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewRemarks(true)}
+                        className={`px-2 py-1 rounded-md transition ${previewRemarks ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        Preview / View
+                      </button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <textarea
-                    value={form.orderReportRemarks || ""}
-                    onChange={(e) => {
-                      setValue("orderReportRemarks", e.target.value);
-                      if (!form.remarks) {
-                        setValue("remarks", e.target.value);
-                      }
-                    }}
-                    placeholder="Enter terms, cargo notes, inspections, or other remarks..."
-                    className="w-full min-h-[100px] bg-background text-foreground border border-border rounded-xl p-4 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-none transition leading-relaxed shadow-inner"
-                  />
+                  {previewRemarks ? (
+                    <div className="w-full min-h-[100px] bg-slate-50 dark:bg-slate-900/40 text-foreground border border-dashed border-border rounded-xl p-4 text-xs font-semibold whitespace-pre-wrap leading-relaxed shadow-inner italic">
+                      {form.orderReportRemarks || form.remarks || "No custom narration remarks entered."}
+                    </div>
+                  ) : (
+                    <textarea
+                      value={form.orderReportRemarks || ""}
+                      onChange={(e) => {
+                        setValue("orderReportRemarks", e.target.value);
+                        if (!form.remarks) {
+                          setValue("remarks", e.target.value);
+                        }
+                      }}
+                      placeholder="Enter terms, cargo notes, inspections, or other remarks..."
+                      className="w-full min-h-[100px] bg-background text-foreground border border-border rounded-xl p-4 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-none transition leading-relaxed shadow-inner"
+                    />
+                  )}
                 </CardContent>
               </Card>
 
@@ -3297,90 +3701,11 @@ export function PurchaseOrderWizard() {
                         </button>
                       </div>
 
-                      {form.purchaseAccountName && (
-                        <div className="mt-2 p-3 bg-muted/40 border border-border/60 rounded-lg space-y-1.5 font-mono text-[10px] text-muted-foreground relative">
-                          <div className="flex justify-between items-center">
-                            <span>Account Number:</span>
-                            <span className="font-bold text-primary">{form.purchaseAccountNo}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span>Account Name:</span>
-                            <span className="font-bold text-foreground max-w-[150px] truncate" title={form.purchaseAccountName}>{form.purchaseAccountName}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span>Branch & Currency:</span>
-                            <span className="font-semibold text-foreground">
-                              {form.purchaseAccountBranch || "No Branch"} | <span className="text-emerald-600 dark:text-emerald-450 font-bold">{form.purchaseAccountCurrency}</span>
-                            </span>
-                          </div>
-                          <div className="pt-1.5 border-t border-border/40 flex justify-between items-center relative">
-                            <span>Company Name:</span>
-                            <div className="flex items-center gap-1.5 relative" ref={purchaseCompanyDropdownRef}>
-                              <span className="font-bold text-foreground truncate max-w-[120px]" title={form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}>
-                                {form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None Selected"}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setPurchaseCompanySelectOpen(prev => !prev)}
-                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
-                                title="Select Company"
-                              >
-                                <Pin className={`h-3 w-3 ${purchaseCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
-                              </button>
 
-                              {purchaseCompanySelectOpen && (
-                                <div className="absolute right-0 top-6 w-56 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                                  <div className="px-2 py-1 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
-                                    Select Company
-                                  </div>
-                                  <div className="max-h-40 overflow-y-auto space-y-0.5">
-                                    {(() => {
-                                      const selectedPurchaseAccount = dbAccounts.find(acc =>
-                                        (acc.accountCode || "").trim().toLowerCase() === (form.purchaseAccountNo || "").trim().toLowerCase()
-                                      );
-                                      const purchaseCompanies = selectedPurchaseAccount?.companyId
-                                        ? dbCompanies.filter(c => c.id === selectedPurchaseAccount.companyId)
-                                        : dbCompanies;
-
-                                      if (purchaseCompanies.length === 0) {
-                                        return (
-                                          <div className="px-2 py-3 text-center text-muted-foreground text-[10px] italic">
-                                            No companies found.
-                                          </div>
-                                        );
-                                      }
-
-                                      return purchaseCompanies.map((c) => {
-                                        const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
-                                        return (
-                                          <button
-                                            key={c.id}
-                                            type="button"
-                                            onClick={() => {
-                                              setValue("purchaseCompanyId", c.id);
-                                              setValue("purchaseCompanyName", c.name);
-                                              setValue("purchaseCompanyCode", cCode);
-                                              setPurchaseCompanySelectOpen(false);
-                                            }}
-                                            className="w-full text-left px-2 py-1 rounded hover:bg-muted text-[10px] text-foreground font-semibold truncate block"
-                                            title={c.name}
-                                          >
-                                            {c.name} ({cCode})
-                                          </button>
-                                        );
-                                      });
-                                    })()}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
 
                       {purchaseDropdownOpen && (
-                        <div className="absolute left-0 mt-1 w-full max-w-[280px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                          <div className="max-h-48 overflow-y-auto space-y-0.5">
+                        <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="max-h-56 overflow-y-auto space-y-0.5">
                             {(() => {
                               const filtered = dbAccounts.filter(acc =>
                                 acc.accountCode?.toLowerCase().includes(purchaseSearch.toLowerCase()) ||
@@ -3404,20 +3729,26 @@ export function PurchaseOrderWizard() {
                                     setPurchaseDropdownOpen(false);
                                     setPurchaseSearch("");
                                   }}
-                                  className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-muted text-left transition"
+                                  className="w-full text-left p-2 rounded-lg hover:bg-muted transition gap-1 border-b border-border/20 last:border-b-0 block font-mono text-[9px]"
                                 >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
-                                      {acc.accountName.charAt(0)}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <span className="font-bold text-foreground text-[10px] block truncate">{acc.accountName}</span>
-                                      <span className="text-muted-foreground text-[8px] block font-mono truncate">{acc.accountCode} • {acc.cityBranchName}{acc.mobile ? ` • Mob: ${acc.mobile}` : ""}</span>
-                                    </div>
+                                  <div className="flex justify-between items-start gap-1 mb-1">
+                                    <span className="font-bold text-foreground text-[10px] truncate max-w-[210px]" title={acc.accountName}>
+                                      {acc.accountName}
+                                    </span>
+                                    <span className="text-[8px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 px-1 py-0.5 rounded font-black uppercase shrink-0">
+                                      {acc.ledgerCurrency}
+                                    </span>
                                   </div>
-                                  <span className="text-[8px] bg-muted px-1 py-0.5 rounded text-muted-foreground font-bold font-mono uppercase shrink-0">
-                                    {acc.ledgerCurrency}
-                                  </span>
+                                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-muted-foreground text-[8px]">
+                                    <div><span className="text-foreground/70 font-semibold">Code:</span> {acc.accountCode}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Branch:</span> {acc.cityBranchName || "-"}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Kind:</span> <span className="uppercase text-[7px] font-bold bg-slate-100 text-slate-700 px-1 rounded">{acc.kind || "-"}</span></div>
+                                    <div><span className="text-foreground/70 font-semibold">Ref:</span> {acc.manualReferenceNumber || "-"}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Br.S/N:</span> {acc.branchSerialNumber || "-"}</div>
+                                    {acc.mobile && (
+                                      <div className="col-span-2 truncate"><span className="text-foreground/70 font-semibold">Mob:</span> {acc.mobile}</div>
+                                    )}
+                                  </div>
                                 </button>
                               ));
                             })()}
@@ -3426,8 +3757,8 @@ export function PurchaseOrderWizard() {
                             <button
                               type="button"
                               onClick={() => {
-                                setPurchaseDropdownOpen(false);
-                                openCreateAccountModal("purchase");
+                                  setPurchaseDropdownOpen(false);
+                                  openCreateAccountModal("purchase");
                               }}
                               className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-primary hover:bg-primary/5 transition text-left"
                             >
@@ -3439,14 +3770,14 @@ export function PurchaseOrderWizard() {
                       )}
 
                       {purchasePinDropdownOpen && (
-                        <div className="absolute left-0 mt-1 w-full max-w-[280px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                        <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
                           <div className="px-2 py-1 border-b border-border/40 mb-1 flex items-center justify-between">
                             <span className="text-[8px] font-black tracking-wider text-primary uppercase">Supplier Accounts</span>
-                            <span className="text-[8px] text-muted-foreground italic truncate max-w-[150px]" title={supplierDetail?.customer_name || supplierDetail?.company_name || ""}>
+                            <span className="text-[8px] text-muted-foreground italic truncate max-w-[170px]" title={supplierDetail?.customer_name || supplierDetail?.company_name || ""}>
                               {supplierDetail?.customer_name || supplierDetail?.company_name || "Haji Shipper"}
                             </span>
                           </div>
-                          <div className="max-h-48 overflow-y-auto space-y-0.5">
+                          <div className="max-h-56 overflow-y-auto space-y-0.5">
                             {(() => {
                               const filtered = dbAccounts.filter(acc => {
                                 if (!form.supplierId) return false;
@@ -3473,20 +3804,26 @@ export function PurchaseOrderWizard() {
                                     applyAccountMaster("purchase", acc);
                                     setPurchasePinDropdownOpen(false);
                                   }}
-                                  className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-muted text-left transition"
+                                  className="w-full text-left p-2 rounded-lg hover:bg-muted transition gap-1 border-b border-border/20 last:border-b-0 block font-mono text-[9px]"
                                 >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[9px] font-bold shrink-0">
-                                      {acc.accountName.charAt(0)}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <span className="font-bold text-foreground text-[10px] block truncate">{acc.accountName}</span>
-                                      <span className="text-muted-foreground text-[8px] block font-mono truncate">{acc.accountCode} • {acc.cityBranchName}</span>
-                                    </div>
+                                  <div className="flex justify-between items-start gap-1 mb-1">
+                                    <span className="font-bold text-foreground text-[10px] truncate max-w-[210px]" title={acc.accountName}>
+                                      {acc.accountName}
+                                    </span>
+                                    <span className="text-[8px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 px-1 py-0.5 rounded font-black uppercase shrink-0">
+                                      {acc.ledgerCurrency}
+                                    </span>
                                   </div>
-                                  <span className="text-[8px] bg-muted px-1 py-0.5 rounded text-muted-foreground font-bold font-mono uppercase shrink-0">
-                                    {acc.ledgerCurrency}
-                                  </span>
+                                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-muted-foreground text-[8px]">
+                                    <div><span className="text-foreground/70 font-semibold">Code:</span> {acc.accountCode}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Branch:</span> {acc.cityBranchName || "-"}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Kind:</span> <span className="uppercase text-[7px] font-bold bg-slate-100 text-slate-700 px-1 rounded">{acc.kind || "-"}</span></div>
+                                    <div><span className="text-foreground/70 font-semibold">Ref:</span> {acc.manualReferenceNumber || "-"}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Br.S/N:</span> {acc.branchSerialNumber || "-"}</div>
+                                    {acc.mobile && (
+                                      <div className="col-span-2 truncate"><span className="text-foreground/70 font-semibold">Mob:</span> {acc.mobile}</div>
+                                    )}
+                                  </div>
                                 </button>
                               ));
                             })()}
@@ -3540,90 +3877,9 @@ export function PurchaseOrderWizard() {
                         </button>
                       </div>
 
-                      {form.salesAccountName && (
-                        <div className="mt-2 p-3 bg-muted/40 border border-border/60 rounded-lg space-y-1.5 font-mono text-[10px] text-muted-foreground relative">
-                          <div className="flex justify-between items-center">
-                            <span>Account Number:</span>
-                            <span className="font-bold text-primary">{form.salesAccountNo}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span>Account Name:</span>
-                            <span className="font-bold text-foreground max-w-[150px] truncate" title={form.salesAccountName}>{form.salesAccountName}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span>Branch & Currency:</span>
-                            <span className="font-semibold text-foreground">
-                              {form.salesAccountBranch || "No Branch"} | <span className="text-emerald-600 dark:text-emerald-450 font-bold">{form.salesAccountCurrency}</span>
-                            </span>
-                          </div>
-                          <div className="pt-1.5 border-t border-border/40 flex justify-between items-center relative">
-                            <span>Company Name:</span>
-                            <div className="flex items-center gap-1.5 relative" ref={salesCompanyDropdownRef}>
-                              <span className="font-bold text-foreground truncate max-w-[120px]" title={form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}>
-                                {form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None Selected"}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setSalesCompanySelectOpen(prev => !prev)}
-                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
-                                title="Select Company"
-                              >
-                                <Pin className={`h-3 w-3 ${salesCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
-                              </button>
-
-                              {salesCompanySelectOpen && (
-                                <div className="absolute right-0 top-6 w-56 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                                  <div className="px-2 py-1 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
-                                    Select Company
-                                  </div>
-                                  <div className="max-h-40 overflow-y-auto space-y-0.5">
-                                    {(() => {
-                                      const selectedSalesAccount = dbAccounts.find(acc =>
-                                        (acc.accountCode || "").trim().toLowerCase() === (form.salesAccountNo || "").trim().toLowerCase()
-                                      );
-                                      const salesCompanies = selectedSalesAccount?.companyId
-                                        ? dbCompanies.filter(c => c.id === selectedSalesAccount.companyId)
-                                        : dbCompanies;
-
-                                      if (salesCompanies.length === 0) {
-                                        return (
-                                          <div className="px-2 py-3 text-center text-muted-foreground text-[10px] italic">
-                                            No companies found.
-                                          </div>
-                                        );
-                                      }
-
-                                      return salesCompanies.map((c) => {
-                                        const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
-                                        return (
-                                          <button
-                                            key={c.id}
-                                            type="button"
-                                            onClick={() => {
-                                              setValue("salesCompanyId", c.id);
-                                              setValue("salesCompanyName", c.name);
-                                              setValue("salesCompanyCode", cCode);
-                                              setSalesCompanySelectOpen(false);
-                                            }}
-                                            className="w-full text-left px-2 py-1 rounded hover:bg-muted text-[10px] text-foreground font-semibold truncate block"
-                                            title={c.name}
-                                          >
-                                            {c.name} ({cCode})
-                                          </button>
-                                        );
-                                      });
-                                    })()}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
                       {salesDropdownOpen && (
-                        <div className="absolute left-0 mt-1 w-full max-w-[280px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                          <div className="max-h-48 overflow-y-auto space-y-0.5">
+                        <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="max-h-56 overflow-y-auto space-y-0.5">
                             {(() => {
                               const filtered = dbAccounts.filter(acc =>
                                 acc.accountCode?.toLowerCase().includes(salesSearch.toLowerCase()) ||
@@ -3647,20 +3903,26 @@ export function PurchaseOrderWizard() {
                                     setSalesDropdownOpen(false);
                                     setSalesSearch("");
                                   }}
-                                  className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-muted text-left transition"
+                                  className="w-full text-left p-2 rounded-lg hover:bg-muted transition gap-1 border-b border-border/20 last:border-b-0 block font-mono text-[9px]"
                                 >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
-                                      {acc.accountName.charAt(0)}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <span className="font-bold text-foreground text-[10px] block truncate">{acc.accountName}</span>
-                                      <span className="text-muted-foreground text-[8px] block font-mono truncate">{acc.accountCode} • {acc.cityBranchName}{acc.mobile ? ` • Mob: ${acc.mobile}` : ""}</span>
-                                    </div>
+                                  <div className="flex justify-between items-start gap-1 mb-1">
+                                    <span className="font-bold text-foreground text-[10px] truncate max-w-[210px]" title={acc.accountName}>
+                                      {acc.accountName}
+                                    </span>
+                                    <span className="text-[8px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 px-1 py-0.5 rounded font-black uppercase shrink-0">
+                                      {acc.ledgerCurrency}
+                                    </span>
                                   </div>
-                                  <span className="text-[8px] bg-muted px-1 py-0.5 rounded text-muted-foreground font-bold font-mono uppercase shrink-0">
-                                    {acc.ledgerCurrency}
-                                  </span>
+                                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-muted-foreground text-[8px]">
+                                    <div><span className="text-foreground/70 font-semibold">Code:</span> {acc.accountCode}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Branch:</span> {acc.cityBranchName || "-"}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Kind:</span> <span className="uppercase text-[7px] font-bold bg-slate-100 text-slate-700 px-1 rounded">{acc.kind || "-"}</span></div>
+                                    <div><span className="text-foreground/70 font-semibold">Ref:</span> {acc.manualReferenceNumber || "-"}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Br.S/N:</span> {acc.branchSerialNumber || "-"}</div>
+                                    {acc.mobile && (
+                                      <div className="col-span-2 truncate"><span className="text-foreground/70 font-semibold">Mob:</span> {acc.mobile}</div>
+                                    )}
+                                  </div>
                                 </button>
                               ));
                             })()}
@@ -3669,8 +3931,8 @@ export function PurchaseOrderWizard() {
                             <button
                               type="button"
                               onClick={() => {
-                                setSalesDropdownOpen(false);
-                                openCreateAccountModal("sales");
+                                  setSalesDropdownOpen(false);
+                                  openCreateAccountModal("sales");
                               }}
                               className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-primary hover:bg-primary/5 transition text-left"
                             >
@@ -3682,14 +3944,14 @@ export function PurchaseOrderWizard() {
                       )}
 
                       {salesPinDropdownOpen && (
-                        <div className="absolute left-0 mt-1 w-full max-w-[280px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                        <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
                           <div className="px-2 py-1 border-b border-border/40 mb-1 flex items-center justify-between">
                             <span className="text-[8px] font-black tracking-wider text-primary uppercase">Customer Accounts</span>
-                            <span className="text-[8px] text-muted-foreground italic truncate max-w-[150px]" title={customerDetail?.customer_name || customerDetail?.company_name || ""}>
+                            <span className="text-[8px] text-muted-foreground italic truncate max-w-[170px]" title={customerDetail?.customer_name || customerDetail?.company_name || ""}>
                               {customerDetail?.customer_name || customerDetail?.company_name || "Buyer Customer"}
                             </span>
                           </div>
-                          <div className="max-h-48 overflow-y-auto space-y-0.5">
+                          <div className="max-h-56 overflow-y-auto space-y-0.5">
                             {(() => {
                               const filtered = dbAccounts.filter(acc => {
                                 if (!form.customerId) return false;
@@ -3716,20 +3978,26 @@ export function PurchaseOrderWizard() {
                                     applyAccountMaster("sales", acc);
                                     setSalesPinDropdownOpen(false);
                                   }}
-                                  className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-muted text-left transition"
+                                  className="w-full text-left p-2 rounded-lg hover:bg-muted transition gap-1 border-b border-border/20 last:border-b-0 block font-mono text-[9px]"
                                 >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[9px] font-bold shrink-0">
-                                      {acc.accountName.charAt(0)}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <span className="font-bold text-foreground text-[10px] block truncate">{acc.accountName}</span>
-                                      <span className="text-muted-foreground text-[8px] block font-mono truncate">{acc.accountCode} • {acc.cityBranchName}</span>
-                                    </div>
+                                  <div className="flex justify-between items-start gap-1 mb-1">
+                                    <span className="font-bold text-foreground text-[10px] truncate max-w-[210px]" title={acc.accountName}>
+                                      {acc.accountName}
+                                    </span>
+                                    <span className="text-[8px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 px-1 py-0.5 rounded font-black uppercase shrink-0">
+                                      {acc.ledgerCurrency}
+                                    </span>
                                   </div>
-                                  <span className="text-[8px] bg-muted px-1 py-0.5 rounded text-muted-foreground font-bold font-mono uppercase shrink-0">
-                                    {acc.ledgerCurrency}
-                                  </span>
+                                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-muted-foreground text-[8px]">
+                                    <div><span className="text-foreground/70 font-semibold">Code:</span> {acc.accountCode}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Branch:</span> {acc.cityBranchName || "-"}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Kind:</span> <span className="uppercase text-[7px] font-bold bg-slate-100 text-slate-700 px-1 rounded">{acc.kind || "-"}</span></div>
+                                    <div><span className="text-foreground/70 font-semibold">Ref:</span> {acc.manualReferenceNumber || "-"}</div>
+                                    <div><span className="text-foreground/70 font-semibold">Br.S/N:</span> {acc.branchSerialNumber || "-"}</div>
+                                    {acc.mobile && (
+                                      <div className="col-span-2 truncate"><span className="text-foreground/70 font-semibold">Mob:</span> {acc.mobile}</div>
+                                    )}
+                                  </div>
                                 </button>
                               ));
                             })()}
@@ -3750,6 +4018,8 @@ export function PurchaseOrderWizard() {
                         </div>
                       )}
                     </div>
+
+
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -5016,6 +5286,148 @@ export function PurchaseOrderWizard() {
                     </div>
                     <div className="flex justify-between pt-1"><span className="text-muted-foreground">Branch:</span> <span className="font-semibold text-foreground truncate" title={form.purchaseAccountBranch}>{form.purchaseAccountBranch}</span></div>
                     <div className="flex justify-between pt-0.5"><span className="text-muted-foreground">Currency:</span> <span className="font-bold text-foreground">{form.purchaseAccountCurrency}</span></div>
+                    <div className="flex justify-between items-center pt-0.5 border-t border-border/20 mt-1 relative" ref={purchaseCompanyDropdownRef}>
+                      <span className="text-muted-foreground font-semibold">Company:</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-foreground truncate max-w-[100px] text-[8.5px] text-right font-mono" title={form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}>
+                          {form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPurchaseCompanySelectOpen(prev => !prev)}
+                          className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
+                          title="Select Company"
+                        >
+                          <Pin className={`h-2.5 w-2.5 ${purchaseCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
+                        </button>
+                      </div>
+
+                      {purchaseCompanySelectOpen && (
+                        <div className="absolute right-0 top-6 w-48 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
+                          <div className="px-2 py-0.5 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
+                            Select Company
+                          </div>
+                          <div className="max-h-32 overflow-y-auto space-y-0.5 scrollbar-thin">
+                            {dbCompanies.length === 0 ? (
+                              <div className="px-2 py-2 text-center text-muted-foreground text-[8px] italic">
+                                No companies found.
+                              </div>
+                            ) : (
+                              dbCompanies.map((c) => {
+                                const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
+                                return (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setValue("purchaseCompanyId", c.id);
+                                      setValue("purchaseCompanyName", c.name);
+                                      setValue("purchaseCompanyCode", cCode);
+                                      setPurchaseCompanySelectOpen(false);
+                                    }}
+                                    className="w-full text-left px-2 py-0.5 rounded hover:bg-muted text-[8.5px] text-foreground font-semibold truncate block"
+                                    title={c.name}
+                                  >
+                                    {c.name} ({cCode})
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                          <div className="border-t border-border/40 pt-1 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPurchaseCompanySelectOpen(false);
+                                setCreateCompanyType("purchase");
+                                setCreateCompanyForm({ name: "", legalName: "", baseCurrency: "USD" });
+                                setCreateCompanyError("");
+                                setCreateCompanyModalOpen(true);
+                              }}
+                              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold text-primary hover:bg-primary/5 transition text-left"
+                            >
+                              <span className="text-xs">+</span>
+                              <span>New Company</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {form.purchaseAccountName && (
+                      <div className="mt-2 pt-2 border-t border-border/40 space-y-2 text-[9px] font-mono text-muted-foreground">
+                        {/* Category & Control Type */}
+                        <div className="grid grid-cols-2 gap-1 pb-1.5 border-b border-border/20">
+                          <div>
+                            <span className="text-[7.5px] text-muted-foreground block uppercase">Kind</span>
+                            <span className="font-bold text-foreground uppercase">{form.purchaseAccountKind || "N/A"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7.5px] text-muted-foreground block uppercase">Type</span>
+                            <span className="font-bold text-foreground truncate block">
+                              {form.purchaseAccountIsControl ? "Control" : "Sub-Acct"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Serials Sub-Grid */}
+                        <div className="bg-muted/30 p-1.5 rounded-lg border border-border/30 space-y-1">
+                          <span className="text-[7.5px] font-black text-primary block uppercase tracking-wider">Serials & Ref</span>
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                            <div>
+                              <span className="text-[7px] text-muted-foreground block">Acct S/N</span>
+                              <span className="font-semibold text-foreground/90">{form.purchaseAccountSerialNumber || "-"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[7px] text-muted-foreground block">Country S/N</span>
+                              <span className="font-semibold text-foreground/90">{form.purchaseAccountCountrySerialNumber || "-"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[7px] text-muted-foreground block">Branch S/N</span>
+                              <span className="font-semibold text-foreground/90">{form.purchaseAccountBranchSerialNumber || "-"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[7px] text-muted-foreground block">Manual Ref</span>
+                              <span className="font-semibold text-foreground/90">{form.purchaseAccountManualReferenceNumber || "-"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Balances */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div>
+                            <span className="text-[7.5px] text-muted-foreground block uppercase">Opening Bal</span>
+                            <span className="font-bold text-foreground">
+                              {currencySymbol(form.purchaseAccountCurrency)} {formatNumber(form.purchaseAccountOpeningBalance)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[7.5px] text-muted-foreground block uppercase">Current Bal</span>
+                            <span className={`font-bold ${form.purchaseAccountCurrentBalance >= 0 ? "text-emerald-600 dark:text-emerald-450" : "text-rose-600 dark:text-rose-450"}`}>
+                              {currencySymbol(form.purchaseAccountCurrency)} {formatNumber(form.purchaseAccountCurrentBalance)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Contact Info */}
+                        {(form.purchaseAccountMobile || form.purchaseAccountWhatsapp) && (
+                          <div className="border-t border-border/20 pt-1.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                            {form.purchaseAccountMobile && (
+                              <div>
+                                <span className="text-[7.5px] text-muted-foreground mr-0.5 font-bold">MOB:</span>
+                                <span className="text-foreground font-semibold">{form.purchaseAccountMobile}</span>
+                              </div>
+                            )}
+                            {form.purchaseAccountWhatsapp && (
+                              <div>
+                                <span className="text-[7.5px] text-emerald-600 dark:text-emerald-450 mr-0.5 font-bold">WA:</span>
+                                <span className="text-foreground font-semibold">{form.purchaseAccountWhatsapp}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -5035,6 +5447,148 @@ export function PurchaseOrderWizard() {
                     </div>
                     <div className="flex justify-between pt-1"><span className="text-muted-foreground">Branch:</span> <span className="font-semibold text-foreground truncate" title={form.salesAccountBranch}>{form.salesAccountBranch}</span></div>
                     <div className="flex justify-between pt-0.5"><span className="text-muted-foreground">Currency:</span> <span className="font-bold text-foreground">{form.salesAccountCurrency}</span></div>
+                    <div className="flex justify-between items-center pt-0.5 border-t border-border/20 mt-1 relative" ref={salesCompanyDropdownRef}>
+                      <span className="text-muted-foreground font-semibold">Company:</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-foreground truncate max-w-[100px] text-[8.5px] text-right font-mono" title={form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}>
+                          {form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSalesCompanySelectOpen(prev => !prev)}
+                          className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
+                          title="Select Company"
+                        >
+                          <Pin className={`h-2.5 w-2.5 ${salesCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
+                        </button>
+                      </div>
+
+                      {salesCompanySelectOpen && (
+                        <div className="absolute right-0 top-6 w-48 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
+                          <div className="px-2 py-0.5 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
+                            Select Company
+                          </div>
+                          <div className="max-h-32 overflow-y-auto space-y-0.5 scrollbar-thin">
+                            {dbCompanies.length === 0 ? (
+                              <div className="px-2 py-2 text-center text-muted-foreground text-[8px] italic">
+                                No companies found.
+                              </div>
+                            ) : (
+                              dbCompanies.map((c) => {
+                                const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
+                                return (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setValue("salesCompanyId", c.id);
+                                      setValue("salesCompanyName", c.name);
+                                      setValue("salesCompanyCode", cCode);
+                                      setSalesCompanySelectOpen(false);
+                                    }}
+                                    className="w-full text-left px-2 py-0.5 rounded hover:bg-muted text-[8.5px] text-foreground font-semibold truncate block"
+                                    title={c.name}
+                                  >
+                                    {c.name} ({cCode})
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                          <div className="border-t border-border/40 pt-1 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSalesCompanySelectOpen(false);
+                                setCreateCompanyType("sales");
+                                setCreateCompanyForm({ name: "", legalName: "", baseCurrency: "USD" });
+                                setCreateCompanyError("");
+                                setCreateCompanyModalOpen(true);
+                              }}
+                              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold text-primary hover:bg-primary/5 transition text-left"
+                            >
+                              <span className="text-xs">+</span>
+                              <span>New Company</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {form.salesAccountName && (
+                      <div className="mt-2 pt-2 border-t border-border/40 space-y-2 text-[9px] font-mono text-muted-foreground">
+                        {/* Category & Control Type */}
+                        <div className="grid grid-cols-2 gap-1 pb-1.5 border-b border-border/20">
+                          <div>
+                            <span className="text-[7.5px] text-muted-foreground block uppercase">Kind</span>
+                            <span className="font-bold text-foreground uppercase">{form.salesAccountKind || "N/A"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7.5px] text-muted-foreground block uppercase">Type</span>
+                            <span className="font-bold text-foreground truncate block">
+                              {form.salesAccountIsControl ? "Control" : "Sub-Acct"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Serials Sub-Grid */}
+                        <div className="bg-muted/30 p-1.5 rounded-lg border border-border/30 space-y-1">
+                          <span className="text-[7.5px] font-black text-primary block uppercase tracking-wider">Serials & Ref</span>
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                            <div>
+                              <span className="text-[7px] text-muted-foreground block">Acct S/N</span>
+                              <span className="font-semibold text-foreground/90">{form.salesAccountSerialNumber || "-"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[7px] text-muted-foreground block">Country S/N</span>
+                              <span className="font-semibold text-foreground/90">{form.salesAccountCountrySerialNumber || "-"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[7px] text-muted-foreground block">Branch S/N</span>
+                              <span className="font-semibold text-foreground/90">{form.salesAccountBranchSerialNumber || "-"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[7px] text-muted-foreground block">Manual Ref</span>
+                              <span className="font-semibold text-foreground/90">{form.salesAccountManualReferenceNumber || "-"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Balances */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div>
+                            <span className="text-[7.5px] text-muted-foreground block uppercase">Opening Bal</span>
+                            <span className="font-bold text-foreground">
+                              {currencySymbol(form.salesAccountCurrency)} {formatNumber(form.salesAccountOpeningBalance)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[7.5px] text-muted-foreground block uppercase">Current Bal</span>
+                            <span className={`font-bold ${form.salesAccountCurrentBalance >= 0 ? "text-emerald-600 dark:text-emerald-450" : "text-rose-600 dark:text-rose-450"}`}>
+                              {currencySymbol(form.salesAccountCurrency)} {formatNumber(form.salesAccountCurrentBalance)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Contact Info */}
+                        {(form.salesAccountMobile || form.salesAccountWhatsapp) && (
+                          <div className="border-t border-border/20 pt-1.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                            {form.salesAccountMobile && (
+                              <div>
+                                <span className="text-[7.5px] text-muted-foreground mr-0.5 font-bold">MOB:</span>
+                                <span className="text-foreground font-semibold">{form.salesAccountMobile}</span>
+                              </div>
+                            )}
+                            {form.salesAccountWhatsapp && (
+                              <div>
+                                <span className="text-[7.5px] text-emerald-600 dark:text-emerald-450 mr-0.5 font-bold">WA:</span>
+                                <span className="text-foreground font-semibold">{form.salesAccountWhatsapp}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -5943,19 +6497,92 @@ export function PurchaseOrderWizard() {
           </div>
         </div>
       )}
+
+      {/* ── CREATE NEW COMPANY MODAL ────────────────────────────────────────── */}
+      {createCompanyModalOpen && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div>
+                <h3 className="text-sm font-bold tracking-tight text-foreground">
+                  Create New Company
+                </h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Adding to Company Master Settings registry
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateCompanyModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
+              >✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              {createCompanyError && (
+                <div className="bg-destructive/10 border border-destructive/30 text-destructive text-[10px] rounded px-3 py-2">
+                  {createCompanyError}
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Company Name *</label>
+                <input
+                  type="text"
+                  value={createCompanyForm.name}
+                  onChange={(e) => setCreateCompanyForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Apex Trading LLC"
+                  className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Legal Name</label>
+                <input
+                  type="text"
+                  value={createCompanyForm.legalName}
+                  onChange={(e) => setCreateCompanyForm(p => ({ ...p, legalName: e.target.value }))}
+                  placeholder="e.g. Apex Imports (Optional)"
+                  className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Base Currency *</label>
+                <select
+                  value={createCompanyForm.baseCurrency}
+                  onChange={(e) => setCreateCompanyForm(p => ({ ...p, baseCurrency: e.target.value }))}
+                  className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground text-[11px] outline-none focus:border-primary"
+                >
+                  {CURRENCY_OPTIONS.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <p className="text-[9px] text-muted-foreground/60">
+                This company will be saved to the master company registry and auto-selected for the current account.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-5 pb-4">
+              <button
+                type="button"
+                onClick={() => setCreateCompanyModalOpen(false)}
+                className="px-4 py-1.5 text-[11px] rounded border border-input text-muted-foreground hover:text-foreground transition-colors"
+              >Cancel</button>
+              <button
+                type="button"
+                onClick={handleAddNewCompany}
+                disabled={createCompanyLoading}
+                className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+              >
+                {createCompanyLoading ? "Saving…" : "Save Company"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </>
       )}
-
-      {/* Booking list section directly under the wizard */}
-      <div className="border-t border-border/80 pt-6 mt-8">
-        <PurchaseBookingJournalReportView
-          onNewBooking={() => {
-            handleReset();
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-        />
-      </div>
-
     </div>
   );
 }

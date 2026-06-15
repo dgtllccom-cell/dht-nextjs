@@ -118,7 +118,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         p_debit_ledger_id: debitLedgerId,
         p_credit_ledger_id: creditLedgerId,
         p_reference_no: body.purchaseContractNo || (before as any).purchase_contract_no || null,
-        p_narration: `Advance payment for Purchase Order ${(before as any).purchase_order_no}`
+        p_narration: `Purchase Booking Purchase ${(before as any).purchase_order_no}${form.orderReportRemarks || form.remarks ? ` - ${form.orderReportRemarks || form.remarks}` : ""}`
       });
 
       if (paymentError) {
@@ -146,13 +146,44 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 }
 
 async function getLedgerIdByCode(supabase: any, code: string) {
-  if (!code) return null;
+  const lookup = String(code || "").trim();
+  if (!lookup) return null;
+
   const { data, error } = await supabase
     .from("ledgers")
     .select("id")
-    .eq("code", code)
+    .eq("code", lookup)
     .is("deleted_at", null)
     .maybeSingle();
-  if (error || !data) return null;
-  return data.id;
+  if (!error && data?.id) return data.id;
+
+  const { data: account } = await supabase
+    .from("enterprise_accounts")
+    .select("id, code, account_number, manual_reference_number, customer_number")
+    .or(`code.eq.${lookup},account_number.eq.${lookup},manual_reference_number.eq.${lookup},customer_number.eq.${lookup}`)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (!account?.id) return null;
+
+  const { data: ledgerByAccount } = await supabase
+    .from("ledgers")
+    .select("id")
+    .eq("enterprise_account_id", account.id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (ledgerByAccount?.id) return ledgerByAccount.id;
+
+  const accountCodes = [account.code, account.account_number, account.manual_reference_number, account.customer_number].filter(Boolean);
+  if (!accountCodes.length) return null;
+
+  const { data: ledgerByCode } = await supabase
+    .from("ledgers")
+    .select("id")
+    .in("code", accountCodes)
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+
+  return ledgerByCode?.id ?? null;
 }

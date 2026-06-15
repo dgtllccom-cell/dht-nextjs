@@ -5,10 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Banknote,
   CalendarDays,
+  CheckCircle2,
   Download,
   Eye,
   FileSpreadsheet,
   Filter,
+  Landmark,
   MoreVertical,
   Printer,
   RefreshCw,
@@ -17,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 type PaymentMode = "advance" | "remaining" | "credit" | "charges" | "history";
 
@@ -170,7 +173,13 @@ function exportRows(rows: PurchaseOrderRow[], mode: PaymentMode) {
   URL.revokeObjectURL(url);
 }
 
+function getInitialPurchaseOrderNo(): string {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("purchaseOrderNo") ?? "";
+}
+
 export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
+  const router = useRouter();
   const activeMode: PaymentMode = mode === "charges" ? "credit" : mode;
   const [orders, setOrders] = useState<PurchaseOrderRow[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -180,6 +189,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [session, setSession] = useState<any>(null);
+
+  // Ledger Entry Panel state
+  const [entryType, setEntryType] = useState<"debit" | "credit">("debit");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentNarration, setPaymentNarration] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState("");
+  const [paymentError, setPaymentError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -206,7 +225,15 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       const payload = (body?.data ?? body) as OrdersPayload;
       const rows = payload.orders ?? [];
       setOrders(rows);
-      setSelectedId((current) => current || rows[0]?.id || "");
+      // Auto-select by URL param or first row
+      const urlOrderNo = getInitialPurchaseOrderNo();
+      if (urlOrderNo) {
+        const match = rows.find((r) => r.purchase_order_no === urlOrderNo);
+        if (match) setSelectedId(match.id);
+        else setSelectedId(rows[0]?.id || "");
+      } else {
+        setSelectedId((current) => current || rows[0]?.id || "");
+      }
     } catch (err) {
       setOrders([]);
       setError(err instanceof Error ? err.message : "Unable to load purchase order payment records.");
@@ -217,14 +244,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
   useEffect(() => {
     void loadOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const draft = draftFilter.trim().toLowerCase();
     return orders.filter((row) => {
-      // Filter out non-posted orders so they only show in payments when transferred
-      if (row.ledger_posting_status !== "Posted") return false;
+      if (row.ledger_posting_status?.toLowerCase() !== "posted") return false;
       if (draft && !(row.payment_status ?? "").toLowerCase().includes(draft)) return false;
       if (!needle) return true;
       return [row.purchase_order_no, row.purchase_contract_no, row.payment_status, row.currency_code]
@@ -240,6 +267,68 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   function reset() {
     setQuery("");
     setDraftFilter("");
+  }
+
+  // Derived account info from form_data
+  const selectedForm = (selected as any)?.form_data?.form || {};
+  const debitAccountCode = selectedForm.purchaseAccountNo || "-";
+  const debitAccountName = selectedForm.purchaseAccountName || "Purchase Account";
+  const debitAccountBranch = selectedForm.purchaseAccountBranch || "-";
+  const creditAccountCode = selectedForm.salesAccountNo || "-";
+  const creditAccountName = selectedForm.salesAccountName || "Sales Account";
+  const creditAccountBranch = selectedForm.salesAccountBranch || "-";
+  const orderTotalUsd = Number(selected?.order_total || 0);
+  const advancePct = Number(selectedForm.advancePercent || 0);
+  const suggestedAdvance = (orderTotalUsd * advancePct) / 100;
+  const currency = selected?.currency_code || selectedForm.currencyType || "USD";
+
+  async function handleProcessPayment() {
+    if (!selected) return;
+    if (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0) {
+      setPaymentError("Please enter a valid payment amount.");
+      return;
+    }
+    setProcessingPayment(true);
+    setPaymentError("");
+    setPaymentSuccess("");
+    try {
+      const response = await fetch(`/api/erp/purchases/orders/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentStatus: entryType === "debit" ? "advance_paid" : "credit_posted",
+          ledgerPostingStatus: "Posted",
+          advancePaid: entryType === "debit" ? Number(paymentAmount) : (selected.advance_paid ?? 0),
+          creditAmount: entryType === "credit" ? Number(paymentAmount) : (selected.credit_amount ?? 0),
+          paymentDate,
+          paymentMethod,
+          paymentNarration: paymentNarration || `${entryType === "debit" ? "Debit" : "Credit"} payment for PO ${selected.purchase_order_no} on ${paymentDate}`,
+          ledgerEntry: {
+            type: entryType,
+            debitAccount: debitAccountCode,
+            debitAccountName,
+            creditAccount: creditAccountCode,
+            creditAccountName,
+            amount: Number(paymentAmount),
+            currency,
+            date: paymentDate,
+            narration: paymentNarration || `PO ${selected.purchase_order_no} – ${entryType === "debit" ? "Purchase Advance" : "Sales Credit"} Payment`
+          }
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || "Payment posting failed.");
+      }
+      setPaymentSuccess(`✅ ${entryType === "debit" ? "Debit" : "Credit"} entry of ${money(paymentAmount, currency)} posted successfully to ledger for PO ${selected.purchase_order_no}.`);
+      setPaymentAmount("");
+      setPaymentNarration("");
+      void loadOrders();
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : "Payment processing failed.");
+    } finally {
+      setProcessingPayment(false);
+    }
   }
 
   return (
@@ -336,7 +425,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 const billNo = form.billNo || "-";
                 const dateStr = date(form.purchaseDate || row.created_at);
                 const countrySerial = form.branchCode || "-";
-                
+
                 const purchaseAcc = form.purchaseAccountName ? `${form.purchaseAccountNo} (${form.purchaseAccountName})` : "-";
                 const salesAcc = form.salesAccountName ? `${form.salesAccountNo} (${form.salesAccountName})` : "-";
 
@@ -355,7 +444,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 const loadingCountry = form.loadingCountry || "N/A";
                 const loadingDate = form.loadingDate || "N/A";
                 const receivedCountry = form.receivedCountry || "N/A";
-                const receivedPort = form.receivedPort || "N/A";
                 const receivedDate = form.receivedDate || "N/A";
 
                 const transitSummary = `${paymentType} (Loading: ${loadingCountry} on ${loadingDate} -> Recv: ${receivedCountry} on ${receivedDate})`;
@@ -364,7 +452,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   <tr
                     key={row.id}
                     onClick={() => setSelectedId(row.id)}
-                    className={cn("cursor-pointer border-b border-slate-200 hover:bg-slate-50/80 transition", selected?.id === row.id && "bg-blue-50/60")}
+                    className={cn("cursor-pointer border-b border-slate-200 hover:bg-slate-50/80 transition", selected?.id === row.id && "bg-blue-50/60 ring-1 ring-inset ring-blue-300")}
                   >
                     <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 font-semibold text-slate-800 last:border-r-0">{index + 1}</td>
                     <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 font-bold text-blue-700 font-mono last:border-r-0">{row.purchase_order_no}</td>
@@ -404,6 +492,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </div>
       </section>
 
+      {/* ── Payment Profile ─────────────────────────────────── */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4">
         <div className="flex items-center gap-3 border-b border-border pb-3">
           <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -424,7 +513,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               <InfoRow label="Booking Date" value={date(selected.created_at)} />
               <InfoRow label="Journal Code" value={`JE-${selected.purchase_order_no.replace(/[^0-9]/g, "").slice(-6) || "000001"}`} />
             </div>
-            
+
             <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">Transaction Valuations</h3>
               <InfoRow label="Base Currency" value={selected.currency_code ?? "USD"} />
@@ -450,6 +539,209 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           <div className="text-center py-6 text-sm text-muted-foreground">Select a purchase order row from the report above to view its payment journal profile.</div>
         )}
       </section>
+
+      {/* ── Ledger Cash Entry Panel ─────────────────────────── */}
+      {selected && (
+        <section className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-gradient-to-r from-indigo-500/5 to-violet-500/5">
+            <div className="grid h-10 w-10 place-items-center rounded-lg bg-indigo-500/10 text-indigo-600">
+              <Landmark className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wider text-foreground">Ledger Cash Entry</h2>
+              <p className="text-xs text-muted-foreground">Process Debit or Credit payment for PO <span className="font-bold text-primary">{selected.purchase_order_no}</span></p>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-5">
+            {/* Double-entry Ledger Preview */}
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-muted/60 border-b border-border text-[10px] uppercase font-black tracking-wider text-muted-foreground">
+                    <th className="px-4 py-3 text-left">Entry Type</th>
+                    <th className="px-4 py-3 text-left">Account</th>
+                    <th className="px-4 py-3 text-left">Branch / Details</th>
+                    <th className="px-4 py-3 text-right">Amount ({currency})</th>
+                    <th className="px-4 py-3 text-center">Select</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    className={cn("border-b border-border cursor-pointer transition", entryType === "debit" ? "bg-indigo-500/8 ring-1 ring-inset ring-indigo-400/30" : "hover:bg-muted/30")}
+                    onClick={() => setEntryType("debit")}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/10 border border-indigo-400/30 px-2.5 py-1 text-[10px] font-black text-indigo-600 uppercase">
+                        DEBIT (Dr)
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-foreground">{debitAccountName}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">{debitAccountCode}</div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-[11px]">{debitAccountBranch}</td>
+                    <td className="px-4 py-3 text-right font-mono font-bold text-indigo-600">
+                      {entryType === "debit" && paymentAmount ? money(paymentAmount, currency) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="radio"
+                        name="entryType"
+                        checked={entryType === "debit"}
+                        onChange={() => setEntryType("debit")}
+                        className="h-4 w-4 accent-indigo-600"
+                      />
+                    </td>
+                  </tr>
+                  <tr
+                    className={cn("cursor-pointer transition", entryType === "credit" ? "bg-violet-500/8 ring-1 ring-inset ring-violet-400/30" : "hover:bg-muted/30")}
+                    onClick={() => setEntryType("credit")}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/10 border border-violet-400/30 px-2.5 py-1 text-[10px] font-black text-violet-600 uppercase">
+                        CREDIT (Cr)
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-foreground">{creditAccountName}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">{creditAccountCode}</div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-[11px]">{creditAccountBranch}</td>
+                    <td className="px-4 py-3 text-right font-mono font-bold text-violet-600">
+                      {entryType === "credit" && paymentAmount ? money(paymentAmount, currency) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="radio"
+                        name="entryType"
+                        checked={entryType === "credit"}
+                        onChange={() => setEntryType("credit")}
+                        className="h-4 w-4 accent-violet-600"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Payment Input Form */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Payment Amount ({currency})</label>
+                <input
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  placeholder={suggestedAdvance > 0 ? `Suggested: ${suggestedAdvance.toFixed(2)}` : "Enter amount"}
+                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs font-mono text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                />
+                {suggestedAdvance > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentAmount(suggestedAdvance.toFixed(2))}
+                    className="text-[10px] text-primary font-semibold hover:underline"
+                  >
+                    Use suggested: {money(suggestedAdvance, currency)}
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Payment Date</label>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Payment Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground outline-none focus:border-primary"
+                >
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="cash">Cash</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="wire_transfer">Wire Transfer</option>
+                  <option value="letter_of_credit">Letter of Credit (LC)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Entry Type Selected</label>
+                <div className={cn(
+                  "h-9 flex items-center px-3 rounded-lg border font-bold text-xs uppercase",
+                  entryType === "debit"
+                    ? "border-indigo-400/40 bg-indigo-500/10 text-indigo-600"
+                    : "border-violet-400/40 bg-violet-500/10 text-violet-600"
+                )}>
+                  {entryType === "debit" ? "🔵 Debit (Dr) — Purchase Account" : "🟣 Credit (Cr) — Sales Account"}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Narration / Remarks</label>
+              <input
+                type="text"
+                value={paymentNarration}
+                onChange={(e) => setPaymentNarration(e.target.value)}
+                placeholder={`${entryType === "debit" ? "Debit" : "Credit"} payment for PO ${selected.purchase_order_no} via ${paymentMethod}`}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-primary"
+              />
+            </div>
+
+            {/* Summary & Action */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2 border-t border-border">
+              <div className="text-xs space-y-0.5 text-muted-foreground">
+                <div>
+                  <span className="font-bold text-foreground">Posting: </span>
+                  {entryType === "debit"
+                    ? <><span className="font-bold text-indigo-600">DR</span> {debitAccountName} ({debitAccountCode}) / <span className="font-bold text-violet-600">CR</span> {creditAccountName}</>
+                    : <><span className="font-bold text-violet-600">CR</span> {creditAccountName} ({creditAccountCode}) / <span className="font-bold text-indigo-600">DR</span> {debitAccountName}</>
+                  }
+                </div>
+                <div><span className="font-bold text-foreground">Amount: </span>{paymentAmount ? money(paymentAmount, currency) : "—"}</div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handleProcessPayment}
+                disabled={processingPayment || !paymentAmount}
+                className={cn(
+                  "h-10 px-6 font-bold text-xs uppercase shadow-md transition",
+                  entryType === "debit"
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    : "bg-violet-600 hover:bg-violet-700 text-white"
+                )}
+              >
+                {processingPayment ? "Processing..." : `Post ${entryType === "debit" ? "Debit" : "Credit"} Payment to Ledger`}
+              </Button>
+            </div>
+
+            {/* Feedback messages */}
+            {paymentSuccess && (
+              <div className="flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/8 p-4 text-sm text-emerald-700 animate-in fade-in duration-300">
+                <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold mb-0.5">Payment Posted Successfully</div>
+                  <div className="text-xs">{paymentSuccess}</div>
+                </div>
+              </div>
+            )}
+            {paymentError && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                ❌ {paymentError}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -468,10 +760,6 @@ function Metric({ label, value, tone }: KpiCard) {
       <p className="mt-2 text-2xl font-bold">{value}</p>
     </div>
   );
-}
-
-function StatusBadge({ label }: { label: string }) {
-  return <span className={cn("inline-flex rounded-full border px-2 py-1 text-[11px] font-bold", statusClass(label))}>{label}</span>;
 }
 
 function MiniFilter({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {

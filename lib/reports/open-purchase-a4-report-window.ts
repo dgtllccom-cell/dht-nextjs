@@ -529,12 +529,14 @@ export function openPurchaseA4ReportWindow(input: {
         </div>
 
         <!-- Special Instructions Remarks -->
+        ${(b.form_data?.form?.showRemarksOnA4 !== false) ? `
         <div class="border-box">
           <div class="box-header">📝 Special Remarks & Narration Instructions</div>
           <div style="padding: 10px; font-size: 8px; line-height: 1.4; color: #334155; min-height: 60px; white-space: pre-line;">
             ${escapeHtml(form.orderReportRemarks || b.goodsDescription || "Standard purchase order report generated.")}
           </div>
         </div>
+        ` : ""}
 
         ${commonFooterHtml}
       </div>

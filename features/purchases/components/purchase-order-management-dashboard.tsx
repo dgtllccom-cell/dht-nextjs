@@ -2063,14 +2063,16 @@ export function PurchaseOrderManagementDashboard() {
                   </div>
 
                   {/* Document Remarks / Narration full-width block */}
-                  <div className="border border-slate-200 rounded overflow-hidden mt-2.5">
-                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                      <span>📝</span> Remarks / Narration
+                  {selected.form_data?.form?.showRemarksOnA4 !== false && (
+                    <div className="border border-slate-200 rounded overflow-hidden mt-2.5">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                        <span>📝</span> Remarks / Narration
+                      </div>
+                      <div className="p-2 bg-white text-[8px] font-semibold text-slate-800 italic leading-normal min-h-[30px] whitespace-pre-wrap break-words">
+                        {remarksText}
+                      </div>
                     </div>
-                    <div className="p-2 bg-white text-[8px] font-semibold text-slate-800 italic leading-normal min-h-[30px] whitespace-pre-wrap break-words">
-                      {remarksText}
-                    </div>
-                  </div>
+                  )}
 
                   {/* Stamp & Signatures */}
                   <div className="flex justify-between items-center pt-2 border-t border-slate-200 mt-auto text-[7.5px]">

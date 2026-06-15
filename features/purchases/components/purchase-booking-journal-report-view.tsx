@@ -608,6 +608,8 @@ function RowActionsMenu({
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
         <MenuAction icon={<Eye />} label="View Details" onClick={onSelect} />
+        <MenuAction icon={<FileText />} label="Open Report Preview" onClick={() => openReportWindow(report, false)} />
+        <MenuAction icon={<Printer />} label="Print / PDF" onClick={() => openReportWindow(report, true)} />
         <div className="border-t border-border my-1" />
         <MenuAction icon={<FileText />} label="Generate Purchase Contract" onClick={() => openTradeDocumentWindow("contract", report)} />
         <MenuAction icon={<ClipboardList />} label="Generate Proforma Invoice" onClick={() => openTradeDocumentWindow("proforma", report)} />
@@ -727,7 +729,15 @@ function BranchFilterRow({
   );
 }
 
-export function PurchaseBookingJournalReportView({ onNewBooking }: { onNewBooking?: () => void }) {
+export function PurchaseBookingJournalReportView({
+  onNewBooking,
+  refreshKey = 0,
+  highlightPurchaseOrderNo = ""
+}: {
+  onNewBooking?: () => void;
+  refreshKey?: number;
+  highlightPurchaseOrderNo?: string;
+}) {
   const router = useRouter();
   const [reports, setReports] = useState<PurchaseReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -746,8 +756,17 @@ export function PurchaseBookingJournalReportView({ onNewBooking }: { onNewBookin
         ...(selected.form_data || {}),
         workflow: {
           ...(selected.form_data?.workflow || {}),
+          currentStep: "Journal Entry & Payment",
+          nextStep: "Payment & Documents",
           lifecycleStatus: "Booking Confirmed",
-          paymentStatus: "Advance Paid"
+          bookingStatus: "Saved",
+          confirmationStatus: "Confirmed",
+          journalStatus: "Posted",
+          paymentStatus: "Advance Paid",
+          containerStatus: "Pending",
+          inventoryStatus: "Pending",
+          deliveryStatus: "Pending",
+          transferredAt: new Date().toISOString()
         }
       };
 
@@ -755,7 +774,13 @@ export function PurchaseBookingJournalReportView({ onNewBooking }: { onNewBookin
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          formData: updatedFormData
+          formData: updatedFormData,
+          orderTotal: selected.totalPurchaseAmount || selected.order_total || 0,
+          currencyCode: selected.currency || "USD",
+          exchangeRate: Number(selected.exchange_rate || 1),
+          purchaseContractNo: selected.purchaseContractNo || selected.purchaseBookingOrderNumber,
+          paymentStatus: "partial",
+          ledgerPostingStatus: "Posted"
         })
       });
 
@@ -765,7 +790,9 @@ export function PurchaseBookingJournalReportView({ onNewBooking }: { onNewBookin
       }
 
       setIsDrawerOpen(false);
-      router.push("/dashboard/purchase/purchase-order");
+      setMessage(`Transferred ${selected.purchaseBookingOrderNumber} to Journal / Payment and ledger posting.`);
+      // Navigate to Cash Payment page with this order pre-selected
+      router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(selected.purchaseBookingOrderNumber)}`);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error transferring booking.");
     } finally {
@@ -775,21 +802,27 @@ export function PurchaseBookingJournalReportView({ onNewBooking }: { onNewBookin
   const [searchText, setSearchText] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
-  const [filters, setFilters] = useState({
-    fromDate: "2025-01-01",
-    toDate: "2025-02-01",
-    supplier: "",
-    branch: "",
-    country: "",
-    status: "",
-    currency: "",
-    bookingNo: "",
-    containerNo: "",
-    blNo: "",
-    confirmationStatus: "",
-    financialSupplier: "",
-    financialCurrency: "",
-    draftStatus: ""
+  const [filters, setFilters] = useState(() => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const fromDate = `${currentYear}-01-01`;
+    const toDate = today.toISOString().slice(0, 10);
+    return {
+      fromDate,
+      toDate,
+      supplier: "",
+      branch: "",
+      country: "",
+      status: "",
+      currency: "",
+      bookingNo: "",
+      containerNo: "",
+      blNo: "",
+      confirmationStatus: "",
+      financialSupplier: "",
+      financialCurrency: "",
+      draftStatus: ""
+    };
   });
 
   useEffect(() => {
@@ -867,6 +900,18 @@ export function PurchaseBookingJournalReportView({ onNewBooking }: { onNewBookin
     void loadReport(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!refreshKey) return;
+    void loadReport(filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  useEffect(() => {
+    if (!highlightPurchaseOrderNo || !reports.length) return;
+    const match = reports.find((report) => report.purchaseBookingOrderNumber === highlightPurchaseOrderNo);
+    if (match) setSelectedId(match.id);
+  }, [highlightPurchaseOrderNo, reports]);
 
   const sourceReports = reports;
   const suppliers = useMemo(() => Array.from(new Set(sourceReports.map((report) => report.supplierName))).filter(Boolean), [sourceReports]);
@@ -1239,7 +1284,15 @@ export function PurchaseBookingJournalReportView({ onNewBooking }: { onNewBookin
               );
 
               return (
-                <tr key={report.id} onClick={() => { setSelectedId(report.id); setIsDrawerOpen(true); }} className="cursor-pointer border-b border-slate-200 hover:bg-slate-50/80 transition">
+                <tr
+                  key={report.id}
+                  onClick={() => { setSelectedId(report.id); setIsDrawerOpen(true); }}
+                  className={`cursor-pointer border-b border-slate-200 hover:bg-slate-50/80 transition ${
+                    highlightPurchaseOrderNo && report.purchaseBookingOrderNumber === highlightPurchaseOrderNo
+                      ? "bg-emerald-50 ring-1 ring-inset ring-emerald-300"
+                      : ""
+                  }`}
+                >
                   <Td center className="font-bold text-slate-400">{pNum}</Td>
                   <Td center>{typeIcon}</Td>
                   <Td className="font-semibold text-slate-800">{dateStr}</Td>
@@ -1721,14 +1774,16 @@ export function PurchaseBookingJournalReportView({ onNewBooking }: { onNewBookin
                   </div>
 
                   {/* Document Remarks / Narration full-width block */}
-                  <div className="border border-slate-200 rounded overflow-hidden mt-2.5">
-                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
-                      <span>📝</span> Remarks / Narration
+                  {selected.form_data?.form?.showRemarksOnA4 !== false && (
+                    <div className="border border-slate-200 rounded overflow-hidden mt-2.5">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                        <span>📝</span> Remarks / Narration
+                      </div>
+                      <div className="p-2 bg-white text-[8px] font-semibold text-slate-800 italic leading-normal min-h-[30px] whitespace-pre-wrap break-words">
+                        {remarksText}
+                      </div>
                     </div>
-                    <div className="p-2 bg-white text-[8px] font-semibold text-slate-800 italic leading-normal min-h-[30px] whitespace-pre-wrap break-words">
-                      {remarksText}
-                    </div>
-                  </div>
+                  )}
 
                   {/* Stamp & Signatures */}
                   <div className="flex justify-between items-center pt-2 border-t border-slate-200 mt-auto text-[7.5px]">
