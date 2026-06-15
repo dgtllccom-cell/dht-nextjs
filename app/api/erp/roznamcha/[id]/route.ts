@@ -151,8 +151,22 @@ export async function DELETE(
       cityBranchId: (header.city_branch_id as string | null) ?? null
     });
 
-    const userSupabase = await createApiSupabaseClient();
-    const { data, error } = await userSupabase.rpc("reverse_roznamcha_entry", {
+    // Inject the authenticated user's UUID into the Postgres session so that
+    // auth.uid() returns a valid value inside the security-definer RPC.
+    // The service-role admin client does not carry a Supabase Auth JWT, so
+    // auth.uid() would otherwise be null, causing assert_enterprise_scope_access
+    // to throw "Authentication is required".
+    const actorId = session.userId ?? session.user?.id ?? null;
+    if (actorId) {
+      const claimsJson = JSON.stringify({ sub: actorId, role: "authenticated" });
+      await adminSupabase.rpc("set_config", {
+        setting: "request.jwt.claims",
+        value: claimsJson,
+        is_local: true
+      }).catch(() => null); // best-effort – fallback if set_config not exposed
+    }
+
+    const { data, error } = await adminSupabase.rpc("reverse_roznamcha_entry", {
       p_original_entry_id: id,
       p_reason: "Deleted or edited from cash entry page",
       p_approval_request_id: null

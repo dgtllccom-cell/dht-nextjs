@@ -812,6 +812,15 @@ export function PurchaseOrderWizard() {
             purchaseContractNo: poData.purchaseContractNo || loadedForm.purchaseContractNo || "",
           }));
 
+          // Sync search display labels from the loaded account names
+          // so the account inputs are pre-populated in the booking tab.
+          if (loadedForm.purchaseAccountName || loadedForm.purchaseAccountNo) {
+            setPurchaseSearch(loadedForm.purchaseAccountName || loadedForm.purchaseAccountNo || "");
+          }
+          if (loadedForm.salesAccountName || loadedForm.salesAccountNo) {
+            setSalesSearch(loadedForm.salesAccountName || loadedForm.salesAccountNo || "");
+          }
+
           if (Array.isArray(loadedGoods) && loadedGoods.length) {
             setGoodsEntries(loadedGoods);
           }
@@ -1035,6 +1044,14 @@ export function PurchaseOrderWizard() {
           }),
       currencyType: currency || prev.currencyType,
     }));
+
+    // Sync search display text to the confirmed account name (not the raw code)
+    // so the input always shows a readable label after selection.
+    if (type === "purchase") {
+      setPurchaseSearch(accountName || accountNo);
+    } else {
+      setSalesSearch(accountName || accountNo);
+    }
   };
 
   const lookupTimers = React.useRef({ purchase: null, sales: null });
@@ -1051,19 +1068,33 @@ export function PurchaseOrderWizard() {
     }
   };
 
-  const handleTextChange = (type, val) => {
-    setValue(type === "purchase" ? "purchaseAccountNo" : "salesAccountNo", val);
-    
-    // Set search filter
+  const handleTextChange = (type: string, val: string) => {
+    // Update only the local search display state — do NOT overwrite the
+    // form account code field with raw text. The account code will only be
+    // set once a valid account is confirmed via selection or background lookup.
     if (type === "purchase") {
       setPurchaseSearch(val);
       setPurchaseDropdownOpen(true);
+      // Clear the stored account if text is cleared
+      if (!val.trim()) {
+        setValue("purchaseAccountNo", "");
+        setValue("purchaseAccountName", "");
+        setValue("purchaseAccountBranch", "");
+        setValue("purchaseAccountCurrency", "");
+      }
     } else {
       setSalesSearch(val);
       setSalesDropdownOpen(true);
+      // Clear the stored account if text is cleared
+      if (!val.trim()) {
+        setValue("salesAccountNo", "");
+        setValue("salesAccountName", "");
+        setValue("salesAccountBranch", "");
+        setValue("salesAccountCurrency", "");
+      }
     }
 
-    const matched = dbAccounts.find(acc => 
+    const matched = dbAccounts.find(acc =>
       (acc.accountCode || "").trim().toLowerCase() === val.trim().toLowerCase() ||
       (acc.accountName || "").trim().toLowerCase() === val.trim().toLowerCase()
     );
@@ -1359,8 +1390,11 @@ export function PurchaseOrderWizard() {
     setReportSaved(false);
     setIsTransferred(false);
     setTransferredData(null);
+    setPurchaseSearch("");
+    setSalesSearch("");
     setSaveMessage("All inputs and goods listings cleared.");
   };
+
 
   // ── Inline Master Creation Handlers ─────────────────────────────────────────
   const handleAddNewCountry = async () => {
@@ -3237,12 +3271,14 @@ export function PurchaseOrderWizard() {
                       <div className="relative flex items-center">
                         <input
                           type="text"
-                          value={form.purchaseAccountNo || ""}
+                          value={purchaseSearch}
                           onChange={(e) => handleTextChange("purchase", e.target.value)}
                           onFocus={() => {
                             setPurchaseDropdownOpen(true);
                             setPurchasePinDropdownOpen(false);
-                            setPurchaseSearch(form.purchaseAccountNo || "");
+                            // Prime the search text from the current account name so the
+                            // dropdown filters to relevant accounts on re-focus.
+                            setPurchaseSearch(form.purchaseAccountName || form.purchaseAccountNo || "");
                           }}
                           placeholder="Type account name or code..."
                           className="w-full bg-background border border-input rounded pl-2.5 pr-8 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 font-mono"
@@ -3477,16 +3513,19 @@ export function PurchaseOrderWizard() {
                       <div className="relative flex items-center">
                         <input
                           type="text"
-                          value={form.salesAccountNo || ""}
+                          value={salesSearch}
                           onChange={(e) => handleTextChange("sales", e.target.value)}
                           onFocus={() => {
                             setSalesDropdownOpen(true);
                             setSalesPinDropdownOpen(false);
-                            setSalesSearch(form.salesAccountNo || "");
+                            // Prime the search text from the current account name so the
+                            // dropdown filters to relevant accounts on re-focus.
+                            setSalesSearch(form.salesAccountName || form.salesAccountNo || "");
                           }}
                           placeholder="Type account name or code..."
                           className="w-full bg-background border border-input rounded pl-2.5 pr-8 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 font-mono"
                         />
+
                         <button
                           type="button"
                           disabled={!form.customerId}
