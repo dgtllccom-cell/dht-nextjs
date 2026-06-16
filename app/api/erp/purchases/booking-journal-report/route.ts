@@ -72,7 +72,7 @@ function normalizeOrder(row: any) {
   const totalWeight = goods.reduce((sum: number, item: any) => sum + Number(item.netWeight ?? item.grossWeight ?? 0), 0);
   const totalAmount = goods.reduce((sum: number, item: any) => sum + Number(item.finalAmount ?? item.totalAmount ?? 0), 0) || Number(row.order_total ?? totals.finalAmount ?? 0);
   
-  const totalGrossWeight = goods.reduce((sum: number, item: any) => sum + Number(item.grossWeight ?? (Number(item.qtyNo || 0) * Number(item.qtyKgs || 0)) ?? 0), 0) || Number(totals.totalGross ?? 0);
+  const totalGrossWeight = goods.reduce((sum: number, item: any) => sum + (Number(item.grossWeight) || (Number(item.qtyNo || 0) * Number(item.qtyKgs || 0))), 0) || Number(totals.totalGross ?? 0);
   const totalNetWeight = goods.reduce((sum: number, item: any) => sum + Number(item.netWeight ?? 0), 0) || Number(totals.totalNet ?? 0);
   const purchaseAmount = goods.reduce((sum: number, item: any) => sum + Number(item.totalAmount ?? 0), 0) || Number(totals.grandPrimaryFinal ?? row.order_total ?? 0);
   const finalAmount = goods.reduce((sum: number, item: any) => sum + Number(item.finalAmount ?? 0), 0) || Number(totals.grandFinal ?? row.order_total ?? 0);

@@ -561,7 +561,6 @@ export function UserJournalReport() {
             summary={summary}
             status={status}
             setStatus={setStatus}
-            setDraftStatus={setDraftStatus}
             shareBy={shareBy}
             setShareBy={setShareBy}
             setDraftShareBy={setDraftShareBy}
@@ -829,7 +828,7 @@ export function UserJournalReport() {
           <div className="max-w-6xl mx-auto">
             <UserLiveReportPanel
               fullName={viewUser.fullName}
-              gender={viewUser.gender || "Male"}
+              gender="Male"
               accountRegNo={viewUser.userId}
               role={viewUser.role}
               userCode={viewUser.userCode}

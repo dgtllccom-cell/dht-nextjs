@@ -515,7 +515,7 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
         });
         const json = await fetchRes.json();
         if (!fetchRes.ok) throw new Error(json?.error?.message || json?.error || "Failed to update user.");
-        res = { userId: editUserId, userCode: issuedCode };
+        res = { userId: editUserId!, userCode: issuedCode };
       } else {
         payload.email = email;
         payload.password = password;
@@ -938,7 +938,7 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
             rawPassword={password || "admin123"}
             status={editUserId ? "Active" : "Draft"}
             selectedCountryName={selectedCountry?.name}
-            selectedCountryCode={selectedCountry?.iso2 || selectedCountry?.iso3}
+            selectedCountryCode={selectedCountry?.iso2 ?? selectedCountry?.iso3 ?? undefined}
             selectedBranchName={branchType === "main" ? selectedMainBranch?.name : branchType === "city" ? `${selectedCityBranch?.city_name} - ${selectedCityBranch?.name}` : "Global"}
             selectedBranchCode={branchCode}
             selectedBranchType={branchType === "main" ? "Main Branch" : branchType === "city" ? "City Branch" : "Global"}

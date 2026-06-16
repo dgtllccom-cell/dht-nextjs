@@ -2342,10 +2342,10 @@ export function PurchaseOrderWizard() {
 
             <div className="text-center">
               <h1 className="text-sm sm:text-base font-black uppercase tracking-wider text-foreground">
-                Purchase Booking A4 Report Preview
+                Purchase Booking ERP Report Preview
               </h1>
               <p className="text-[10px] text-muted-foreground">
-                A4 layout mockup sheet of the verification document
+                Compact on-screen verification report
               </p>
             </div>
 
@@ -2359,27 +2359,26 @@ export function PurchaseOrderWizard() {
             </Button>
           </div>
 
-          {/* Outer scrollable page container simulating A4 layout */}
-          <div className="flex-1 overflow-y-auto bg-slate-100 dark:bg-slate-900/60 p-8 flex justify-center scrollbar-thin rounded-xl border border-border">
-            {/* Simulated A4 Page */}
-            <div className="bg-white text-slate-800 border border-slate-300 w-[210mm] min-h-[297mm] p-[10mm] shadow-2xl text-[9px] font-sans flex flex-col gap-3 relative rounded-sm text-left leading-relaxed">
+          {/* Compact ERP report panel for on-screen review */}
+          <div className="flex-1 overflow-y-auto bg-muted/40 p-3 sm:p-4 flex justify-center scrollbar-thin rounded-xl border border-border">
+            <div className="bg-card text-foreground border border-border w-full max-w-5xl min-h-0 p-4 shadow-xl text-[10px] font-sans flex flex-col gap-3 relative rounded-xl text-left leading-relaxed">
               {/* Branding Header Table */}
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <div className="flex flex-col gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 bg-blue-900 rounded-lg flex items-center justify-center text-white text-base font-extrabold shadow-sm">
+                  <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center text-primary-foreground text-base font-extrabold shadow-sm">
                     DGT
                   </div>
                   <div>
-                    <div className="text-xs font-black tracking-tight text-blue-900">ACCOUNTS.DGT.LLC</div>
-                    <div className="text-[7px] text-slate-500 font-medium">Head Office Trading Hub</div>
+                    <div className="text-xs font-black tracking-tight text-foreground">ACCOUNTS.DGT.LLC</div>
+                    <div className="text-[8px] text-muted-foreground font-medium">Head Office Trading Hub</div>
                   </div>
                 </div>
                 <div className="text-center">
-                  <h2 className="text-sm font-black text-blue-900 tracking-wider uppercase">
+                  <h2 className="text-sm font-black text-primary tracking-wider uppercase">
                     PURCHASE TRANSFER VERIFICATION REPORT
                   </h2>
                 </div>
-                <div className="text-right text-[7.5px] text-slate-655 leading-relaxed font-medium">
+                <div className="text-left sm:text-right text-[8px] text-muted-foreground leading-relaxed font-medium">
                   <div><strong>BRANCH:</strong> {form.branchName || "Main Branch"}</div>
                   <div><strong>COUNTRY:</strong> {form.branchCountry || "Pakistan"}</div>
                   <div><strong>ADDRESS:</strong> Suite Office, Kabul, AFG</div>
@@ -2387,30 +2386,80 @@ export function PurchaseOrderWizard() {
               </div>
 
               {/* Blue Report Meta Bar */}
-              <div className="bg-blue-900 text-white rounded px-3 py-1.5 flex justify-between font-bold text-[7.5px] uppercase tracking-wider">
+              <div className="bg-primary text-primary-foreground rounded-lg px-3 py-2 grid gap-1 sm:grid-cols-3 font-bold text-[8px] uppercase tracking-wider">
                 <div>Report No: PO-{form.purchaseOrderNo}</div>
                 <div>Report Date: {form.purchaseDate}</div>
                 <div>Generated Time: {new Date().toLocaleTimeString()}</div>
               </div>
 
+              <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+                <div className="border border-border rounded-lg overflow-hidden bg-background">
+                  <div className="bg-muted/60 border-b border-border px-2 py-1 text-[8px] font-black uppercase text-primary">Branch Detail</div>
+                  <table className="w-full text-[8px]">
+                    <tbody>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Branch</td><td className="px-2 py-1 font-bold text-foreground">{form.branchName || "Main Branch"}</td></tr>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Code</td><td className="px-2 py-1 font-semibold text-foreground">{form.branchCode || "N/A"}</td></tr>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Country</td><td className="px-2 py-1 font-semibold text-foreground">{form.branchCountry || "Pakistan"}</td></tr>
+                      <tr><td className="px-2 py-1 text-muted-foreground font-medium">User</td><td className="px-2 py-1 font-semibold text-foreground">{form.userName || "Admin"}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="border border-border rounded-lg overflow-hidden bg-background">
+                  <div className="bg-muted/60 border-b border-border px-2 py-1 text-[8px] font-black uppercase text-primary">Bill Detail</div>
+                  <table className="w-full text-[8px]">
+                    <tbody>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">PO No</td><td className="px-2 py-1 font-bold text-foreground">{form.purchaseOrderNo}</td></tr>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">PO Date</td><td className="px-2 py-1 font-semibold text-foreground">{form.purchaseDate}</td></tr>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Payment</td><td className="px-2 py-1 font-semibold text-foreground">{form.paymentType || "N/A"}</td></tr>
+                      <tr><td className="px-2 py-1 text-muted-foreground font-medium">Status</td><td className="px-2 py-1 font-bold text-emerald-600 dark:text-emerald-400">Ready</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="border border-border rounded-lg overflow-hidden bg-background">
+                  <div className="bg-muted/60 border-b border-border px-2 py-1 text-[8px] font-black uppercase text-primary">Purchase Detail</div>
+                  <table className="w-full text-[8px]">
+                    <tbody>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Account</td><td className="px-2 py-1 font-bold text-foreground">{form.purchaseAccountNo || "N/A"}</td></tr>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Name</td><td className="px-2 py-1 font-semibold text-foreground truncate">{form.purchaseAccountName || form.supplierName || "N/A"}</td></tr>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Branch</td><td className="px-2 py-1 font-semibold text-foreground truncate">{form.purchaseAccountBranch || "N/A"}</td></tr>
+                      <tr><td className="px-2 py-1 text-muted-foreground font-medium">Currency</td><td className="px-2 py-1 font-semibold text-foreground">{form.purchaseAccountCurrency || form.primaryCurrency || "USD"}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="border border-border rounded-lg overflow-hidden bg-background">
+                  <div className="bg-muted/60 border-b border-border px-2 py-1 text-[8px] font-black uppercase text-primary">Sales Detail</div>
+                  <table className="w-full text-[8px]">
+                    <tbody>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Account</td><td className="px-2 py-1 font-bold text-foreground">{form.salesAccountNo || "N/A"}</td></tr>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Name</td><td className="px-2 py-1 font-semibold text-foreground truncate">{form.salesAccountName || form.customerName || "N/A"}</td></tr>
+                      <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Branch</td><td className="px-2 py-1 font-semibold text-foreground truncate">{form.salesAccountBranch || "N/A"}</td></tr>
+                      <tr><td className="px-2 py-1 text-muted-foreground font-medium">Currency</td><td className="px-2 py-1 font-semibold text-foreground">{form.salesAccountCurrency || form.secondaryCurrency || "PKR"}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {/* Transfer Status & Destination Accounts */}
-              <div className="bg-slate-50 border border-slate-200 rounded p-2.5 grid grid-cols-3 gap-4">
-                <div className="col-span-1">
-                  <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider block">Transfer Status</span>
+              <div className="hidden">
+                <div>
+                  <span className="text-[8px] text-muted-foreground uppercase font-black tracking-wider block">Transfer Status</span>
                   <span className="text-[10px] font-extrabold text-emerald-600 block mt-0.5">✓ Ready for Transfer</span>
                 </div>
-                <div className="col-span-2 border-l border-slate-200 pl-4">
-                  <span className="text-[7px] text-slate-450 uppercase font-black tracking-wider block">Target Destination Ledger accounts</span>
-                  <ul className="list-disc pl-3 text-slate-650 mt-1 text-[8px] space-y-0.5 font-medium">
-                    <li>General Ledger: Debit Account <strong className="text-slate-800">{form.purchaseAccountNo || "AE-AC-0001"}</strong> & Credit Account <strong className="text-slate-800">{form.salesAccountNo || "16-2001"}</strong></li>
-                    <li>Journal Entry No: <strong className="text-slate-800">JV-{form.purchaseOrderNo.slice(-6)}</strong></li>
-                    <li>Logistics: <strong className="text-slate-800">{form.containerCount || 1} Containers ({form.containerSize})</strong></li>
+                <div className="lg:col-span-2 lg:border-l lg:border-border lg:pl-4">
+                  <span className="text-[8px] text-muted-foreground uppercase font-black tracking-wider block">Target Destination Ledger accounts</span>
+                  <ul className="list-disc pl-3 text-muted-foreground mt-1 text-[9px] space-y-0.5 font-medium">
+                    <li>General Ledger: Debit Account <strong className="text-foreground">{form.purchaseAccountNo || "AE-AC-0001"}</strong> & Credit Account <strong className="text-foreground">{form.salesAccountNo || "16-2001"}</strong></li>
+                    <li>Journal Entry No: <strong className="text-foreground">JV-{form.purchaseOrderNo.slice(-6)}</strong></li>
+                    <li>Logistics: <strong className="text-foreground">{form.containerCount || 1} Containers ({form.containerSize})</strong></li>
                   </ul>
                 </div>
               </div>
 
               {/* Booking, Supplier & Buyer Info */}
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="hidden">
                 {/* Card 1: BOOKING INFORMATION */}
                 <div className="border border-slate-200 rounded overflow-hidden">
                   <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[7.5px] font-black uppercase text-blue-900">
@@ -2510,6 +2559,21 @@ export function PurchaseOrderWizard() {
                   </table>
                 </div>
 
+              {/* Payment Detail */}
+              <div className="border border-border rounded-lg overflow-hidden mt-1 bg-background">
+                <div className="bg-muted/60 border-b border-border px-2 py-1 text-[8px] font-black uppercase text-primary">
+                  Payment Detail
+                </div>
+                <table className="w-full text-[8px]">
+                  <tbody>
+                    <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Payment Type</td><td className="px-2 py-1 font-bold text-foreground">{form.paymentType || "N/A"}</td></tr>
+                    <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Advance</td><td className="px-2 py-1 font-semibold text-foreground">{form.advancePercent || 0}% / {form.advancePaymentDate || "N/A"}</td></tr>
+                    <tr className="border-b border-border/60"><td className="px-2 py-1 text-muted-foreground font-medium">Advance Amount</td><td className="px-2 py-1 font-bold text-emerald-600 dark:text-emerald-400">${((reportTotals.grandPrimaryFinal * (form.advancePercent || 10)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                    <tr><td className="px-2 py-1 text-muted-foreground font-medium">Balance / Due Date</td><td className="px-2 py-1 font-bold text-foreground">${(reportTotals.grandPrimaryFinal - (reportTotals.grandPrimaryFinal * (form.advancePercent || 10)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })} / {form.paymentDate || "N/A"}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
               {/* Shipment & Scheduling Info */}
               <div className="grid grid-cols-2 gap-2.5 mt-1">
                 <div className="border border-slate-200 rounded overflow-hidden">
@@ -2541,7 +2605,7 @@ export function PurchaseOrderWizard() {
                 </div>
               </div>
 
-              {/* Financial & Accounting Info */}
+              {/* Transfer & Accounting Info */}
               <div className="grid grid-cols-2 gap-2.5 mt-1">
                 <div className="border border-slate-200 rounded overflow-hidden">
                   <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[7.5px] font-black uppercase text-blue-900">
@@ -2549,10 +2613,10 @@ export function PurchaseOrderWizard() {
                   </div>
                   <table className="w-full text-[7.5px]">
                     <tbody>
-                      <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-500 font-medium">Payment Condition:</td><td className="px-2 py-1 font-bold text-slate-800">{form.paymentType}</td></tr>
-                      <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-500 font-medium">Advance Pct / Date:</td><td className="px-2 py-1 font-semibold text-slate-800">{form.advancePercent}% / {form.advancePaymentDate}</td></tr>
-                      <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-500 font-medium">Advance Amount:</td><td className="px-2 py-1 font-bold text-emerald-600">${((reportTotals.grandPrimaryFinal * (form.advancePercent || 10)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
-                      <tr><td className="px-2 py-1 text-slate-500 font-medium">Balance Amount / Date:</td><td className="px-2 py-1 font-bold text-slate-850">${(reportTotals.grandPrimaryFinal - (reportTotals.grandPrimaryFinal * (form.advancePercent || 10)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })} / {form.paymentDate}</td></tr>
+                      <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-500 font-medium">Transfer Status:</td><td className="px-2 py-1 font-bold text-emerald-600">Ready for Transfer</td></tr>
+                      <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-500 font-medium">Voucher:</td><td className="px-2 py-1 font-semibold text-slate-800">JV-{form.purchaseOrderNo.slice(-6)}</td></tr>
+                      <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-500 font-medium">Debit / Credit:</td><td className="px-2 py-1 font-bold text-slate-800">Purchase Debit / Sales Credit</td></tr>
+                      <tr><td className="px-2 py-1 text-slate-500 font-medium">Destination:</td><td className="px-2 py-1 font-bold text-slate-850">Roznamcha, Ledger, Payment</td></tr>
                     </tbody>
                   </table>
                 </div>
@@ -3034,14 +3098,14 @@ export function PurchaseOrderWizard() {
                     onClick={() => handleOpenA4Report(false)}
                     className="flex items-center gap-1.5 h-9 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
                   >
-                    <Eye className="h-4 w-4" /> Preview A4 Report
+                    <Eye className="h-4 w-4" /> Preview Report
                   </Button>
                   <Button
                     type="button"
                     onClick={() => handleOpenA4Report(true)}
                     className="flex items-center gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
                   >
-                    <Printer className="h-4 w-4" /> Print A4 Report
+                    <Printer className="h-4 w-4" /> Print Report
                   </Button>
                   <Button
                     type="button"
@@ -3217,7 +3281,7 @@ export function PurchaseOrderWizard() {
                     onClick={() => handleOpenA4Report(false)}
                     className="flex items-center gap-1.5 h-10 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
                   >
-                    <Eye className="h-4 w-4" /> Preview A4 Report
+                    <Eye className="h-4 w-4" /> Preview Report
                   </Button>
                   <Button
                     type="button"

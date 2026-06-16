@@ -520,6 +520,13 @@ export async function POST(request: NextRequest) {
     const session = await requireErpSession();
     const body = roznamchaPostingSchema.parse(await request.json());
 
+    // Validate that there are no duplicate ledger IDs across the posting lines
+    const ledgerIds = body.lines.map(line => line.ledgerId).filter(Boolean);
+    const uniqueLedgerIds = new Set(ledgerIds);
+    if (ledgerIds.length !== uniqueLedgerIds.size) {
+      throw new Error("Duplicate ledger selection is not allowed. Each transaction line must post to a different ledger.");
+    }
+
     authorizeApiScope(session, {
       resource: "roznamcha",
       action: body.mode === "post" ? "post" : "create",

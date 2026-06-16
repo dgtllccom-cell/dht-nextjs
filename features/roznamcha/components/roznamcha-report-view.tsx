@@ -231,12 +231,30 @@ export function RoznamchaReportView({
 
   const summary = useMemo(() => {
     const countries = new Set(filteredEntries.map((row) => row.country_id ?? entryCountryName(row)));
+    
+    let totalDebit = 0;
+    let totalCredit = 0;
+    
+    for (const row of filteredEntries) {
+      const firstLine = row.roznamcha_lines?.[0];
+      if (firstLine) {
+        const amt = Number(firstLine.debit || firstLine.credit || 0);
+        const type = firstLine.payment_entry_type || "";
+        const isDebit = ["cash_receipt", "bank_deposit", "debit"].includes(type);
+        if (isDebit) {
+          totalDebit += amt;
+        } else {
+          totalCredit += amt;
+        }
+      }
+    }
+
     return {
       countries: countries.size,
       entries: filteredEntries.length,
-      debit: filteredEntries.reduce((sum, row) => sum + Number((row as any).debit ?? 0), 0),
-      credit: filteredEntries.reduce((sum, row) => sum + Number((row as any).credit ?? 0), 0),
-      balance: filteredEntries.reduce((sum, row) => sum + Number((row as any).debit ?? 0) - Number((row as any).credit ?? 0), 0)
+      debit: totalDebit,
+      credit: totalCredit,
+      balance: totalDebit - totalCredit
     };
   }, [filteredEntries]);
 

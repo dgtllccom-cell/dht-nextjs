@@ -136,7 +136,7 @@ export const roznamchaPostingSchema = scopeSchema
     paymentMethodId: optionalUuidSchema,
     referenceNo: z.string().max(120).optional(),
     narration: z.string().max(1000).optional(),
-    lines: z.array(roznamchaLineSchema).min(2),
+    lines: z.array(roznamchaLineSchema).min(1),
     paymentDetails: z.record(z.string(), z.unknown()).optional().nullable()
   })
   .superRefine((input, context) => {

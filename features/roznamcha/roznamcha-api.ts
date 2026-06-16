@@ -30,6 +30,7 @@ export type RoznamchaEntryRow = {
   branch_transaction_serial_number?: string | null;
   created_at: string;
   updated_at: string;
+  roznamcha_lines?: RoznamchaLineRow[] | null;
 };
 
 export type RoznamchaLineRow = {

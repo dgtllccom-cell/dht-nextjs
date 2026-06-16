@@ -489,6 +489,7 @@ export class LedgerReportService {
         .eq("ledger_id", input.ledgerId)
         .gte("roznamcha_entries.entry_date", input.fromDate)
         .lte("roznamcha_entries.entry_date", input.toDate)
+        .is("roznamcha_entries.deleted_at", null)
         .order("entry_date", { ascending: true, foreignTable: "roznamcha_entries" })
         .order("created_at", { ascending: true, foreignTable: "roznamcha_entries" })
         .order("id", { ascending: true })

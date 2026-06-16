@@ -24,7 +24,8 @@
     "db:check-locations": "node check-locations.js",
     "db:migrate-ports": "node scripts/db-apply-ports-migration.mjs",
     "db:inspect-vouchers": "node .tmp/inspect-entries.mjs",
-    "db:list-users": "node C:\\Users\\dgtll\\.gemini\\antigravity-ide\\brain\\c9e44d00-ce6b-4f96-9db4-9800e3765d28\\scratch\\list-users.js"
+    "db:list-users": "node C:\\Users\\dgtll\\.gemini\\antigravity-ide\\brain\\c9e44d00-ce6b-4f96-9db4-9800e3765d28\\scratch\\list-users.js",
+    "db:clean-cash": "node inspect-db-scratch.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

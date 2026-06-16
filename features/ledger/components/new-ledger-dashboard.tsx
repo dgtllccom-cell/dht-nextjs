@@ -283,7 +283,7 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
       setError("Please select an Account.");
       return;
     }
-    const option = ledgerOptions.find((o) => o.keywords.toLowerCase().includes(q.toLowerCase()) || o.value === q);
+    const option = ledgerOptions.find((o) => (o.keywords ?? "").toLowerCase().includes(q.toLowerCase()) || o.value === q);
     if (option) {
       void loadAccountById(option.value);
     } else {

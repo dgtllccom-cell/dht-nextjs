@@ -23,7 +23,8 @@ import {
   Eye,
   Send,
   CheckCircle,
-  Share2
+  Share2,
+  Plus
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -210,6 +211,7 @@ export function CashEntryForm({
   // When we auto-derive scope from the selected account/ledger, avoid wiping selections
   // in the "country changed" reset effect.
   const suppressScopeResetRef = useRef(false);
+  const savingRef = useRef(false);
 
   const [loadingScope, setLoadingScope] = useState(true);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
@@ -302,6 +304,7 @@ export function CashEntryForm({
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [activeRowMenuId, setActiveRowMenuId] = useState<string | null>(null);
+  const [ledgerRefreshCount, setLedgerRefreshCount] = useState(0);
 
   useEffect(() => {
     if (!countryId) {
@@ -369,16 +372,22 @@ export function CashEntryForm({
 
   const selectedCashLedger = useMemo(
     () => {
-      const match = ledgerRowsWithAccount.find((row) => row.ledgerId === cashLedgerId);
+      // Exclude the selected counterparty ledger from cash/bank selection to prevent duplicate ledger posting
+      const validRows = ledgerRowsWithAccount.filter((row) => row.ledgerId !== counterLedgerId);
+
+      const match = validRows.find((row) => row.ledgerId === cashLedgerId);
       if (match) return match;
-      // Fallback: pick the first "cash" or "bank" ledger from ledgerRowsWithAccount if possible
-      const cashFallback = ledgerRowsWithAccount.find((r) => {
+
+      // Fallback: pick the first "cash" or "bank" ledger
+      const cashFallback = validRows.find((r) => {
         const txt = [r.ledgerName, r.accountName].filter(Boolean).join(" ").toLowerCase();
         return txt.includes("cash") || txt.includes("bank");
       });
-      return cashFallback ?? ledgerRowsWithAccount[0] ?? null;
+      if (cashFallback) return cashFallback;
+
+      return null;
     },
-    [ledgerRowsWithAccount, cashLedgerId]
+    [ledgerRowsWithAccount, cashLedgerId, counterLedgerId]
   );
 
   const selectedCounterLedger = useMemo(
@@ -415,6 +424,18 @@ export function CashEntryForm({
     selectedMainBranch?.local_currency ||
     selectedCountry?.currency_code ||
     "USD";
+
+  const cashBalanceText = useMemo(() => {
+    if (!selectedCashLedger) return "—";
+    const bal = selectedCashLedger.currentBalance ?? 0;
+    const isCreditNormal = selectedCashLedger.normalBalance === "credit";
+    let isDebit = bal >= 0;
+    if (isCreditNormal) {
+      isDebit = bal < 0;
+    }
+    const label = isDebit ? "Dr (Banam)" : "Cr (Jama)";
+    return `${fmtAmount(Math.abs(bal))} ${selectedCashLedger.ledgerCurrency || branchCurrency} ${label}`;
+  }, [selectedCashLedger, branchCurrency]);
 
   const targetAccountCurrency =
     selectedCounterLedger?.ledgerCurrency ||
@@ -671,7 +692,7 @@ export function CashEntryForm({
   ], [entryDate, selectedCounterLedger, lastEntryId, narration, paymentMode, amount, computedDetails, remarks]);
 
   const computed = useMemo(() => {
-    if (!selectedCashLedger || !selectedCounterLedger) return null;
+    if (!selectedCounterLedger) return null;
     if (!amount || !(amount > 0)) return null;
     if (!paymentMode) return null;
 
@@ -695,19 +716,11 @@ export function CashEntryForm({
       credit: paymentMode === "CREDIT" ? amount : 0
     };
 
-    const cash = {
-      ledgerId: selectedCashLedger.ledgerId,
-      enterpriseAccountId: selectedCashLedger.accountId!,
-      debit: paymentMode === "CREDIT" ? amount : 0,
-      credit: paymentMode === "DEBIT" ? amount : 0
-    };
-
-    return { entryType, counter, cash };
+    return { entryType, counter };
   }, [
     amount,
     paymentMode,
     paymentType,
-    selectedCashLedger,
     selectedCounterLedger
   ]);
 
@@ -945,7 +958,7 @@ export function CashEntryForm({
     return () => {
       cancelled = true;
     };
-  }, [cityBranchId, countryId, countryBranchId]);
+  }, [cityBranchId, countryId, countryBranchId, ledgerRefreshCount]);
 
   // Keep currency aligned with ledger currency when a ledger is selected.
   useEffect(() => {
@@ -956,13 +969,36 @@ export function CashEntryForm({
   const canSave =
     Boolean(countryId && countryBranchId) &&
     Boolean(selectedCounterLedger?.ledgerId) &&
-    Boolean(selectedCashLedger?.ledgerId) &&
     Boolean(paymentMode) &&
     Boolean(paymentType) &&
     Boolean(amount && amount > 0) &&
     currency.trim().length === 3 &&
     Number(exchangeRate) > 0 &&
     !saving;
+
+  useEffect(() => {
+    console.log("canSave check details:", {
+      countryBranch: Boolean(countryId && countryBranchId),
+      selectedCounter: Boolean(selectedCounterLedger?.ledgerId),
+      paymentMode: Boolean(paymentMode),
+      paymentType: Boolean(paymentType),
+      amountVal: Boolean(amount && amount > 0),
+      currencyLen: (currency || "").trim().length === 3,
+      exchangeRateVal: Number(exchangeRate) > 0,
+      saving: !saving,
+      amount,
+      currency,
+      exchangeRate,
+      selectedCounterLedger
+    });
+  }, [countryId, countryBranchId, selectedCounterLedger, paymentMode, paymentType, amount, currency, exchangeRate, saving]);
+
+  const canEditOrDelete = useMemo(() => {
+    if (!session) return false;
+    if (session.scopes?.isSuperAdmin) return true;
+    const allowedRoles = ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "branch_admin", "admin"];
+    return session.roles?.some((role) => allowedRoles.includes(role)) ?? false;
+  }, [session]);
 
   function applyScopeFromLedger(row: LedgerLookupRow) {
     if (!row.countryId || !row.countryBranchId) return;
@@ -1006,7 +1042,6 @@ export function CashEntryForm({
 
   function clearSelectedAccount() {
     setCounterLedgerId("");
-    setCashLedgerId("");
     setSelectedLookupLedger(null);
     setAccountNoInput("");
     setAccountLookupError(null);
@@ -1037,6 +1072,7 @@ export function CashEntryForm({
     setAttachmentFile(null);
     setMessage(null);
     setActionMenuOpen(false);
+    setLedgerRefreshCount((c) => c + 1);
   }
 
   async function lookupAccountNo() {
@@ -1394,16 +1430,20 @@ export function CashEntryForm({
   };
 
   async function save() {
+    if (savingRef.current) return null;
+    savingRef.current = true;
     setMessage(null);
     setLastEntryId(null);
 
     if (!canSave) {
       setMessage("Please select account, Debit/Credit transaction type, currency, and amount.");
+      savingRef.current = false;
       return null;
     }
 
     if (!computed) {
       setMessage("Select account, Debit/Credit transaction type, and enter a valid amount.");
+      savingRef.current = false;
       return null;
     }
 
@@ -1500,21 +1540,6 @@ export function CashEntryForm({
             customerNumber: selectedCounterLedger?.customerNumber || null,
             countrySerialNumber: selectedCounterLedger?.countrySerialNumber || null,
             branchSerialNumber: selectedCounterLedger?.branchSerialNumber || null
-          },
-          {
-            paymentEntryType: computed.entryType,
-            enterpriseAccountId: selectedCashLedger?.accountId || null,
-            ledgerId: selectedCashLedger?.ledgerId || null,
-            description: finalNarration.trim() ? finalNarration.trim() : undefined,
-            debit: computed.cash.debit,
-            credit: computed.cash.credit,
-            currency: (selectedCashLedger?.ledgerCurrency || branchCurrency).trim().toUpperCase(),
-            exchangeRate: Number(exchangeRate),
-            accountNumber: selectedCashLedger?.accountCode || selectedCashLedger?.rawAccountCode || null,
-            manualReferenceNumber: selectedCashLedger?.manualReferenceNumber || null,
-            customerNumber: selectedCashLedger?.customerNumber || null,
-            countrySerialNumber: selectedCashLedger?.countrySerialNumber || null,
-            branchSerialNumber: selectedCashLedger?.branchSerialNumber || null
           }
         ]
       };
@@ -1541,11 +1566,13 @@ export function CashEntryForm({
       );
       onSaved?.(res.entryId ?? null);
       fetchRecentEntries();
+      setLedgerRefreshCount((c) => c + 1);
       return res.entryId ?? null;
     } catch (e: any) {
       setMessage(e?.message || "Save failed");
       return null;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -1782,6 +1809,16 @@ export function CashEntryForm({
             <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
               {countryRate?.buyRate ? ((countryRate.buyRate + (countryRate.sellRate || countryRate.buyRate)) / 2).toFixed(4) : "—"}
             </span>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Cash Ledger</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]" title={selectedCashLedger?.ledgerName || "—"}>
+              {selectedCashLedger?.ledgerName || "—"}
+            </span>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Cash Balance</span>
+            <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
+              {cashBalanceText}
+            </span>
           </div>
 
           {/* Column 4: Transaction Information */}
@@ -1815,6 +1852,18 @@ export function CashEntryForm({
 
         {/* Right Column: Header Actions */}
         <div className="flex items-center gap-2 self-start pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-8 text-xs font-bold border-slate-200 text-blue-600 hover:bg-slate-50 dark:border-slate-800 dark:text-blue-400 dark:hover:bg-slate-900"
+            onClick={() => {
+              resetPaymentDraft();
+              setEditEntryId(null);
+            }}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            New
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -2712,15 +2761,17 @@ export function CashEntryForm({
                           </td>
                           <td className="p-3 text-center border border-slate-200 dark:border-slate-800">
                             <div className="flex items-center justify-center gap-1.5">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2 text-[10px] font-bold border-slate-200 text-blue-600 hover:bg-slate-50 dark:border-slate-800"
-                                onClick={() => handleEditEntry(row)}
-                              >
-                                Edit
-                              </Button>
+                              {canEditOrDelete && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-[10px] font-bold border-slate-200 text-blue-600 hover:bg-slate-50 dark:border-slate-800"
+                                  onClick={() => handleEditEntry(row)}
+                                >
+                                  Edit
+                                </Button>
+                              )}
                               
                               <div className="relative">
                                 <Button
@@ -2744,29 +2795,32 @@ export function CashEntryForm({
                                     >
                                       View
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        setActiveRowMenuId(null);
-                                        if (confirm("Are you sure you want to delete/reverse this entry?")) {
-                                          try {
-                                            const delRes = await fetch(`/api/erp/roznamcha/${row.id}`, { method: "DELETE" });
-                                            if (delRes.ok) {
-                                              setMessage("Entry deleted/reversed successfully.");
-                                              fetchRecentEntries();
-                                            } else {
-                                              const errText = await delRes.text();
-                                              setMessage(`Delete failed: ${errText}`);
+                                    {canEditOrDelete && (
+                                      <button
+                        type="button"
+                                        onClick={async () => {
+                                          setActiveRowMenuId(null);
+                                          if (confirm("Are you sure you want to delete/reverse this entry?")) {
+                                            try {
+                                              const delRes = await fetch(`/api/erp/roznamcha/${row.id}`, { method: "DELETE" });
+                                              if (delRes.ok) {
+                                                setMessage("Entry deleted/reversed successfully.");
+                                                fetchRecentEntries();
+                                                setLedgerRefreshCount((c) => c + 1);
+                                              } else {
+                                                const errText = await delRes.text();
+                                                setMessage(`Delete failed: ${errText}`);
+                                              }
+                                            } catch (err: any) {
+                                              setMessage(`Delete failed: ${err.message}`);
                                             }
-                                          } catch (err: any) {
-                                            setMessage(`Delete failed: ${err.message}`);
                                           }
-                                        }
-                                      }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-bold text-red-605 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20"
-                                    >
-                                      Delete
-                                    </button>
+                                        }}
+                                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-bold text-red-605 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20"
+                                      >
+                                        Delete
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>

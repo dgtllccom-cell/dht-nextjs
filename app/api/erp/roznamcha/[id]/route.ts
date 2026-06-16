@@ -156,7 +156,7 @@ export async function DELETE(
     // The service-role admin client does not carry a Supabase Auth JWT, so
     // auth.uid() would otherwise be null, causing assert_enterprise_scope_access
     // to throw "Authentication is required".
-    const actorId = session.userId ?? session.user?.id ?? null;
+    const actorId = session.userId ?? null;
     if (actorId) {
       const claimsJson = JSON.stringify({ sub: actorId, role: "authenticated" });
       await adminSupabase.rpc("set_config", {

@@ -1488,8 +1488,7 @@ export function PurchaseOrderManagementDashboard() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedId(row.id);
-                            setIsDrawerOpen(true);
+                            router.push(`/dashboard/purchase/purchase-order/view?id=${encodeURIComponent(row.id)}`);
                           }}
                           className="h-6 px-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[9px] uppercase rounded shadow-sm border-none"
                         >
