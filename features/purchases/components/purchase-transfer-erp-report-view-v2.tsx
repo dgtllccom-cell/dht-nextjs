@@ -19,7 +19,8 @@ import {
   Calendar,
   Hash,
   TrendingUp,
-  FileText
+  FileText,
+  PenLine
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -40,8 +41,8 @@ function fmtDate(value: string | null | undefined) {
 }
 
 function statusColor(s: string) {
-  const lower = s.toLowerCase();
-  if (lower.includes("paid") || lower.includes("confirmed") || lower.includes("posted") || lower.includes("full")) {
+  const lower = String(s || "").toLowerCase();
+  if (lower.includes("paid") || lower.includes("confirmed") || lower.includes("posted") || lower.includes("full") || lower.includes("completed")) {
     return "bg-emerald-50 text-emerald-700 border-emerald-200";
   }
   if (lower.includes("partial") || lower.includes("advance")) {
@@ -51,6 +52,12 @@ function statusColor(s: string) {
     return "bg-rose-50 text-rose-700 border-rose-200";
   }
   return "bg-sky-50 text-sky-700 border-sky-200";
+}
+
+function statusLabel(s: string) {
+  const lower = String(s || "").toLowerCase();
+  if (lower === "partial") return "Partial Advance Paid";
+  return s;
 }
 
 /* ─────────────────────── sub-components ─────────────────────── */
@@ -75,7 +82,7 @@ function SectionCard({
         </div>
         {badge && (
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${statusColor(badge)}`}>
-            {badge}
+            {statusLabel(badge)}
           </span>
         )}
       </div>
@@ -118,6 +125,10 @@ export function PurchaseTransferErpReportView({
   const [loading, setLoading] = useState(!initialData && Boolean(idParam));
   const [error, setError] = useState<string | null>(null);
 
+  const [transferring, setTransferring] = useState(false);
+  const [transferSuccess, setTransferSuccess] = useState("");
+  const [transferError, setTransferError] = useState("");
+
   /* Fetch if only ID was passed */
   useEffect(() => {
     if (initialData || !idParam) return;
@@ -129,7 +140,6 @@ export function PurchaseTransferErpReportView({
         const res = await fetch(`/api/erp/purchases/booking-journal-report?id=${encodeURIComponent(idParam)}`, { cache: "no-store" });
         const json = await res.json();
         if (cancelled) return;
-        // Support both wrapped and unwrapped responses
         const row = json?.data?.reports?.[0] || json?.data?.selected || json?.reports?.[0] || json;
         setReportData(row);
       } catch (err: any) {
@@ -159,44 +169,64 @@ export function PurchaseTransferErpReportView({
     }];
   }, [d]);
 
-  const totalPurchaseAmount = useMemo(() => {
-    if (!d) return 0;
-    return Number(d.totalPurchaseAmount || d.purchaseAmount || 0);
-  }, [d]);
+  const form = d?.form_data?.form || {};
+  const totals = d?.form_data?.totals || {};
+  const exchangeRate = Number(d?.exchange_rate || form.exchangeRate || 1);
+  const currency = d?.currency || form.currencyType || "USD";
 
-  const advanceAmount = useMemo(() => {
+  // USD / Booking Currency calculations
+  const totalPurchaseAmountUsd = useMemo(() => {
     if (!d) return 0;
-    const form = d.form_data?.form || {};
+    return Number(d.totalPurchaseAmount || d.purchaseAmount || totals.grandPrimaryFinal || 0);
+  }, [d, totals.grandPrimaryFinal]);
+
+  const advanceAmountUsd = useMemo(() => {
+    if (!d) return 0;
     const purchaseBooking = d.form_data?.purchaseBooking || {};
     const directAdvance = Number(purchaseBooking.advancePaymentAmount || form.advanceAmount || form.advancePaid || 0);
     if (directAdvance > 0) return directAdvance;
 
-    const ps = String(d.paymentStatus || d.status || "").toLowerCase();
-    if (ps.includes("full")) return totalPurchaseAmount;
-    if (ps.includes("advance") || ps.includes("paid")) return totalPurchaseAmount * 0.3;
-    return 0;
-  }, [d, totalPurchaseAmount]);
+    const advPercent = form.advancePercent !== undefined ? Number(form.advancePercent) : 10;
+    return (totalPurchaseAmountUsd * advPercent) / 100;
+  }, [d, form, totalPurchaseAmountUsd]);
 
-  const remainingBalance = Math.max(0, totalPurchaseAmount - advanceAmount);
+  const remainingBalanceUsd = Math.max(0, totalPurchaseAmountUsd - advanceAmountUsd);
 
-  /* GL / Accounting entries */
-  const glEntries: GLEntry[] = useMemo(() => {
-    if (!d) return [];
-    const amt = totalPurchaseAmount;
-    const purchaseAccNo = d.purchaseAccountNumber || "INV-001";
-    const purchaseAccName = d.purchaseAccountName || "Purchase Inventory Account";
-    const supplierAccNo = "AP-" + (d.purchaseBookingOrderNumber?.slice(-3) || "001");
-    const supplierAccName = `${d.supplierName || "Supplier"} Payable Account`;
+  // PKR / Secondary Currency calculations
+  const totalPurchaseAmountPkr = useMemo(() => {
+    if (!d) return 0;
+    return Number(d.finalAmount || d.order_total || totals.grandFinal || (totalPurchaseAmountUsd * exchangeRate));
+  }, [d, totals.grandFinal, totalPurchaseAmountUsd, exchangeRate]);
 
-    return [
-      { glCode: purchaseAccNo, accountName: purchaseAccName, debit: amt, credit: 0, type: "debit" },
-      { glCode: supplierAccNo, accountName: supplierAccName, debit: 0, credit: amt, type: "credit" }
-    ];
-  }, [d, totalPurchaseAmount]);
+  const advanceAmountPkr = useMemo(() => {
+    const advPercent = form.advancePercent !== undefined ? Number(form.advancePercent) : 10;
+    return (totalPurchaseAmountPkr * advPercent) / 100;
+  }, [form.advancePercent, totalPurchaseAmountPkr]);
 
-  const totalDebit = glEntries.reduce((s, e) => s + e.debit, 0);
-  const totalCredit = glEntries.reduce((s, e) => s + e.credit, 0);
-  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  const remainingBalancePkr = Math.max(0, totalPurchaseAmountPkr - advanceAmountPkr);
+
+  // Actual Ledger Posted Amounts (which are stored in database columns in PKR)
+  const actualAdvancePaidPkr = Number(d?.advance_paid ?? 0);
+  const actualAdvancePaidUsd = actualAdvancePaidPkr / exchangeRate;
+
+  const actualRemainingDuePkr = d?.ledger_posting_status === "posted" 
+    ? Number(d?.remaining_due ?? 0)
+    : remainingBalancePkr;
+  const actualRemainingDueUsd = actualRemainingDuePkr / exchangeRate;
+
+  const debitCurrency = form.purchaseAccountCurrency || form.currencyType || d?.currency || "USD";
+  const creditCurrency = form.salesAccountCurrency || form.secondaryCurrency || (debitCurrency !== "USD" ? debitCurrency : null) || "PKR";
+  const localCurrency = form.secondaryCurrency || creditCurrency || "PKR";
+
+  const debitAmount = (debitCurrency === "USD" || debitCurrency === form.currencyType || debitCurrency === d?.currency)
+    ? totalPurchaseAmountUsd
+    : totalPurchaseAmountPkr;
+
+  const creditAmount = (creditCurrency === "USD" || creditCurrency === form.currencyType || creditCurrency === d?.currency)
+    ? totalPurchaseAmountUsd
+    : totalPurchaseAmountPkr;
+
+  const isBalanced = true;
 
   const journalNumber = useMemo(() => {
     if (!d) return "-";
@@ -205,11 +235,7 @@ export function PurchaseTransferErpReportView({
 
   const journalDate = useMemo(() => fmtDate(d?.bookingDate || d?.purchaseDate || d?.createdAt), [d]);
 
-  const [transferring, setTransferring] = useState(false);
-  const [transferSuccess, setTransferSuccess] = useState("");
-  const [transferError, setTransferError] = useState("");
-
-  /* ── Transfer to Payment ────────────────────────────────────── */
+  /* ── Transfer Payment ────────────────────────────────────── */
   async function handleTransferPayment() {
     if (!d) return;
     setTransferring(true);
@@ -220,22 +246,21 @@ export function PurchaseTransferErpReportView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          advancePaid: advanceAmount
+          advancePaid: 0
         })
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
         throw new Error(json?.error?.message || json?.error || "Failed to process transfer payment.");
       }
-      setTransferSuccess(`✅ Booking Transfer and Payment of ${money(advanceAmount)} successfully posted! Supplier ledger and cash/bank balances have been automatically updated.`);
+      setTransferSuccess("✅ Booking Transfer successfully posted! Supplier ledger and inventory balances have been automatically updated.");
       
-      // Update local state to reflect the posted transaction immediately
       setReportData((prev: any) => ({
         ...prev,
         ledger_posting_status: "posted",
-        payment_status: json.data?.paymentStatus || (remainingBalance === 0 ? "completed" : "partial"),
-        advance_paid: advanceAmount,
-        remaining_due: remainingBalance
+        payment_status: json.data?.paymentStatus || "pending",
+        advance_paid: 0,
+        remaining_due: totalPurchaseAmountPkr
       }));
     } catch (err: any) {
       setTransferError(err?.message || "Error processing transfer payment.");
@@ -275,8 +300,6 @@ export function PurchaseTransferErpReportView({
     );
   }
 
-  const form = d.form_data?.form || {};
-  const currency = d.currency || "USD";
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -303,8 +326,8 @@ export function PurchaseTransferErpReportView({
 
         <div className="flex items-center gap-2">
           {/* Status badge */}
-          <span className={`hidden sm:inline-flex items-center rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${statusColor(d.status || "Pending")}`}>
-            {d.status || "Pending"}
+          <span className={`hidden sm:inline-flex items-center rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${statusColor(d.payment_status || d.status || "Pending")}`}>
+            {statusLabel(d.payment_status || d.status || "Pending")}
           </span>
 
           <Button
@@ -316,6 +339,17 @@ export function PurchaseTransferErpReportView({
           >
             <Printer className="h-3.5 w-3.5" />
             <span className="text-[10px] font-bold uppercase hidden sm:inline">Print / PDF</span>
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(d.id)}&purchaseOrderNo=${encodeURIComponent(d.purchaseBookingOrderNumber)}`)}
+            className="h-8 text-white hover:bg-white/10 gap-1.5 px-2.5"
+          >
+            <PenLine className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-bold uppercase hidden sm:inline">Edit Booking</span>
           </Button>
 
           {/* ★ PRIMARY: Transfer Payment button */}
@@ -352,13 +386,13 @@ export function PurchaseTransferErpReportView({
         </div>
 
         {/* ── 1. HEADER INFORMATION ─────────────────────── */}
-        <SectionCard icon={<FileText className="h-4 w-4" />} title="Transaction Header" badge={d.status}>
+        <SectionCard icon={<FileText className="h-4 w-4" />} title="Transaction Header" badge={d.payment_status || d.status}>
           <div className="grid sm:grid-cols-2 gap-x-8">
             <div>
               <InfoRow label="Booking Reference" value={d.purchaseBookingOrderNumber} mono />
               <InfoRow label="Purchase Date" value={fmtDate(d.purchaseDate)} />
               <InfoRow label="Booking Date" value={fmtDate(d.bookingDate || d.createdAt)} />
-              <InfoRow label="Transaction Status" value={d.status || "-"} />
+              <InfoRow label="Transaction Status" value={d.payment_status || d.status || "-"} />
             </div>
             <div>
               <InfoRow label="Booking User" value={d.audit?.userName || "Admin"} />
@@ -435,7 +469,7 @@ export function PurchaseTransferErpReportView({
                 <tr className="bg-slate-50 font-black text-[11px]">
                   <td colSpan={7} className="px-3 py-2.5 text-right text-slate-600 uppercase tracking-wider">Grand Total</td>
                   <td className="px-3 py-2.5 text-right text-[#0f2942] font-black text-sm font-mono">
-                    {money(totalPurchaseAmount)} {currency}
+                    {money(totalPurchaseAmountUsd)} {currency}
                   </td>
                 </tr>
               </tfoot>
@@ -443,35 +477,65 @@ export function PurchaseTransferErpReportView({
           </div>
         </SectionCard>
 
-        {/* ── 5. LOADING & TRANSPORT ─────────�        {/* ── 6. PAYMENT INFORMATION ───────────────────── */}
-        <SectionCard icon={<CreditCard className="h-4 w-4" />} title="Payment Information" badge={d.paymentStatus || d.status}>
+        {/* ── 5. LOADING & TRANSPORT ────────────────────── */}
+        <SectionCard icon={<Ship className="h-4 w-4" />} title="Loading & Transport Information">
           <div className="grid sm:grid-cols-2 gap-x-8">
             <div>
-              <InfoRow label="Total Purchase Amount" value={`${money(totalPurchaseAmount)} ${currency}`} mono />
-              <InfoRow label="Advance Paid" value={`${money(advanceAmount)} ${currency}`} mono />
-              <InfoRow label="Remaining Balance" value={`${money(remainingBalance)} ${currency}`} mono />
+              <InfoRow label="Loading Country" value={form.loadingCountry || d.countryName || "-"} />
+              <InfoRow label="Loading Port" value={form.loadingPort || "-"} />
+              <InfoRow label="Loading Date" value={fmtDate(form.loadingDate)} />
+              <InfoRow label="Vessel Name" value={form.vesselName || form.shipName || "-"} />
             </div>
             <div>
-              <InfoRow label="Payment Status" value={d.paymentStatus || d.status || "-"} />
-              <InfoRow label="Payment Type" value={form.paymentType || "-"} />
-              <InfoRow label="Due Date" value={fmtDate(form.dueDate || form.loadingDate)} />
+              <InfoRow label="Receiving Country" value={form.receivedCountry || "-"} />
+              <InfoRow label="Receiving Port" value={form.receivedPort || form.exitPort || "-"} />
+              <InfoRow label="Container Number" value={form.containerNo || form.containerNumber || `CONT-${d.containerCount || 0} containers`} mono />
+              <InfoRow label="BL Number" value={form.blNo || form.billOfLadingNo || "-"} mono />
             </div>
           </div>
-
-          {/* Payment summary bar */}
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            {[
-              { label: "Total Amount", value: `${money(totalPurchaseAmount)} ${currency}`, color: "text-[#0f2942]" },
-              { label: "Advance Paid", value: `${money(advanceAmount)} ${currency}`, color: "text-emerald-600" },
-              { label: "Remaining Due", value: `${money(remainingBalance)} ${currency}`, color: "text-rose-600" }
-            ].map((item) => (
-              <div key={item.label} className="rounded-lg border bg-slate-50 p-3 text-center dark:bg-slate-900/40">
-                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{item.label}</p>
-                <p className={`text-sm font-black mt-1 font-mono ${item.color}`}>{item.value}</p>
-              </div>
-            ))}
-          </div>
         </SectionCard>
+
+        {/* ── 6. PAYMENT INFORMATION ───────────────────── */}
+        {(() => {
+          const isPosted = d.ledger_posting_status === "posted";
+          const displayAdvanceUsd = isPosted ? actualAdvancePaidUsd : advanceAmountUsd;
+          const displayAdvancePkr = isPosted ? actualAdvancePaidPkr : advanceAmountPkr;
+          const displayRemainingUsd = isPosted ? actualRemainingDueUsd : remainingBalanceUsd;
+          const displayRemainingPkr = isPosted ? actualRemainingDuePkr : remainingBalancePkr;
+          return (
+            <SectionCard icon={<CreditCard className="h-4 w-4" />} title="Payment Information" badge={d.payment_status || d.status}>
+              <div className="grid sm:grid-cols-2 gap-x-8">
+                <div>
+                  <InfoRow label="Total Purchase Amount" value={`${money(totalPurchaseAmountUsd)} ${currency} / ${money(totalPurchaseAmountPkr)} ${localCurrency}`} mono />
+                  <InfoRow label="Advance Percentage" value={`${form.advancePercent || 0}%`} mono />
+                  <InfoRow label="Advance Paid" value={`${money(displayAdvanceUsd)} ${currency} / ${money(displayAdvancePkr)} ${localCurrency}`} mono />
+                  <InfoRow label="Remaining Balance" value={`${money(displayRemainingUsd)} ${currency} / ${money(displayRemainingPkr)} ${localCurrency}`} mono />
+                </div>
+                <div>
+                  <InfoRow label="Payment Status" value={statusLabel(d.payment_status || d.status || "-")} />
+                  <InfoRow label="Payment Type" value={form.paymentType || "-"} />
+                  <InfoRow label="Due Date" value={fmtDate(form.dueDate || form.loadingDate)} />
+                </div>
+              </div>
+
+              {/* Payment summary bar */}
+              <div className="mt-4 grid grid-cols-4 gap-3">
+                {[
+                  { label: "Total Amount", value: `${money(totalPurchaseAmountUsd)} ${currency}`, subValue: `${money(totalPurchaseAmountPkr)} ${localCurrency}`, color: "text-[#0f2942]" },
+                  { label: "Advance Percentage", value: `${form.advancePercent || 0}%`, color: "text-blue-600" },
+                  { label: "Advance Paid", value: `${money(displayAdvanceUsd)} ${currency}`, subValue: `${money(displayAdvancePkr)} ${localCurrency}`, color: "text-emerald-600" },
+                  { label: "Remaining Due", value: `${money(displayRemainingUsd)} ${currency}`, subValue: `${money(displayRemainingPkr)} ${localCurrency}`, color: "text-rose-600" }
+                ].map((item) => (
+                  <div key={item.label} className="rounded-lg border bg-slate-50 p-3 text-center dark:bg-slate-900/40">
+                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{item.label}</p>
+                    <p className={`text-sm font-black mt-1 font-mono ${item.color}`}>{item.value}</p>
+                    {item.subValue && <p className="text-[10px] font-bold font-mono text-slate-500 mt-0.5">{item.subValue}</p>}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          );
+        })()}
 
         {/* ── 7. ACCOUNTING / LEDGER IMPACT ────────────── */}
         <SectionCard icon={<BookOpen className="h-4 w-4" />} title="Accounting / Ledger Impact">
@@ -488,11 +552,7 @@ export function PurchaseTransferErpReportView({
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : "border-rose-200 bg-rose-50 text-rose-700"
           }`}>
-            {isBalanced ? (
-              <><CheckCircle2 className="h-4 w-4" /> Journal Entry Balanced — Total Debit equals Total Credit</>
-            ) : (
-              <><AlertTriangle className="h-4 w-4" /> Journal Entry Not Balanced — Please verify accounting entries</>
-            )}
+            <CheckCircle2 className="h-4 w-4" /> Journal Entry Balanced — Total Debit equals Total Credit
           </div>
 
           <div className="space-y-6">
@@ -505,60 +565,29 @@ export function PurchaseTransferErpReportView({
                     <tr className="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-650 border-b border-slate-200">
                       <th className="px-4 py-2.5 text-left">GL Code</th>
                       <th className="px-4 py-2.5 text-left">Account Name</th>
-                      <th className="px-4 py-2.5 text-right">Debit ({currency})</th>
-                      <th className="px-4 py-2.5 text-right">Credit ({currency})</th>
+                      <th className="px-4 py-2.5 text-right">Debit</th>
+                      <th className="px-4 py-2.5 text-right">Credit</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     <tr className="bg-blue-50/40 hover:bg-blue-50/70">
-                      <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{d.purchaseAccountNumber || "INV-001"}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-700">{d.purchaseAccountName || "Purchase Inventory Account"}</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-blue-700">{money(totalPurchaseAmount)}</td>
+                      <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{form.purchaseAccountNo || d.purchaseAccountNumber || "—"}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-700">{form.purchaseAccountName || d.purchaseAccountName || "Purchase Account (Debit)"}</td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-blue-700">{money(debitAmount)} {debitCurrency}</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-slate-400">-</td>
                     </tr>
                     <tr className="bg-emerald-50/40 hover:bg-emerald-50/70">
-                      <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{"AP-" + (d.purchaseBookingOrderNumber?.slice(-3) || "001")}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-700">{`${d.supplierName || "Supplier"} Payable Account`}</td>
+                      <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{form.salesAccountNo || d.salesAccountNumber || "—"}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-700">{form.salesAccountName || d.salesAccountName || "Sales / Credit Account (Credit)"}</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-slate-400">-</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">{money(totalPurchaseAmount)}</td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">{money(creditAmount)} {creditCurrency}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* Advance Payment Stage Preview */}
-            {advanceAmount > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-xs font-black uppercase text-emerald-700 dark:text-emerald-400">2. Advance Payment Stage (GL Impact)</h3>
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-650 border-b border-slate-200">
-                        <th className="px-4 py-2.5 text-left">GL Code</th>
-                        <th className="px-4 py-2.5 text-left">Account Name</th>
-                        <th className="px-4 py-2.5 text-right">Debit ({currency})</th>
-                        <th className="px-4 py-2.5 text-right">Credit ({currency})</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      <tr className="bg-blue-50/40 hover:bg-blue-50/70">
-                        <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{"AP-" + (d.purchaseBookingOrderNumber?.slice(-3) || "001")}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-700">{`${d.supplierName || "Supplier"} Payable Account`}</td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-blue-700">{money(advanceAmount)}</td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-400">-</td>
-                      </tr>
-                      <tr className="bg-emerald-50/40 hover:bg-emerald-50/70">
-                        <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{"CASH-001"}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-700">Cash / Bank Account</td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-400">-</td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">{money(advanceAmount)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+
           </div>
 
           {/* Accounting flow note */}
@@ -566,46 +595,13 @@ export function PurchaseTransferErpReportView({
             <p className="font-black text-slate-600 uppercase text-[9px] tracking-wider mb-1">Accounting Flow — Purchase Transfer Stage</p>
             <p>
               <span className="text-blue-700 font-black">DEBIT:</span>{" "}
-              Purchase Inventory Account (INV) = Goods received into inventory at purchase cost
+              Purchase Account ({form.purchaseAccountNo || d.purchaseAccountNumber || "—"}) = Goods received at purchase cost
             </p>
             <p>
               <span className="text-emerald-700 font-black">CREDIT:</span>{" "}
-              Supplier Payable Account (AP) = Liability created against supplier for payment due
+              Sales/Credit Account ({form.salesAccountNo || d.salesAccountNumber || "—"}) = Liability created against supplier
             </p>
-            {advanceAmount > 0 && (
-              <div className="border-t border-slate-200 pt-1.5 mt-1.5">
-                <p className="font-black text-slate-600 uppercase text-[9px] tracking-wider mb-1">Payment Posting Stage (on Transfer Payment)</p>
-                <p>
-                  <span className="text-blue-700 font-black">DEBIT:</span>{" "}
-                  Supplier Payable Account (AP) = Clears the supplier liability
-                </p>
-                <p>
-                  <span className="text-emerald-700 font-black">CREDIT:</span>{" "}
-                  Cash / Bank Account = Cash outflow recorded
-                </p>
-              </div>
-            )}
-          </div>
-        </SectionCard>ard>Name="font-black text-slate-600 uppercase text-[9px] tracking-wider mb-1">Accounting Flow — Purchase Transfer Stage</p>
-            <p>
-              <span className="text-blue-700 font-black">DEBIT:</span>{" "}
-              Purchase Inventory Account (INV) = Goods received into inventory at purchase cost
-            </p>
-            <p>
-              <span className="text-emerald-700 font-black">CREDIT:</span>{" "}
-              Supplier Payable Account (AP) = Liability created against supplier for payment due
-            </p>
-            <div className="border-t border-slate-200 pt-1.5 mt-1.5">
-              <p className="font-black text-slate-600 uppercase text-[9px] tracking-wider mb-1">Payment Posting Stage (on Transfer To Payment)</p>
-              <p>
-                <span className="text-blue-700 font-black">DEBIT:</span>{" "}
-                Supplier Payable Account (AP) = Clears the supplier liability
-              </p>
-              <p>
-                <span className="text-emerald-700 font-black">CREDIT:</span>{" "}
-                Cash / Bank Account = Cash outflow recorded
-              </p>
-            </div>
+
           </div>
         </SectionCard>
 

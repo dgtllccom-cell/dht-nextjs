@@ -25,7 +25,6 @@ import {
   WalletCards,
   Globe,
   Clock3,
-  Pin,
   FileText,
   Plus
 } from "lucide-react";
@@ -601,22 +600,97 @@ function RowActionsMenu({
   report: any;
   onSelect: () => void;
 }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutsideClick = () => setOpen(false);
+    document.addEventListener("click", handleOutsideClick);
+    return () => document.removeEventListener("click", handleOutsideClick);
+  }, [open]);
+
   return (
-    <details className="relative inline-block" onClick={(e) => e.stopPropagation()}>
-      <summary className="grid h-8 w-8 cursor-pointer list-none place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted [&::-webkit-details-marker]:hidden" aria-label="Row actions" title="Row actions">
+    <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted focus:outline-none"
+        aria-label="Row actions"
+        title="Row actions"
+      >
         <MoreVertical className="h-4 w-4" />
-      </summary>
-      <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
-        <MenuAction icon={<Eye />} label="View Details" onClick={onSelect} />
-        <MenuAction icon={<FileText />} label="Open Report Preview" onClick={() => openReportWindow(report, false)} />
-        <MenuAction icon={<Printer />} label="Print / PDF" onClick={() => openReportWindow(report, true)} />
-        <div className="border-t border-border my-1" />
-        <MenuAction icon={<FileText />} label="Generate Purchase Contract" onClick={() => openTradeDocumentWindow("contract", report)} />
-        <MenuAction icon={<ClipboardList />} label="Generate Proforma Invoice" onClick={() => openTradeDocumentWindow("proforma", report)} />
-        <MenuAction icon={<Printer />} label="Generate Commercial Invoice" onClick={() => openTradeDocumentWindow("commercial", report)} />
-        <MenuAction icon={<Boxes />} label="Generate Packing List" onClick={() => openTradeDocumentWindow("packing", report)} />
-      </div>
-    </details>
+      </button>
+      {open && (
+        <div className="absolute right-0 z-[100] mt-2 w-56 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-2xl animate-in fade-in slide-in-from-top-1 duration-100">
+          <MenuAction
+            icon={<Eye />}
+            label="View Details"
+            onClick={() => {
+              setOpen(false);
+              onSelect();
+            }}
+          />
+          <MenuAction
+            icon={<Edit3 />}
+            label="Edit Booking"
+            onClick={() => {
+              setOpen(false);
+              router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
+            }}
+          />
+          <MenuAction
+            icon={<FileText />}
+            label="Open Report Preview"
+            onClick={() => {
+              setOpen(false);
+              openReportWindow(report, false);
+            }}
+          />
+          <MenuAction
+            icon={<Printer />}
+            label="Print / PDF"
+            onClick={() => {
+              setOpen(false);
+              openReportWindow(report, true);
+            }}
+          />
+          <div className="border-t border-border my-1" />
+          <MenuAction
+            icon={<FileText />}
+            label="Generate Purchase Contract"
+            onClick={() => {
+              setOpen(false);
+              openTradeDocumentWindow("contract", report);
+            }}
+          />
+          <MenuAction
+            icon={<ClipboardList />}
+            label="Generate Proforma Invoice"
+            onClick={() => {
+              setOpen(false);
+              openTradeDocumentWindow("proforma", report);
+            }}
+          />
+          <MenuAction
+            icon={<Printer />}
+            label="Generate Commercial Invoice"
+            onClick={() => {
+              setOpen(false);
+              openTradeDocumentWindow("commercial", report);
+            }}
+          />
+          <MenuAction
+            icon={<Boxes />}
+            label="Generate Packing List"
+            onClick={() => {
+              setOpen(false);
+              openTradeDocumentWindow("packing", report);
+            }}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1207,79 +1281,178 @@ export function PurchaseBookingJournalReportView({
         <div className="mt-4 space-y-3">
           <DarkTable
             headers={[
-              "P#",
-              "Type",
-              "Date",
-              "Branch",
-              "Allot",
-              "Good Name",
+              // ── General Information ──────────────────────────────────────
+              "SR.",
+              "SUPER S/N",
+              "CTY S/N",
+              "BR. S/N",
+              "PURCHASE CODE",
+              "SALES CODE",
+              "INVOICE NO.",
+              "DATE",
+              "BRANCH NAME",
+              "COUNTRY",
+              "USER",
+              // ── Product Information ──────────────────────────────────────
+              "GOODS NAME",
+              "BRAND",
               "ORIGIN",
-              "Warehouse",
-              "Invoice No.",
-              "Seller Acc.",
-              "Qty",
-              "KGs",
-              "P.TYPE",
-              "Status",
-              "D.Terms",
-              "Route",
-              "Loading",
-              "Date",
-              "Receiving",
-              "Date",
-              "Report",
-              "Actions"
+              "QTY",
+              "UNIT",
+              "GROSS WT (KG)",
+              "NET WT (KG)",
+              // ── Financial Information ────────────────────────────────────
+              "PURCH. PRICE",
+              "TOTAL AMT",
+              "PURCH. AMT",
+              "EX. RATE",
+              "FINAL AMT",
+              "INV. %",
+              "PAY. CONDITION",
+              // ── Route & Loading ──────────────────────────────────────────
+              "ROUTE",
+              "LOAD. COUNTRY",
+              "LOAD. PORT",
+              "LOAD. DATE",
+              "RCV. COUNTRY",
+              "RCV. PORT",
+              "RCV. DATE",
+              // ── Status ───────────────────────────────────────────────────
+              "TRANSFER",
+              "INVOICE STS.",
+              "PAY. STATUS",
+              "LOAD. STATUS",
+              // ── Action ───────────────────────────────────────────────────
+              "ACTIONS"
             ]}
           >
             {registerRows.map((report, index) => {
-              const pNum = `P#${registerRows.length - index}`;
-              
+              const srNo = index + 1;
               const goods = report.form_data?.goodsEntries || [];
-              const allot = goods.map((g: any) => g.allotName).filter(Boolean).join(", ") || report.form_data?.form?.allotName || "N/A";
-              const goodName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || report.productName || "N/A";
-              const origin = goods.map((g: any) => g.origin).filter(Boolean).join(", ") || "N/A";
-              const warehouse = goods.map((g: any) => g.warehouse).filter(Boolean).join(", ") || "N/A";
-              const invoiceNo = report.form_data?.form?.billNo || report.form_data?.form?.invoiceNo || report.form_data?.form?.purchaseContractNo || report.purchaseContractNo || "N/A";
-              const sellerAcc = report.form_data?.form?.purchaseAccountName || report.supplierName || "-";
-              
-              const qty = goods.length > 0 ? formatNumber(goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0)) : "N/A";
-              const kgs = goods.length > 0 ? formatNumber(goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || g.grossWeight || 0), 0)) : "N/A";
+              const g0 = goods[0] as any;
 
-              const hasGoods = goods.length > 0 && goodName !== "N/A";
-              const typeIcon = hasGoods ? (
-                <Clock3 className="h-3.5 w-3.5 text-emerald-400" />
-              ) : (
-                <Globe className="h-3.5 w-3.5 text-blue-400" />
-              );
-
+              // ── General Information ──────────────────────────────────────
+              const superSerialNo = (report as any).superAdminSerialNo
+                || report.form_data?.form?.superAdminSerialNo
+                || report.form_data?.form?.globalSerialNo
+                || report.audit?.branchCode?.replace(/[^0-9]/g, "") || "-";
+              const countrySerialNo = (report as any).countrySerialNo
+                || report.form_data?.form?.countrySerialNo
+                || "-";
+              const branchSerialNo = (report as any).branchSerialNo
+                || report.form_data?.form?.branchSerialNo
+                || report.audit?.branchCode || "-";
+              const purchaseCode = report.purchaseBookingOrderNumber || "-";
+              const salesCode = report.form_data?.form?.salesOrderNo || "-";
+              const invoiceNo = report.form_data?.form?.billNo
+                || report.form_data?.form?.invoiceNo
+                || report.form_data?.form?.purchaseContractNo
+                || report.purchaseContractNo || "-";
               const dateStr = formatShortDate(report.purchaseDate);
-              const branch = report.branchName || report.form_data?.form?.branchCode || "-";
+              const branchName = report.branchName || report.form_data?.form?.branchName || "-";
+              const countryName = report.countryName || "-";
+              const userName = report.audit?.userName || (report as any).createdByName || "-";
 
-              const pTypeRaw = report.form_data?.form?.paymentType || report.paymentStatus || "";
-              let pType = "N/A";
-              if (pTypeRaw.toLowerCase().includes("advance")) pType = "Advance";
-              else if (pTypeRaw.toLowerCase().includes("credit")) pType = "Credit";
-              else if (pTypeRaw.toLowerCase().includes("full") || pTypeRaw.toLowerCase().includes("final")) pType = "Full";
-              else if (pTypeRaw) pType = pTypeRaw;
+              // ── Product Information ──────────────────────────────────────
+              const goodsName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || report.productName || "-";
+              const brand = goods.map((g: any) => g.brand || g.size || "").filter(Boolean).join(", ") || "-";
+              const origin = goods.map((g: any) => g.origin).filter(Boolean).join(", ") || "-";
+              const totalQty = goods.length > 0
+                ? goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0)
+                : Number(report.quantity || 0);
+              const qtyUnit = g0?.qtyName || report.unit || "-";
+              const totalGross = goods.length > 0
+                ? goods.reduce((sum: number, g: any) => sum + Number(g.grossWeight || 0), 0)
+                : Number(report.totalGrossWeight || report.totalWeight || 0);
+              const totalNet = goods.length > 0
+                ? goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || g.grossWeight || 0), 0)
+                : Number(report.totalNetWeight || report.totalWeight || 0);
 
-              const dTerms = report.form_data?.form?.deliveryTerms || report.form_data?.form?.dTerms || report.form_data?.form?.incoterms || report.form_data?.form?.transportAgent || report.form_data?.form?.paymentDaysAndMethodDetails || "N/A";
-              
-              const routeRaw = report.form_data?.form?.shippingMode || report.form_data?.form?.shippingType || report.form_data?.form?.shipmentType || "";
-              const route = routeRaw.replace(/^By\s+/i, "") || "N/A";
+              // ── Financial Information ────────────────────────────────────
+              const purchasePrice = Number(g0?.coursePrice || report.purchaseRate || 0);
+              const totalAmt = goods.length > 0
+                ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
+                : Number(report.purchaseAmount || report.totalPurchaseAmount || 0);
+              const purchaseAmt = Number(report.purchaseAmount || report.totalPurchaseAmount || 0);
+              const exchangeRate = Number(g0?.exchangeRate || g0?.rate2 || report.exchange_rate || 0);
+              const finalAmt = goods.length > 0
+                ? goods.reduce((sum: number, g: any) => sum + Number(g.finalAmount || 0), 0)
+                : Number(report.finalAmount || 0);
+              const invoicePercent = report.form_data?.form?.advancePercent
+                || report.form_data?.form?.invoicePercent
+                || "-";
+              const payCondition = report.form_data?.form?.paymentType
+                || report.form_data?.form?.paymentCondition
+                || report.paymentStatus || "-";
+              const currency = report.currency || "USD";
+              const localCurrency = report.form_data?.form?.secondaryCurrency?.split(" ")?.[0]
+                || report.form_data?.form?.localCurrency || "PKR";
 
-              const loadingLoc = report.form_data?.form?.loadingCountry || "N/A";
+              // ── Route & Loading ──────────────────────────────────────────
+              const routeRaw = report.form_data?.form?.shippingMode
+                || report.form_data?.form?.shippingType
+                || report.form_data?.form?.shipmentType || "";
+              const routeName = routeRaw.replace(/^By\s+/i, "") || "-";
+              const loadingCountry = report.form_data?.form?.loadingCountry
+                || report.form_data?.form?.originCountry || "-";
+              const loadingPort = report.form_data?.form?.loadingPort
+                || report.form_data?.form?.exitPort || "-";
               const loadingDate = formatIsoDate(report.form_data?.form?.loadingDate);
-              const receivingLoc = report.form_data?.form?.receivedCountry || "N/A";
-              const receivingDate = formatIsoDate(report.form_data?.form?.receivedDate);
+              const receivingCountry = report.form_data?.form?.receivedCountry
+                || report.form_data?.form?.destinationCountry || "-";
+              const receivingPort = report.form_data?.form?.receivedPort
+                || report.form_data?.form?.particularPort
+                || report.form_data?.form?.destinationPort || "-";
+              const receivingDate = formatIsoDate(report.form_data?.form?.receivedDate
+                || report.form_data?.form?.arrivalDate);
 
-              const isPosted = report.status === "Posted";
-              const transferBadge = isPosted ? (
-                <span className="inline-flex rounded border border-slate-800 bg-slate-900 text-slate-100 dark:border-slate-350 dark:bg-slate-100 dark:text-slate-900 px-2 py-0.5 text-[10px] font-black uppercase shadow-sm">
-                  Transferred
+              // ── Status ───────────────────────────────────────────────────
+              const isPosted = report.status === "Posted"
+                || (report as any).ledgerPostingStatus === "Posted";
+              const transferStatusBadge = isPosted ? (
+                <span className="inline-flex rounded border border-emerald-700/40 bg-emerald-900/30 text-emerald-300 px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap">
+                  ✓ Posted
                 </span>
               ) : (
-                <span className="inline-flex rounded border border-red-300 bg-red-50 text-red-700 px-2 py-0.5 text-[10px] font-black uppercase shadow-sm animate-pulse">
-                  Not Transferred
+                <span className="inline-flex rounded border border-red-300/60 bg-red-50 text-red-600 px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap animate-pulse">
+                  Not Posted
+                </span>
+              );
+              const rawInvStatus = report.confirmationStatus
+                || report.form_data?.workflow?.confirmationStatus
+                || report.status || "Open";
+              const invStatusBadge = (
+                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                  rawInvStatus.toLowerCase().includes("confirm") ? "border-sky-300/60 bg-sky-50 text-sky-700"
+                  : rawInvStatus.toLowerCase().includes("cancel") ? "border-rose-300/60 bg-rose-50 text-rose-700"
+                  : "border-amber-300/60 bg-amber-50 text-amber-700"
+                }`}>
+                  {rawInvStatus}
+                </span>
+              );
+              const rawPayStatus = report.paymentStatus || "Pending";
+              const payStatusBadge = (
+                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                  rawPayStatus.toLowerCase().includes("full") || rawPayStatus.toLowerCase().includes("paid")
+                    ? "border-emerald-300/60 bg-emerald-50 text-emerald-700"
+                  : rawPayStatus.toLowerCase().includes("advance") || rawPayStatus.toLowerCase().includes("partial")
+                    ? "border-blue-300/60 bg-blue-50 text-blue-700"
+                  : "border-slate-300/60 bg-slate-50 text-slate-600"
+                }`}>
+                  {rawPayStatus}
+                </span>
+              );
+              const rawLoadStatus = report.containerStatus
+                || report.form_data?.workflow?.containerStatus || "Pending";
+              const loadStatusBadge = (
+                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                  rawLoadStatus.toLowerCase().includes("load") || rawLoadStatus.toLowerCase().includes("transit")
+                    ? "border-indigo-300/60 bg-indigo-50 text-indigo-700"
+                  : rawLoadStatus.toLowerCase().includes("deliver") || rawLoadStatus.toLowerCase().includes("complet")
+                    ? "border-emerald-300/60 bg-emerald-50 text-emerald-700"
+                  : "border-slate-300/60 bg-slate-50 text-slate-500"
+                }`}>
+                  {rawLoadStatus}
                 </span>
               );
 
@@ -1287,46 +1460,68 @@ export function PurchaseBookingJournalReportView({
                 <tr
                   key={report.id}
                   onClick={() => { setSelectedId(report.id); setIsDrawerOpen(true); }}
-                  className={`cursor-pointer border-b border-slate-200 hover:bg-slate-50/80 transition ${
+                  className={`cursor-pointer border-b border-slate-200 hover:bg-blue-50/30 dark:hover:bg-blue-950/10 transition-colors ${
                     highlightPurchaseOrderNo && report.purchaseBookingOrderNumber === highlightPurchaseOrderNo
                       ? "bg-emerald-50 ring-1 ring-inset ring-emerald-300"
                       : ""
                   }`}
                 >
-                  <Td center className="font-bold text-slate-400">{pNum}</Td>
-                  <Td center>{typeIcon}</Td>
-                  <Td className="font-semibold text-slate-800">{dateStr}</Td>
-                  <Td className="font-semibold text-slate-800">{branch}</Td>
-                  <Td className="font-mono text-slate-800">{allot}</Td>
-                  <Td className="font-semibold text-amber-700">{goodName}</Td>
-                  <Td className="text-slate-700">{origin}</Td>
-                  <Td className="text-slate-700">{warehouse}</Td>
-                  <Td className="font-mono font-bold text-blue-600">{invoiceNo}</Td>
-                  <Td className="font-bold text-slate-800">{sellerAcc}</Td>
-                  <Td right className="font-mono font-semibold text-emerald-650">{qty}</Td>
-                  <Td right className="font-mono font-semibold text-emerald-650">{kgs}</Td>
-                  <Td><StatusBadge status={pType} /></Td>
-                  <Td>{transferBadge}</Td>
-                  <Td className="font-semibold text-slate-655 truncate max-w-[150px]">{dTerms}</Td>
-                  <Td className="font-semibold text-slate-605">{route}</Td>
-                  <Td className="text-slate-700">{loadingLoc}</Td>
-                  <Td center className="font-mono text-slate-500">{loadingDate}</Td>
-                  <Td className="text-slate-700">{receivingLoc}</Td>
-                  <Td center className="font-mono text-slate-500">{receivingDate}</Td>
-                  <Td center>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openReportWindow(report, false);
-                      }}
-                      className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 transition text-[9px] font-bold shadow-sm"
-                      title="Open Voucher A4 Report Preview"
-                    >
-                      <FileText className="h-3 w-3" />
-                      Report
-                    </button>
+                  {/* ── General Information ─────────────────────── */}
+                  <Td center className="text-slate-500 font-bold text-[10px]">{srNo}</Td>
+                  <Td center className="font-mono text-[10px] text-slate-500">{superSerialNo}</Td>
+                  <Td center className="font-mono text-[10px] text-slate-500">{countrySerialNo}</Td>
+                  <Td center className="font-mono text-[10px] text-slate-500">{branchSerialNo}</Td>
+                  <Td className="font-mono font-bold text-blue-600 text-[10px] whitespace-nowrap">{purchaseCode}</Td>
+                  <Td className="font-mono text-slate-600 text-[10px] whitespace-nowrap">{salesCode}</Td>
+                  <Td className="font-mono font-bold text-indigo-600 text-[10px] whitespace-nowrap">{invoiceNo}</Td>
+                  <Td className="font-semibold text-slate-700 whitespace-nowrap text-[10px]">{dateStr}</Td>
+                  <Td className="font-semibold text-slate-800 text-[10px] whitespace-nowrap">{branchName}</Td>
+                  <Td className="text-slate-700 text-[10px]">{countryName}</Td>
+                  <Td className="font-semibold text-slate-800 text-[10px]">{userName}</Td>
+                  {/* ── Product Information ─────────────────────── */}
+                  <Td className="font-semibold text-amber-700 text-[10px] whitespace-nowrap">{goodsName}</Td>
+                  <Td className="text-slate-600 text-[10px]">{brand}</Td>
+                  <Td className="text-slate-700 text-[10px]">{origin}</Td>
+                  <Td right className="font-mono font-semibold text-emerald-700 text-[10px]">{formatNumber(totalQty)}</Td>
+                  <Td center className="text-slate-600 text-[10px]">{qtyUnit}</Td>
+                  <Td right className="font-mono text-slate-700 text-[10px]">{formatNumber(totalGross)}</Td>
+                  <Td right className="font-mono text-slate-700 text-[10px]">{formatNumber(totalNet)}</Td>
+                  {/* ── Financial Information ───────────────────── */}
+                  <Td right className="font-mono font-semibold text-slate-800 text-[10px]">
+                    {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${currency}` : "-"}
                   </Td>
+                  <Td right className="font-mono font-bold text-slate-900 dark:text-white text-[10px]">
+                    {totalAmt > 0 ? `${formatMoney(totalAmt)} ${currency}` : "-"}
+                  </Td>
+                  <Td right className="font-mono font-bold text-blue-700 text-[10px]">
+                    {purchaseAmt > 0 ? `${formatMoney(purchaseAmt)} ${currency}` : "-"}
+                  </Td>
+                  <Td right className="font-mono text-slate-600 text-[10px]">
+                    {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
+                  </Td>
+                  <Td right className="font-mono font-bold text-emerald-600 text-[10px]">
+                    {finalAmt > 0 ? `${formatMoney(finalAmt)} ${localCurrency}` : "-"}
+                  </Td>
+                  <Td center className="text-[10px]">
+                    {invoicePercent !== "-" ? (
+                      <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>
+                    ) : <span className="text-slate-400">-</span>}
+                  </Td>
+                  <Td className="text-slate-600 text-[10px] whitespace-nowrap">{payCondition}</Td>
+                  {/* ── Route & Loading ─────────────────────────── */}
+                  <Td center className="text-slate-600 text-[10px]">{routeName}</Td>
+                  <Td className="text-slate-700 text-[10px]">{loadingCountry}</Td>
+                  <Td className="text-slate-600 text-[10px]">{loadingPort}</Td>
+                  <Td center className="font-mono text-slate-500 text-[10px] whitespace-nowrap">{loadingDate}</Td>
+                  <Td className="text-slate-700 text-[10px]">{receivingCountry}</Td>
+                  <Td className="text-slate-600 text-[10px]">{receivingPort}</Td>
+                  <Td center className="font-mono text-slate-500 text-[10px] whitespace-nowrap">{receivingDate}</Td>
+                  {/* ── Status ──────────────────────────────────── */}
+                  <Td center>{transferStatusBadge}</Td>
+                  <Td center>{invStatusBadge}</Td>
+                  <Td center>{payStatusBadge}</Td>
+                  <Td center>{loadStatusBadge}</Td>
+                  {/* ── Actions ─────────────────────────────────── */}
                   <Td center>
                     <RowActionsMenu
                       report={report}
@@ -1900,14 +2095,37 @@ function SummaryCard({ icon, label, value, accent }: { icon: React.ReactNode; la
   );
 }
 
+// Color-coded column group definitions used by DarkTable
+const TABLE_GROUPS = [
+  { label: "General Information", span: 11, cls: "bg-[#0f2942] text-white" },
+  { label: "Product Information", span: 7, cls: "bg-emerald-800 text-emerald-100" },
+  { label: "Financial Information", span: 7, cls: "bg-blue-800 text-blue-100" },
+  { label: "Route & Loading", span: 7, cls: "bg-indigo-700 text-indigo-100" },
+  { label: "Status", span: 4, cls: "bg-slate-700 text-slate-200" },
+  { label: "Actions", span: 1, cls: "bg-slate-600 text-slate-200" },
+];
+
 function DarkTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-      <table className="min-w-full border-collapse text-xs text-slate-800">
-        <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600 border-b border-slate-200">
+    <div className="overflow-x-auto overflow-y-visible rounded-xl border border-slate-200 bg-white shadow-sm min-h-[350px] pb-32">
+      <table className="min-w-[4200px] border-collapse text-xs text-slate-800">
+        <thead className="sticky top-0 z-10 border-b border-slate-200">
+          {/* Group header row */}
           <tr>
-            {headers.map((header) => (
-              <th key={header} className="whitespace-nowrap border-r border-slate-200 px-3 py-3 text-left font-black last:border-r-0">{header}</th>
+            {TABLE_GROUPS.map((group) => (
+              <th
+                key={group.label}
+                colSpan={group.span}
+                className={`${group.cls} px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-center border-r border-white/20 last:border-r-0`}
+              >
+                {group.label}
+              </th>
+            ))}
+          </tr>
+          {/* Column header row */}
+          <tr className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600">
+            {headers.map((header, idx) => (
+              <th key={`${header}-${idx}`} className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-left font-black last:border-r-0">{header}</th>
             ))}
           </tr>
         </thead>

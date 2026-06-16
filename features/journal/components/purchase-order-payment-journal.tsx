@@ -1,7 +1,7 @@
 "use client";
-
+ 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Banknote,
   CalendarDays,
@@ -15,11 +15,20 @@ import {
   Printer,
   RefreshCw,
   Search,
-  WalletCards
+  WalletCards,
+  Save,
+  Plus,
+  FileText,
+  CheckCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
+import { SimpleModal } from "@/components/ui/simple-modal";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 type PaymentMode = "advance" | "remaining" | "credit" | "charges" | "history";
 
@@ -37,6 +46,7 @@ type PurchaseOrderRow = {
   payment_status: string | null;
   ledger_posting_status: string | null;
   created_at: string | null;
+  form_data?: any;
 };
 
 type OrdersPayload = {
@@ -173,9 +183,72 @@ function exportRows(rows: PurchaseOrderRow[], mode: PaymentMode) {
   URL.revokeObjectURL(url);
 }
 
+const SAVED_BANKS_KEY = "erp_saved_banks_v1";
+const SAVED_METHODS_KEY = "erp_saved_payment_methods_v1";
+
+type SavedBankItem = { name: string; address?: string };
+
+function readLocalList(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.map((v) => String(v)).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalList(key: string, values: string[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(values));
+  } catch {
+    // ignore
+  }
+}
+
+function readLocalBankList(key: string): SavedBankItem[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalBankList(key: string, values: SavedBankItem[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(values));
+  } catch {
+    // ignore
+  }
+}
+
+function toLedgerOption(row: any): SearchSelectOption {
+  const account = row.name || "";
+  const accountNo = row.code || "";
+  const label = `${accountNo} - ${account}`;
+  const keywords = [accountNo, account].filter(Boolean).join(" ");
+  return { value: row.id, label, keywords };
+}
+
 function getInitialPurchaseOrderNo(): string {
   if (typeof window === "undefined") return "";
   return new URLSearchParams(window.location.search).get("purchaseOrderNo") ?? "";
+}
+
+function FieldBlock({ label, required, children, className }: { label: string; required?: boolean; children: ReactNode; className?: string }) {
+  return (
+    <label className={cn("block min-w-0", className)}>
+      <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {label}
+        {required ? <span className="text-red-605"> *</span> : null}
+      </span>
+      {children}
+    </label>
+  );
 }
 
 export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
@@ -191,11 +264,28 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [session, setSession] = useState<any>(null);
 
   // Ledger Entry Panel state
-  const [entryType, setEntryType] = useState<"debit" | "credit">("debit");
-  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentSourceLedgerId, setPaymentSourceLedgerId] = useState("");
+  const [roznamchaType, setRoznamchaType] = useState("Cash Book No.");
+  const [roznamchaNumber, setRoznamchaNumber] = useState("000123");
+  const [paymentType, setPaymentType] = useState<"" | "bank" | "business" | "invoice" | "cash" | "transfer">("");
+  const [currency, setCurrency] = useState("USD");
+  const [calcAmount, setCalcAmount] = useState("");
+  const [exchangeRate, setExchangeRate] = useState("1");
+  const [calcOp, setCalcOp] = useState<"mul" | "div">("mul");
+  const [finalPayment, setFinalPayment] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const [typeDetails, setTypeDetails] = useState<Record<string, string>>({});
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+
+  // Local cache for Bank/Method quick add
+  const [savedBanks, setSavedBanks] = useState<SavedBankItem[]>([]);
+  const [savedMethods, setSavedMethods] = useState<string[]>([]);
+  const [addOptionOpen, setAddOptionOpen] = useState(false);
+  const [addOptionType, setAddOptionType] = useState<"bank" | "method">("bank");
+  const [addOptionValue, setAddOptionValue] = useState("");
+  const [addOptionAddress, setAddOptionAddress] = useState("");
+
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [paymentNarration, setPaymentNarration] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
   const [processingPayment, setProcessingPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState("");
   const [paymentError, setPaymentError] = useState("");
@@ -210,6 +300,25 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       } catch (err) { console.error("Session load error:", err); }
     }
     fetchSession();
+    return () => { cancelled = true; };
+  }, []);
+
+  const [ledgers, setLedgers] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchLedgers() {
+      try {
+        const response = await fetch("/api/erp/ledgers");
+        const body = await response.json();
+        if (body?.ok && body.data?.ledgers && !cancelled) {
+          setLedgers(body.data.ledgers);
+        }
+      } catch (err) {
+        console.error("Ledger load error:", err);
+      }
+    }
+    fetchLedgers();
     return () => { cancelled = true; };
   }, []);
 
@@ -279,50 +388,368 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const creditAccountBranch = selectedForm.salesAccountBranch || "-";
   const orderTotalUsd = Number(selected?.order_total || 0);
   const advancePct = Number(selectedForm.advancePercent || 0);
-  const suggestedAdvance = (orderTotalUsd * advancePct) / 100;
-  const currency = selected?.currency_code || selectedForm.currencyType || "USD";
+
+  const supplierLedger = useMemo(() => {
+    return ledgers.find((l) => l.code === selectedForm.salesAccountNo);
+  }, [ledgers, selectedForm.salesAccountNo]);
+
+  const cashLedger = useMemo(() => {
+    return ledgers.find((l) => l.code === "CASH-001") ||
+           ledgers.find((l) => l.code?.toLowerCase().includes("cash") || l.name?.toLowerCase().includes("cash")) ||
+           ledgers.find((l) => l.code?.toLowerCase().includes("bank") || l.name?.toLowerCase().includes("bank")) ||
+           ledgers[0];
+  }, [ledgers]);
+
+  // Set default paymentSourceLedgerId once cashLedger is loaded
+  useEffect(() => {
+    if (cashLedger && !paymentSourceLedgerId) {
+      setPaymentSourceLedgerId(cashLedger.id);
+    }
+  }, [cashLedger, paymentSourceLedgerId]);
+
+  const selectedSourceLedger = useMemo(() => {
+    return ledgers.find((l) => l.id === paymentSourceLedgerId) || cashLedger || null;
+  }, [ledgers, paymentSourceLedgerId, cashLedger]);
+
+  const sourceBalanceText = useMemo(() => {
+    if (!selectedSourceLedger) return "—";
+    const bal = Number(selectedSourceLedger.current_balance ?? 0);
+    return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedSourceLedger.currency || "PKR"}`;
+  }, [selectedSourceLedger]);
+
+  const purchaseLedger = useMemo(() => {
+    return ledgers.find((l) => l.code === selectedForm.purchaseAccountNo);
+  }, [ledgers, selectedForm.purchaseAccountNo]);
+
+  const doubleEntry = useMemo(() => {
+    if (activeMode === "advance" || activeMode === "remaining") {
+      return {
+        debitName: selectedForm.salesAccountName || "Supplier Payable Account",
+        debitCode: selectedForm.salesAccountNo || "-",
+        debitBranch: selectedForm.salesAccountBranch || "-",
+        creditName: selectedSourceLedger?.name || "General Cash Account",
+        creditCode: selectedSourceLedger?.code || "CASH-001",
+        creditBranch: "-",
+        debitLedgerId: supplierLedger?.id,
+        creditLedgerId: selectedSourceLedger?.id
+      };
+    } else {
+      return {
+        debitName: selectedForm.purchaseAccountName || "Purchase Account",
+        debitCode: selectedForm.purchaseAccountNo || "-",
+        debitBranch: selectedForm.purchaseAccountBranch || "-",
+        creditName: selectedForm.salesAccountName || "Supplier Payable Account",
+        creditCode: selectedForm.salesAccountNo || "-",
+        creditBranch: selectedForm.salesAccountBranch || "-",
+        debitLedgerId: purchaseLedger?.id,
+        creditLedgerId: supplierLedger?.id
+      };
+    }
+  }, [activeMode, selectedForm, selectedSourceLedger, supplierLedger, purchaseLedger]);
+
+  // Sync PO currency and exchange rate when order changes
+  useEffect(() => {
+    if (selected) {
+      const rate = String(selected.exchange_rate || 1);
+      setExchangeRate(rate);
+      const poCur = selected.currency_code || "USD";
+      setCurrency(poCur.toUpperCase());
+    }
+  }, [selectedId, selected]);
+
+  const isLocalCurrency = currency.trim().toUpperCase() === "PKR";
+  const showCalcPanel =
+    Boolean(currency) &&
+    !isLocalCurrency &&
+    ["USD", "AED", "AFN", "INR", "IRR", "PKR"].includes(currency.toUpperCase());
+
+  const calcFinal = useMemo(() => {
+    if (!showCalcPanel) return null;
+    const a = Number(calcAmount);
+    const p = Number(exchangeRate);
+    if (!Number.isFinite(a) || !Number.isFinite(p) || a <= 0 || p <= 0) return null;
+    if (calcOp === "div" && p === 0) return null;
+    const v = calcOp === "mul" ? a * p : a / p;
+    return Number.isFinite(v) ? v : null;
+  }, [calcAmount, calcOp, exchangeRate, showCalcPanel]);
+
+  const amount = useMemo(() => {
+    if (showCalcPanel && calcFinal !== null) return calcFinal;
+    return Number(finalPayment || 0);
+  }, [finalPayment, showCalcPanel, calcFinal]);
+
+  const detailsString = useMemo(() => {
+    if (!paymentType) return "";
+    if (paymentType === "bank") {
+      const bankName = typeDetails.bankName || "";
+      const method = typeDetails.method || "";
+      const refNo = typeDetails.refNo || "";
+      const payDate = typeDetails.payDate || paymentDate;
+      const formattedDate = payDate ? payDate.split("-").reverse().join("/") : "";
+      const attachment = attachmentFile?.name || typeDetails.bankAttachmentName || "";
+      const bankAccount = typeDetails.bankAccount || "";
+      
+      const parts = [
+        bankName && `Bank: ${bankName}`,
+        bankAccount && `A/C: ${bankAccount}`,
+        method && `Method: ${method}`,
+        refNo && `Ref: ${refNo}`,
+        formattedDate && `Date: ${formattedDate}`,
+        attachment && `Attachment: ${attachment}`
+      ].filter(Boolean);
+      
+      return parts.length ? `Bank Details: ${parts.join(" | ")}` : "";
+    }
+    if (paymentType === "cash") {
+      const receiver = typeDetails.receiverSenderName || "";
+      const mobile = typeDetails.mobileNumber || "";
+      const whatsapp = typeDetails.whatsappNumber || "";
+      
+      const parts = [
+        receiver && `Receiver/Sender: ${receiver}`,
+        mobile && `Mobile: ${mobile}`,
+        whatsapp && `WhatsApp: ${whatsapp}`
+      ].filter(Boolean);
+      
+      return parts.length ? `Cash Details: ${parts.join(" | ")}` : "";
+    }
+    if (paymentType === "transfer") {
+      const fromVal = typeDetails.from || "";
+      const toVal = typeDetails.to || "";
+      const refVal = typeDetails.ref || "";
+      
+      const parts = [
+        fromVal && `From: ${fromVal}`,
+        toVal && `To: ${toVal}`,
+        refVal && `Ref: ${refVal}`
+      ].filter(Boolean);
+      
+      return parts.length ? `Transfer Details: ${parts.join(" | ")}` : "";
+    }
+    if (paymentType === "business" || paymentType === "invoice") {
+      const invNo = typeDetails.invoiceNumber || "";
+      const purInfo = typeDetails.purchaseInfo || typeDetails.businessName || "";
+      
+      const parts = [
+        invNo && `Invoice #: ${invNo}`,
+        purInfo && `Info: ${purInfo}`
+      ].filter(Boolean);
+      
+      return parts.length ? `Invoice/Business Details: ${parts.join(" | ")}` : "";
+    }
+    return "";
+  }, [paymentType, typeDetails, paymentDate, attachmentFile]);
+
+  // Sync category details directly to remarks textarea dynamically
+  useEffect(() => {
+    setRemarks((prev) => {
+      const lines = prev.split("\n").map((l) => l.trim()).filter((l) => {
+        return !l.startsWith("Bank Details:") &&
+               !l.startsWith("Cash Details:") &&
+               !l.startsWith("Transfer Details:") &&
+               !l.startsWith("Invoice/Business Details:") &&
+               !l.startsWith("Invoice Details:");
+      });
+      
+      if (detailsString) {
+        lines.push(detailsString);
+      }
+      return lines.filter(Boolean).join("\n");
+    });
+  }, [detailsString]);
+
+  // Sync calculation details directly to remarks textarea dynamically
+  useEffect(() => {
+    if (showCalcPanel && calcAmount && exchangeRate && calcFinal !== null) {
+      setRemarks((prev) => {
+        const opSymbol = calcOp === "mul" ? "×" : "÷";
+        const newCalcLine = `Calculation: ${Number(calcAmount).toLocaleString()} ${currency.toUpperCase()} ${opSymbol} ${Number(exchangeRate).toLocaleString()} = ${calcFinal.toFixed(2)} PKR`;
+        
+        const lines = prev.split("\n").map((l) => l.trim()).filter((l) => !l.startsWith("Calculation:"));
+        lines.push(newCalcLine);
+        return lines.filter(Boolean).join("\n");
+      });
+    } else {
+      setRemarks((prev) => {
+        const lines = prev.split("\n").map((l) => l.trim()).filter((l) => !l.startsWith("Calculation:"));
+        return lines.filter(Boolean).join("\n");
+      });
+    }
+  }, [showCalcPanel, calcAmount, exchangeRate, calcOp, currency, calcFinal]);
+
+  // Load saved bank/method options
+  useEffect(() => {
+    setSavedBanks(readLocalBankList(SAVED_BANKS_KEY));
+    setSavedMethods(readLocalList(SAVED_METHODS_KEY));
+  }, []);
+
+  function commitAddOption() {
+    const value = addOptionValue.trim();
+    if (!value) return;
+
+    if (addOptionType === "bank") {
+      const exists = savedBanks.some((b) => b.name.toLowerCase() === value.toLowerCase());
+      if (!exists) {
+        const next = [...savedBanks, { name: value, address: addOptionAddress.trim() }];
+        setSavedBanks(next);
+        writeLocalBankList(SAVED_BANKS_KEY, next);
+      }
+      setTypeDetails((prev) => ({ ...prev, bankName: value }));
+    } else {
+      const exists = savedMethods.some((m) => m.toLowerCase() === value.toLowerCase());
+      if (!exists) {
+        const next = [...savedMethods, value];
+        setSavedMethods(next);
+        writeLocalList(SAVED_METHODS_KEY, next);
+      }
+      setTypeDetails((prev) => ({ ...prev, method: value }));
+    }
+
+    setAddOptionOpen(false);
+  }
+
+  function renameCustomMethod(oldName: string, newName: string) {
+    const cleanedNew = newName.trim();
+    if (!cleanedNew) return;
+    const next = savedMethods.map((m) => (m === oldName ? cleanedNew : m));
+    setSavedMethods(next);
+    writeLocalList(SAVED_METHODS_KEY, next);
+    if (typeDetails.method === oldName) {
+      setTypeDetails((prev) => ({ ...prev, method: cleanedNew }));
+    }
+  }
+
+  function deleteCustomMethod(name: string) {
+    const next = savedMethods.filter((m) => m !== name);
+    setSavedMethods(next);
+    writeLocalList(SAVED_METHODS_KEY, next);
+    if (typeDetails.method === name) {
+      setTypeDetails((prev) => ({ ...prev, method: "" }));
+    }
+  }
+
+  function openAddOption(type: "bank" | "method") {
+    setAddOptionType(type);
+    setAddOptionValue("");
+    setAddOptionAddress("");
+    setAddOptionOpen(true);
+  }
+
+  const suggestedAdvance = useMemo(() => {
+    if (!selected) return 0;
+    const totals = (selected as any).form_data?.totals || {};
+    const goods = (selected as any).form_data?.goodsEntries || [];
+    const form = (selected as any).form_data?.form || {};
+    
+    const totalPrice = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) : Number(form.totalAmount || 0);
+    const required = (totalPrice * (Number(form.advancePercent || 10))) / 100;
+    
+    const exchangeRate = selected.exchange_rate || form.exchangeRate || 1;
+    const paidAdvance = Number(selected.advance_paid || 0);
+    const paidAdvanceBC = paidAdvance / exchangeRate;
+    
+    return Math.max(0, required - paidAdvanceBC);
+  }, [selected]);
+
+  const canSave =
+    Boolean(selected) &&
+    Boolean(paymentSourceLedgerId) &&
+    Boolean(paymentType) &&
+    Boolean(amount && amount > 0) &&
+    currency.trim().length === 3 &&
+    Number(exchangeRate) > 0 &&
+    !processingPayment;
+
+  const ledgerOptions = useMemo(() => {
+    return ledgers.map(toLedgerOption);
+  }, [ledgers]);
+
+  const currencyValue = currency;
 
   async function handleProcessPayment() {
     if (!selected) return;
-    if (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0) {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       setPaymentError("Please enter a valid payment amount.");
       return;
     }
+
+    if ((activeMode === "advance" || activeMode === "remaining") && (!doubleEntry.debitLedgerId || !doubleEntry.creditLedgerId)) {
+      setPaymentError("Unable to resolve supplier or cash account ledgers. Please check your accounting setup.");
+      return;
+    }
+
     setProcessingPayment(true);
     setPaymentError("");
     setPaymentSuccess("");
     try {
-      const response = await fetch(`/api/erp/purchases/orders/${selected.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentStatus: entryType === "debit" ? "advance_paid" : "credit_posted",
-          ledgerPostingStatus: "Posted",
-          advancePaid: entryType === "debit" ? Number(paymentAmount) : (selected.advance_paid ?? 0),
-          creditAmount: entryType === "credit" ? Number(paymentAmount) : (selected.credit_amount ?? 0),
-          paymentDate,
-          paymentMethod,
-          paymentNarration: paymentNarration || `${entryType === "debit" ? "Debit" : "Credit"} payment for PO ${selected.purchase_order_no} on ${paymentDate}`,
-          ledgerEntry: {
-            type: entryType,
-            debitAccount: debitAccountCode,
-            debitAccountName,
-            creditAccount: creditAccountCode,
-            creditAccountName,
-            amount: Number(paymentAmount),
-            currency,
-            date: paymentDate,
-            narration: paymentNarration || `PO ${selected.purchase_order_no} – ${entryType === "debit" ? "Purchase Advance" : "Sales Credit"} Payment`
-          }
-        })
-      });
+      const isPostPaymentApi = activeMode === "advance" || activeMode === "remaining";
+      
+      let auditTrail = "";
+      if (showCalcPanel && calcFinal !== null) {
+        const opSymbol = calcOp === "mul" ? "×" : "÷";
+        auditTrail = `[Audit Trail - Qty: ${calcAmount} | Currency: ${currency.toUpperCase()} | Rate: ${exchangeRate} | Op: ${opSymbol} | Converted: ${amount.toFixed(2)} PKR]`;
+      } else {
+        auditTrail = `[Audit Trail - Final Amount: ${amount.toFixed(2)} PKR (Local Currency Entry)]`;
+      }
+      const combinedNarration = remarks.trim();
+      const finalNarration = `${combinedNarration.trim()}\n${auditTrail}`;
+
+      const response = await fetch(
+        isPostPaymentApi
+          ? `/api/erp/purchases/orders/${selected.id}/payments`
+          : `/api/erp/purchases/orders/${selected.id}`,
+        {
+          method: isPostPaymentApi ? "POST" : "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            isPostPaymentApi
+              ? {
+                  kind: activeMode,
+                  entryDate: paymentDate,
+                  amount: Number(amount),
+                  currencyCode: currency,
+                  exchangeRate: Number(exchangeRate || 1),
+                  debitLedgerId: doubleEntry.debitLedgerId,
+                  creditLedgerId: doubleEntry.creditLedgerId,
+                  referenceNo: typeDetails.refNo || selected.purchase_contract_no || undefined,
+                  narration: finalNarration.trim() || `PO ${selected.purchase_order_no} – ${activeMode === "advance" ? "Advance" : "Remaining"} Payment`
+                }
+              : {
+                  paymentStatus: "credit_posted",
+                  ledgerPostingStatus: "Posted",
+                  creditAmount: Number(amount),
+                  paymentDate,
+                  paymentMethod: typeDetails.method || "Cash",
+                  paymentNarration: finalNarration.trim() || `Credit payment for PO ${selected.purchase_order_no} on ${paymentDate}`,
+                  ledgerEntry: {
+                    type: "credit",
+                    debitAccount: debitAccountCode,
+                    debitAccountName,
+                    creditAccount: creditAccountCode,
+                    creditAccountName,
+                    amount: Number(amount),
+                    currency,
+                    date: paymentDate,
+                    narration: finalNarration.trim() || `PO ${selected.purchase_order_no} – Sales Credit Payment`
+                  }
+                }
+          )
+        }
+      );
+
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
         throw new Error(payload?.error?.message || payload?.error || "Payment posting failed.");
       }
-      setPaymentSuccess(`✅ ${entryType === "debit" ? "Debit" : "Credit"} entry of ${money(paymentAmount, currency)} posted successfully to ledger for PO ${selected.purchase_order_no}.`);
-      setPaymentAmount("");
-      setPaymentNarration("");
+      setPaymentSuccess(`✅ Payment posted successfully for PO ${selected.purchase_order_no}.`);
+      
+      // Reset Roznamcha fields
+      setCalcAmount("");
+      setFinalPayment("");
+      setRemarks("");
+      setTypeDetails({});
+      setAttachmentFile(null);
+
       void loadOrders();
     } catch (err) {
       setPaymentError(err instanceof Error ? err.message : "Payment processing failed.");
@@ -411,7 +838,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           <table className="min-w-full border-collapse text-xs text-slate-800">
             <thead className="bg-slate-50 text-[10px] uppercase font-bold tracking-wide text-slate-650 border-b border-slate-200">
               <tr>
-                {["SR#", "Admin S#", "Country S#", "Bill No", "Date", "Seller Acc", "Buyer Acc", "Goods Name", "Qty", "Gross Weight", "Net Weight", "Price", "Total Price", "Ex. Rate", "Final Amount", "Payment Condition", "Actions"].map((header, idx) => (
+                {(activeMode === "advance"
+                  ? ["SR#", "Admin S#", "Country S#", "Bill No", "Date", "Seller Acc", "Buyer Acc", "Goods Name", "Qty", "Gross Weight", "Net Weight", "Price", "Total Price", "Ex. Rate", "Final Amount", "Advance Due Date", "Advance %", "Req. Advance", "Paid Advance", "Remaining Advance", "Payment Condition", "Actions"]
+                  : ["SR#", "Admin S#", "Country S#", "Bill No", "Date", "Seller Acc", "Buyer Acc", "Goods Name", "Qty", "Gross Weight", "Net Weight", "Price", "Total Price", "Ex. Rate", "Final Amount", "Payment Condition", "Actions"]
+                ).map((header, idx) => (
                   <th key={idx} className="whitespace-nowrap border-r border-slate-200 px-3 py-3 text-left font-black last:border-r-0">{header}</th>
                 ))}
               </tr>
@@ -436,9 +866,17 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                 const price = goods.length ? (goods[0].coursePrice || 0) : Number(form.coursePrice || 0);
                 const totalPrice = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) : Number(form.totalAmount || 0);
-
                 const exchangeRate = row.exchange_rate || form.exchangeRate || 1;
                 const finalAmount = row.order_total || totals.grandFinal || 0;
+
+                const advancePercent = Number(form.advancePercent || 0);
+                const requiredAdvance = (finalAmount * advancePercent) / 100;
+                const paidAdvance = Number(row.advance_paid || 0);
+                const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
+
+                const requiredAdvanceBC = (totalPrice * advancePercent) / 100;
+                const paidAdvanceBC = paidAdvance / exchangeRate;
+                const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
 
                 const paymentType = form.paymentType || row.payment_status || "N/A";
                 const loadingCountry = form.loadingCountry || "N/A";
@@ -469,6 +907,24 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-slate-850 font-bold last:border-r-0">{money(totalPrice, row.currency_code ?? "")}</td>
                     <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-slate-700 last:border-r-0">{exchangeRate.toFixed(2)}</td>
                     <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-blue-700 font-black last:border-r-0">{money(finalAmount, "PKR")}</td>
+                    {activeMode === "advance" && (
+                      <>
+                        <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-center font-semibold text-slate-700 last:border-r-0">{date(form.advancePaymentDate || form.advanceDate || form.dueDate)}</td>
+                        <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-slate-700 last:border-r-0">{advancePercent}%</td>
+                        <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-amber-700 font-bold last:border-r-0">
+                          {money(requiredAdvanceBC, row.currency_code ?? "")}
+                          <span className="block text-[10px] text-muted-foreground font-normal">{money(requiredAdvance, "PKR")}</span>
+                        </td>
+                        <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-emerald-650 font-bold last:border-r-0">
+                          {money(paidAdvanceBC, row.currency_code ?? "")}
+                          <span className="block text-[10px] text-muted-foreground font-normal">{money(paidAdvance, "PKR")}</span>
+                        </td>
+                        <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-right font-mono text-rose-600 font-bold last:border-r-0">
+                          {money(remainingAdvanceBC, row.currency_code ?? "")}
+                          <span className="block text-[10px] text-muted-foreground font-normal">{money(remainingAdvance, "PKR")}</span>
+                        </td>
+                      </>
+                    )}
                     <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-slate-700 max-w-[280px] truncate text-[11px] font-medium last:border-r-0" title={transitSummary}>{transitSummary}</td>
                     <td className="whitespace-nowrap border-r border-slate-200 px-3 py-2.5 text-center last:border-r-0"><RowActions onSelect={() => setSelectedId(row.id)} /></td>
                   </tr>
@@ -476,7 +932,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               })}
               {!pageRows.length && !loading ? (
                 <tr>
-                  <td colSpan={17} className="px-3 py-10 text-center text-muted-foreground">No purchase order payment records found.</td>
+                  <td colSpan={activeMode === "advance" ? 22 : 17} className="px-3 py-10 text-center text-muted-foreground">No purchase order payment records found.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -505,36 +961,65 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </div>
 
         {selected ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">Purchase Order Info</h3>
-              <InfoRow label="Purchase Order No" value={selected.purchase_order_no} />
-              <InfoRow label="Contract Ref No" value={selected.purchase_contract_no ?? "-"} />
-              <InfoRow label="Booking Date" value={date(selected.created_at)} />
-              <InfoRow label="Journal Code" value={`JE-${selected.purchase_order_no.replace(/[^0-9]/g, "").slice(-6) || "000001"}`} />
-            </div>
+          (() => {
+            const selGoods = selected.form_data?.goodsEntries || [];
+            const selForm = selected.form_data?.form || {};
+            const selExchangeRate = Number(selected.exchange_rate || selForm.exchangeRate || 1);
+            const selCurrency = selected.currency_code || selForm.currencyType || "USD";
 
-            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">Transaction Valuations</h3>
-              <InfoRow label="Base Currency" value={selected.currency_code ?? "USD"} />
-              <InfoRow label="Exchange Rate" value={String(selected.exchange_rate ?? "1.00")} />
-              <InfoRow label="Total PO Amount" value={money(selected.order_total, selected.currency_code ?? "")} highlight />
-            </div>
+            const selTotalPriceUsd = selGoods.length ? selGoods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) : Number(selForm.totalAmount || 0);
+            const selTotalPricePkr = Number(selected.order_total || selected.form_data?.totals?.grandFinal || (selTotalPriceUsd * selExchangeRate));
 
-            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">Payment Allocations</h3>
-              <InfoRow label="Advance Paid" value={money(selected.advance_paid, selected.currency_code ?? "")} />
-              <InfoRow label="Remaining Paid" value={money(selected.remaining_paid, selected.currency_code ?? "")} />
-              <InfoRow label="Credit Amount" value={money(selected.credit_amount, selected.currency_code ?? "")} />
-            </div>
+            const selAdvancePercent = Number(selForm.advancePercent || 0);
+            const selRequiredAdvancePkr = (selTotalPricePkr * selAdvancePercent) / 100;
+            const selRequiredAdvanceUsd = (selTotalPriceUsd * selAdvancePercent) / 100;
 
-            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">Current Standing</h3>
-              <InfoRow label="Outstanding Due" value={money(selected.remaining_due, selected.currency_code ?? "")} highlight />
-              <InfoRow label="Payment Status" value={selected.payment_status ?? "Pending"} />
-              <InfoRow label="Posting Status" value={selected.ledger_posting_status ?? "Pending"} />
-            </div>
-          </div>
+            const selPaidAdvancePkr = Number(selected.advance_paid || 0);
+            const selPaidAdvanceUsd = selPaidAdvancePkr / selExchangeRate;
+
+            const selRemainingPaidPkr = Number(selected.remaining_paid || 0);
+            const selRemainingPaidUsd = selRemainingPaidPkr / selExchangeRate;
+
+            const selCreditAmountPkr = Number(selected.credit_amount || 0);
+            const selCreditAmountUsd = selCreditAmountPkr / selExchangeRate;
+
+            const selRemainingDuePkr = Number(selected.remaining_due || 0);
+            const selRemainingDueUsd = selRemainingDuePkr / selExchangeRate;
+
+            return (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">Purchase Order Info</h3>
+                  <InfoRow label="Purchase Order No" value={selected.purchase_order_no} />
+                  <InfoRow label="Contract Ref No" value={selected.purchase_contract_no ?? "-"} />
+                  <InfoRow label="Booking Date" value={date(selected.created_at)} />
+                  <InfoRow label="Advance Due Date" value={date(selForm.advancePaymentDate || selForm.advanceDate || selForm.dueDate)} />
+                  <InfoRow label="Journal Code" value={`JE-${selected.purchase_order_no.replace(/[^0-9]/g, "").slice(-6) || "000001"}`} />
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">Transaction Valuations</h3>
+                  <InfoRow label="Base Currency" value={selCurrency} />
+                  <InfoRow label="Exchange Rate" value={`${selExchangeRate.toFixed(2)} Rs`} />
+                  <InfoRow label="Total PO Amount" value={`${money(selTotalPriceUsd)} ${selCurrency} / ${money(selTotalPricePkr)} PKR`} highlight />
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">Payment Allocations</h3>
+                  <InfoRow label="Advance Paid" value={`${money(selPaidAdvanceUsd)} ${selCurrency} / ${money(selPaidAdvancePkr)} PKR`} />
+                  <InfoRow label="Remaining Paid" value={`${money(selRemainingPaidUsd)} ${selCurrency} / ${money(selRemainingPaidPkr)} PKR`} />
+                  <InfoRow label="Credit Amount" value={`${money(selCreditAmountUsd)} ${selCurrency} / ${money(selCreditAmountPkr)} PKR`} />
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">Current Standing</h3>
+                  <InfoRow label="Outstanding Due" value={`${money(selRemainingDueUsd)} ${selCurrency} / ${money(selRemainingDuePkr)} PKR`} highlight />
+                  <InfoRow label="Payment Status" value={selected.payment_status ?? "Pending"} />
+                  <InfoRow label="Posting Status" value={selected.ledger_posting_status ?? "Pending"} />
+                </div>
+              </div>
+            );
+          })()
         ) : (
           <div className="text-center py-6 text-sm text-muted-foreground">Select a purchase order row from the report above to view its payment journal profile.</div>
         )}
@@ -567,56 +1052,50 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </tr>
                 </thead>
                 <tbody>
-                  <tr
-                    className={cn("border-b border-border cursor-pointer transition", entryType === "debit" ? "bg-indigo-500/8 ring-1 ring-inset ring-indigo-400/30" : "hover:bg-muted/30")}
-                    onClick={() => setEntryType("debit")}
-                  >
+                  <tr className="border-b border-border bg-indigo-500/8 ring-1 ring-inset ring-indigo-400/30">
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/10 border border-indigo-400/30 px-2.5 py-1 text-[10px] font-black text-indigo-600 uppercase">
                         DEBIT (Dr)
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-bold text-foreground">{debitAccountName}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">{debitAccountCode}</div>
+                      <div className="font-bold text-foreground">{doubleEntry.debitName}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">{doubleEntry.debitCode}</div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-[11px]">{debitAccountBranch}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-[11px]">{doubleEntry.debitBranch}</td>
                     <td className="px-4 py-3 text-right font-mono font-bold text-indigo-600">
-                      {entryType === "debit" && paymentAmount ? money(paymentAmount, currency) : <span className="text-muted-foreground">—</span>}
+                      {amount ? money(amount / Number(exchangeRate || 1), currency) : <span className="text-muted-foreground">—</span>}
+                      <span className="block text-[10px] text-muted-foreground font-normal">{money(amount, "PKR")}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <input
                         type="radio"
-                        name="entryType"
-                        checked={entryType === "debit"}
-                        onChange={() => setEntryType("debit")}
+                        checked
+                        readOnly
                         className="h-4 w-4 accent-indigo-600"
                       />
                     </td>
                   </tr>
-                  <tr
-                    className={cn("cursor-pointer transition", entryType === "credit" ? "bg-violet-500/8 ring-1 ring-inset ring-violet-400/30" : "hover:bg-muted/30")}
-                    onClick={() => setEntryType("credit")}
-                  >
+                  <tr className="bg-violet-500/8 ring-1 ring-inset ring-violet-400/30">
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/10 border border-violet-400/30 px-2.5 py-1 text-[10px] font-black text-violet-600 uppercase">
                         CREDIT (Cr)
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-bold text-foreground">{creditAccountName}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">{creditAccountCode}</div>
+                      <div className="font-bold text-foreground">{doubleEntry.creditName}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">{doubleEntry.creditCode}</div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-[11px]">{creditAccountBranch}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-[11px]">{doubleEntry.creditBranch}</td>
                     <td className="px-4 py-3 text-right font-mono font-bold text-violet-600">
-                      {entryType === "credit" && paymentAmount ? money(paymentAmount, currency) : <span className="text-muted-foreground">—</span>}
+                      {amount ? money(amount / Number(exchangeRate || 1), currency) : <span className="text-muted-foreground">—</span>}
+                      <span className="block text-[10px] text-muted-foreground font-normal">{money(amount, "PKR")}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <input
                         type="radio"
-                        name="entryType"
-                        checked={entryType === "credit"}
-                        onChange={() => setEntryType("credit")}
+                        checked
+                        readOnly
                         className="h-4 w-4 accent-violet-600"
                       />
                     </td>
@@ -627,100 +1106,348 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
             {/* Payment Input Form */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Payment Amount ({currency})</label>
-                <input
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder={suggestedAdvance > 0 ? `Suggested: ${suggestedAdvance.toFixed(2)}` : "Enter amount"}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs font-mono text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+              <FieldBlock label="Payment Source Account" required>
+                <SearchSelect
+                  label=""
+                  value={paymentSourceLedgerId}
+                  placeholder="Search Payment Source Account..."
+                  options={ledgerOptions}
+                  disabled={loading}
+                  onValueChange={setPaymentSourceLedgerId}
                 />
-                {suggestedAdvance > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setPaymentAmount(suggestedAdvance.toFixed(2))}
-                    className="text-[10px] text-primary font-semibold hover:underline"
-                  >
-                    Use suggested: {money(suggestedAdvance, currency)}
-                  </button>
+                {selectedSourceLedger && (
+                  <div className="mt-1 text-[10px] font-semibold text-slate-500 flex justify-between">
+                    <span>Balance: {sourceBalanceText}</span>
+                    <span>Currency: {selectedSourceLedger.currency || "PKR"}</span>
+                  </div>
                 )}
-              </div>
+              </FieldBlock>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Payment Date</label>
-                <input
+              <FieldBlock label="Roznamcha Type" required>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                  value={roznamchaType}
+                  onChange={(e) => setRoznamchaType(e.target.value)}
+                >
+                  <option value="Cash Book No.">Cash Book No.</option>
+                  <option value="Roznamcha Book No.">Roznamcha Book No.</option>
+                  <option value="Receipt No.">Receipt No.</option>
+                </select>
+              </FieldBlock>
+
+              <FieldBlock label="Roznamcha Number" required>
+                <Input
+                  className="h-9 text-xs font-semibold w-full"
+                  value={roznamchaNumber}
+                  onChange={(e) => setRoznamchaNumber(e.target.value)}
+                  placeholder="e.g. 000123"
+                />
+              </FieldBlock>
+
+              <FieldBlock label="Payment Date" required>
+                <Input
+                  className="h-9 text-xs font-semibold w-full"
                   type="date"
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-primary"
                 />
-              </div>
+              </FieldBlock>
+            </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Payment Method</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FieldBlock label="Roznamcha Category" required>
                 <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground outline-none focus:border-primary"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                  value={paymentType}
+                  onChange={(e) => {
+                    const value = e.target.value as any;
+                    setPaymentType(value);
+                    setTypeDetails({});
+                    setAttachmentFile(null);
+                    setFinalPayment("");
+                  }}
                 >
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="cash">Cash</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="wire_transfer">Wire Transfer</option>
-                  <option value="letter_of_credit">Letter of Credit (LC)</option>
+                  <option value="">Select Category</option>
+                  <option value="cash">Cash Roznamcha</option>
+                  <option value="bank">Bank Roznamcha</option>
+                  <option value="business">Business Roznamcha</option>
+                  <option value="invoice">Invoice Journal</option>
+                  <option value="transfer">Transfer</option>
                 </select>
-              </div>
+              </FieldBlock>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Entry Type Selected</label>
-                <div className={cn(
-                  "h-9 flex items-center px-3 rounded-lg border font-bold text-xs uppercase",
-                  entryType === "debit"
-                    ? "border-indigo-400/40 bg-indigo-500/10 text-indigo-600"
-                    : "border-violet-400/40 bg-violet-500/10 text-violet-600"
-                )}>
-                  {entryType === "debit" ? "🔵 Debit (Dr) — Purchase Account" : "🟣 Credit (Cr) — Sales Account"}
+              <FieldBlock label="Currency" required>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                  value={currency}
+                  onChange={(e) => {
+                    setCurrency(e.target.value);
+                    setFinalPayment("");
+                  }}
+                >
+                  <option value="">Select Currency</option>
+                  {["USD", "AED", "PKR", "AFN", "INR", "IRR"].map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </FieldBlock>
+            </div>
+
+            {/* Dynamic Type Panel */}
+            {paymentType && (
+              <div className="rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/20">
+                <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-indigo-700">
+                  {paymentType === "cash" && "Cash Details"}
+                  {paymentType === "bank" && "Bank Details"}
+                  {paymentType === "business" && "Business Details"}
+                  {paymentType === "invoice" && "Invoice Details"}
+                  {paymentType === "transfer" && "Transfer Details"}
+                </div>
+
+                {paymentType === "cash" && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <FieldBlock label="Receiver / Sender Name">
+                      <Input className="h-9 text-xs" value={typeDetails.receiverSenderName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, receiverSenderName: e.target.value }))} placeholder="Receiver or sender name" />
+                    </FieldBlock>
+                    <FieldBlock label="Mobile Number">
+                      <Input className="h-9 text-xs" value={typeDetails.mobileNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, mobileNumber: e.target.value }))} placeholder="Mobile number" />
+                    </FieldBlock>
+                    <FieldBlock label="WhatsApp Number">
+                      <Input className="h-9 text-xs" value={typeDetails.whatsappNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, whatsappNumber: e.target.value }))} placeholder="WhatsApp number" />
+                    </FieldBlock>
+                    <FieldBlock label="ID Card Copy Upload">
+                      <Input
+                        className="h-9 text-xs bg-white"
+                        type="file"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          setAttachmentFile(file);
+                          setTypeDetails((p) => ({ ...p, idCardCopyName: file?.name || "" }));
+                        }}
+                      />
+                    </FieldBlock>
+                  </div>
+                )}
+
+                {paymentType === "bank" && (
+                  <div className="space-y-3">
+                    <div className="grid gap-3 grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black text-slate-500 uppercase">Bank Name</Label>
+                        <select
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                          value={typeDetails.bankName || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "__new_bank__") {
+                              openAddOption("bank");
+                            } else {
+                              setTypeDetails((prev) => ({ ...prev, bankName: val }));
+                            }
+                          }}
+                        >
+                          <option value="">Select Bank</option>
+                          {["HBL", "MCB", "UBL", "Meezan", "Bank Alfalah"].map((bank) => (
+                            <option key={bank} value={bank}>{bank}</option>
+                          ))}
+                          {savedBanks.map((bank, index) => (
+                            <option key={`${bank.name}-${index}`} value={bank.name}>{bank.name}</option>
+                          ))}
+                          <option value="__new_bank__" className="text-blue-700 font-bold">+ New Bank</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black text-slate-500 uppercase">Payment Method</Label>
+                        <select
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                          value={typeDetails.method || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "__new_method__") {
+                              openAddOption("method");
+                            } else {
+                              setTypeDetails((prev) => ({ ...prev, method: val }));
+                            }
+                          }}
+                        >
+                          <option value="">Select Method</option>
+                          {["Cheque", "Mobile Transfer", "Online Transfer", "Bank Transfer"].map((method) => (
+                            <option key={method} value={method}>{method}</option>
+                          ))}
+                          {savedMethods.map((method, index) => (
+                            <option key={`${method}-${index}`} value={method}>{method}</option>
+                          ))}
+                          <option value="__new_method__" className="text-blue-700 font-bold">+ New Method</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 grid-cols-3">
+                      <FieldBlock label="Account Number">
+                        <Input
+                          className="h-9 text-xs font-semibold w-full"
+                          value={typeDetails.bankAccount || ""}
+                          onChange={(e) => setTypeDetails((prev) => ({ ...prev, bankAccount: e.target.value }))}
+                          placeholder="Bank A/C number"
+                        />
+                      </FieldBlock>
+                      <FieldBlock label="Transfer Reference">
+                        <Input
+                          className="h-9 text-xs font-semibold w-full"
+                          value={typeDetails.refNo || ""}
+                          onChange={(e) => setTypeDetails((prev) => ({ ...prev, refNo: e.target.value }))}
+                          placeholder="Ref or Tx ID"
+                        />
+                      </FieldBlock>
+                      <FieldBlock label="Transfer Date" required>
+                        <Input
+                          className="h-9 text-xs font-semibold w-full"
+                          type="date"
+                          required
+                          value={typeDetails.payDate || paymentDate}
+                          onChange={(e) => setTypeDetails((prev) => ({ ...prev, payDate: e.target.value }))}
+                        />
+                      </FieldBlock>
+                    </div>
+
+                    <FieldBlock label="Attachment Upload">
+                      <Input
+                        className="h-9 text-xs bg-white"
+                        type="file"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          setAttachmentFile(file);
+                          setTypeDetails((p) => ({ ...p, bankAttachmentName: file?.name || "" }));
+                        }}
+                      />
+                    </FieldBlock>
+                  </div>
+                )}
+
+                {(paymentType === "business" || paymentType === "invoice") && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <FieldBlock label="Invoice Number">
+                      <Input className="h-9 text-xs" value={typeDetails.invoiceNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, invoiceNumber: e.target.value }))} placeholder="Invoice number" />
+                    </FieldBlock>
+                    <FieldBlock label="Purchase Information">
+                      <Input className="h-9 text-xs" value={typeDetails.purchaseInfo || typeDetails.businessName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, purchaseInfo: e.target.value, businessName: e.target.value }))} placeholder="Purchase information" />
+                    </FieldBlock>
+                  </div>
+                )}
+
+                {paymentType === "transfer" && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <FieldBlock label="From">
+                      <Input className="h-9 text-xs" value={typeDetails.from || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, from: e.target.value }))} placeholder="From account" />
+                    </FieldBlock>
+                    <FieldBlock label="To">
+                      <Input className="h-9 text-xs" value={typeDetails.to || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, to: e.target.value }))} placeholder="To account" />
+                    </FieldBlock>
+                    <FieldBlock label="Reference" className="md:col-span-2">
+                      <Input className="h-9 text-xs" value={typeDetails.ref || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, ref: e.target.value }))} placeholder="Reference" />
+                    </FieldBlock>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Currency Rate / Calculations */}
+            {currency && showCalcPanel && (
+              <div className="rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/20">
+                <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Transaction Conversion Details (Local Calculation) ({currency} ➔ PKR)
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <FieldBlock label="Quantity / Amount">
+                    <Input className="h-9 text-xs font-semibold" value={calcAmount} onChange={(e) => setCalcAmount(e.target.value)} type="number" step="0.0001" min="0" placeholder="e.g. 100" />
+                  </FieldBlock>
+                  <FieldBlock label="Transaction Rate">
+                    <Input className="h-9 text-xs font-semibold" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} type="number" step="0.0001" min="0" disabled={isLocalCurrency} />
+                  </FieldBlock>
+                  <FieldBlock label="Operation">
+                    <select
+                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-semibold outline-none"
+                      value={calcOp}
+                      onChange={(e) => setCalcOp(e.target.value as any)}
+                    >
+                      <option value="mul">Multiply (*)</option>
+                      <option value="div">Divide (/)</option>
+                    </select>
+                  </FieldBlock>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FieldBlock label="Final Local Amount (PKR)" required>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
+                    PKR
+                  </span>
+                  <Input
+                    className="h-9 pl-12 text-right text-xs font-black font-mono"
+                    value={showCalcPanel && calcFinal !== null ? calcFinal.toFixed(2) : finalPayment}
+                    onChange={(e) => setFinalPayment(e.target.value)}
+                    placeholder="0.00"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    disabled={showCalcPanel && calcFinal !== null}
+                  />
+                </div>
+                {suggestedAdvance > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rate = Number(exchangeRate || 1);
+                      setFinalPayment((suggestedAdvance * rate).toFixed(2));
+                      setCalcAmount(suggestedAdvance.toFixed(2));
+                    }}
+                    className="text-[10px] text-primary font-semibold hover:underline mt-1 block"
+                  >
+                    Use suggested: {money(suggestedAdvance, currency)} / {money(suggestedAdvance * Number(exchangeRate || 1), "PKR")}
+                  </button>
+                )}
+              </FieldBlock>
+
+              <div className="space-y-1">
+                <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Transaction Entry Preview
+                </span>
+                <div className="h-9 flex items-center px-3 rounded-lg border border-indigo-400/40 bg-indigo-500/10 text-indigo-600 font-bold text-xs uppercase truncate">
+                  🔵 Balanced entry — Dr: {doubleEntry.debitCode} / Cr: {doubleEntry.creditCode}
                 </div>
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Narration / Remarks</label>
-              <input
-                type="text"
-                value={paymentNarration}
-                onChange={(e) => setPaymentNarration(e.target.value)}
-                placeholder={`${entryType === "debit" ? "Debit" : "Credit"} payment for PO ${selected.purchase_order_no} via ${paymentMethod}`}
-                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-primary"
+            <FieldBlock label="Narration / Remarks">
+              <textarea
+                rows={3}
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-semibold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                placeholder="Manually add additional descriptions, comments, explanations, or transaction notes..."
               />
-            </div>
+            </FieldBlock>
 
             {/* Summary & Action */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2 border-t border-border">
               <div className="text-xs space-y-0.5 text-muted-foreground">
                 <div>
                   <span className="font-bold text-foreground">Posting: </span>
-                  {entryType === "debit"
-                    ? <><span className="font-bold text-indigo-600">DR</span> {debitAccountName} ({debitAccountCode}) / <span className="font-bold text-violet-600">CR</span> {creditAccountName}</>
-                    : <><span className="font-bold text-violet-600">CR</span> {creditAccountName} ({creditAccountCode}) / <span className="font-bold text-indigo-600">DR</span> {debitAccountName}</>
-                  }
+                  <><span className="font-bold text-indigo-600">DR</span> {doubleEntry.debitName} ({doubleEntry.debitCode}) / <span className="font-bold text-violet-600">CR</span> {doubleEntry.creditName} ({doubleEntry.creditCode})</>
                 </div>
-                <div><span className="font-bold text-foreground">Amount: </span>{paymentAmount ? money(paymentAmount, currency) : "—"}</div>
+                <div><span className="font-bold text-foreground">Amount: </span>{amount ? money(amount, "PKR") : "—"}</div>
               </div>
 
               <Button
                 type="button"
                 onClick={handleProcessPayment}
-                disabled={processingPayment || !paymentAmount}
-                className={cn(
-                  "h-10 px-6 font-bold text-xs uppercase shadow-md transition",
-                  entryType === "debit"
-                    ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                    : "bg-violet-600 hover:bg-violet-700 text-white"
-                )}
+                disabled={processingPayment || !amount || !canSave}
+                className="h-10 px-6 font-bold text-xs uppercase shadow-md transition bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                {processingPayment ? "Processing..." : `Post ${entryType === "debit" ? "Debit" : "Credit"} Payment to Ledger`}
+                {processingPayment ? "Processing..." : `Post ${activeMode === "advance" ? "Advance" : "Remaining"} Payment`}
               </Button>
             </div>
 
@@ -742,6 +1469,103 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           </div>
         </section>
       )}
+
+      {addOptionOpen ? (
+        <SimpleModal
+          title={addOptionType === "bank" ? "Add New Bank" : "Payment Method Manager"}
+          onClose={() => setAddOptionOpen(false)}
+          className="max-w-md"
+        >
+          {addOptionType === "bank" ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-black">Bank Name</Label>
+                <Input
+                  className="text-xs font-semibold"
+                  value={addOptionValue}
+                  onChange={(e) => setAddOptionValue(e.target.value)}
+                  placeholder="e.g. HBL Karachi Branch"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-black">Bank Address</Label>
+                <textarea
+                  rows={2}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-semibold focus-visible:outline-none"
+                  value={addOptionAddress}
+                  onChange={(e) => setAddOptionAddress(e.target.value)}
+                  placeholder="Enter bank physical branch address..."
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setAddOptionOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs" onClick={commitAddOption}>
+                  Save Bank
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2 pb-3 border-b">
+                <Label className="text-xs font-black">Add New Payment Method</Label>
+                <div className="flex gap-2">
+                  <Input
+                    className="text-xs font-semibold"
+                    value={addOptionValue}
+                    onChange={(e) => setAddOptionValue(e.target.value)}
+                    placeholder="e.g. EasyPaisa / JazzCash"
+                  />
+                  <Button type="button" className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs" onClick={commitAddOption}>
+                    Add
+                  </Button>
+                </div>
+              </div>
+
+              {savedMethods.length > 0 ? (
+                <div className="space-y-2">
+                  <Label className="text-xs font-black">Custom Methods List (Click text to rename, or Blur to save)</Label>
+                  <div className="max-h-[180px] overflow-y-auto space-y-2 pr-1">
+                    {savedMethods.map((m) => (
+                      <div key={m} className="flex items-center gap-2">
+                        <Input
+                          defaultValue={m}
+                          className="h-8 text-xs font-semibold"
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val && val !== m) {
+                              renameCustomMethod(m, val);
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] font-bold"
+                          onClick={() => deleteCustomMethod(m)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs font-semibold text-slate-400 italic text-center py-2">
+                  No custom payment methods added yet.
+                </p>
+              )}
+
+              <div className="flex justify-end pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setAddOptionOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </SimpleModal>
+      ) : null}
     </div>
   );
 }

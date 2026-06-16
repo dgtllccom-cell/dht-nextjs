@@ -165,7 +165,14 @@ export async function POST(request: NextRequest) {
 
     const purchaseOrderNo = randomCode("PO");
     const paymentStatusRaw = String(body.paymentStatus || "pending").toLowerCase();
-    const paymentStatus = ["pending", "partial", "completed", "cancelled"].includes(paymentStatusRaw) ? paymentStatusRaw : "pending";
+    const form = (body.formData as any)?.form ?? {};
+    const advancePercent = Number(form.advancePercent ?? 10);
+    const orderTotal = Number(body.orderTotal || 0);
+    const advanceAmount = ledgerPostingStatus === "posted" ? ((orderTotal * advancePercent) / 100) : 0;
+    const remainingDue = ledgerPostingStatus === "posted" ? Math.max(0, orderTotal - advanceAmount) : orderTotal;
+    const paymentStatus = ledgerPostingStatus === "posted" 
+      ? (remainingDue === 0 ? "completed" : advanceAmount > 0 ? "partial" : "pending") 
+      : (["pending", "partial", "completed", "cancelled"].includes(paymentStatusRaw) ? paymentStatusRaw : "pending");
 
     const payload = {
       country_id: effective.countryId,
@@ -179,7 +186,9 @@ export async function POST(request: NextRequest) {
       order_total: body.orderTotal,
       form_data: body.formData ?? null,
       payment_status: paymentStatus,
-      ledger_posting_status: ledgerPostingStatus
+      ledger_posting_status: ledgerPostingStatus,
+      advance_paid: advanceAmount,
+      remaining_due: remainingDue
     };
 
     const inserted = await requireSupabaseData(
@@ -189,36 +198,34 @@ export async function POST(request: NextRequest) {
     const orderId = (inserted as any).id;
 
     if (ledgerPostingStatus === "posted") {
-      const form = (body.formData as any)?.form ?? {};
-      const advancePercent = Number(form.advancePercent ?? 10);
-      const advanceAmount = (Number(body.orderTotal) * advancePercent) / 100;
       const entryDate = form.advancePaymentDate || form.purchaseDate || new Date().toISOString().slice(0, 10);
       
       const debitLedgerId = await getLedgerIdByCode(supabase, form.purchaseAccountNo);
       const creditLedgerId = await getLedgerIdByCode(supabase, form.salesAccountNo);
       
       if (!debitLedgerId) {
-        throw new Error(`Debit Ledger not found for account code: ${form.purchaseAccountNo}`);
+        throw new Error(`Debit Ledger (Inventory) not found for account code: ${form.purchaseAccountNo}`);
       }
       if (!creditLedgerId) {
-        throw new Error(`Credit Ledger not found for account code: ${form.salesAccountNo}`);
+        throw new Error(`Credit Ledger (Supplier Payable) not found for account code: ${form.salesAccountNo}`);
       }
 
-      const { error: paymentError } = await supabase.rpc("post_purchase_order_payment", {
+      // 1. Stage 1: Credit purchase entry: Debit Inventory, Credit Supplier Payable
+      const { error: transferError } = await supabase.rpc("post_purchase_order_payment", {
         p_purchase_order_id: orderId,
-        p_kind: "advance",
+        p_kind: "credit",
         p_entry_date: entryDate,
-        p_amount: advanceAmount,
+        p_amount: orderTotal,
         p_currency_code: body.currencyCode || "USD",
         p_exchange_rate: Number(body.exchangeRate || 1),
         p_debit_ledger_id: debitLedgerId,
         p_credit_ledger_id: creditLedgerId,
         p_reference_no: body.purchaseContractNo || null,
-        p_narration: `Purchase Booking Purchase ${purchaseOrderNo}${form.orderReportRemarks || form.remarks ? ` - ${form.orderReportRemarks || form.remarks}` : ""}`
+        p_narration: `Booking Transfer for PO ${purchaseOrderNo}${form.orderReportRemarks || form.remarks ? ` - ${form.orderReportRemarks || form.remarks}` : ""}`
       });
 
-      if (paymentError) {
-        throw new Error(`Failed to post ledger entry: ${paymentError.message}`);
+      if (transferError) {
+        throw new Error(`Booking Transfer Ledger Entry failed: ${transferError.message}`);
       }
     }
 
@@ -281,4 +288,191 @@ async function getLedgerIdByCode(supabase: any, code: string) {
     .maybeSingle();
 
   return ledgerByCode?.id ?? null;
+}
+
+async function resolveOrCreateCashLedger(
+  supabase: any,
+  input: {
+    cashAccountCode?: string;
+    currencyCode: string;
+    countryId: string | null;
+    countryBranchId: string | null;
+    cityBranchId: string | null;
+    userId: string;
+  }
+) {
+  const code = (input.cashAccountCode || "CASH-001").trim();
+  
+  // 1. Try to find ledger by code
+  const ledgerId = await getLedgerIdByCode(supabase, code);
+  if (ledgerId) return ledgerId;
+
+  // 2. Try to find any active ledger containing "cash" (case insensitive)
+  const { data: cashL } = await supabase
+    .from("ledgers")
+    .select("id")
+    .ilike("name", "%cash%")
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+  if (cashL?.id) return cashL.id;
+
+  // 3. Try to find any active ledger containing "bank" (case insensitive)
+  const { data: bankL } = await supabase
+    .from("ledgers")
+    .select("id")
+    .ilike("name", "%bank%")
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+  if (bankL?.id) return bankL.id;
+
+  // 4. Create standard fallback Cash Account and Ledger
+  const scope = input.cityBranchId 
+    ? "city_branch" 
+    : input.countryBranchId 
+      ? "main_branch" 
+      : "super_admin";
+
+  const { data: existingAccount } = await supabase
+    .from("enterprise_accounts")
+    .select("id")
+    .eq("code", "CASH-001")
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  let accountId = existingAccount?.id;
+
+  if (!accountId) {
+    // Generate serials and codes
+    let branchCode = "BRANCH";
+    let branchPrefix = "BR";
+    let countryPrefix = "CT";
+
+    if (input.cityBranchId) {
+      const { data: cb } = await supabase
+        .from("city_branches")
+        .select("code, city_name")
+        .eq("id", input.cityBranchId)
+        .maybeSingle();
+      if (cb) {
+        branchCode = cb.code || cb.city_name || "CITY";
+        branchPrefix = cb.city_name || cb.code || "CITY";
+      }
+    } else if (input.countryBranchId) {
+      const { data: cb } = await supabase
+        .from("country_branches")
+        .select("code, name")
+        .eq("id", input.countryBranchId)
+        .maybeSingle();
+      if (cb) {
+        branchCode = cb.code || cb.name || "MAIN";
+        branchPrefix = "MAIN";
+      }
+    }
+
+    if (input.countryId) {
+      const { data: c } = await supabase
+        .from("countries")
+        .select("name, iso2")
+        .eq("id", input.countryId)
+        .maybeSingle();
+      if (c) {
+        countryPrefix = c.name?.toLowerCase().includes("united arab emirates") ? "UAE" : (c.iso2 || "CT");
+      }
+    }
+
+    // Count total enterprise accounts
+    const { count: totalCount } = await supabase
+      .from("enterprise_accounts")
+      .select("id", { count: "exact", head: true });
+
+    // Count branch-specific enterprise accounts
+    let branchQuery = supabase
+      .from("enterprise_accounts")
+      .select("id", { count: "exact", head: true })
+      .eq("scope", scope)
+      .is("deleted_at", null);
+    if (input.countryId) branchQuery = branchQuery.eq("country_id", input.countryId);
+    if (input.countryBranchId) branchQuery = branchQuery.eq("country_branch_id", input.countryBranchId);
+    if (input.cityBranchId) branchQuery = branchQuery.eq("city_branch_id", input.cityBranchId);
+    const { count: branchCount } = await branchQuery;
+
+    // Count country-specific enterprise accounts
+    let countryQuery = supabase
+      .from("enterprise_accounts")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null);
+    if (input.countryId) countryQuery = countryQuery.eq("country_id", input.countryId);
+    const { count: countryCount } = await countryQuery;
+
+    const accountSerialNumber = Number(totalCount ?? 0) + 1;
+    const branchAccountSequence = Number(branchCount ?? 0) + 1;
+    const countrySerialNumber = `${countryPrefix.toUpperCase()}-${String(Number(countryCount ?? 0) + 1).padStart(6, "0")}`;
+    const branchSerialNumber = `${countryPrefix.toUpperCase()}-${branchPrefix.slice(0, 3).toUpperCase()}-${String(branchAccountSequence).padStart(6, "0")}`;
+
+    const { data: newAccount, error: accError } = await supabase
+      .from("enterprise_accounts")
+      .insert({
+        scope,
+        country_id: input.countryId,
+        country_branch_id: input.countryBranchId,
+        city_branch_id: input.cityBranchId,
+        code: "CASH-001",
+        account_number: "CASH-001",
+        customer_number: "CUST-CASH-001",
+        account_serial_number: accountSerialNumber,
+        country_serial_number: countrySerialNumber,
+        branch_serial_number: branchSerialNumber,
+        branch_code: branchCode.slice(0, 6).toUpperCase(),
+        branch_account_sequence: branchAccountSequence,
+        name: "General Cash Account",
+        kind: "asset",
+        currency: input.currencyCode || "USD",
+        status: "active",
+        is_control_account: false,
+        opening_balance: 0,
+        current_balance: 0,
+        creation_date: new Date().toISOString(),
+        created_by: input.userId
+      })
+      .select("id")
+      .single();
+
+    if (accError) {
+      console.error("Failed to create fallback cash enterprise account:", accError);
+      throw new Error(`Failed to create fallback cash account: ${accError.message}`);
+    }
+    accountId = newAccount.id;
+  }
+
+  // Create the ledger record bound to this enterprise account
+  const { data: newLedger, error: ledgerError } = await supabase
+    .from("ledgers")
+    .insert({
+      scope,
+      country_id: input.countryId,
+      country_branch_id: input.countryBranchId,
+      city_branch_id: input.cityBranchId,
+      enterprise_account_id: accountId,
+      code: "CASH-001",
+      name: "General Cash Account",
+      currency: input.currencyCode || "USD",
+      opening_balance: 0,
+      current_balance: 0,
+      debit_total: 0,
+      credit_total: 0,
+      normal_balance: "debit",
+      is_active: true,
+      created_by: input.userId
+    })
+    .select("id")
+    .single();
+
+  if (ledgerError) {
+    console.error("Failed to create fallback cash ledger:", ledgerError);
+    throw new Error(`Failed to create fallback cash ledger: ${ledgerError.message}`);
+  }
+
+  return newLedger.id;
 }

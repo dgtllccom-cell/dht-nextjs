@@ -305,6 +305,7 @@ export function CashEntryForm({
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [activeRowMenuId, setActiveRowMenuId] = useState<string | null>(null);
   const [ledgerRefreshCount, setLedgerRefreshCount] = useState(0);
+  const [showPaymentWorkReport, setShowPaymentWorkReport] = useState(false);
 
   useEffect(() => {
     if (!countryId) {
@@ -1339,6 +1340,7 @@ export function CashEntryForm({
 
   const handleEditEntry = (row: any) => {
     setEditEntryId(row.id);
+    setShowPaymentWorkReport(true);
     suppressScopeResetRef.current = true;
     if (row.country_id) setCountryId(row.country_id);
     if (row.country_branch_id) setCountryBranchId(row.country_branch_id);
@@ -1859,6 +1861,7 @@ export function CashEntryForm({
             onClick={() => {
               resetPaymentDraft();
               setEditEntryId(null);
+              setShowPaymentWorkReport(true);
             }}
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -2118,6 +2121,7 @@ export function CashEntryForm({
         )}
 
         {/* Main Workspace layout */}
+        {showPaymentWorkReport ? (
         <div className="grid gap-4 lg:grid-cols-[1.4fr_0.8fr]">
           {/* Left Column: Payment Entry Form */}
           <div className="space-y-4">
@@ -2657,6 +2661,7 @@ export function CashEntryForm({
             )}
           </div>
         </div>
+        ) : null}
 
         {/* Recent Cash Entries Table Card */}
         <Card className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">

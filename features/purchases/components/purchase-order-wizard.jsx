@@ -825,13 +825,14 @@ export function PurchaseOrderWizard() {
     return brands.length > 0 ? brands : BRAND_OPTIONS;
   }, [selectedDbGood, form.origin, form.size, transitCountryOptions]);
 
-  // Load existing purchase order if purchaseOrderNo is in URL query parameters
+  // Load existing purchase order if purchaseOrderNo or id is in URL query parameters
   useEffect(() => {
     if (!session) return;
     if (typeof window === "undefined") return;
     const urlParams = new URLSearchParams(window.location.search);
     const poNo = urlParams.get("purchaseOrderNo");
-    if (!poNo) return;
+    const orderId = urlParams.get("id") || urlParams.get("purchaseOrderId");
+    if (!poNo && !orderId) return;
     setIsFormOpen(true);
 
     let cancelled = false;
@@ -840,13 +841,27 @@ export function PurchaseOrderWizard() {
       setSavingOrder(true);
       setSaveMessage("Loading purchase order details...");
       try {
-        const poData = await lookupPurchaseBookingReport(
-          poNo,
-          form.countryId,
-          form.countryBranchId,
-          form.cityBranchId,
-          isSuperAdmin
-        );
+        let poData = null;
+        if (orderId) {
+          const res = await fetch(`/api/erp/purchases/orders/${encodeURIComponent(orderId)}`, {
+            credentials: "same-origin"
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (res.ok && payload.ok) {
+            poData = payload.data?.order ?? payload.order ?? null;
+          } else {
+            throw new Error(payload?.error?.message || payload?.error || "Failed to load purchase order by ID.");
+          }
+        } else if (poNo) {
+          poData = await lookupPurchaseBookingReport(
+            poNo,
+            session.scopes?.countryIds?.[0] || null,
+            session.scopes?.countryBranchIds?.[0] || null,
+            session.scopes?.cityBranchIds?.[0] || null,
+            isSuperAdmin
+          );
+        }
+
         if (cancelled) return;
 
         if (poData) {
@@ -854,16 +869,18 @@ export function PurchaseOrderWizard() {
           const loadedForm = rawFormData.form || {};
           const loadedGoods = rawFormData.goodsEntries || [];
 
+          const poNumber = poData.purchase_order_no || poData.purchaseBookingOrderNumber || loadedForm.purchaseOrderNo || poNo || "";
+          const contractNumber = poData.purchase_contract_no || poData.purchaseContractNo || loadedForm.purchaseContractNo || "";
+
           setForm((prev) => ({
             ...prev,
             ...loadedForm,
             // Retain PO/Contract identification numbers
-            purchaseOrderNo: poData.purchaseBookingOrderNumber || loadedForm.purchaseOrderNo || poNo,
-            purchaseContractNo: poData.purchaseContractNo || loadedForm.purchaseContractNo || "",
+            purchaseOrderNo: poNumber,
+            purchaseContractNo: contractNumber,
           }));
 
           // Sync search display labels from the loaded account names
-          // so the account inputs are pre-populated in the booking tab.
           if (loadedForm.purchaseAccountName || loadedForm.purchaseAccountNo) {
             setPurchaseSearch(loadedForm.purchaseAccountName || loadedForm.purchaseAccountNo || "");
           }
@@ -875,11 +892,15 @@ export function PurchaseOrderWizard() {
             setGoodsEntries(loadedGoods);
           }
 
-          // Directly redirect to Step 4 report view
-          setActiveTab("report");
+          // Check and set transferred/posted status
+          // When loading a PO for editing, we keep isTransferred as false initially so the wizard form is editable.
+          setIsTransferred(false);
+
+          // Render the editing wizard directly at Step 1 (booking) for editing
+          setActiveTab("booking");
           setSaveMessage("Purchase order loaded successfully.");
         } else {
-          setSaveMessage(`Purchase order ${poNo} not found.`);
+          setSaveMessage(`Purchase order not found.`);
         }
       } catch (err) {
         if (cancelled) return;
@@ -1423,12 +1444,12 @@ export function PurchaseOrderWizard() {
     }
   });
 
-  const handleSavePurchaseOrder = async () => {
+  const handleSavePurchaseOrder = async (shouldClose = false) => {
     setSavingOrder(true);
     setSaveMessage("");
     try {
-      const response = await fetch("/api/erp/purchases/orders", {
-        method: "POST",
+      const response = await fetch(savedOrderId ? `/api/erp/purchases/orders/${savedOrderId}` : "/api/erp/purchases/orders", {
+        method: savedOrderId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildPurchaseOrderPayload("Pending"))
       });
@@ -1436,14 +1457,20 @@ export function PurchaseOrderWizard() {
       if (!response.ok || !payload.ok) {
         throw new Error(payload?.error?.message || payload?.error || "Purchase order failed to save.");
       }
-      const nextOrderId = payload.data?.purchaseOrderId || "";
-      const nextOrderNo = payload.data?.purchaseOrderNo || form.purchaseOrderNo;
-      setSavedOrderId(nextOrderId);
+      const nextOrderId = payload.data?.purchaseOrderId || savedOrderId || payload.data?.id;
+      const nextOrderNo = payload.data?.purchaseOrderNo || savedOrderNo || form.purchaseOrderNo;
+      setSavedOrderId(nextOrderId || "");
       setSavedOrderNo(nextOrderNo);
       setSaveMessage(`Successfully saved Purchase Order: ${nextOrderNo}.`);
       setRegisterRefreshKey((key) => key + 1);
-      setActiveTab("report");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      
+      if (shouldClose) {
+        setIsFormOpen(false);
+        handleReset();
+      } else {
+        setActiveTab("report");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch (err) {
       setSaveMessage(err instanceof Error ? err.message : "Error saving order.");
     } finally {
@@ -1931,7 +1958,7 @@ export function PurchaseOrderWizard() {
           }`}
         >
           <span className="w-3 h-3 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center text-[7px] font-bold">3</span>
-          Others
+          Payment & Shipping
         </button>
         <span className="text-muted-foreground/30 font-normal">/</span>
         <button
@@ -2894,7 +2921,7 @@ export function PurchaseOrderWizard() {
               }`}
             >
               <span className="w-3.5 h-3.5 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center text-[8px] font-bold">3</span>
-              Others
+              Payment & Shipping
             </button>
 
             <span className="text-muted-foreground/30 font-normal">/</span>
@@ -3110,6 +3137,14 @@ export function PurchaseOrderWizard() {
                   <Button
                     type="button"
                     variant="outline"
+                    onClick={() => setActiveTab("booking")}
+                    className="flex items-center gap-1.5 h-9 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                  >
+                    <PenLine className="h-4 w-4" /> Edit Booking
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => {
                       setIsFormOpen(false);
                       handleReset();
@@ -3275,13 +3310,32 @@ export function PurchaseOrderWizard() {
                   <h3 className="text-base font-black text-foreground uppercase tracking-wider">Purchase Transfer Verification Details</h3>
                   <p className="text-xs text-muted-foreground font-semibold">Verify all booking details and complete ledger transfer</p>
                 </div>
-                <div className="flex items-center gap-2">
+                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
                     onClick={() => handleOpenA4Report(false)}
                     className="flex items-center gap-1.5 h-10 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
                   >
                     <Eye className="h-4 w-4" /> Preview Report
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setActiveTab("booking")}
+                    className="flex items-center gap-1.5 h-10 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                  >
+                    <PenLine className="h-4 w-4" /> Edit Booking
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setIsFormOpen(false);
+                      handleReset();
+                    }}
+                    variant="outline"
+                    className="flex items-center gap-1.5 h-10 text-xs font-bold border-slate-200 text-slate-705 hover:bg-slate-50"
+                  >
+                    Done (Back to List)
                   </Button>
                   <Button
                     type="button"
@@ -5232,11 +5286,19 @@ export function PurchaseOrderWizard() {
                   <div className="pt-3 border-t border-border flex flex-col gap-1.5">
                     <Button
                       type="button"
-                      onClick={handleSavePurchaseOrder}
+                      onClick={() => handleSavePurchaseOrder(false)}
                       disabled={savingOrder}
-                      className="w-full font-bold h-7.5 text-[10px] py-1 shadow uppercase tracking-wider"
+                      className="w-full font-bold h-7.5 text-[10px] py-1 shadow uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      {savingOrder ? "Saving..." : "Submit Report"}
+                      {savingOrder ? "Saving..." : "Save & View Summary"}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => handleSavePurchaseOrder(true)}
+                      disabled={savingOrder}
+                      className="w-full font-bold h-7.5 text-[10px] py-1 shadow uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      {savingOrder ? "Saving..." : "Save & Exit"}
                     </Button>
                     <div className="flex gap-1.5">
                       <Button
@@ -5977,7 +6039,16 @@ export function PurchaseOrderWizard() {
               <div className="grid grid-cols-2 gap-6 bg-muted/20 border border-border/60 rounded-xl p-4">
                 {/* Payment Details */}
                 <div className="space-y-2.5">
-                  <h3 className="font-black uppercase tracking-wider text-[10px] text-primary mb-1">Payment Schedule & Advance Terms</h3>
+                  <div className="flex justify-between items-center mb-1">
+                    <h3 className="font-black uppercase tracking-wider text-[10px] text-primary">Payment Schedule & Advance Terms</h3>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("others")}
+                      className="text-primary hover:underline text-[9px] font-bold flex items-center gap-0.5 border border-primary/20 rounded px-1.5 py-0.5 bg-background/60 shadow-sm"
+                    >
+                      <PenLine className="h-3 w-3" /> Edit Payment
+                    </button>
+                  </div>
                   <div className="flex justify-between border-b border-border/40 pb-1"><span className="text-muted-foreground">Payment Condition:</span> <span className="font-bold text-foreground">{form.paymentType}</span></div>
                   {form.paymentType === "Advance Payment" && (
                     <div className="space-y-3 pt-1">

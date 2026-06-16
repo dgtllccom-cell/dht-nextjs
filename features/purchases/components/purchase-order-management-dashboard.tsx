@@ -66,6 +66,9 @@ type PurchaseReport = {
   finalAmount?: number;
   exchange_rate?: number;
   remarks?: string;
+  purchaseContractNo?: string;
+  confirmationStatus?: string;
+  containerStatus?: string;
   form_data?: any;
   supplier_company_id?: string;
   audit: {
@@ -1395,94 +1398,195 @@ export function PurchaseOrderManagementDashboard() {
 
         {warning ? <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">{warning}</div> : null}
 
-        {/* 14-Column Table */}
+        {/* 37-Column ERP Table */}
         <div className="overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px] text-xs text-left border-collapse">
-              <thead className="bg-[#0f2942] text-[11px] font-bold uppercase tracking-wider text-white">
+            <table className="min-w-[4200px] text-xs text-left border-collapse">
+              <thead>
+                {/* Group header row */}
                 <tr>
                   {[
-                    "PURCHASE CODE",
-                    "SALES CODE",
-                    "PO CODE",
-                    "BOOKING DATE",
-                    "PURCHASE AMOUNT",
-                    "FINAL AMOUNT",
-                    "PAYMENT STATUS",
-                    "LOADING COUNTRY",
-                    "LOADING DATE",
-                    "LOADING PORT",
-                    "RECEIVING COUNTRY",
-                    "RECEIVING PORT",
-                    "DESTINATION COUNTRY",
-                    "VIEW"
-                  ].map((header) => (
-                    <th key={header} className="px-3 py-2.5 border-b border-slate-800 whitespace-nowrap text-center">
+                    { label: "General Information", span: 11, cls: "bg-[#0f2942] text-white" },
+                    { label: "Product Information", span: 7, cls: "bg-emerald-800 text-emerald-100" },
+                    { label: "Financial Information", span: 7, cls: "bg-blue-800 text-blue-100" },
+                    { label: "Route & Loading", span: 7, cls: "bg-indigo-700 text-indigo-100" },
+                    { label: "Status", span: 4, cls: "bg-slate-700 text-slate-200" },
+                    { label: "Actions", span: 1, cls: "bg-slate-600 text-slate-200" },
+                  ].map((group) => (
+                    <th
+                      key={group.label}
+                      colSpan={group.span}
+                      className={`${group.cls} px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-center border-r border-white/20 last:border-r-0`}
+                    >
+                      {group.label}
+                    </th>
+                  ))}
+                </tr>
+                {/* Column headers */}
+                <tr className="bg-[#0f2942] text-[10px] font-bold uppercase tracking-wider text-white">
+                  {[
+                    "SR.", "SUPER S/N", "CTY S/N", "BR. S/N",
+                    "PURCHASE CODE", "SALES CODE", "INVOICE NO.", "DATE",
+                    "BRANCH NAME", "COUNTRY", "USER NAME",
+                    "GOODS NAME", "BRAND", "ORIGIN",
+                    "QTY", "UNIT", "GROSS WT (KG)", "NET WT (KG)",
+                    "PURCH. PRICE", "TOTAL AMT", "PURCH. AMT", "EX. RATE", "FINAL AMT", "INV. %", "PAY. CONDITION",
+                    "ROUTE", "LOAD. COUNTRY", "LOAD. PORT", "LOAD. DATE",
+                    "RCV. COUNTRY", "RCV. PORT", "RCV. DATE",
+                    "TRANSFER", "INVOICE STS.", "PAY. STATUS", "LOAD. STATUS",
+                    "ACTIONS"
+                  ].map((header, i) => (
+                    <th key={i} className="px-2.5 py-2.5 border-b border-slate-800 whitespace-nowrap text-center">
                       {header}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                {filtered.map((row) => {
+                {filtered.map((row, index) => {
                   const isPoSelected = selected?.id === row.id;
-                  const bookingDateVal = date(row.bookingDate || row.purchaseDate || row.createdAt);
+                  const goods = row.form_data?.goodsEntries || [];
+                  const g0 = goods[0] as any;
+
+                  // General
+                  const srNo = index + 1;
+                  const superSerialNo = (row as any).superAdminSerialNo || row.form_data?.form?.superAdminSerialNo || "-";
+                  const countrySerialNo = (row as any).countrySerialNo || row.form_data?.form?.countrySerialNo || "-";
+                  const branchSerialNo = (row as any).branchSerialNo || row.form_data?.form?.branchSerialNo || row.audit?.branchCode || "-";
+                  const purchaseCode = row.purchaseBookingOrderNumber || "-";
                   const salesCode = row.form_data?.form?.salesOrderNo || "-";
-                  const originCountry = row.form_data?.goodsEntries?.[0]?.origin || row.countryName || "-";
-                  const purchaseAmt = `${money(row.purchaseAmount || row.totalPurchaseAmount)} ${row.currency}`;
-                  const finalAmt = `${money(row.finalAmount)} PKR`;
+                  const invoiceNo = row.form_data?.form?.billNo || row.form_data?.form?.invoiceNo || row.form_data?.form?.purchaseContractNo || row.purchaseContractNo || "-";
+                  const bookingDateVal = date(row.bookingDate || row.purchaseDate || row.createdAt);
+                  const branchName = row.branchName || "-";
+                  const countryName = row.countryName || "-";
+                  const userName = row.audit?.userName || "-";
 
-                  // Badge for Final Payment
-                  const paymentVal = String(row.paymentStatus || "").toUpperCase();
-                  const isPaymentPaid = paymentVal === "PAID" || paymentVal === "FULL PAYMENT";
-                  const paymentBadge = isPaymentPaid ? (
-                    <span className="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-250 dark:bg-emerald-950/40 dark:text-emerald-450 dark:border-emerald-900 uppercase">
-                      Paid
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center rounded bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-250 dark:bg-rose-950/40 dark:text-rose-455 dark:border-rose-900 uppercase">
-                      Pending
-                    </span>
-                  );
+                  // Product
+                  const goodsName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || row.productName || "-";
+                  const brand = goods.map((g: any) => g.brand || g.size || "").filter(Boolean).join(", ") || "-";
+                  const origin = goods.map((g: any) => g.origin).filter(Boolean).join(", ") || row.form_data?.goodsEntries?.[0]?.origin || row.countryName || "-";
+                  const totalQty = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || 0), 0) : Number(row.quantity || 0);
+                  const qtyUnit = g0?.qtyName || row.unit || "-";
+                  const totalGross = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(row.totalGrossWeight || row.totalWeight || 0);
+                  const totalNet = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || g.grossWeight || 0), 0) : Number(row.totalNetWeight || row.totalWeight || 0);
 
-                  // Info for Port and Loading
-                  const loadingDate = row.form_data?.form?.loadingDate || "-";
-                  const loadingPort = row.form_data?.form?.loadingPort || "-";
-                  const receivedCountry = row.form_data?.form?.receivedCountry || row.countryName || "-";
-                  const receivedPort = row.form_data?.form?.receivedPort || "-";
-                  const exitPort = row.form_data?.form?.exitPort || row.form_data?.form?.particularPort || "-";
+                  // Financial
+                  const purchasePrice = Number(g0?.coursePrice || row.purchaseRate || 0);
+                  const totalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.totalAmount || 0), 0) : Number(row.purchaseAmount || row.totalPurchaseAmount || 0);
+                  const purchaseAmt = Number(row.purchaseAmount || row.totalPurchaseAmount || 0);
+                  const exchangeRate = Number(g0?.exchangeRate || g0?.rate2 || row.exchange_rate || 0);
+                  const finalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || 0), 0) : Number(row.finalAmount || 0);
+                  const invoicePercent = row.form_data?.form?.advancePercent || row.form_data?.form?.invoicePercent;
+                  const payCondition = row.form_data?.form?.paymentType || row.form_data?.form?.paymentCondition || row.paymentStatus || "-";
+                  const rowCurrency = row.currency || "USD";
+                  const localCur = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0] || "PKR";
+
+                  // Route
+                  const routeRaw = row.form_data?.form?.shippingMode || row.form_data?.form?.shippingType || row.form_data?.form?.shipmentType || "";
+                  const routeName = routeRaw.replace(/^By\s+/i, "") || "-";
+                  const loadingCountry = row.form_data?.form?.loadingCountry || row.form_data?.form?.originCountry || "-";
+                  const loadingPort = row.form_data?.form?.loadingPort || row.form_data?.form?.exitPort || "-";
+                  const loadingDateVal = row.form_data?.form?.loadingDate || "-";
+                  const receivingCountry = row.form_data?.form?.receivedCountry || row.form_data?.form?.destinationCountry || "-";
+                  const receivingPort = row.form_data?.form?.receivedPort || row.form_data?.form?.particularPort || row.form_data?.form?.destinationPort || "-";
+                  const receivingDateVal = row.form_data?.form?.receivedDate || row.form_data?.form?.arrivalDate || "-";
+
+                  // Status
+                  const isPosted = row.status === "Posted" || (row as any).ledgerPostingStatus === "Posted";
+                  const rawPayStatus = String(row.paymentStatus || "").toUpperCase();
+                  const rawInvStatus = row.confirmationStatus || row.form_data?.workflow?.confirmationStatus || row.status || "Open";
+                  const rawLoadStatus = row.containerStatus || row.form_data?.workflow?.containerStatus || "Pending";
 
                   return (
                     <tr
                       key={row.id}
                       onClick={() => setSelectedId(row.id)}
                       className={cn(
-                        "cursor-pointer transition hover:bg-blue-50/20 dark:hover:bg-blue-950/5 text-center text-xs font-semibold text-slate-800 dark:text-slate-350",
+                        "cursor-pointer transition hover:bg-blue-50/30 dark:hover:bg-blue-950/10 text-center text-[10px] font-semibold text-slate-800 dark:text-slate-350",
                         isPoSelected && "bg-blue-50/40 dark:bg-blue-950/10"
                       )}
                     >
-                      <td className="px-3 py-2.5 font-mono text-blue-600 dark:text-blue-400 font-bold border-r border-slate-100 dark:border-slate-850">
-                        {row.purchaseBookingOrderNumber}
+                      {/* General */}
+                      <td className="px-2 py-2 font-mono text-slate-500 border-r border-slate-100 dark:border-slate-850 text-center">{srNo}</td>
+                      <td className="px-2 py-2 font-mono text-[9px] text-slate-500 border-r border-slate-100 dark:border-slate-850">{superSerialNo}</td>
+                      <td className="px-2 py-2 font-mono text-[9px] text-slate-500 border-r border-slate-100 dark:border-slate-850">{countrySerialNo}</td>
+                      <td className="px-2 py-2 font-mono text-[9px] text-slate-500 border-r border-slate-100 dark:border-slate-850">{branchSerialNo}</td>
+                      <td className="px-2 py-2 font-mono font-bold text-blue-600 dark:text-blue-400 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{purchaseCode}</td>
+                      <td className="px-2 py-2 font-mono text-slate-600 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{salesCode}</td>
+                      <td className="px-2 py-2 font-mono font-bold text-indigo-600 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{invoiceNo}</td>
+                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{bookingDateVal}</td>
+                      <td className="px-2 py-2 font-semibold text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left">{branchName}</td>
+                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{countryName}</td>
+                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{userName}</td>
+                      {/* Product */}
+                      <td className="px-2 py-2 font-semibold text-amber-700 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left">{goodsName}</td>
+                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850 text-left">{brand}</td>
+                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{origin}</td>
+                      <td className="px-2 py-2 font-mono font-semibold text-emerald-700 border-r border-slate-100 dark:border-slate-850 text-right">{totalQty.toLocaleString()}</td>
+                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850">{qtyUnit}</td>
+                      <td className="px-2 py-2 font-mono text-slate-700 border-r border-slate-100 dark:border-slate-850 text-right">{totalGross.toLocaleString()}</td>
+                      <td className="px-2 py-2 font-mono text-slate-700 border-r border-slate-100 dark:border-slate-850 text-right">{totalNet.toLocaleString()}</td>
+                      {/* Financial */}
+                      <td className="px-2 py-2 font-mono text-slate-800 border-r border-slate-100 dark:border-slate-850 text-right">
+                        {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${rowCurrency}` : "-"}
                       </td>
-                      <td className="px-3 py-2.5 font-mono border-r border-slate-100 dark:border-slate-850">{salesCode}</td>
-                      <td className="px-3 py-2.5 font-mono border-r border-slate-100 dark:border-slate-850">
-                        {row.purchaseBookingOrderNumber}
+                      <td className="px-2 py-2 font-mono font-bold text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-850 text-right">
+                        {totalAmt > 0 ? `${money(totalAmt)} ${rowCurrency}` : "-"}
                       </td>
-                      <td className="px-3 py-2.5 border-r border-slate-100 dark:border-slate-850">{bookingDateVal}</td>
-                      <td className="px-3 py-2.5 font-mono font-bold text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-850">
-                        {purchaseAmt}
+                      <td className="px-2 py-2 font-mono font-bold text-blue-700 border-r border-slate-100 dark:border-slate-850 text-right">
+                        {purchaseAmt > 0 ? `${money(purchaseAmt)} ${rowCurrency}` : "-"}
                       </td>
-                      <td className="px-3 py-2.5 font-mono font-bold text-emerald-600 dark:text-emerald-450 border-r border-slate-100 dark:border-slate-850">
-                        {finalAmt}
+                      <td className="px-2 py-2 font-mono text-slate-600 border-r border-slate-100 dark:border-slate-850 text-right">
+                        {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
                       </td>
-                      <td className="px-3 py-2.5 border-r border-slate-100 dark:border-slate-850">{paymentBadge}</td>
-                      <td className="px-3 py-2.5 border-r border-slate-100 dark:border-slate-850">{originCountry}</td>
-                      <td className="px-3 py-2.5 border-r border-slate-100 dark:border-slate-850">{date(loadingDate)}</td>
-                      <td className="px-3 py-2.5 border-r border-slate-100 dark:border-slate-850">{loadingPort}</td>
-                      <td className="px-3 py-2.5 border-r border-slate-100 dark:border-slate-850">{receivedCountry}</td>
-                      <td className="px-3 py-2.5 border-r border-slate-100 dark:border-slate-850">{receivedPort}</td>
-                      <td className="px-3 py-2.5 border-r border-slate-100 dark:border-slate-850">{exitPort}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-2 py-2 font-mono font-bold text-emerald-600 dark:text-emerald-450 border-r border-slate-100 dark:border-slate-850 text-right">
+                        {finalAmt > 0 ? `${money(finalAmt)} ${localCur}` : "-"}
+                      </td>
+                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
+                        {invoicePercent ? (
+                          <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>
+                        ) : <span className="text-slate-400">-</span>}
+                      </td>
+                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850 text-left whitespace-nowrap">{payCondition}</td>
+                      {/* Route */}
+                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850">{routeName}</td>
+                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{loadingCountry}</td>
+                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850 text-left">{loadingPort}</td>
+                      <td className="px-2 py-2 font-mono text-slate-500 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{date(loadingDateVal)}</td>
+                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{receivingCountry}</td>
+                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850 text-left">{receivingPort}</td>
+                      <td className="px-2 py-2 font-mono text-slate-500 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{date(receivingDateVal)}</td>
+                      {/* Status */}
+                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
+                        {isPosted ? (
+                          <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap">✓ Posted</span>
+                        ) : (
+                          <span className="inline-flex rounded border border-red-300 bg-red-50 text-red-600 px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap animate-pulse">Not Posted</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
+                        <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                          rawInvStatus.toLowerCase().includes("confirm") ? "border-sky-300 bg-sky-50 text-sky-700"
+                          : rawInvStatus.toLowerCase().includes("cancel") ? "border-rose-300 bg-rose-50 text-rose-700"
+                          : "border-amber-300 bg-amber-50 text-amber-700"
+                        }`}>{rawInvStatus}</span>
+                      </td>
+                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
+                        <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                          rawPayStatus === "PAID" || rawPayStatus === "FULL PAYMENT" ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          : rawPayStatus.includes("ADVANCE") || rawPayStatus.includes("PARTIAL") ? "border-blue-300 bg-blue-50 text-blue-700"
+                          : "border-slate-300 bg-slate-50 text-slate-600"
+                        }`}>{rawPayStatus || "Pending"}</span>
+                      </td>
+                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
+                        <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                          rawLoadStatus.toLowerCase().includes("load") || rawLoadStatus.toLowerCase().includes("transit") ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                          : rawLoadStatus.toLowerCase().includes("deliver") || rawLoadStatus.toLowerCase().includes("complet") ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          : "border-slate-300 bg-slate-50 text-slate-500"
+                        }`}>{rawLoadStatus}</span>
+                      </td>
+                      {/* Actions */}
+                      <td className="px-2 py-2">
                         <Button
                           type="button"
                           size="sm"
@@ -1500,7 +1604,7 @@ export function PurchaseOrderManagementDashboard() {
                 })}
                 {!filtered.length ? (
                   <tr>
-                    <td colSpan={14} className="px-4 py-12 text-center text-slate-500">
+                    <td colSpan={37} className="px-4 py-12 text-center text-slate-500">
                       No purchase order records match the selected filters.
                     </td>
                   </tr>

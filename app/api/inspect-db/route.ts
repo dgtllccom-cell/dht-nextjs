@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import postgres from "postgres";
+import fs from "node:fs";
+import path from "node:path";
 
 export const dynamic = "force-dynamic";
 
@@ -12,34 +14,33 @@ export async function GET() {
 
     const sql = postgres(databaseUrl, { max: 1, prepare: false });
 
-    const ea_columns = await sql`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_schema = 'public' AND table_name = 'enterprise_accounts'
-      ORDER BY column_name
-    `;
+    // Apply the latest migration if it exists
+    const migrationPath = path.join(process.cwd(), "supabase/migrations/0043_purchase_booking_transfer_with_actor.sql");
+    let migrationResult = { applied: false, error: null as string | null };
+    
+    if (fs.existsSync(migrationPath)) {
+      const migrationSql = fs.readFileSync(migrationPath, "utf8");
+      try {
+        await sql.unsafe(migrationSql);
+        migrationResult = { applied: true, error: null };
+      } catch (e: any) {
+        migrationResult = { applied: false, error: e.message };
+      }
+    }
 
-    const ledger_columns = await sql`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_schema = 'public' AND table_name = 'ledgers'
-      ORDER BY column_name
-    `;
-
-    const constraints = await sql`
-      SELECT
-        conname AS constraint_name,
-        pg_get_constraintdef(oid) AS constraint_definition
-      FROM pg_constraint
-      WHERE conrelid IN ('public.enterprise_accounts'::regclass, 'public.ledgers'::regclass)
+    // Verify the function was created
+    const funcs = await sql`
+      SELECT proname, pg_get_function_arguments(oid) as args
+      FROM pg_proc 
+      WHERE proname = 'post_purchase_booking_transfer'
+      AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
     `;
 
     await sql.end();
     return NextResponse.json({
       success: true,
-      ea_columns,
-      ledger_columns,
-      constraints
+      migration: migrationResult,
+      functions: funcs
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 });

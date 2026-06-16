@@ -39,7 +39,8 @@ type ReportType =
   | "audit-logs"
   | "approval-workflows"
   | "expenses"
-  | "financial-summaries";
+  | "financial-summaries"
+  | "purchase-booking-register";
 
 interface ReportMeta {
   type: ReportType;
@@ -60,7 +61,8 @@ const REPORT_LIST: ReportMeta[] = [
   { type: "audit-logs", title: "Audit Trail Logs", description: "Database transaction logs, actions & client IPs", icon: ClipboardList },
   { type: "approval-workflows", title: "Approval Workflow States", status: "Workflow steps, pending and approved transactions", icon: ShieldAlert, description: "Approval steps, pending and approved workflows" },
   { type: "expenses", title: "Interval Expense Tracking", description: "Expense tracking by Daily/Weekly/Monthly/Yearly costs", icon: Coins },
-  { type: "financial-summaries", title: "Financial Balance Summaries", description: "Account kind balance summaries, trial balance & net income", icon: FileSpreadsheet }
+  { type: "financial-summaries", title: "Financial Balance Summaries", description: "Account kind balance summaries, trial balance & net income", icon: FileSpreadsheet },
+  { type: "purchase-booking-register", title: "Purchase Booking Register", description: "Wholesaler / Import Export / Container Trading register", icon: ClipboardList }
 ];
 
 export default function ReportsHub() {
@@ -444,7 +446,34 @@ export default function ReportsHub() {
               </>
             )}
 
-            {selectedReport !== "cash-entry" && selectedReport !== "expenses" && (
+            {selectedReport === "purchase-booking-register" && (
+              <>
+                <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800">
+                  <p className="text-[10px] font-black uppercase text-slate-400">Total Bookings</p>
+                  <p className="text-xl font-extrabold text-slate-800 dark:text-white mt-1">{summary.count ?? 0}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800">
+                  <p className="text-[10px] font-black uppercase text-slate-400">Total Containers</p>
+                  <p className="text-xl font-extrabold text-indigo-600 mt-1">
+                    {summary.totalContainers ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800">
+                  <p className="text-[10px] font-black uppercase text-slate-400">Booking Value (USD)</p>
+                  <p className="text-xl font-extrabold text-emerald-600 mt-1">
+                    ${Math.round(summary.totalAmountUSD ?? 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800">
+                  <p className="text-[10px] font-black uppercase text-slate-400">Register Status</p>
+                  <span className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-extrabold text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400">
+                    Live Registry
+                  </span>
+                </div>
+              </>
+            )}
+
+            {selectedReport !== "cash-entry" && selectedReport !== "expenses" && selectedReport !== "purchase-booking-register" && (
               <>
                 <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800">
                   <p className="text-[10px] font-black uppercase text-slate-400">Entries Count</p>

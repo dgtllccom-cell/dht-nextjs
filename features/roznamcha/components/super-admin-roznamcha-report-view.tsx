@@ -377,6 +377,73 @@ function toBaseRow(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]): SuperAd
   };
 }
 
+function lineToRow(
+  entry: RoznamchaEntryRow,
+  line: RoznamchaLineRow,
+  allLines: RoznamchaLineRow[]
+): SuperAdminRoznamchaRow {
+  const debit = Number(line.debit || 0);
+  const credit = Number(line.credit || 0);
+  const usdRate = Number(line.usd_rate || 0) > 0 ? line.usd_rate : 1;
+  const debitUsd = debit > 0 ? Number(line.usd_amount || 0) : 0;
+  const creditUsd = credit > 0 ? Number(line.usd_amount || 0) : 0;
+  const currency = line.currency ?? entry.countries?.currency_code ?? "-";
+
+  const accountParty = line.accounts 
+    ? `${line.accounts.code} · ${line.accounts.name}`
+    : line.ledgers 
+      ? `${line.ledgers.code} · ${line.ledgers.name}`
+      : safeText(line.description || entry.narration);
+
+  const primaryLedgerId = line.ledger_id;
+  const primaryAccountId = line.account_id;
+
+  const superAdminSerialNo = entry.super_admin_serial_number ?? entry.journal_no ?? "-";
+  const countrySerialNo = entry.country_transaction_serial_number ?? entry.journal_no ?? "-";
+  const branchSerialNo = entry.branch_transaction_serial_number ?? entry.voucher_no ?? "-";
+  const accountNo = line.accounts?.code ?? line.ledgers?.code ?? line.account_number ?? "-";
+
+  return {
+    id: line.id,
+    type: entry.type,
+    typeLabel: getVoucherType(entry),
+    countryId: entry.country_id,
+    countryName: getEntryCountry(entry),
+    countryCurrency: entry.countries?.currency_code ?? "-",
+    countryBranchId: entry.country_branch_id,
+    countryBranchName: entry.country_branches?.name ?? "-",
+    countryBranchCode: entry.country_branches?.code ?? "-",
+    cityBranchId: entry.city_branch_id,
+    cityBranchName: entry.city_branches?.name ?? "-",
+    cityBranchCode: entry.city_branches?.code ?? "-",
+    journalNo: entry.journal_no,
+    voucherNo: entry.voucher_no,
+    entryDate: entry.entry_date,
+    superAdminSerialNo,
+    countrySerialNo,
+    branchSerialNo,
+    accountNo,
+    referenceNo: safeText(entry.reference_no),
+    narration: safeText(line.description || entry.narration),
+    status: safeText(entry.status),
+    createdBy: safeText(entry.profiles?.full_name),
+    postedAt: safeText(entry.posted_at),
+    approvedAt: safeText(entry.approved_at),
+    accountParty,
+    currency,
+    debit,
+    credit,
+    usdRate,
+    debitUsd,
+    creditUsd,
+    searchText: buildSearchText(entry, [line]),
+    primaryLedgerId,
+    primaryAccountId,
+    lines: allLines,
+    sourceEntry: entry
+  };
+}
+
 function filterRows(
   rows: SuperAdminRoznamchaRow[],
   filters: FilterState,
@@ -395,7 +462,12 @@ function filterRows(
       return true;
     })
     .sort((a, b) => {
-      if (a.entryDate === b.entryDate) return a.voucherNo.localeCompare(b.voucherNo);
+      if (a.entryDate === b.entryDate) {
+        if (a.voucherNo === b.voucherNo) {
+          return b.debit - a.debit;
+        }
+        return a.voucherNo.localeCompare(b.voucherNo);
+      }
       return a.entryDate.localeCompare(b.entryDate);
     });
 
@@ -551,15 +623,19 @@ export function SuperAdminRoznamchaReportView({
         (response.entries ?? []).map(async (entry) => {
           try {
             const res = await getRoznamchaEntry(entry.id);
-            if (!res.header) return null;
-            return toBaseRow(res.header, res.lines ?? []);
+            if (!res.header) return [];
+            const entryLines = res.lines ?? [];
+            if (entryLines.length === 0) {
+              return [toBaseRow(res.header, [])];
+            }
+            return entryLines.map(line => lineToRow(res.header!, line, entryLines));
           } catch {
-            return toBaseRow(entry, []);
+            return [toBaseRow(entry, [])];
           }
         })
       );
 
-      const cleanRows = detailed.filter((row): row is SuperAdminRoznamchaRow => Boolean(row));
+      const cleanRows = detailed.flat();
       setRows(cleanRows);
       setGeneratedAt(new Date().toISOString());
 

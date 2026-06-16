@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { PurchaseTransferErpReportView } from "@/features/purchases/components/purchase-transfer-erp-report-view";
+import { PurchaseTransferErpReportView } from "@/features/purchases/components/purchase-transfer-erp-report-view-v2";
 
 export default function PurchaseOrderViewPage() {
   return (
