@@ -4393,7 +4393,6 @@ export function PurchaseOrderWizard() {
                       Reset
                     </Button>
                   </div>
-                </div>
                 </fieldset>
               )}
 
@@ -5477,7 +5476,7 @@ export function PurchaseOrderWizard() {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </fieldset>
               )}
 
             </CardContent>
