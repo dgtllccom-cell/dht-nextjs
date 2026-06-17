@@ -27,7 +27,9 @@ import {
   SlidersHorizontal,
   Ship,
   TrendingUp,
-  WalletCards
+  WalletCards,
+  CalendarDays,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -980,6 +982,9 @@ export function PurchaseOrderManagementDashboard() {
   const selected = filtered.find((row) => row.id === selectedId) || filtered[0] || reports[0] || null;
   const containers = selected ? makeContainers(selected) : [];
   const loadedContainers = containers.filter((row) => row.status !== "Pending").length;
+  const totalPosted = useMemo(() => {
+    return filtered.filter(row => row.status === "Posted" || (row as any).ledgerPostingStatus === "Posted" || String(row.status || "").toUpperCase() === "BOOKING CONFIRMED").length;
+  }, [filtered]);
   const totals = useMemo(() => ({
     totalOrders: filtered.length,
     totalAmount: filtered.reduce((sum, row) => sum + Number(row.totalPurchaseAmount || 0), 0),
@@ -1090,78 +1095,126 @@ export function PurchaseOrderManagementDashboard() {
   }, [filtered]);
 
   return (
-    <div className="space-y-4 text-slate-900 dark:text-slate-100 max-w-[1600px] mx-auto p-4 bg-slate-50/30 rounded-2xl">
-      {/* 1. TOP HEADER BAR */}
-      <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 dark:border-slate-800">
-        {/* Row 1: Logo and Main Brand Title (Full Width) */}
-        <div className="flex items-center gap-2">
-          <div className="h-9 w-9 text-blue-900 dark:text-blue-450 shrink-0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-9 h-9">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
-          </div>
-          <div>
-            <div className="text-lg font-black tracking-widest text-blue-900 dark:text-white uppercase leading-none">
-              DAMAN BUSINESS GROUP
-            </div>
-            <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Enterprise ERP / Logistics Platform</div>
-          </div>
+    <div className="space-y-4 text-slate-900 dark:text-slate-100 max-w-none mx-auto p-4 bg-slate-50/30 rounded-2xl">
+      {/* Page Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+        <div>
+          <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">Purchase Transfer Payment</h1>
+          <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">Logistics ERP Master Console</p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Dropdown Selector */}
+          <select
+            value={activeTab}
+            onChange={(event) => setActiveTab(event.target.value as LifecycleTab)}
+            className="h-9 min-w-[150px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350 cursor-pointer"
+            aria-label="Select Stage"
+          >
+            {lifecycleTabs.map((tab) => {
+              const count = tab === "Dashboard Overview"
+                ? reports.length
+                : tab === "Stock Management"
+                  ? reports.filter(r => stockStage(r)).length
+                  : reports.filter(r => lifecycleStage(r) === tab).length;
+              return (
+                <option key={tab} value={tab}>
+                  {tab.toUpperCase()} ({count})
+                </option>
+              );
+            })}
+          </select>
 
-        {/* Row 2: Document Title Panel */}
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-100/60 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
-          <div className="flex items-center gap-3">
-            <h1 className="text-base font-black tracking-widest text-[#0f2942] dark:text-white uppercase leading-none">
-              Purchase Transfer Payment
-            </h1>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => router.push("/dashboard/purchase/new-purchase-booking-order")}
-              className="bg-emerald-600 hover:bg-emerald-550 text-white font-bold text-[10px] uppercase tracking-wider px-3 h-7 rounded shadow"
-            >
-              + New Booking
-            </Button>
+          {/* Search Input */}
+          <div className="relative min-w-[200px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
+            <input
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              placeholder="Search PO#, Supplier..."
+              className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+            />
           </div>
-          <div className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
-            LOGISTICS ERP MASTER CONSOLE
+
+          {/* Filter Toggle */}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setFiltersOpen((open) => !open)}
+            className="h-9 rounded-xl border-slate-200 font-bold text-xs"
+          >
+            <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+            Filter
+          </Button>
+
+          {/* Reset Button */}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={resetFilters}
+            className="h-9 rounded-xl border-slate-200 font-bold text-xs"
+          >
+            <RefreshCw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
+            Reset
+          </Button>
+
+          {/* Three-dots menu (ReportActions) */}
+          <PurchaseReportActionsMenu rows={filtered} onExport={() => downloadCsv(filtered)} />
+
+          {/* Calendar Date/Time Indicator */}
+          <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+            <CalendarDays className="h-4 w-4 text-slate-400" />
+            <span>17 Jun 2026, 08:54 PM</span>
           </div>
+
+          {/* CTA Button */}
+          <Button
+            type="button"
+            onClick={() => router.push("/dashboard/purchase/new-purchase-booking-order")}
+            className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
+          >
+            <Plus className="h-4 w-4" /> New Booking
+          </Button>
         </div>
+      </div>
 
-        {/* Row 3: Session Details Box (3 steps/columns) */}
-        <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm">
-          <div className="border-b border-slate-100 dark:border-slate-800/80 pb-1.5 mb-2.5 text-[9px] font-black uppercase text-blue-900 dark:text-blue-450 tracking-wider">
-            🏢 Branch Details & User Session
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-y-1.5 gap-x-6 text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
-            <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/40 pb-0.5">
-              <span>User ID:</span>
-              <span className="text-slate-800 dark:text-slate-200 font-mono">{session?.user?.id?.slice(0, 8).toUpperCase() || "ADM-001"}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/40 pb-0.5">
+      {/* Session Details Box */}
+      <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Column 1: Session Details */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
               <span>Branch Name:</span>
-              <span className="text-slate-800 dark:text-slate-200">{lockedBranchName || "QUETTA MAIN BRANCH"}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{lockedBranchName || "QUETTA MAIN BRANCH"}</span>
             </div>
-            <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/40 pb-0.5">
-              <span>Date:</span>
-              <span className="text-slate-800 dark:text-slate-200 font-mono">02/02/2026</span>
-            </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
               <span>User Name:</span>
-              <span className="text-slate-800 dark:text-slate-200">{session?.user?.fullName || "SUPER ADMIN"}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{session?.user?.fullName || "SUPER ADMIN"}</span>
             </div>
-            <div className="flex justify-between">
-              <span>Branch Code:</span>
-              <span className="text-slate-800 dark:text-slate-200 font-mono">{lockedBranchName?.includes("Quetta") ? "QTA-01" : "PK-QTA"}</span>
+            <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
+              <span>Date:</span>
+              <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">17 JUN 2026</span>
             </div>
             <div className="flex justify-between">
               <span>Time:</span>
-              <span className="text-slate-800 dark:text-slate-200 font-mono">10:30 AM</span>
+              <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">08:54 PM</span>
+            </div>
+          </div>
+
+          {/* Column 2: Summary Metrics */}
+          <div className="space-y-1.5 border-t pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4 border-slate-100 dark:border-slate-850">
+            <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
+              <span>Total Purchase Orders:</span>
+              <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">{totals.totalOrders}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Transfer:</span>
+              <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">{totalPosted}</span>
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
 
 
@@ -1291,77 +1344,12 @@ export function PurchaseOrderManagementDashboard() {
 
       {/* REPORT-3: SEARCH & TRANSACTION REPORT */}
       <section className="bg-white border border-slate-250 dark:border-slate-800 dark:bg-slate-950/80 p-4 rounded-md shadow-none space-y-4">
-        <div className="border-b border-slate-200 dark:border-slate-800 pb-2 flex items-center justify-between">
-          <h2 className="text-xs font-black tracking-widest text-[#0f2942] dark:text-white uppercase flex items-center gap-2">
+        <div className="flex flex-col items-center justify-center text-center w-full py-2 border-b border-slate-200 dark:border-slate-800">
+          <h2 className="text-xs font-black tracking-widest text-[#0f2942] dark:text-white uppercase flex items-center gap-2 justify-center">
             <SlidersHorizontal className="h-4 w-4 text-blue-700" />
             Report-3: Search & Transaction Report
           </h2>
-          <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded font-mono uppercase dark:bg-slate-900 dark:text-slate-400">Transaction Registry</span>
-        </div>
-
-        {/* Search & Reset Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/40 p-3 rounded border border-slate-200 dark:border-slate-800">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Dropdown Selector */}
-            <div className="relative">
-              <select
-                value={activeTab}
-                onChange={(event) => setActiveTab(event.target.value as LifecycleTab)}
-                className="h-9 px-3 rounded border border-slate-250 bg-white text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 transition cursor-pointer dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
-                title="Select Stage"
-              >
-                {lifecycleTabs.map((tab) => {
-                  const count = tab === "Dashboard Overview"
-                    ? reports.length
-                    : tab === "Stock Management"
-                      ? reports.filter(r => stockStage(r)).length
-                      : reports.filter(r => lifecycleStage(r) === tab).length;
-                  return (
-                    <option key={tab} value={tab}>
-                      {tab.toUpperCase()} ({count})
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-              <input
-                value={searchText}
-                onChange={(event) => setSearchText(event.target.value)}
-                placeholder="Search PO#, Supplier..."
-                className="h-9 w-60 rounded border border-slate-250 bg-white pl-9 pr-3 text-[11px] text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:placeholder-slate-500"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Actions */}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setFiltersOpen((open) => !open)}
-              className="h-9 px-3 text-[11px] font-bold border-slate-250 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-350 flex items-center gap-1.5"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
-              FILTER MATRIX
-              <ChevronDown className={cn("h-3.5 w-3.5 transition text-slate-500", filtersOpen && "rotate-180")} />
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={resetFilters}
-              className="h-9 px-3 text-[11px] font-bold border-slate-250 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-350 flex items-center gap-1.5"
-            >
-              <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
-              RESET
-            </Button>
-
-            <PurchaseReportActionsMenu rows={filtered} onExport={() => downloadCsv(filtered)} />
-          </div>
+          <p className="text-[10px] text-slate-400 mt-1">Transaction Registry & Log Details</p>
         </div>
 
         {/* FILTER PANEL */}
@@ -1400,9 +1388,9 @@ export function PurchaseOrderManagementDashboard() {
 
         {/* 37-Column ERP Table */}
         <div className="overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[350px]">
             <table className="min-w-[4200px] text-xs text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
                 {/* Group header row */}
                 <tr>
                   {[
@@ -1410,7 +1398,7 @@ export function PurchaseOrderManagementDashboard() {
                     { label: "Product Information", span: 7, cls: "bg-emerald-800 text-emerald-100" },
                     { label: "Financial Information", span: 7, cls: "bg-blue-800 text-blue-100" },
                     { label: "Route & Loading", span: 7, cls: "bg-indigo-700 text-indigo-100" },
-                    { label: "Status", span: 4, cls: "bg-slate-700 text-slate-200" },
+                    { label: "Status", span: 3, cls: "bg-slate-700 text-slate-200" },
                     { label: "Actions", span: 1, cls: "bg-slate-600 text-slate-200" },
                   ].map((group) => (
                     <th
@@ -1433,7 +1421,7 @@ export function PurchaseOrderManagementDashboard() {
                     "PURCH. PRICE", "TOTAL AMT", "PURCH. AMT", "EX. RATE", "FINAL AMT", "INV. %", "PAY. CONDITION",
                     "ROUTE", "LOAD. COUNTRY", "LOAD. PORT", "LOAD. DATE",
                     "RCV. COUNTRY", "RCV. PORT", "RCV. DATE",
-                    "TRANSFER", "INVOICE STS.", "PAY. STATUS", "LOAD. STATUS",
+                    "TRANSFER THE BILL", "INV. STS.", "PAY. STATUS", "LOAD. STATUS",
                     "ACTIONS"
                   ].map((header, i) => (
                     <th key={i} className="px-2.5 py-2.5 border-b border-slate-800 whitespace-nowrap text-center">
@@ -1492,10 +1480,21 @@ export function PurchaseOrderManagementDashboard() {
                   const receivingDateVal = row.form_data?.form?.receivedDate || row.form_data?.form?.arrivalDate || "-";
 
                   // Status
-                  const isPosted = row.status === "Posted" || (row as any).ledgerPostingStatus === "Posted";
+                  const isPosted = row.status === "Posted"
+                    || (row as any).ledgerPostingStatus === "Posted"
+                    || (row as any).ledger_posting_status === "Posted"
+                    || (row as any).ledger_posting_status === "posted"
+                    || (row as any).journalStatus === "Posted"
+                    || (row as any).journalStatus?.toLowerCase() === "posted"
+                    || row.form_data?.workflow?.journalStatus === "Posted"
+                    || row.form_data?.workflow?.journalStatus?.toLowerCase() === "posted";
                   const rawPayStatus = String(row.paymentStatus || "").toUpperCase();
                   const rawInvStatus = row.confirmationStatus || row.form_data?.workflow?.confirmationStatus || row.status || "Open";
                   const rawLoadStatus = row.containerStatus || row.form_data?.workflow?.containerStatus || "Pending";
+
+                  const getRowColor = () => {
+                    return isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
+                  };
 
                   return (
                     <tr
@@ -1507,104 +1506,116 @@ export function PurchaseOrderManagementDashboard() {
                       )}
                     >
                       {/* General */}
-                      <td className="px-2 py-2 font-mono text-slate-500 border-r border-slate-100 dark:border-slate-850 text-center">{srNo}</td>
-                      <td className="px-2 py-2 font-mono text-[9px] text-slate-500 border-r border-slate-100 dark:border-slate-850">{superSerialNo}</td>
-                      <td className="px-2 py-2 font-mono text-[9px] text-slate-500 border-r border-slate-100 dark:border-slate-850">{countrySerialNo}</td>
-                      <td className="px-2 py-2 font-mono text-[9px] text-slate-500 border-r border-slate-100 dark:border-slate-850">{branchSerialNo}</td>
-                      <td className="px-2 py-2 font-mono font-bold text-blue-600 dark:text-blue-400 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{purchaseCode}</td>
-                      <td className="px-2 py-2 font-mono text-slate-600 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{salesCode}</td>
-                      <td className="px-2 py-2 font-mono font-bold text-indigo-600 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{invoiceNo}</td>
-                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{bookingDateVal}</td>
-                      <td className="px-2 py-2 font-semibold text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left">{branchName}</td>
-                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{countryName}</td>
-                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{userName}</td>
+                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-center`}>{srNo}</td>
+                      <td className={`px-2 py-2 font-mono text-[9px] ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{superSerialNo}</td>
+                      <td className={`px-2 py-2 font-mono text-[9px] ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{countrySerialNo}</td>
+                      <td className={`px-2 py-2 font-mono text-[9px] ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{branchSerialNo}</td>
+                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{purchaseCode}</td>
+                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{salesCode}</td>
+                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{invoiceNo}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{bookingDateVal}</td>
+                      <td className={`px-2 py-2 font-semibold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left`}>{branchName}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{countryName}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{userName}</td>
                       {/* Product */}
-                      <td className="px-2 py-2 font-semibold text-amber-700 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left">{goodsName}</td>
-                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850 text-left">{brand}</td>
-                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{origin}</td>
-                      <td className="px-2 py-2 font-mono font-semibold text-emerald-700 border-r border-slate-100 dark:border-slate-850 text-right">{totalQty.toLocaleString()}</td>
-                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850">{qtyUnit}</td>
-                      <td className="px-2 py-2 font-mono text-slate-700 border-r border-slate-100 dark:border-slate-850 text-right">{totalGross.toLocaleString()}</td>
-                      <td className="px-2 py-2 font-mono text-slate-700 border-r border-slate-100 dark:border-slate-850 text-right">{totalNet.toLocaleString()}</td>
+                      <td className={`px-2 py-2 font-semibold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left`}>{goodsName}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{brand}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{origin}</td>
+                      <td className={`px-2 py-2 font-mono font-semibold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalQty.toLocaleString()}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{qtyUnit}</td>
+                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalGross.toLocaleString()}</td>
+                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalNet.toLocaleString()}</td>
                       {/* Financial */}
-                      <td className="px-2 py-2 font-mono text-slate-800 border-r border-slate-100 dark:border-slate-850 text-right">
+                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
                         {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${rowCurrency}` : "-"}
                       </td>
-                      <td className="px-2 py-2 font-mono font-bold text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-850 text-right">
+                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
                         {totalAmt > 0 ? `${money(totalAmt)} ${rowCurrency}` : "-"}
                       </td>
-                      <td className="px-2 py-2 font-mono font-bold text-blue-700 border-r border-slate-100 dark:border-slate-850 text-right">
+                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
                         {purchaseAmt > 0 ? `${money(purchaseAmt)} ${rowCurrency}` : "-"}
                       </td>
-                      <td className="px-2 py-2 font-mono text-slate-600 border-r border-slate-100 dark:border-slate-850 text-right">
+                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
                         {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
                       </td>
-                      <td className="px-2 py-2 font-mono font-bold text-emerald-600 dark:text-emerald-450 border-r border-slate-100 dark:border-slate-850 text-right">
+                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
                         {finalAmt > 0 ? `${money(finalAmt)} ${localCur}` : "-"}
                       </td>
                       <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
                         {invoicePercent ? (
                           <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>
-                        ) : <span className="text-slate-400">-</span>}
+                        ) : <span className={getRowColor()}>-</span>}
                       </td>
-                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850 text-left whitespace-nowrap">{payCondition}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left whitespace-nowrap`}>{payCondition}</td>
                       {/* Route */}
-                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850">{routeName}</td>
-                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{loadingCountry}</td>
-                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850 text-left">{loadingPort}</td>
-                      <td className="px-2 py-2 font-mono text-slate-500 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{date(loadingDateVal)}</td>
-                      <td className="px-2 py-2 text-slate-700 border-r border-slate-100 dark:border-slate-850 text-left">{receivingCountry}</td>
-                      <td className="px-2 py-2 text-slate-600 border-r border-slate-100 dark:border-slate-850 text-left">{receivingPort}</td>
-                      <td className="px-2 py-2 font-mono text-slate-500 border-r border-slate-100 dark:border-slate-850 whitespace-nowrap">{date(receivingDateVal)}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{routeName}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{loadingCountry}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{loadingPort}</td>
+                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{date(loadingDateVal)}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{receivingCountry}</td>
+                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{receivingPort}</td>
+                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{date(receivingDateVal)}</td>
                       {/* Status */}
                       <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
                         {isPosted ? (
-                          <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap">✓ Posted</span>
+                          <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap">YES</span>
                         ) : (
-                          <span className="inline-flex rounded border border-red-300 bg-red-50 text-red-600 px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap animate-pulse">Not Posted</span>
+                          <span className="inline-flex rounded border border-red-300 bg-red-50 text-red-600 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap animate-pulse">NO</span>
                         )}
                       </td>
                       <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
-                        <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
-                          rawInvStatus.toLowerCase().includes("confirm") ? "border-sky-300 bg-sky-50 text-sky-700"
-                          : rawInvStatus.toLowerCase().includes("cancel") ? "border-rose-300 bg-rose-50 text-rose-700"
-                          : "border-amber-300 bg-amber-50 text-amber-700"
-                        }`}>{rawInvStatus}</span>
+                        <span className={`inline-flex rounded border px-1 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap ${
+                          rawInvStatus.toLowerCase().includes("confirm") ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          : rawInvStatus.toLowerCase().includes("partial") ? "border-blue-300 bg-blue-50 text-blue-700"
+                          : "border-slate-300 bg-slate-50 text-slate-600"
+                        }`}>{rawInvStatus || "Open"}</span>
                       </td>
                       <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
-                        <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                        <span className={`inline-flex rounded border px-1 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap ${
                           rawPayStatus === "PAID" || rawPayStatus === "FULL PAYMENT" ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                           : rawPayStatus.includes("ADVANCE") || rawPayStatus.includes("PARTIAL") ? "border-blue-300 bg-blue-50 text-blue-700"
                           : "border-slate-300 bg-slate-50 text-slate-600"
                         }`}>{rawPayStatus || "Pending"}</span>
                       </td>
                       <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
-                        <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                        <span className={`inline-flex rounded border px-1 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap ${
                           rawLoadStatus.toLowerCase().includes("load") || rawLoadStatus.toLowerCase().includes("transit") ? "border-indigo-300 bg-indigo-50 text-indigo-700"
                           : rawLoadStatus.toLowerCase().includes("deliver") || rawLoadStatus.toLowerCase().includes("complet") ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                           : "border-slate-300 bg-slate-50 text-slate-500"
                         }`}>{rawLoadStatus}</span>
                       </td>
                       {/* Actions */}
-                      <td className="px-2 py-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/dashboard/purchase/purchase-order/view?id=${encodeURIComponent(row.id)}`);
-                          }}
-                          className="h-6 px-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[9px] uppercase rounded shadow-sm border-none"
-                        >
-                          View
-                        </Button>
+                      <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(row.id)}&purchaseOrderNo=${encodeURIComponent(row.purchaseBookingOrderNumber || "")}`);
+                            }}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
+                            title="Edit Booking"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                          <PurchaseRowActionsMenu
+                            onSelect={() => {
+                              setSelectedId(row.id);
+                              setIsDrawerOpen(true);
+                            }}
+                            onEdit={() => {
+                              router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(row.id)}&purchaseOrderNo=${encodeURIComponent(row.purchaseBookingOrderNumber || "")}`);
+                            }}
+                            onPrint={() => openReportWindow(row, true)}
+                            onExportPdf={() => openReportWindow(row, false)}
+                          />
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
                 {!filtered.length ? (
                   <tr>
-                    <td colSpan={37} className="px-4 py-12 text-center text-slate-500">
+                    <td colSpan={38} className="px-4 py-12 text-center text-slate-500">
                       No purchase order records match the selected filters.
                     </td>
                   </tr>

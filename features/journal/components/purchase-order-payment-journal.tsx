@@ -413,6 +413,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [remarks, setRemarks] = useState("");
   const [typeDetails, setTypeDetails] = useState<Record<string, string>>({});
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [pageSize, setPageSize] = useState(10);
+  const [pageIndex, setPageIndex] = useState(0);
 
   // Local cache for Bank/Method quick add
   const [savedBanks, setSavedBanks] = useState<SavedBankItem[]>([]);
@@ -497,14 +499,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       const payload = (body?.data ?? body) as OrdersPayload;
       const rows = payload.orders ?? [];
       setOrders(rows);
-      // Auto-select by URL param or first row
+      // Auto-select by URL param
       const urlOrderNo = getInitialPurchaseOrderNo();
       if (urlOrderNo) {
         const match = rows.find((r) => r.purchase_order_no === urlOrderNo);
         if (match) setSelectedId(match.id);
-        else setSelectedId(rows[0]?.id || "");
-      } else {
-        setSelectedId((current) => current || rows[0]?.id || "");
       }
     } catch (err) {
       setOrders([]);
@@ -518,6 +517,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     void loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [activeMode]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -563,13 +566,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     });
   }, [activeMode, draftFilter, orders, query]);
 
-  const selected = filtered.find((row) => row.id === selectedId) ?? filtered[0] ?? null;
-  const pageRows = filtered.slice(0, 12);
+  const selected = selectedId ? (filtered.find((row) => row.id === selectedId) ?? null) : null;
+  const pageRows = useMemo(() => {
+    return filtered.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
+  }, [filtered, pageIndex, pageSize]);
   const cards = useMemo(() => kpis(filtered, activeMode), [activeMode, filtered]);
 
   function reset() {
     setQuery("");
     setDraftFilter("");
+    setPageIndex(0);
   }
 
   // Derived account info from form_data
@@ -1028,18 +1034,18 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     );
   };
 
-  const renderDualCurrency = (amountFC: number, amountPKR: number, currencyCode: string) => {
+  const renderDualCurrency = (amountFC: number, amountPKR: number, currencyCode: string, colorClass = "text-slate-800 dark:text-slate-200") => {
     const isPKR = (currencyCode || "PKR").toUpperCase() === "PKR";
     if (isPKR) {
       return (
-        <span className="font-mono font-bold text-xs text-slate-800 dark:text-slate-200">
+        <span className={cn("font-mono font-bold text-xs", colorClass)}>
           {money(amountPKR, "PKR")}
         </span>
       );
     }
     return (
       <span className="flex flex-col text-right">
-        <span className="font-mono font-bold text-xs text-slate-800 dark:text-slate-200">
+        <span className={cn("font-mono font-bold text-xs", colorClass)}>
           {money(amountFC, currencyCode)}
         </span>
         <span className="text-[10px] text-slate-400 font-mono mt-0.5">
@@ -1052,27 +1058,54 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{pageTitle}</h1>
-          <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">{pageDescription}</p>
+          <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">{pageTitle}</h1>
+          <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">{pageDescription}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            onClick={handleNewPaymentClick}
-            className="h-10 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 shadow-sm transition flex items-center gap-2 border-0"
-          >
-            <Plus className="h-4 w-4" />
-            New Payment
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Search box input */}
           <div className="relative min-w-[200px] sm:min-w-[240px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPageIndex(0);
+              }}
               placeholder="Search PO, Supplier..."
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+              className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
             />
+          </div>
+          {/* Filter toggle button */}
+          <button
+            onClick={() => setFiltersOpen(!filtersOpen)}
+            className={cn(
+              "flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
+              filtersOpen && "border-blue-500 bg-blue-50/50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-300"
+            )}
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filter
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", filtersOpen && "rotate-180")} />
+          </button>
+          {/* Combined Reset & Refresh Button */}
+          <button
+            onClick={() => {
+              reset();
+              void loadOrders();
+            }}
+            className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
+          >
+            <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin text-slate-550" : "h-3.5 w-3.5 text-slate-550"} />
+            Reset & Refresh
+          </button>
+          {/* Three-dots menu (now contains export) */}
+          <ReportActions rows={filtered} mode={activeMode} />
+          {/* Calendar Date/Time Indicator */}
+          <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+            <CalendarDays className="h-4 w-4 text-slate-400" />
+            <span>17 Jun 2026, 08:54 PM</span>
           </div>
         </div>
       </div>
@@ -1091,24 +1124,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       {/* ── Report Section ──────────────────────────── */}
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
         {/* Table Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white px-6 py-5 dark:border-slate-800 dark:bg-slate-950">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Purchase Orders</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setFiltersOpen(!filtersOpen)}
-              className={cn(
-                "flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
-                filtersOpen && "border-blue-500 bg-blue-50/50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-300"
-              )}
-            >
-              <Filter className="h-3.5 w-3.5" />
-              Filter
-              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", filtersOpen && "rotate-180")} />
-            </button>
-            <ReportActions rows={filtered} mode={activeMode} />
-          </div>
+        <div className="flex flex-col items-center justify-center text-center w-full py-4 border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-950">
+          <h2 className="text-sm font-extrabold text-slate-950 dark:text-slate-100">Purchase Orders</h2>
+          <p className="text-[10px] text-slate-400 mt-0.5">List of purchase orders requiring payment action</p>
         </div>
 
         {/* Collapsible Filter Panel */}
@@ -1145,7 +1163,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
         {/* Table Container */}
         <div style={{ minHeight: 320, overflowX: "auto", overflowY: "visible" }}>
-          <table style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 12, color: "#1e293b" }}>
+          <table style={{ width: "100%", minWidth: "1200px", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 12, color: "#1e293b" }}>
             <colgroup>
               <col style={{ width: "13%" }} />
               <col style={{ width: "8%" }} />
@@ -1257,6 +1275,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   return `${led.code} - ${led.name}`;
                 };
 
+                const isPosted = row.ledger_posting_status === "Posted" || row.ledger_posting_status === "posted";
+                const getRowColor = () => {
+                  return isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
+                };
+
                 return (
                   <React.Fragment key={row.id}>
                     <tr
@@ -1267,49 +1290,49 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     >
                       {/* PO Number */}
                       <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800">
-                        <span className="font-mono font-bold text-xs text-blue-600 bg-blue-50/50 hover:bg-blue-100/70 transition px-2.5 py-1 rounded-lg dark:bg-blue-950/20 dark:text-blue-400">
+                        <span className={cn("font-mono font-bold text-xs bg-blue-50/50 hover:bg-blue-100/70 transition px-2.5 py-1 rounded-lg dark:bg-blue-950/20", getRowColor())}>
                           {row.purchase_order_no}
                         </span>
                       </td>
                       {/* Bill No */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-mono text-xs">
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 font-mono text-xs", getRowColor())}>
                         {billNo}
                       </td>
                       {/* PO Date */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs">
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-xs", getRowColor())}>
                         {dateStr}
                       </td>
                       {/* Branch */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-mono">
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-xs font-mono", getRowColor())}>
                         {countrySerial}
                       </td>
                       {/* Supplier */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
                         <div className="font-semibold text-xs leading-normal truncate" title={form.salesAccountName || "N/A"}>
                           {form.salesAccountName || "N/A"}
                         </div>
                       </td>
                       {/* Goods */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs leading-normal truncate" title={goodsName}>
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-xs leading-normal truncate", getRowColor())} title={goodsName}>
                         {goodsName}
                       </td>
                       {/* Weights */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right">
-                        <div className="font-mono text-[11px] text-slate-700 dark:text-slate-300">G: {grossWeight.toLocaleString()}</div>
-                        <div className="text-[9px] text-slate-400 font-mono mt-0.5">N: {netWeight.toLocaleString()}</div>
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
+                        <div className="font-mono text-[11px]">G: {grossWeight.toLocaleString()}</div>
+                        <div className="text-[9px] opacity-70 font-mono mt-0.5">N: {netWeight.toLocaleString()}</div>
                       </td>
                       {/* Total Price */}
                       <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right">
-                        {renderDualCurrency(totalAmountBC, totalAmountPKR, row.currency_code ?? "USD")}
+                        {renderDualCurrency(totalAmountBC, totalAmountPKR, row.currency_code ?? "USD", getRowColor())}
                       </td>
                       {/* Advance / Remaining Details */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right">
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
                         {activeMode === "advance" ? (
                           <>
-                            <div className="font-mono text-[11px] text-slate-700 dark:text-slate-300" title="Required Advance">
+                            <div className="font-mono text-[11px]" title="Required Advance">
                               Req: {money(requiredAdvanceBC, row.currency_code ?? "")}
                             </div>
-                            <div className="text-[9px] text-emerald-600 font-mono mt-0.5" title="Paid Advance">
+                            <div className="text-[9px] text-emerald-600 font-mono mt-0.5 font-semibold" title="Paid Advance">
                               Paid: {money(paidAdvanceBC, row.currency_code ?? "")}
                             </div>
                             <div className="text-[9px] text-rose-600 font-mono mt-0.5 font-bold" title="Remaining Advance">
@@ -1318,10 +1341,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           </>
                         ) : activeMode === "remaining" ? (
                           <>
-                            <div className="font-mono text-[11px] text-slate-700 dark:text-slate-300" title="Required Remaining">
+                            <div className="font-mono text-[11px]" title="Required Remaining">
                               Req: {money(totalAmountBC - paidAdvanceBC, row.currency_code ?? "")}
                             </div>
-                            <div className="text-[9px] text-emerald-600 font-mono mt-0.5" title="Paid Remaining">
+                            <div className="text-[9px] text-emerald-600 font-mono mt-0.5 font-semibold" title="Paid Remaining">
                               Paid: {money(paidAmountBC, row.currency_code ?? "")}
                             </div>
                             <div className="text-[9px] text-rose-600 font-mono mt-0.5 font-bold" title="Remaining Due">
@@ -1330,10 +1353,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           </>
                         ) : (
                           <>
-                            <div className="font-mono text-[11px] text-slate-700 dark:text-slate-300" title="Credit Total">
+                            <div className="font-mono text-[11px]" title="Credit Total">
                               Cred: {money(totalAmountBC, row.currency_code ?? "")}
                             </div>
-                            <div className="text-[9px] text-emerald-600 font-mono mt-0.5" title="Paid Credit">
+                            <div className="text-[9px] text-emerald-600 font-mono mt-0.5 font-semibold" title="Paid Credit">
                               Paid: {money(paidAmountBC, row.currency_code ?? "")}
                             </div>
                             <div className="text-[9px] text-rose-600 font-mono mt-0.5 font-bold" title="Remaining Balance">
@@ -1404,8 +1427,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       <th className="p-2 border-r">Date</th>
                                       <th className="p-2 border-r">Debit Account (Supplier Payable)</th>
                                       <th className="p-2 border-r">Credit Account (Payment Source)</th>
-                                      <th className="p-2 border-r text-right">Amount</th>
-                                      <th className="p-2">Narration</th>
+                                      <th className="p-2 border-r">Narration</th>
+                                      <th className="p-2 text-right">Amount</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -1413,6 +1436,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       const drLabel = getLedgerLabel(p.debit_ledger_id);
                                       const crLabel = getLedgerLabel(p.credit_ledger_id);
                                       const re = p.roznamcha_entries || {};
+
+                                      const drLedger = ledgers.find((l) => l.id === p.debit_ledger_id);
+                                      const crLedger = ledgers.find((l) => l.id === p.credit_ledger_id);
+                                      const localCurrency = (drLedger?.ledgerCurrency || drLedger?.currency || crLedger?.ledgerCurrency || crLedger?.currency || "PKR").toUpperCase();
+
                                       return (
                                         <tr key={p.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-800 dark:text-slate-200">
                                           <td className="p-2 border-r font-mono font-bold text-slate-900 dark:text-slate-100">{re.super_admin_serial_number || "—"}</td>
@@ -1421,13 +1449,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                           <td className="p-2 border-r">{date(p.entry_date)}</td>
                                           <td className="p-2 border-r font-semibold text-indigo-600" title={drLabel}>{drLabel}</td>
                                           <td className="p-2 border-r font-semibold text-violet-600" title={crLabel}>{crLabel}</td>
-                                          <td className="p-2 border-r text-right font-mono font-bold text-emerald-600 whitespace-nowrap">
+                                          <td className="p-2 border-r text-slate-500 max-w-[320px] truncate" title={p.narration}>{p.narration || "—"}</td>
+                                          <td className="p-2 text-right font-mono font-bold text-emerald-600 whitespace-nowrap">
                                             <div>{money(p.amount / (p.exchange_rate || 1), p.currency_code || "USD")}</div>
-                                            {p.currency_code && p.currency_code !== "PKR" && (
-                                              <div className="text-[9px] text-slate-400 font-normal mt-0.5">{money(p.amount, "PKR")}</div>
+                                            {p.currency_code && p.currency_code !== localCurrency && (
+                                              <div className="text-[9px] text-slate-400 font-normal mt-0.5">{money(p.amount, localCurrency)}</div>
                                             )}
                                           </td>
-                                          <td className="p-2 text-slate-500 max-w-[320px] truncate" title={p.narration}>{p.narration || "—"}</td>
                                         </tr>
                                       );
                                     })}
@@ -1471,35 +1499,59 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
         {/* Footer / Pagination */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            Showing <strong className="font-semibold text-slate-700 dark:text-slate-300">{pageRows.length ? 1 : 0} to {pageRows.length}</strong> of <strong className="font-semibold text-slate-700 dark:text-slate-300">{filtered.length}</strong> records
-          </span>
+          <div className="flex items-center gap-6">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Showing <strong className="font-semibold text-slate-700 dark:text-slate-300">{pageRows.length ? pageIndex * pageSize + 1 : 0} to {Math.min(filtered.length, (pageIndex + 1) * pageSize)}</strong> of <strong className="font-semibold text-slate-700 dark:text-slate-300">{filtered.length}</strong> records
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400">Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setPageIndex(0);
+                }}
+                className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
           <div className="flex items-center gap-1.5">
             <button
-              disabled
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 opacity-50 cursor-not-allowed dark:border-slate-800 dark:bg-slate-950"
+              disabled={pageIndex === 0}
+              onClick={() => setPageIndex((idx) => Math.max(0, idx - 1))}
+              className={cn(
+                "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-650 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
+                pageIndex === 0 && "text-slate-400 opacity-50 cursor-not-allowed"
+              )}
               aria-label="Previous page"
             >
               <span className="text-xs">‹</span>
             </button>
-            <button className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-500 bg-blue-50 text-blue-600 text-xs font-bold dark:border-blue-500 dark:bg-blue-950/20 dark:text-blue-400">
-              1
-            </button>
-            {filtered.length > 12 && (
-              <button className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-                2
+            {Array.from({ length: Math.ceil(filtered.length / pageSize) }).slice(0, 5).map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setPageIndex(idx)}
+                className={cn(
+                  "inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-bold transition",
+                  pageIndex === idx
+                    ? "border-blue-500 bg-blue-50 text-blue-600 dark:border-blue-500 dark:bg-blue-950/20 dark:text-blue-400"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
+                )}
+              >
+                {idx + 1}
               </button>
-            )}
-            {filtered.length > 24 && (
-              <button className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-                3
-              </button>
-            )}
+            ))}
             <button
-              disabled={filtered.length <= 12}
+              disabled={(pageIndex + 1) * pageSize >= filtered.length}
+              onClick={() => setPageIndex((idx) => idx + 1)}
               className={cn(
-                "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
-                filtered.length <= 12 && "text-slate-400 opacity-50 cursor-not-allowed"
+                "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-655 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
+                (pageIndex + 1) * pageSize >= filtered.length && "text-slate-400 opacity-50 cursor-not-allowed"
               )}
               aria-label="Next page"
             >
@@ -2282,35 +2334,21 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               <div className="space-y-6 text-sm text-slate-700 dark:text-slate-300">
                 {/* Header overview cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/20">
-                    <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">PO Number</span>
-                    <span className="mt-1 block font-mono font-bold text-slate-800 dark:text-slate-200">{viewingRow.purchase_order_no}</span>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/20">
+                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">PO Number</span>
+                    <span className="mt-1 block font-mono font-bold text-xs text-slate-800 dark:text-slate-200">{viewingRow.purchase_order_no}</span>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/20">
-                    <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Bill Number</span>
-                    <span className="mt-1 block font-mono font-bold text-slate-800 dark:text-slate-200">{billNo}</span>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/20">
+                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Bill Number</span>
+                    <span className="mt-1 block font-mono font-bold text-xs text-slate-800 dark:text-slate-200">{billNo}</span>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/20">
-                    <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Purchase Date</span>
-                    <span className="mt-1 block font-bold text-slate-800 dark:text-slate-200">{dateStr}</span>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/20">
+                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Purchase Date</span>
+                    <span className="mt-1 block font-bold text-xs text-slate-800 dark:text-slate-200">{dateStr}</span>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/20">
-                    <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Branch</span>
-                    <span className="mt-1 block font-mono font-bold text-slate-800 dark:text-slate-200">{branchCode}</span>
-                  </div>
-                </div>
-
-                {/* Seller & Buyer accounts */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">Seller Account (Supplier)</h4>
-                    <p className="font-semibold text-slate-800 dark:text-slate-200">{form.salesAccountName || "N/A"}</p>
-                    <p className="font-mono text-xs text-slate-400 mt-1">Code: {form.salesAccountNo || "N/A"}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">Buyer Account (Purchase)</h4>
-                    <p className="font-semibold text-slate-800 dark:text-slate-200">{form.purchaseAccountName || "N/A"}</p>
-                    <p className="font-mono text-xs text-slate-400 mt-1">Code: {form.purchaseAccountNo || "N/A"}</p>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/20">
+                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Branch</span>
+                    <span className="mt-1 block font-mono font-bold text-xs text-slate-800 dark:text-slate-200">{branchCode}</span>
                   </div>
                 </div>
 

@@ -803,6 +803,42 @@ function BranchFilterRow({
   );
 }
 
+function ReportActions({ rows }: { rows: PurchaseReport[] }) {
+  return (
+    <details className="relative">
+      <summary className="flex h-9 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 [&::-webkit-details-marker]:hidden" aria-label="Report actions" title="Report actions">
+        <MoreVertical className="h-4 w-4" />
+      </summary>
+      <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-slate-200 bg-white p-1 text-sm text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
+        <button
+          type="button"
+          onClick={() => exportCsv(rows, "purchase-booking-register.csv")}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+        >
+          <Download className="h-4 w-4 text-blue-600 dark:text-blue-450" />
+          Download CSV
+        </button>
+        <button
+          type="button"
+          onClick={() => exportCsv(rows, "purchase-booking-register.csv")}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+        >
+          <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-450" />
+          Export Excel
+        </button>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+        >
+          <Printer className="h-4 w-4 text-slate-650" />
+          Print
+        </button>
+      </div>
+    </details>
+  );
+}
+
 export function PurchaseBookingJournalReportView({
   onNewBooking,
   refreshKey = 0,
@@ -864,6 +900,7 @@ export function PurchaseBookingJournalReportView({
       }
 
       setIsDrawerOpen(false);
+      alert(`Booking ${selected.purchaseBookingOrderNumber} has been successfully transferred to Journal / Ledger posting! Redirecting to advance payment...`);
       setMessage(`Transferred ${selected.purchaseBookingOrderNumber} to Journal / Payment and ledger posting.`);
       // Navigate to Cash Payment page with this order pre-selected
       router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(selected.purchaseBookingOrderNumber)}`);
@@ -1071,6 +1108,9 @@ export function PurchaseBookingJournalReportView({
       if (status.includes("partial")) return sum + Number(report.totalPurchaseAmount || 0) * 0.5;
       return sum;
     }, 0);
+    const totalPosted = registerRows.filter(report => {
+      return report.status === "Posted" || (report as any).ledgerPostingStatus === "Posted";
+    }).length;
     return {
       totalBookings: registerRows.length,
       totalContainers: registerRows.reduce((sum, report) => sum + Number(report.containerCount || 0), 0),
@@ -1078,7 +1118,8 @@ export function PurchaseBookingJournalReportView({
       totalAmount,
       totalPaid,
       outstanding: Math.max(0, totalAmount - totalPaid),
-      average: financialRows.length ? financialRows.reduce((sum, report) => sum + Number(report.totalPurchaseAmount || 0), 0) / financialRows.length : 0
+      average: financialRows.length ? financialRows.reduce((sum, report) => sum + Number(report.totalPurchaseAmount || 0), 0) / financialRows.length : 0,
+      totalPosted
     };
   }, [financialRows, registerRows]);
 
@@ -1141,29 +1182,20 @@ export function PurchaseBookingJournalReportView({
 
   return (
     <div className="w-full bg-slate-50/50 dark:bg-background text-foreground animate-in fade-in duration-200">
-      <div className="mx-auto w-full max-w-[1920px] px-4 py-4 space-y-4">
+      <div className="mx-auto w-full max-w-none px-4 py-3 space-y-3">
         
-        {/* Unified Header & Toolbar */}
-        <div className="rounded-xl border border-border bg-card shadow-sm p-3.5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg border border-border bg-muted p-2 text-muted-foreground">
-              <ShipWheel className="h-5 w-5 animate-pulse" />
-            </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-black tracking-tight text-foreground uppercase">
-                Purchase Booking Register
-              </h1>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
-                Wholesaler / Import Export / Container Trading
-              </p>
-            </div>
+        {/* Page Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+          <div>
+            <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">Purchase Booking Register</h1>
+            <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">Wholesaler / Import Export / Container Trading</p>
           </div>
-          
-          <div className="flex flex-1 flex-col gap-2 lg:max-w-5xl lg:flex-row lg:items-center lg:justify-end">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Draft Dropdown */}
             <select
               value={filters.draftStatus}
               onChange={(event) => setFilters((previous) => ({ ...previous, draftStatus: event.target.value }))}
-              className="h-9 min-w-[140px] rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground outline-none focus:border-primary"
+              className="h-9 min-w-[140px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350"
               aria-label="Draft status"
             >
               <option value="">Draft Dropdown</option>
@@ -1172,28 +1204,31 @@ export function PurchaseBookingJournalReportView({
               <option value="fully">Fully Confirmed</option>
               <option value="cancelled">Cancelled</option>
             </select>
-            
-            <div className="relative min-w-[200px] flex-1 lg:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+            {/* Search Input */}
+            <div className="relative min-w-[200px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
               <input
                 value={searchText}
                 onChange={(event) => setSearchText(event.target.value)}
                 placeholder="Search booking, supplier, branch..."
-                className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-xs text-foreground outline-none focus:border-primary"
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
-            
+
+            {/* Filter Toggle */}
             <Button
               type="button"
               size="sm"
               variant="outline"
               onClick={() => setFiltersOpen((open) => !open)}
-              className="h-9 font-semibold text-xs"
+              className="h-9 rounded-xl border-slate-200 font-bold text-xs"
             >
-              <Filter className="mr-1.5 h-4 w-4" />
+              <Filter className="mr-1.5 h-3.5 w-3.5" />
               Filter
             </Button>
-            
+
+            {/* Combined Reset & Refresh Button */}
             <Button
               type="button"
               size="sm"
@@ -1215,28 +1250,26 @@ export function PurchaseBookingJournalReportView({
                   financialCurrency: "",
                   draftStatus: ""
                 }));
+                void loadReport();
               }}
-              className="h-9 font-semibold text-xs"
+              className="h-9 rounded-xl border-slate-200 font-bold text-xs"
             >
-              <RefreshCcw className="mr-1.5 h-4 w-4" />
-              Reset
+              <RefreshCcw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
+              Reset & Refresh
             </Button>
-            
+
+            {/* Three-dots menu (now contains export) */}
+            <ReportActions rows={registerRows} />
+
+            {/* Calendar Date/Time Indicator */}
+            <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+              <CalendarDays className="h-4 w-4 text-slate-400" />
+              <span>17 Jun 2026, 08:54 PM</span>
+            </div>
+
+            {/* CTA Button */}
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void loadReport()}
-              disabled={loading}
-              className="h-9 font-semibold text-xs"
-            >
-              <RefreshCcw className={loading ? "mr-1.5 h-4 w-4 animate-spin" : "mr-1.5 h-4 w-4"} />
-              Refresh
-            </Button>
-            
-            <Button
-              type="button"
-              size="sm"
               onClick={() => {
                 if (onNewBooking) {
                   onNewBooking();
@@ -1244,41 +1277,83 @@ export function PurchaseBookingJournalReportView({
                   router.push("/dashboard/purchase/new-purchase-booking-order");
                 }
               }}
-              className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase px-4 shadow border-none"
+              className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
             >
-              <Plus className="mr-1 h-4 w-4" />
-              New Booking
+              <Plus className="h-4 w-4" /> New Booking
             </Button>
-            
-            <ReportActionsMenu rows={registerRows} onExport={() => exportCsv(registerRows, "purchase-booking-register.csv")} />
           </div>
         </div>
 
-        {message ? (
-          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 font-semibold shadow-sm animate-in fade-in">
-            {message}
-          </div>
-        ) : !reports.length ? (
-          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-800 font-semibold shadow-sm animate-in fade-in">
-            No live purchase booking records found for this scope. The register is not showing demo or cross-scope records.
-          </div>
-        ) : null}
+        {/* Session & Summary Info */}
+        <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Column 1: Session Details */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
+                <span>Branch Name:</span>
+                <span className="text-slate-800 dark:text-slate-200 font-bold">{lockedBranchName || "QUETTA MAIN BRANCH"}</span>
+              </div>
+              <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
+                <span>User Name:</span>
+                <span className="text-slate-800 dark:text-slate-200 font-bold">{session?.user?.fullName || session?.name || "SUPER ADMIN"}</span>
+              </div>
+              <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
+                <span>Date:</span>
+                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">17 JUN 2026</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Time:</span>
+                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">08:54 PM</span>
+              </div>
+            </div>
 
-        {filtersOpen ? (
-          <div className="mt-3 rounded-xl border border-border bg-card p-3.5 shadow-sm animate-in slide-in-from-top-2 duration-150">
-            <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-7">
-              <DarkInput label="From Date" type="date" value={filters.fromDate} onChange={(value) => setFilters((previous) => ({ ...previous, fromDate: value }))} />
-              <DarkInput label="To Date" type="date" value={filters.toDate} onChange={(value) => setFilters((previous) => ({ ...previous, toDate: value }))} />
-              <DarkSelect label="Supplier" value={filters.supplier} options={suppliers} placeholder="All Suppliers" onChange={(value) => setFilters((previous) => ({ ...previous, supplier: value }))} />
-              <DarkSelect disabled={!!lockedBranchName} label="Branch" value={filters.branch} options={branches} placeholder="All Branches" onChange={(value) => setFilters((previous) => ({ ...previous, branch: value }))} />
-              <DarkSelect disabled={!!lockedCountryName} label="Country" value={filters.country} options={countries} placeholder="All Countries" onChange={(value) => setFilters((previous) => ({ ...previous, country: value }))} />
-              <DarkSelect label="Status" value={filters.status} options={["Open", "Partial Confirmed", "Fully Confirmed", "Cancelled"]} placeholder="All Status" onChange={(value) => setFilters((previous) => ({ ...previous, status: value }))} />
-              <DarkSelect label="Currency" value={filters.currency} options={currencies} placeholder="All" onChange={(value) => setFilters((previous) => ({ ...previous, currency: value }))} />
+            {/* Column 2: Summary Metrics */}
+            <div className="space-y-1.5 border-t pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4 border-slate-100 dark:border-slate-850">
+              <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
+                <span>Total Purchase Orders:</span>
+                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">{totals.totalBookings}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Transfer:</span>
+                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">{totals.totalPosted}</span>
+              </div>
             </div>
           </div>
-        ) : null}
+        </div>
 
-        <div className="mt-4 space-y-3">
+        {/* Table Section Card */}
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950 overflow-hidden">
+          {/* Table Header Controls */}
+          <div className="flex flex-col items-center justify-center text-center w-full py-4 border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-950">
+            <h2 className="text-sm font-extrabold text-slate-950 dark:text-slate-100">Purchase Booking List</h2>
+            <p className="text-[10px] text-slate-400 mt-0.5">List of purchase bookings and container logistics status</p>
+          </div>
+
+          {message ? (
+            <div className="m-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 font-semibold shadow-sm animate-in fade-in">
+              {message}
+            </div>
+          ) : !reports.length ? (
+            <div className="m-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-800 font-semibold shadow-sm animate-in fade-in">
+              No live purchase booking records found for this scope. The register is not showing demo or cross-scope records.
+            </div>
+          ) : null}
+
+          {filtersOpen ? (
+            <div className="border-b border-slate-100 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-900/10">
+              <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-7">
+                <DarkInput label="From Date" type="date" value={filters.fromDate} onChange={(value) => setFilters((previous) => ({ ...previous, fromDate: value }))} />
+                <DarkInput label="To Date" type="date" value={filters.toDate} onChange={(value) => setFilters((previous) => ({ ...previous, toDate: value }))} />
+                <DarkSelect label="Supplier" value={filters.supplier} options={suppliers} placeholder="All Suppliers" onChange={(value) => setFilters((previous) => ({ ...previous, supplier: value }))} />
+                <DarkSelect disabled={!!lockedBranchName} label="Branch" value={filters.branch} options={branches} placeholder="All Branches" onChange={(value) => setFilters((previous) => ({ ...previous, branch: value }))} />
+                <DarkSelect disabled={!!lockedCountryName} label="Country" value={filters.country} options={countries} placeholder="All Countries" onChange={(value) => setFilters((previous) => ({ ...previous, country: value }))} />
+                <DarkSelect label="Status" value={filters.status} options={["Open", "Partial Confirmed", "Fully Confirmed", "Cancelled"]} placeholder="All Status" onChange={(value) => setFilters((previous) => ({ ...previous, status: value }))} />
+                <DarkSelect label="Currency" value={filters.currency} options={currencies} placeholder="All" onChange={(value) => setFilters((previous) => ({ ...previous, currency: value }))} />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="p-4 space-y-3">
           <DarkTable
             headers={[
               // ── General Information ──────────────────────────────────────
@@ -1318,8 +1393,8 @@ export function PurchaseBookingJournalReportView({
               "RCV. PORT",
               "RCV. DATE",
               // ── Status ───────────────────────────────────────────────────
-              "TRANSFER",
-              "INVOICE STS.",
+              "TRANSFER THE BILL",
+              "INV. STS.",
               "PAY. STATUS",
               "LOAD. STATUS",
               // ── Action ───────────────────────────────────────────────────
@@ -1408,36 +1483,40 @@ export function PurchaseBookingJournalReportView({
 
               // ── Status ───────────────────────────────────────────────────
               const isPosted = report.status === "Posted"
-                || (report as any).ledgerPostingStatus === "Posted";
+                || (report as any).ledgerPostingStatus === "Posted"
+                || (report as any).ledger_posting_status === "Posted"
+                || (report as any).ledger_posting_status === "posted"
+                || report.journalStatus === "Posted"
+                || report.journalStatus?.toLowerCase() === "posted"
+                || report.form_data?.workflow?.journalStatus === "Posted"
+                || report.form_data?.workflow?.journalStatus?.toLowerCase() === "posted";
               const transferStatusBadge = isPosted ? (
-                <span className="inline-flex rounded border border-emerald-700/40 bg-emerald-900/30 text-emerald-300 px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap">
-                  ✓ Posted
+                <span className="inline-flex rounded bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap">
+                  YES
                 </span>
               ) : (
-                <span className="inline-flex rounded border border-red-300/60 bg-red-50 text-red-600 px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap animate-pulse">
-                  Not Posted
+                <span className="inline-flex rounded bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap animate-pulse">
+                  NO
                 </span>
               );
-              const rawInvStatus = report.confirmationStatus
-                || report.form_data?.workflow?.confirmationStatus
-                || report.status || "Open";
+              const rawInvStatus = report.confirmationStatus || report.form_data?.workflow?.confirmationStatus || report.status || "Open";
               const invStatusBadge = (
-                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
-                  rawInvStatus.toLowerCase().includes("confirm") ? "border-sky-300/60 bg-sky-50 text-sky-700"
-                  : rawInvStatus.toLowerCase().includes("cancel") ? "border-rose-300/60 bg-rose-50 text-rose-700"
-                  : "border-amber-300/60 bg-amber-50 text-amber-700"
+                <span className={`inline-flex rounded border px-1 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap ${
+                  rawInvStatus.toLowerCase().includes("confirm") ? "border-emerald-200 bg-emerald-50 text-emerald-750"
+                  : rawInvStatus.toLowerCase().includes("partial") ? "border-blue-200 bg-blue-50 text-blue-750"
+                  : "border-slate-200 bg-slate-50 text-slate-650"
                 }`}>
                   {rawInvStatus}
                 </span>
               );
               const rawPayStatus = report.paymentStatus || "Pending";
               const payStatusBadge = (
-                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                <span className={`inline-flex rounded border px-1 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap ${
                   rawPayStatus.toLowerCase().includes("full") || rawPayStatus.toLowerCase().includes("paid")
-                    ? "border-emerald-300/60 bg-emerald-50 text-emerald-700"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-750"
                   : rawPayStatus.toLowerCase().includes("advance") || rawPayStatus.toLowerCase().includes("partial")
-                    ? "border-blue-300/60 bg-blue-50 text-blue-700"
-                  : "border-slate-300/60 bg-slate-50 text-slate-600"
+                    ? "border-blue-200 bg-blue-50 text-blue-750"
+                  : "border-slate-200 bg-slate-50 text-slate-650"
                 }`}>
                   {rawPayStatus}
                 </span>
@@ -1445,16 +1524,20 @@ export function PurchaseBookingJournalReportView({
               const rawLoadStatus = report.containerStatus
                 || report.form_data?.workflow?.containerStatus || "Pending";
               const loadStatusBadge = (
-                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-black uppercase whitespace-nowrap ${
+                <span className={`inline-flex rounded border px-1 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap ${
                   rawLoadStatus.toLowerCase().includes("load") || rawLoadStatus.toLowerCase().includes("transit")
-                    ? "border-indigo-300/60 bg-indigo-50 text-indigo-700"
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-750"
                   : rawLoadStatus.toLowerCase().includes("deliver") || rawLoadStatus.toLowerCase().includes("complet")
-                    ? "border-emerald-300/60 bg-emerald-50 text-emerald-700"
-                  : "border-slate-300/60 bg-slate-50 text-slate-500"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-750"
+                  : "border-slate-200 bg-slate-50 text-slate-500"
                 }`}>
                   {rawLoadStatus}
                 </span>
               );
+
+              const getRowColor = () => {
+                return isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
+              };
 
               return (
                 <tr
@@ -1467,75 +1550,88 @@ export function PurchaseBookingJournalReportView({
                   }`}
                 >
                   {/* ── General Information ─────────────────────── */}
-                  <Td center className="text-slate-500 font-bold text-[10px]">{srNo}</Td>
-                  <Td center className="font-mono text-[10px] text-slate-500">{superSerialNo}</Td>
-                  <Td center className="font-mono text-[10px] text-slate-500">{countrySerialNo}</Td>
-                  <Td center className="font-mono text-[10px] text-slate-500">{branchSerialNo}</Td>
-                  <Td className="font-mono font-bold text-blue-600 text-[10px] whitespace-nowrap">{purchaseCode}</Td>
-                  <Td className="font-mono text-slate-600 text-[10px] whitespace-nowrap">{salesCode}</Td>
-                  <Td className="font-mono font-bold text-indigo-600 text-[10px] whitespace-nowrap">{invoiceNo}</Td>
-                  <Td className="font-semibold text-slate-700 whitespace-nowrap text-[10px]">{dateStr}</Td>
-                  <Td className="font-semibold text-slate-800 text-[10px] whitespace-nowrap">{branchName}</Td>
-                  <Td className="text-slate-700 text-[10px]">{countryName}</Td>
-                  <Td className="font-semibold text-slate-800 text-[10px]">{userName}</Td>
+                  <Td center className={`${getRowColor()} font-bold text-[10px]`}>{srNo}</Td>
+                  <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{superSerialNo}</Td>
+                  <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{countrySerialNo}</Td>
+                  <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{branchSerialNo}</Td>
+                  <Td className={`font-mono font-bold ${getRowColor()} text-[10px] whitespace-nowrap`}>{purchaseCode}</Td>
+                  <Td className={`font-mono ${getRowColor()} text-[10px] whitespace-nowrap`}>{salesCode}</Td>
+                  <Td className={`font-mono font-bold ${getRowColor()} text-[10px] whitespace-nowrap`}>{invoiceNo}</Td>
+                  <Td className={`font-semibold ${getRowColor()} whitespace-nowrap text-[10px]`}>{dateStr}</Td>
+                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`}>{branchName}</Td>
+                  <Td className={`${getRowColor()} text-[10px]`}>{countryName}</Td>
+                  <Td className={`font-semibold ${getRowColor()} text-[10px]`}>{userName}</Td>
                   {/* ── Product Information ─────────────────────── */}
-                  <Td className="font-semibold text-amber-700 text-[10px] whitespace-nowrap">{goodsName}</Td>
-                  <Td className="text-slate-600 text-[10px]">{brand}</Td>
-                  <Td className="text-slate-700 text-[10px]">{origin}</Td>
-                  <Td right className="font-mono font-semibold text-emerald-700 text-[10px]">{formatNumber(totalQty)}</Td>
-                  <Td center className="text-slate-600 text-[10px]">{qtyUnit}</Td>
-                  <Td right className="font-mono text-slate-700 text-[10px]">{formatNumber(totalGross)}</Td>
-                  <Td right className="font-mono text-slate-700 text-[10px]">{formatNumber(totalNet)}</Td>
+                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`}>{goodsName}</Td>
+                  <Td className={`${getRowColor()} text-[10px]`}>{brand}</Td>
+                  <Td className={`${getRowColor()} text-[10px]`}>{origin}</Td>
+                  <Td right className={`font-mono font-semibold ${getRowColor()} text-[10px]`}>{formatNumber(totalQty)}</Td>
+                  <Td center className={`${getRowColor()} text-[10px]`}>{qtyUnit}</Td>
+                  <Td right className={`font-mono ${getRowColor()} text-[10px]`}>{formatNumber(totalGross)}</Td>
+                  <Td right className={`font-mono ${getRowColor()} text-[10px]`}>{formatNumber(totalNet)}</Td>
                   {/* ── Financial Information ───────────────────── */}
-                  <Td right className="font-mono font-semibold text-slate-800 text-[10px]">
+                  <Td right className={`font-mono font-semibold ${getRowColor()} text-[10px]`}>
                     {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${currency}` : "-"}
                   </Td>
-                  <Td right className="font-mono font-bold text-slate-900 dark:text-white text-[10px]">
+                  <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
                     {totalAmt > 0 ? `${formatMoney(totalAmt)} ${currency}` : "-"}
                   </Td>
-                  <Td right className="font-mono font-bold text-blue-700 text-[10px]">
+                  <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
                     {purchaseAmt > 0 ? `${formatMoney(purchaseAmt)} ${currency}` : "-"}
                   </Td>
-                  <Td right className="font-mono text-slate-600 text-[10px]">
+                  <Td right className={`font-mono ${getRowColor()} text-[10px]`}>
                     {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
                   </Td>
-                  <Td right className="font-mono font-bold text-emerald-600 text-[10px]">
+                  <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
                     {finalAmt > 0 ? `${formatMoney(finalAmt)} ${localCurrency}` : "-"}
                   </Td>
                   <Td center className="text-[10px]">
                     {invoicePercent !== "-" ? (
                       <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>
-                    ) : <span className="text-slate-400">-</span>}
+                    ) : <span className={getRowColor()}>-</span>}
                   </Td>
-                  <Td className="text-slate-600 text-[10px] whitespace-nowrap">{payCondition}</Td>
+                  <Td className={`${getRowColor()} text-[10px] whitespace-nowrap`}>{payCondition}</Td>
                   {/* ── Route & Loading ─────────────────────────── */}
-                  <Td center className="text-slate-600 text-[10px]">{routeName}</Td>
-                  <Td className="text-slate-700 text-[10px]">{loadingCountry}</Td>
-                  <Td className="text-slate-600 text-[10px]">{loadingPort}</Td>
-                  <Td center className="font-mono text-slate-500 text-[10px] whitespace-nowrap">{loadingDate}</Td>
-                  <Td className="text-slate-700 text-[10px]">{receivingCountry}</Td>
-                  <Td className="text-slate-600 text-[10px]">{receivingPort}</Td>
-                  <Td center className="font-mono text-slate-500 text-[10px] whitespace-nowrap">{receivingDate}</Td>
+                  <Td center className={`${getRowColor()} text-[10px]`}>{routeName}</Td>
+                  <Td className={`${getRowColor()} text-[10px]`}>{loadingCountry}</Td>
+                  <Td className={`${getRowColor()} text-[10px]`}>{loadingPort}</Td>
+                  <Td center className={`font-mono ${getRowColor()} text-[10px] whitespace-nowrap`}>{loadingDate}</Td>
+                  <Td className={`${getRowColor()} text-[10px]`}>{receivingCountry}</Td>
+                  <Td className={`${getRowColor()} text-[10px]`}>{receivingPort}</Td>
+                  <Td center className={`font-mono ${getRowColor()} text-[10px] whitespace-nowrap`}>{receivingDate}</Td>
                   {/* ── Status ──────────────────────────────────── */}
                   <Td center>{transferStatusBadge}</Td>
                   <Td center>{invStatusBadge}</Td>
                   <Td center>{payStatusBadge}</Td>
                   <Td center>{loadStatusBadge}</Td>
                   {/* ── Actions ─────────────────────────────────── */}
-                  <Td center>
-                    <RowActionsMenu
-                      report={report}
-                      onSelect={() => {
-                        setSelectedId(report.id);
-                        setIsDrawerOpen(true);
-                      }}
-                    />
+                  <Td center onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
+                        }}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
+                        title="Edit Booking"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                      <RowActionsMenu
+                        report={report}
+                        onSelect={() => {
+                          setSelectedId(report.id);
+                          setIsDrawerOpen(true);
+                        }}
+                      />
+                    </div>
                   </Td>
                 </tr>
               );
             })}
           </DarkTable>
           <TableFooter text={`Showing 1 to ${registerRows.length} of ${reports.length} scoped entries`} />
+          </div>
         </div>
 
         <DetailDrawer
@@ -1548,10 +1644,26 @@ export function PurchaseBookingJournalReportView({
             <div className="flex items-center gap-1.5 mr-2">
               <details className="relative">
                 <summary className="flex items-center gap-1.5 cursor-pointer list-none rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-2.5 py-1.5 transition-all h-8 [&::-webkit-details-marker]:hidden">
-                  <span>Generate Document</span>
+                  <span>Print & Documents</span>
                   <span className="text-[8px]">▼</span>
                 </summary>
-                <div className="absolute right-0 mt-1 w-52 rounded-xl bg-card border border-border shadow-2xl z-50 p-1 space-y-0.5 animate-in fade-in slide-in-from-top-2 duration-150 text-foreground">
+                <div className="absolute right-0 mt-1 w-56 rounded-xl bg-card border border-border shadow-2xl z-50 p-1 space-y-0.5 animate-in fade-in slide-in-from-top-2 duration-150 text-foreground">
+                  <button
+                    type="button"
+                    onClick={() => selected && openReportWindow(selected, true)}
+                    className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold hover:bg-muted"
+                  >
+                    <span>🖨️</span> Print A4 Report
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selected && openReportWindow(selected, false)}
+                    className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold hover:bg-muted"
+                  >
+                    <span>👁️</span> PDF Preview
+                  </button>
+                  <div className="h-px bg-border my-1" />
+                  <div className="px-3 py-1 text-[9px] font-black uppercase tracking-wider text-slate-400">Trade Documents</div>
                   <button
                     type="button"
                     onClick={() => selected && openTradeDocumentWindow("contract", selected)}
@@ -1584,25 +1696,15 @@ export function PurchaseBookingJournalReportView({
               </details>
               <Button
                 type="button"
-                onClick={() => selected && openReportWindow(selected, false)}
-                className="bg-slate-700 hover:bg-slate-650 text-white font-bold text-xs h-8"
-              >
-                PDF Preview
-              </Button>
-              <Button
-                type="button"
-                onClick={() => selected && openReportWindow(selected, true)}
-                className="bg-slate-700 hover:bg-slate-650 text-white font-bold text-xs h-8"
-              >
-                Print
-              </Button>
-              <Button
-                type="button"
                 onClick={handleTransfer}
-                disabled={transferring}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8"
+                disabled={transferring || Boolean(selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted"))}
+                className={
+                  selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted")
+                    ? "bg-slate-350 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed border-slate-300 font-bold text-xs h-8"
+                    : "bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8"
+                }
               >
-                {transferring ? "Transferring..." : "Transfer"}
+                {transferring ? "Transferring..." : (selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted")) ? "✓ Transferred" : "Transfer"}
               </Button>
             </div>
           }
@@ -2101,13 +2203,13 @@ const TABLE_GROUPS = [
   { label: "Product Information", span: 7, cls: "bg-emerald-800 text-emerald-100" },
   { label: "Financial Information", span: 7, cls: "bg-blue-800 text-blue-100" },
   { label: "Route & Loading", span: 7, cls: "bg-indigo-700 text-indigo-100" },
-  { label: "Status", span: 4, cls: "bg-slate-700 text-slate-200" },
+  { label: "Status", span: 3, cls: "bg-slate-700 text-slate-200" },
   { label: "Actions", span: 1, cls: "bg-slate-600 text-slate-200" },
 ];
 
 function DarkTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto overflow-y-visible rounded-xl border border-slate-200 bg-white shadow-sm min-h-[350px] pb-32">
+    <div className="overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm max-h-[calc(100vh-320px)] min-h-[350px]">
       <table className="min-w-[4200px] border-collapse text-xs text-slate-800">
         <thead className="sticky top-0 z-10 border-b border-slate-200">
           {/* Group header row */}

@@ -480,7 +480,6 @@ export function openPurchaseA4ReportWindow(input: {
               <tbody>
                 <tr><td class="lbl">Name:</td><td class="val">${escapeHtml(b.supplierName || "N/A")}</td></tr>
                 <tr><td class="lbl">Contact Person:</td><td class="val">${escapeHtml(form.supplierContact || "-")}</td></tr>
-                <tr><td class="lbl">Liability Acct:</td><td class="val font-mono truncate">${escapeHtml(b.purchaseAccountNumber || "AE-AC-0001")}</td></tr>
               </tbody>
             </table>
           </div>
@@ -492,7 +491,6 @@ export function openPurchaseA4ReportWindow(input: {
               <tbody>
                 <tr><td class="lbl">Name:</td><td class="val">${escapeHtml(b.buyerName || "N/A")}</td></tr>
                 <tr><td class="lbl">Contact Person:</td><td class="val">${escapeHtml(form.customerContact || "-")}</td></tr>
-                <tr><td class="lbl">Asset Acct:</td><td class="val font-mono truncate">${escapeHtml(b.salesAccountNumber || "SA-2001")}</td></tr>
               </tbody>
             </table>
           </div>

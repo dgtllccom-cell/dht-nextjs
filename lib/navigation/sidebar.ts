@@ -336,21 +336,6 @@ export const sidebarTree: SidebarNode[] = [
             href: "/dashboard/purchase/purchase-order?stage=booking" as Route
           },
           {
-            key: "purchase-booking-confirm",
-            labelKey: "nav.booking_confirm",
-            href: "/dashboard/purchase/purchase-order?stage=confirm" as Route
-          },
-          {
-            key: "purchase-invoice",
-            labelKey: "nav.purchase_invoice",
-            href: "/dashboard/purchase/purchase-order?stage=invoice" as Route
-          },
-          {
-            key: "purchase-order-report",
-            labelKey: "nav.purchase_order_report",
-            href: "/dashboard/purchase/purchase-booking-journal-report" as Route
-          },
-          {
             key: "purchase-confirmed-orders",
             labelKey: "nav.confirmed_purchase_orders",
             href: "/dashboard/purchase/purchase-confirm" as Route
@@ -537,6 +522,11 @@ export const sidebarTree: SidebarNode[] = [
             key: "reports-purchase",
             labelKey: "nav.purchase_report",
             href: "/dashboard/reports/purchase" as Route
+          },
+          {
+            key: "reports-purchase-order",
+            labelKey: "nav.purchase_order_report",
+            href: "/dashboard/purchase/purchase-booking-journal-report" as Route
           },
           {
             key: "reports-audit",

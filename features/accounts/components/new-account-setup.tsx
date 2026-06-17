@@ -77,7 +77,7 @@ type AccountGeneralReportRow = {
   branchAccountSequence?: number;
 };
 
-type AccountTitle = "Customer" | "Company" | "Bank" | "Employee";
+type AccountTitle = "Customer" | "Company" | "Bank" | "Employee" | "Personal";
 
 type BranchInfo = {
   company: string;
@@ -137,13 +137,14 @@ type AccountCreateResponse = {
 };
 
 const subTypes: Record<AccountTitle, string[]> = {
-  Customer: ["Company Account", "Business Account", "Personal Account"],
+  Customer: ["Business Account", "Personal Account"],
   Company: ["Trading Company", "Supplier Company", "Service Provider", "Logistics Company"],
-  Bank: ["Company Bank Account", "Branch Bank Account", "Cash Control Account"],
-  Employee: ["Employee Position: Manager", "Employee Position: Cashier", "Employee Position: Clerk"]
+  Bank: ["Personal Bank", "Company Bank"],
+  Employee: ["Employee Position: Manager", "Employee Position: Cashier", "Employee Position: Clerk"],
+  Personal: []
 };
 
-const categories = ["Expenses", "Purchase", "Sales", "Revenue"];
+const categories = ["P/S (Purchase/Sales)", "Bank", "Expenses", "Clearing Agent", "Personal"];
 
 function nextNumber(current: number) {
   return String(current + 1).padStart(3, "0");
@@ -613,9 +614,10 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
                   <Label htmlFor="accountTitle">{getLabel("accountTitle", lang)} *</Label>
                   <select id="accountTitle" value={accountTitle} onChange={(event) => { setAccountTitle(event.target.value as AccountTitle); setSubType(""); }} className={selectClass()}>
                     <option value="">Select Account Title</option>
-                    <option value="Customer">Customer</option>
+                    <option value="Customer">Customer Account</option>
+                    <option value="Bank">Bank Account</option>
+                    <option value="Personal">Personal</option>
                     <option value="Company">Company</option>
-                    <option value="Bank">Bank</option>
                     <option value="Employee">Employee</option>
                   </select>
                 </div>
@@ -624,10 +626,19 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="subType">{getLabel("subType", lang)} *</Label>
-                  <select id="subType" value={subType} onChange={(event) => setSubType(event.target.value)} disabled={!accountTitle} className={selectClass()}>
-                    <option value="">Select Sub Type</option>
-                    {accountTitle ? subTypes[accountTitle].map((item) => (<option key={item} value={item}>{item}</option>)) : null}
-                  </select>
+                  {accountTitle === "Personal" ? (
+                    <Input
+                      id="subType"
+                      value={subType}
+                      onChange={(event) => setSubType(event.target.value)}
+                      placeholder="Who does this belong to?"
+                    />
+                  ) : (
+                    <select id="subType" value={subType} onChange={(event) => setSubType(event.target.value)} disabled={!accountTitle} className={selectClass()}>
+                      <option value="">Select Sub Type</option>
+                      {accountTitle ? subTypes[accountTitle].map((item) => (<option key={item} value={item}>{item}</option>)) : null}
+                    </select>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">{getLabel("category", lang)} *</Label>
@@ -644,14 +655,14 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
                   <Input id="accountCode" value={accountCode || "Generated on save"} readOnly className="bg-slate-50 font-mono text-xs" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="accountName">{getLabel("accountName", lang)} *</Label>
-                  <Input id="accountName" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="e.g. Sales Account" />
+                  <Label htmlFor="manualReferenceNumber">{getLabel("manualReference", lang)}</Label>
+                  <Input id="manualReferenceNumber" value={manualReferenceNumber} onChange={(event) => setManualReferenceNumber(event.target.value.toUpperCase())} placeholder="e.g. CUST-001" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="manualReferenceNumber">{getLabel("manualReference", lang)}</Label>
-                <Input id="manualReferenceNumber" value={manualReferenceNumber} onChange={(event) => setManualReferenceNumber(event.target.value.toUpperCase())} placeholder="e.g. CUST-001" />
+                <Label htmlFor="accountName">{getLabel("accountName", lang)} *</Label>
+                <Input id="accountName" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="e.g. Sales Account" />
               </div>
 
               <div className="flex justify-end pt-4">
