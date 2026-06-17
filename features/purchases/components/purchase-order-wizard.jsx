@@ -307,18 +307,31 @@ function calculateItemTotals(form) {
   const coursePrice = Number(form.coursePrice || 0);
   const rate2 = Number(form.rate2 || 1);
   const divideWeight = Number(form.divideWeight || 1);
+  const currencyType = String(form.currencyType || "").toUpperCase();
 
   const grossWeight = qtyNo * qtyKgs;
   const totalEmptyDeduct = qtyNo * emptyKgs;
   const netWeight = Math.max(0, grossWeight - totalEmptyDeduct);
-  const totalAmount = (netWeight / divideWeight) * coursePrice;
-  const finalAmount = totalAmount * rate2;
+  const inputTotal = (netWeight / divideWeight) * coursePrice;
+
+  let baseAmount = 0;
+  let localAmount = 0;
+
+  if (currencyType === "USD") {
+    baseAmount = inputTotal;
+    localAmount = inputTotal * rate2;
+  } else {
+    localAmount = inputTotal;
+    baseAmount = rate2 > 0 ? inputTotal / rate2 : inputTotal;
+  }
 
   return {
     grossWeight,
     netWeight,
-    totalAmount,
-    finalAmount
+    totalAmount: inputTotal,
+    finalAmount: localAmount,
+    baseAmount,
+    localAmount
   };
 }
 
@@ -1467,17 +1480,21 @@ export function PurchaseOrderWizard() {
     }
   };
 
-  const buildPurchaseOrderPayload = (ledgerPostingStatus = "Pending") => ({
-    countryId: form.countryId || null,
-    countryBranchId: form.countryBranchId || null,
-    cityBranchId: form.cityBranchId || null,
-    supplierCompanyId: form.purchaseCompanyId || null,
-    purchaseContractNo: form.purchaseContractNo || form.purchaseOrderNo,
-    currencyCode: form.currencyType,
-    exchangeRate: Number(form.exchangeRate || 1),
-    orderTotal: reportTotals.grandFinal,
-    paymentStatus: ledgerPostingStatus === "Posted" ? "partial" : "pending",
-    ledgerPostingStatus,
+  const buildPurchaseOrderPayload = (ledgerPostingStatus = "Pending") => {
+    const localCurrencyCode = String(form.secondaryCurrency || "USD").substring(0, 3).toUpperCase();
+    const usdRate = Number(form.exchangeRate || 1);
+
+    return {
+      countryId: form.countryId || null,
+      countryBranchId: form.countryBranchId || null,
+      cityBranchId: form.cityBranchId || null,
+      supplierCompanyId: form.purchaseCompanyId || null,
+      purchaseContractNo: form.purchaseContractNo || form.purchaseOrderNo,
+      currencyCode: localCurrencyCode,
+      exchangeRate: usdRate,
+      orderTotal: reportTotals.grandFinal, // Local currency total
+      paymentStatus: ledgerPostingStatus === "Posted" ? "partial" : "pending",
+      ledgerPostingStatus,
     formData: {
       form,
       totals: reportTotals,
@@ -1494,10 +1511,9 @@ export function PurchaseOrderWizard() {
         deliveryStatus: "Pending",
         savedAt: new Date().toISOString(),
       },
-      savedFrom: "purchase-order-wizard-redesign",
       savedAt: new Date().toISOString()
     }
-  });
+  };
 
   const handleSavePurchaseOrder = async (shouldClose = false) => {
     setSavingOrder(true);

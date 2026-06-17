@@ -1412,6 +1412,7 @@ export function PurchaseBookingJournalReportView({
               "PURCH. AMT",
               "EX. RATE",
               "FINAL AMT",
+              ...(isSuperAdmin ? ["USD EQ."] : []),
               "INV. %",
               "PAY. CONDITION",
               // ── Route & Loading ──────────────────────────────────────────
@@ -1615,6 +1616,11 @@ export function PurchaseBookingJournalReportView({
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
                     {finalAmt > 0 ? `${formatMoney(finalAmt)} ${localCurrency}` : "-"}
                   </Td>
+                  {isSuperAdmin && (
+                    <Td right className={`font-mono font-bold text-blue-500 text-[10px]`}>
+                      {finalAmt > 0 ? `${formatMoney(exchangeRate > 0 ? finalAmt / exchangeRate : finalAmt)} USD` : "-"}
+                    </Td>
+                  )}
                   <Td center className="text-[10px]">
                     {invoicePercent !== "-" ? (
                       <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>
