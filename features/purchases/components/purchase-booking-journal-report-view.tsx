@@ -2343,8 +2343,8 @@ function DarkTable({ headers, children }: { headers: string[]; children: React.R
   );
 }
 
-function Td({ children, className = "", center = false, right = false }: { children: React.ReactNode; className?: string; center?: boolean; right?: boolean }) {
-  return <td className={`whitespace-nowrap border-r border-slate-200 px-3 py-2.5 last:border-r-0 ${center ? "text-center" : ""} ${right ? "text-right" : ""} ${className}`}>{children}</td>;
+function Td({ children, className = "", center = false, right = false, onClick }: { children: React.ReactNode; className?: string; center?: boolean; right?: boolean; onClick?: (e: React.MouseEvent<HTMLTableCellElement>) => void }) {
+  return <td onClick={onClick} className={`whitespace-nowrap border-r border-slate-200 px-3 py-2.5 last:border-r-0 ${center ? "text-center" : ""} ${right ? "text-right" : ""} ${className}`}>{children}</td>;
 }
 
 function StatusBadge({ status }: { status: string }) {

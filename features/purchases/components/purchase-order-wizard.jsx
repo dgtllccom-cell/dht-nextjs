@@ -1495,24 +1495,25 @@ export function PurchaseOrderWizard() {
       orderTotal: reportTotals.grandFinal, // Local currency total
       paymentStatus: ledgerPostingStatus === "Posted" ? "partial" : "pending",
       ledgerPostingStatus,
-    formData: {
-      form,
-      totals: reportTotals,
-      goodsEntries: goodsEntries,
-      workflow: {
-        currentStep: ledgerPostingStatus === "Posted" ? "Journal Entry & Payment" : "Booking Purchase Order",
-        nextStep: ledgerPostingStatus === "Posted" ? "Payment & Documents" : "Booking Confirm",
-        bookingStatus: "Saved",
-        confirmationStatus: ledgerPostingStatus === "Posted" ? "Confirmed" : "Pending",
-        journalStatus: ledgerPostingStatus === "Posted" ? "Posted" : "Pending",
-        paymentStatus: ledgerPostingStatus === "Posted" ? "Advance Posted" : "Pending",
-        containerStatus: "Pending",
-        inventoryStatus: "Pending",
-        deliveryStatus: "Pending",
-        savedAt: new Date().toISOString(),
-      },
-      savedAt: new Date().toISOString()
-    }
+      formData: {
+        form,
+        totals: reportTotals,
+        goodsEntries: goodsEntries,
+        workflow: {
+          currentStep: ledgerPostingStatus === "Posted" ? "Journal Entry & Payment" : "Booking Purchase Order",
+          nextStep: ledgerPostingStatus === "Posted" ? "Payment & Documents" : "Booking Confirm",
+          bookingStatus: "Saved",
+          confirmationStatus: ledgerPostingStatus === "Posted" ? "Confirmed" : "Pending",
+          journalStatus: ledgerPostingStatus === "Posted" ? "Posted" : "Pending",
+          paymentStatus: ledgerPostingStatus === "Posted" ? "Advance Posted" : "Pending",
+          containerStatus: "Pending",
+          inventoryStatus: "Pending",
+          deliveryStatus: "Pending",
+          savedAt: new Date().toISOString(),
+        },
+        savedAt: new Date().toISOString()
+      }
+    };
   };
 
   const handleSavePurchaseOrder = async (shouldClose = false) => {
