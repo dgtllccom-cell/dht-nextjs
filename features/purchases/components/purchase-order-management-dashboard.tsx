@@ -933,9 +933,22 @@ export function PurchaseOrderManagementDashboard() {
         throw new Error(payload?.error?.message || payload?.error || "Transfer failed.");
       }
 
+      // Also hit the transfer API to post to Roznamcha and Ledger
+      const transferResponse = await fetch(`/api/erp/purchases/orders/${selected.id}/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+
+      const transferPayload = await transferResponse.json().catch(() => ({}));
+      if (!transferResponse.ok || !transferPayload.ok) {
+        throw new Error(transferPayload?.error?.message || transferPayload?.error || "Roznamcha/Ledger Transfer failed.");
+      }
+
       setIsDrawerOpen(false);
       await loadReports();
-      alert("Purchase Booking transferred and posted successfully!");
+      // Redirect to Purchase Payment screen directly after successful transfer
+      window.location.href = `/dashboard/journal/purchase-order-payment/advance?po_id=${selected.id}`;
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error transferring booking.");
     } finally {
@@ -1179,168 +1192,91 @@ export function PurchaseOrderManagementDashboard() {
         </div>
       </div>
 
-      {/* Session Details Box */}
-      <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Column 1: Session Details */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
-              <span>Branch Name:</span>
+      {/* Unified Executive & Operations Summary Box */}
+      <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase flex flex-col gap-3">
+        
+        {/* Row 1: Session Info */}
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-2.5">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Branch Name:</span> 
               <span className="text-slate-800 dark:text-slate-200 font-bold">{lockedBranchName || "QUETTA MAIN BRANCH"}</span>
             </div>
-            <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
-              <span>User Name:</span>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">User Name:</span> 
               <span className="text-slate-800 dark:text-slate-200 font-bold">{session?.user?.fullName || "SUPER ADMIN"}</span>
             </div>
-            <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
-              <span>Date:</span>
-              <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">17 JUN 2026</span>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Date:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">17 JUN 2026</span>
             </div>
-            <div className="flex justify-between">
-              <span>Time:</span>
-              <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">08:54 PM</span>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Time:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">08:54 PM</span>
             </div>
           </div>
+        </div>
 
-          {/* Column 2: Summary Metrics */}
-          <div className="space-y-1.5 border-t pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4 border-slate-100 dark:border-slate-850">
-            <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
-              <span>Total Purchase Orders:</span>
-              <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">{totals.totalOrders}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Total Transfer:</span>
-              <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">{totalPosted}</span>
-            </div>
+        {/* Row 2: Executive Summary (Financials) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-3 border-b border-slate-100 dark:border-slate-850 pb-2.5">
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Purchase Bookings</span>
+            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{totals.totalOrders}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Transfer</span>
+            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{totalPosted}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Purchase Amount</span>
+            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{money(totalAmountPKR)} PKR</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Revenue Amount</span>
+            <span className="text-emerald-600 dark:text-emerald-450 font-black text-sm">{money(totalRevenuePKR)} PKR</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Asset (USD)</span>
+            <span className="text-blue-700 dark:text-blue-400 font-black text-sm">${money(totalUSD)}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Booking Purchase</span>
+            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{filtered.length} Orders</span>
+          </div>
+        </div>
+
+        {/* Row 3: Operations Summary (Logistics) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-x-6 gap-y-3 pt-0.5">
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Booking Pending</span>
+            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{pendingBookingsCount}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Confirmed PO</span>
+            <span className="text-emerald-600 dark:text-emerald-450 font-black text-sm">{confirmedPOCount}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Containers</span>
+            <span className="text-blue-600 dark:text-blue-450 font-black text-sm">{totalContainersCount}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Transit Cargo</span>
+            <span className="text-amber-600 dark:text-amber-450 font-black text-sm">{transitCargoCount}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Warehouse Balance</span>
+            <span className="text-indigo-600 dark:text-indigo-400 font-black text-sm">{warehouseBalanceCount}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Delivered Balance</span>
+            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{deliveredBalanceCount}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-rose-500 dark:text-rose-450 mb-0.5 tracking-wider">Remaining Due (PKR)</span>
+            <span className="text-rose-600 dark:text-rose-400 font-black text-sm truncate" title={money(remainingDuePKR) + " PKR"}>{money(remainingDuePKR)}</span>
           </div>
         </div>
       </div>
-
-
-
-      {/* REPORT-1: EXECUTIVE SUMMARY REPORT */}
-      <section className="bg-white border border-slate-250 dark:border-slate-800 dark:bg-slate-950/80 p-4 rounded-md shadow-none space-y-3">
-        <div className="border-b border-slate-200 dark:border-slate-800 pb-2 flex items-center justify-between">
-          <h2 className="text-xs font-black tracking-widest text-[#0f2942] dark:text-white uppercase flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-blue-700" />
-            Report-1: Executive Summary Report
-          </h2>
-          <span className="text-[9px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded font-mono uppercase dark:bg-blue-950 dark:text-blue-400">Financial Overview</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Card 1: Total Purchase Amount */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded p-3.5 flex items-center gap-3">
-            <div className="h-10 w-10 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900 shrink-0">
-              <WalletCards className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider dark:text-slate-400 leading-none">Total Purchase Amount</div>
-              <div className="flex items-baseline gap-1 mt-1.5 leading-none">
-                <span className="text-lg font-black text-slate-800 dark:text-slate-200">{money(totalAmountPKR)}</span>
-                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase font-mono">PKR</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Total Revenue Amount */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded p-3.5 flex items-center gap-3">
-            <div className="h-10 w-10 rounded bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900 shrink-0">
-              <TrendingUp className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider dark:text-slate-400 leading-none">Total Revenue Amount (1.12x)</div>
-              <div className="flex items-baseline gap-1 mt-1.5 leading-none">
-                <span className="text-lg font-black text-emerald-600 dark:text-emerald-450">{money(totalRevenuePKR)}</span>
-                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase font-mono">PKR</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: Total Asset USD */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded p-3.5 flex items-center gap-3">
-            <div className="h-10 w-10 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900 shrink-0">
-              <Landmark className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider dark:text-slate-400 leading-none">Total Asset (USD)</div>
-              <div className="flex items-baseline gap-1 mt-1.5 leading-none">
-                <span className="text-lg font-black text-blue-700 dark:text-blue-400">${money(totalUSD)}</span>
-                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase font-mono">USD</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 4: Total Booking Purchase */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded p-3.5 flex items-center gap-3">
-            <div className="h-10 w-10 rounded bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-900 shrink-0">
-              <ClipboardList className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider dark:text-slate-400 leading-none">Total Booking Purchase</div>
-              <div className="flex items-baseline gap-1 mt-1.5 leading-none">
-                <span className="text-lg font-black text-slate-800 dark:text-slate-200">{filtered.length}</span>
-                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase font-mono">Orders</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* REPORT-2: OPERATIONS SUMMARY REPORT */}
-      <section className="bg-white border border-slate-250 dark:border-slate-800 dark:bg-slate-950/80 p-4 rounded-md shadow-none space-y-3">
-        <div className="border-b border-slate-200 dark:border-slate-800 pb-2 flex items-center justify-between">
-          <h2 className="text-xs font-black tracking-widest text-[#0f2942] dark:text-white uppercase flex items-center gap-2">
-            <Boxes className="h-4 w-4 text-blue-700" />
-            Report-2: Operations Summary Report
-          </h2>
-          <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded font-mono uppercase dark:bg-slate-900 dark:text-slate-400">Logistic Metrics</span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-          {/* Card 1: Booking Pending */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-180 dark:border-slate-800 rounded p-2 flex flex-col justify-between min-h-[56px]">
-            <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">Booking Pending</div>
-            <div className="text-sm font-black text-slate-800 dark:text-slate-200 mt-1 leading-none">{pendingBookingsCount}</div>
-          </div>
-
-          {/* Card 2: Confirmed PO */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-180 dark:border-slate-800 rounded p-2 flex flex-col justify-between min-h-[56px]">
-            <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">Confirmed PO</div>
-            <div className="text-sm font-black text-emerald-600 dark:text-emerald-450 mt-1 leading-none">{confirmedPOCount}</div>
-          </div>
-
-          {/* Card 3: Total Containers */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-180 dark:border-slate-800 rounded p-2 flex flex-col justify-between min-h-[56px]">
-            <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">Total Containers</div>
-            <div className="text-sm font-black text-blue-600 dark:text-blue-450 mt-1 leading-none">{totalContainersCount}</div>
-          </div>
-
-          {/* Card 4: Transit Cargo */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-180 dark:border-slate-800 rounded p-2 flex flex-col justify-between min-h-[56px]">
-            <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">Transit Cargo</div>
-            <div className="text-sm font-black text-amber-600 dark:text-amber-450 mt-1 leading-none">{transitCargoCount}</div>
-          </div>
-
-          {/* Card 5: Warehouse Balance */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-180 dark:border-slate-800 rounded p-2 flex flex-col justify-between min-h-[56px]">
-            <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">Warehouse Balance</div>
-            <div className="text-sm font-black text-indigo-600 dark:text-indigo-400 mt-1 leading-none">{warehouseBalanceCount}</div>
-          </div>
-
-          {/* Card 6: Delivered Balance */}
-          <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-180 dark:border-slate-800 rounded p-2 flex flex-col justify-between min-h-[56px]">
-            <div className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">Delivered Balance</div>
-            <div className="text-sm font-black text-slate-800 dark:text-slate-200 mt-1 leading-none">{deliveredBalanceCount}</div>
-          </div>
-
-          {/* Card 7: Remaining Due */}
-          <div className="bg-slate-55/60 dark:bg-slate-900/50 border border-slate-220 dark:border-slate-850 rounded p-2 flex flex-col justify-between min-h-[56px]">
-            <div className="text-[8px] font-black text-rose-500 dark:text-rose-450 uppercase tracking-wider leading-none">Remaining Due (PKR)</div>
-            <div className="text-[11px] font-black text-rose-600 dark:text-rose-400 mt-1.5 leading-none truncate" title={money(remainingDuePKR) + " PKR"}>
-              {money(remainingDuePKR)}
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* REPORT-3: SEARCH & TRANSACTION REPORT */}
       <section className="bg-white border border-slate-250 dark:border-slate-800 dark:bg-slate-950/80 p-4 rounded-md shadow-none space-y-4">
@@ -1398,7 +1334,7 @@ export function PurchaseOrderManagementDashboard() {
                     { label: "Product Information", span: 7, cls: "bg-emerald-800 text-emerald-100" },
                     { label: "Financial Information", span: 7, cls: "bg-blue-800 text-blue-100" },
                     { label: "Route & Loading", span: 7, cls: "bg-indigo-700 text-indigo-100" },
-                    { label: "Status", span: 3, cls: "bg-slate-700 text-slate-200" },
+                    { label: "Status", span: 1, cls: "bg-slate-700 text-slate-200" },
                     { label: "Actions", span: 1, cls: "bg-slate-600 text-slate-200" },
                   ].map((group) => (
                     <th
@@ -1421,7 +1357,7 @@ export function PurchaseOrderManagementDashboard() {
                     "PURCH. PRICE", "TOTAL AMT", "PURCH. AMT", "EX. RATE", "FINAL AMT", "INV. %", "PAY. CONDITION",
                     "ROUTE", "LOAD. COUNTRY", "LOAD. PORT", "LOAD. DATE",
                     "RCV. COUNTRY", "RCV. PORT", "RCV. DATE",
-                    "TRANSFER THE BILL", "INV. STS.", "PAY. STATUS", "LOAD. STATUS",
+                    "TRANSFER THE BILL",
                     "ACTIONS"
                   ].map((header, i) => (
                     <th key={i} className="px-2.5 py-2.5 border-b border-slate-800 whitespace-nowrap text-center">
@@ -1563,27 +1499,6 @@ export function PurchaseOrderManagementDashboard() {
                           <span className="inline-flex rounded border border-red-300 bg-red-50 text-red-600 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap animate-pulse">NO</span>
                         )}
                       </td>
-                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
-                        <span className={`inline-flex rounded border px-1 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap ${
-                          rawInvStatus.toLowerCase().includes("confirm") ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                          : rawInvStatus.toLowerCase().includes("partial") ? "border-blue-300 bg-blue-50 text-blue-700"
-                          : "border-slate-300 bg-slate-50 text-slate-600"
-                        }`}>{rawInvStatus || "Open"}</span>
-                      </td>
-                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
-                        <span className={`inline-flex rounded border px-1 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap ${
-                          rawPayStatus === "PAID" || rawPayStatus === "FULL PAYMENT" ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                          : rawPayStatus.includes("ADVANCE") || rawPayStatus.includes("PARTIAL") ? "border-blue-300 bg-blue-50 text-blue-700"
-                          : "border-slate-300 bg-slate-50 text-slate-600"
-                        }`}>{rawPayStatus || "Pending"}</span>
-                      </td>
-                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
-                        <span className={`inline-flex rounded border px-1 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap ${
-                          rawLoadStatus.toLowerCase().includes("load") || rawLoadStatus.toLowerCase().includes("transit") ? "border-indigo-300 bg-indigo-50 text-indigo-700"
-                          : rawLoadStatus.toLowerCase().includes("deliver") || rawLoadStatus.toLowerCase().includes("complet") ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                          : "border-slate-300 bg-slate-50 text-slate-500"
-                        }`}>{rawLoadStatus}</span>
-                      </td>
                       {/* Actions */}
                       <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
@@ -1597,17 +1512,18 @@ export function PurchaseOrderManagementDashboard() {
                           >
                             <Edit3 className="h-3.5 w-3.5" />
                           </button>
-                          <PurchaseRowActionsMenu
-                            onSelect={() => {
+                          <button
+                            type="button"
+                            onClick={() => {
                               setSelectedId(row.id);
                               setIsDrawerOpen(true);
                             }}
-                            onEdit={() => {
-                              router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(row.id)}&purchaseOrderNo=${encodeURIComponent(row.purchaseBookingOrderNumber || "")}`);
-                            }}
-                            onPrint={() => openReportWindow(row, true)}
-                            onExportPdf={() => openReportWindow(row, false)}
-                          />
+                            className="inline-flex h-7 px-2 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-slate-700 text-[10px] font-bold dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 uppercase tracking-wider"
+                            title="View Booking"
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1" />
+                            View
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1678,63 +1594,28 @@ export function PurchaseOrderManagementDashboard() {
                 ← Back to Report
               </Button>
 
-              {/* Transfer Dropdown */}
-              <div className="relative">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setTransferDropdownOpen(!transferDropdownOpen);
-                    setMoreActionsDropdownOpen(false);
-                  }}
-                  className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase px-3 shadow-sm border-none flex items-center gap-1.5"
-                >
-                  Transfer
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </Button>
-                {transferDropdownOpen && (
-                  <>
-                    <div className="fixed inset-0 z-30" onClick={() => setTransferDropdownOpen(false)} />
-                    <div className="absolute right-0 z-50 mt-1.5 w-56 origin-top-right rounded-xl border border-slate-200 bg-white p-1 text-xs text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTransferDropdownOpen(false);
-                          handleTransfer();
-                        }}
-                        disabled={transferring || selected.status === "Posted"}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900 disabled:opacity-50"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-450" />
-                        Transfer & Post
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTransferDropdownOpen(false);
-                          setIsDrawerOpen(false);
-                          router.push("/dashboard/purchase/purchase-loading-records");
-                        }}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
-                      >
-                        <Container className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                        Loading Process
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTransferDropdownOpen(false);
-                          setIsDrawerOpen(false);
-                          router.push("/dashboard/purchase/purchase-order-tracking");
-                        }}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
-                      >
-                        <BadgeDollarSign className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-                        Payment Process
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+              <Button
+                type="button"
+                onClick={handleTransfer}
+                disabled={transferring || Boolean(selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted"))}
+                className={
+                  selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted")
+                    ? "h-8 bg-slate-350 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed border-slate-300 font-bold text-[10px] uppercase px-3"
+                    : "h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase px-3 shadow-sm border-none flex items-center gap-1.5"
+                }
+              >
+                {transferring ? "Transferring..." : (selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted")) ? "✓ Transferred" : "Post Transfer"}
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => {
+                  window.location.href = `/dashboard/journal/purchase-order-payment/advance?po_id=${selected.id}`;
+                }}
+                className="h-8 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase px-3 shadow-sm border-none flex items-center gap-1.5 ml-2"
+              >
+                Transfer to Payment →
+              </Button>
 
               {/* More Actions Dropdown */}
               <div className="relative">
@@ -1836,9 +1717,35 @@ export function PurchaseOrderManagementDashboard() {
             const totalQty = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.qtyNo || 0), 0);
             const totalGross = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.grossWeight || 0), 0);
             const totalNet = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.netWeight || 0), 0);
-            const totalUSDVal = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.totalAmount || 0), 0);
-            const totalPKRVal = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.finalAmount || 0), 0);
+            
             const exRate = goodsEntries[0]?.exchangeRate || selected.exchange_rate || 280;
+
+            const totalUSDVal = goodsEntries.reduce((sum: number, item: any) => {
+              const qtyNo = Number(item.qtyNo || 0);
+              const qtyKgs = Number(item.qtyKgs || 0);
+              const grossWeight = Number(item.grossWeight || qtyNo * qtyKgs);
+              const netWeight = Number(item.netWeight || grossWeight);
+              const coursePrice = Number(item.coursePrice || 0);
+              const amount = Number(item.totalAmount || netWeight * coursePrice);
+              return sum + amount;
+            }, 0);
+
+            const totalPKRVal = goodsEntries.reduce((sum: number, item: any) => {
+              const qtyNo = Number(item.qtyNo || 0);
+              const qtyKgs = Number(item.qtyKgs || 0);
+              const grossWeight = Number(item.grossWeight || qtyNo * qtyKgs);
+              const netWeight = Number(item.netWeight || grossWeight);
+              const coursePrice = Number(item.coursePrice || 0);
+              const amount = Number(item.totalAmount || netWeight * coursePrice);
+              const exVal = Number(item.exchangeRate || exRate);
+              const finalAmountVal = Number(item.finalAmount || amount * exVal);
+              return sum + finalAmountVal;
+            }, 0);
+
+            const isUAEAccount = String(selected.purchaseAccountNumber || selected.form_data?.form?.purchaseAccountNo || "").toUpperCase().includes("UAE") || String(selected.salesAccountNumber || selected.form_data?.form?.salesAccountNo || "").toUpperCase().includes("UAE");
+            const inferredCurrency = (Number(exRate) > 3 && Number(exRate) < 5) || isUAEAccount ? "AED" : "PKR";
+            const displayCurrency = selected.form_data?.form?.baseCurrency || inferredCurrency;
+            const displayCurrencySymbol = displayCurrency === "AED" ? "AED" : "Rs";
 
             const avgRateKg = totalNet > 0 ? (totalUSDVal / totalNet) : 0;
             const avgRateTon = avgRateKg * 1000;
@@ -1876,9 +1783,10 @@ export function PurchaseOrderManagementDashboard() {
             const paymentStatusLabel = (selected.paymentStatus || "PENDING").toUpperCase();
 
             return (
-              <div className="w-full bg-slate-100 dark:bg-slate-900/60 p-4 flex justify-center rounded-xl border border-border overflow-x-auto select-none">
-                {/* Simulated A4 Page */}
-                <div className="print-a4-content bg-white text-slate-800 border border-slate-300 w-[210mm] min-h-[297mm] p-[10mm] shadow-2xl text-[9px] font-sans flex flex-col gap-3 relative rounded-sm text-left leading-relaxed">
+              <div className="w-full bg-slate-100 dark:bg-slate-900/60 p-4 flex flex-col lg:flex-row gap-4 rounded-xl border border-border select-none">
+                {/* Left Side: Simulated A4 Page */}
+                <div className="flex-1 overflow-auto flex justify-center rounded-xl bg-slate-200/50 dark:bg-slate-950 p-2 lg:p-4 border border-slate-200 dark:border-slate-800">
+                  <div className="print-a4-content bg-white text-slate-800 border border-slate-300 w-[210mm] min-h-[297mm] p-[10mm] shadow-lg text-[9px] font-sans flex flex-col gap-3 relative rounded-sm text-left leading-relaxed shrink-0">
                   
                   {/* CSS print hack injection */}
                   <style dangerouslySetInnerHTML={{__html: `
@@ -1941,23 +1849,7 @@ export function PurchaseOrderManagementDashboard() {
                     </div>
                   </div>
 
-                  {/* Transfer Status Panel */}
-                  <div className="flex gap-3">
-                    <div className="w-[38%] bg-emerald-500/5 border border-emerald-500/10 rounded p-2.5 flex flex-col justify-center">
-                      <span className="text-[7.5px] text-emerald-600 uppercase font-black tracking-wider block">Transfer Status</span>
-                      <span className="text-xs font-black text-emerald-700 block mt-1">
-                        ● {selected.status === "Posted" ? "Fully Transferred & Posted" : "Approved & Ready for Transfer"}
-                      </span>
-                    </div>
-                    <div className="w-[62%] bg-emerald-500/5 border border-emerald-500/10 rounded p-2.5 text-[8.5px] text-slate-650 leading-relaxed font-semibold">
-                      <span className="text-[7.5px] text-emerald-600 uppercase font-black tracking-wider block mb-1">Transferred To (Destination Accounts)</span>
-                      <ul className="list-disc pl-3.5 space-y-0.5">
-                        <li>General Ledger Debit Account: <strong className="text-slate-800 font-mono">{selected.purchaseAccountNumber}</strong> & Credit Account: <strong className="text-slate-800 font-mono">{selected.salesAccountNumber}</strong></li>
-                        <li>Internal Voucher Entry No: <strong className="text-slate-800 font-mono">{selected.status === "Posted" ? `JV-${selected.purchaseBookingOrderNumber.slice(-6)}` : `Pending Posting`}</strong></li>
-                        <li>Logistics cargo loading module (<strong className="text-slate-800">{containerCount} Container</strong>)</li>
-                      </ul>
-                    </div>
-                  </div>
+                  {/* Transfer Status Panel (Moved to Right Panel) */}
 
                   {/* 3-Column General Information */}
                   <div className="grid grid-cols-3 gap-2.5">
@@ -2008,6 +1900,61 @@ export function PurchaseOrderManagementDashboard() {
                       </table>
                     </div>
                   </div>
+
+                  {/* Accounting / Ledger Impact Preview */}
+                  <div className="border border-slate-200 rounded overflow-hidden mt-2.5">
+                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                      <span>📓</span> Accounting / Ledger Impact Preview
+                    </div>
+                    <table className="w-full text-[8px] text-left border-collapse font-semibold text-slate-700">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50/50 text-[7.5px] uppercase tracking-wider text-slate-500">
+                          <th className="px-2 py-1.5 font-bold w-[20%]">GL Code</th>
+                          <th className="px-2 py-1.5 font-bold w-[40%]">Account Name</th>
+                          <th className="px-2 py-1.5 font-bold text-right w-[20%]">Debit</th>
+                          <th className="px-2 py-1.5 font-bold text-right w-[20%]">Credit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-slate-100">
+                          <td className="px-2 py-1.5 font-mono text-indigo-700">
+                            {selected.form_data?.form?.purchaseAccountNo || selected.purchaseAccountNumber || "INV-001"}
+                          </td>
+                          <td className="px-2 py-1.5 font-bold">
+                            {selected.form_data?.form?.purchaseAccountName || selected.purchaseAccountName || "Purchase Inventory Account"}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-mono font-bold text-emerald-600">
+                            {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-mono text-slate-400">—</td>
+                        </tr>
+                        <tr className="border-b border-slate-100">
+                          <td className="px-2 py-1.5 font-mono text-indigo-700">
+                            {selected.form_data?.form?.salesAccountNo || selected.salesAccountNumber || "AP-001"}
+                          </td>
+                          <td className="px-2 py-1.5 font-bold">
+                            {selected.form_data?.form?.salesAccountName || selected.salesAccountName || selected.supplierName || "Supplier Payable Account"}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-mono text-slate-400">—</td>
+                          <td className="px-2 py-1.5 text-right font-mono font-bold text-rose-600">
+                            {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-50 font-bold border-t-[1.5px] border-slate-300">
+                          <td colSpan={2} className="px-2 py-1.5 text-right uppercase text-[7.5px] text-slate-500">Total Balanced Entry:</td>
+                          <td className="px-2 py-1.5 text-right font-mono text-slate-900 border-double border-b-2 border-slate-400">
+                            {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-mono text-slate-900 border-double border-b-2 border-slate-400">
+                            {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
                   {/* Goods Details section */}
                   <div className="border border-slate-200 rounded overflow-hidden">
                     <div className="bg-[#0f2942] text-white px-2.5 py-1 text-[8px] font-black uppercase tracking-wider">
@@ -2075,7 +2022,7 @@ export function PurchaseOrderManagementDashboard() {
                           <td className="p-1 text-right text-slate-550 text-[7px]">Avg: ${avgRateKg.toFixed(2)}</td>
                           <td className="p-1 text-right text-blue-600 font-black">${totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="p-1"></td>
-                          <td className="p-1 text-right text-emerald-600 font-black">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</td>
+                          <td className="p-1 text-right text-emerald-600 font-black">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}</td>
                         </tr>
                         <tr className="text-[7.5px] text-slate-550 border-t border-slate-200/60 font-semibold">
                           <td colSpan={5} className="p-1 text-right uppercase text-[7px]">Containers & Dues:</td>
@@ -2157,8 +2104,44 @@ export function PurchaseOrderManagementDashboard() {
                       <table className="w-full text-[8px] font-semibold text-slate-600">
                         <tbody>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Journal Entry Number:</td><td className="px-2 py-1 text-slate-800 font-mono font-bold">{journalEntryNumberText}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Debit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.purchaseAccountNumber}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Credit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.salesAccountNumber}</td></tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Debit Account:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono">
+                              {selected.form_data?.form?.purchaseAccountNo || selected.purchaseAccountNumber || "-"} 
+                              <span className="ml-1 text-slate-500 font-sans font-semibold">
+                                {selected.form_data?.form?.purchaseAccountName || selected.purchaseAccountName ? `(${selected.form_data?.form?.purchaseAccountName || selected.purchaseAccountName})` : ""}
+                              </span>
+                            </td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Debit Amount:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono font-bold text-emerald-600">
+                              {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {selected.currency || "USD"} 
+                              <span className="text-slate-400 font-medium px-1.5">@</span> 
+                              <span className="text-blue-600">{exRate}</span> 
+                              <span className="text-slate-400 font-medium px-1.5">=</span> 
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}
+                            </td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Credit Account:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono">
+                              {selected.form_data?.form?.salesAccountNo || selected.salesAccountNumber || "-"} 
+                              <span className="ml-1 text-slate-500 font-sans font-semibold">
+                                {selected.form_data?.form?.salesAccountName || selected.salesAccountName ? `(${selected.form_data?.form?.salesAccountName || selected.salesAccountName})` : ""}
+                              </span>
+                            </td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Credit Amount:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono font-bold text-emerald-600">
+                              {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {selected.currency || "USD"} 
+                              <span className="text-slate-400 font-medium px-1.5">@</span> 
+                              <span className="text-blue-600">{exRate}</span> 
+                              <span className="text-slate-400 font-medium px-1.5">=</span> 
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}
+                            </td>
+                          </tr>
                           <tr className="border-b border-slate-100">
                             <td className="px-2 py-1 text-slate-400">Total Quantity:</td>
                             <td className="px-2 py-1 text-slate-800 font-bold">{totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || "Units"}</td>
@@ -2218,6 +2201,127 @@ export function PurchaseOrderManagementDashboard() {
                   </div>
 
                 </div>
+                </div>
+
+                {/* Right Side: Verification Panel */}
+                <div className="w-full lg:w-[350px] shrink-0 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm flex flex-col h-full overflow-y-auto">
+                  
+                  {/* Panel Header */}
+                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 sticky top-0 z-10">
+                    <h3 className="text-sm font-black text-[#0f2942] dark:text-white uppercase tracking-widest flex items-center gap-2">
+                      <FileCheck2 className="h-4 w-4 text-blue-600" />
+                      Verification Summary
+                    </h3>
+                  </div>
+
+                  <div className="p-4 space-y-5 flex-1">
+                    
+                    {/* User, Branch & Country Info */}
+                    <div className="space-y-3">
+                      <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">User Information</div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div><span className="text-slate-400 block text-[9px] uppercase">User ID</span><span className="font-bold font-mono">USR-{selected.audit?.userId?.slice(-4) || "101"}</span></div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">User Name</span><span className="font-bold truncate">{selected.audit?.userName || "Admin"}</span></div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Team Name</span><span className="font-bold">Logistics</span></div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Team Code</span><span className="font-bold font-mono">TM-LOG</span></div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                          <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Branch Info</div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Name</span><span className="font-bold text-xs truncate block" title={selected.branchName}>{selected.branchName || "Main"}</span></div>
+                          <div className="mt-1"><span className="text-slate-400 block text-[9px] uppercase">Code</span><span className="font-bold text-xs font-mono">BR-01</span></div>
+                        </div>
+                        <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                          <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Country Info</div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Name</span><span className="font-bold text-xs truncate block" title={selected.countryName}>{selected.countryName || "PK"}</span></div>
+                          <div className="mt-1"><span className="text-slate-400 block text-[9px] uppercase">Code</span><span className="font-bold text-xs font-mono">{selected.countryName ? selected.countryName.slice(0, 3).toUpperCase() : "PAK"}</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Transfer Information */}
+                    <div className="bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-400 mb-2">Transfer Information</div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500">Status</span>
+                          <span className={`font-black uppercase text-[10px] px-2 py-0.5 rounded ${selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                            {selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" ? "Fully Transferred" : "Pending"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500">Date</span>
+                          <span className="font-bold">{selected.form_data?.form?.transferAudit ? new Date(selected.form_data.form.transferAudit.transferDate).toLocaleString() : "Not Transferred"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Account Verification */}
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-3 border-b border-slate-200 dark:border-slate-800 pb-1">Account Verification</div>
+                      
+                      {/* Debit */}
+                      <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border-l-2 border-emerald-500 p-3 rounded-r-lg mb-2">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider">Purchase Account (DR)</span>
+                          <span className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{selected.purchaseAccountNumber || selected.form_data?.form?.purchaseAccountNo || "ACC-PUR"}</span>
+                        </div>
+                        <div className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{selected.purchaseAccountName || selected.form_data?.form?.purchaseAccountName || "-"}</div>
+                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-900/50">
+                          <span className="text-[10px] text-slate-500">Amount</span>
+                          <span className="font-mono font-black text-emerald-700">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}</span>
+                        </div>
+                      </div>
+
+                      {/* Visual separator */}
+                      <div className="flex justify-center my-1 text-slate-300">
+                        <ChevronDown className="h-4 w-4" />
+                      </div>
+
+                      {/* Credit */}
+                      <div className="bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500 p-3 rounded-r-lg">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[9px] font-bold text-blue-700 uppercase tracking-wider">Sales Account (CR)</span>
+                          <span className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{selected.salesAccountNumber || selected.form_data?.form?.salesAccountNo || "ACC-SAL"}</span>
+                        </div>
+                        <div className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{selected.salesAccountName || selected.form_data?.form?.salesAccountName || "-"}</div>
+                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-blue-100 dark:border-blue-900/50">
+                          <span className="text-[10px] text-slate-500">Amount</span>
+                          <span className="font-mono font-black text-blue-700">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Transfer Amount */}
+                    <div className="bg-slate-800 dark:bg-slate-900 text-white p-4 rounded-xl text-center shadow-inner">
+                      <div className="text-[10px] text-slate-300 uppercase tracking-widest font-black mb-1">Transfer Amount</div>
+                      <div className="text-2xl font-black font-mono tracking-tight text-emerald-400">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-sm text-slate-400">{displayCurrency}</span></div>
+                      <div className="mt-2 text-[9px] text-slate-400 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+                        <span className="truncate max-w-[100px]">{selected.purchaseAccountName || "Purchase A/C"}</span>
+                        <span className="text-blue-400">→</span>
+                        <span className="truncate max-w-[100px]">{selected.salesAccountName || "Sales A/C"}</span>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col gap-2 sticky bottom-0">
+                    <Button 
+                      className={`w-full font-bold uppercase tracking-wider text-[11px] h-12 shadow-md transition-all ${(selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted") ? "bg-slate-200 text-slate-500 cursor-not-allowed hover:bg-slate-200 shadow-none" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
+                      disabled={selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted"}
+                      onClick={() => handleTransfer(selected)}
+                    >
+                      {transferring ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Landmark className="h-4 w-4 mr-2" />}
+                      {(selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted") ? "Already Transferred" : "Transfer Roznamcha Payment"}
+                    </Button>
+                  </div>
+
+                </div>
+
               </div>
             );
           })()}

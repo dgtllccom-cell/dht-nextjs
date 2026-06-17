@@ -169,6 +169,48 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
     fetchUsers();
   }, []);
 
+  async function fetchSpecificUser(id: string) {
+    try {
+      const res = await fetch(`/api/erp/users?userId=${encodeURIComponent(id)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.userId) {
+        setBanner(null);
+        setCreatedResult(null);
+        setIsResettingBranch(false);
+        setShouldDefaultPermissions(false);
+
+        setEditUserId(data.userId);
+        setFullName(data.fullName);
+        setGender("Male");
+        setUserCode(data.userCode);
+        setRole(data.role);
+        setCountryId(data.countryId || "");
+
+        if (data.countryBranchId && !data.cityBranchId) {
+          setBranchType("main");
+          setCountryBranchId(data.countryBranchId);
+          setCityBranchId("");
+        } else if (data.cityBranchId) {
+          setBranchType("city");
+          setCityBranchId(data.cityBranchId);
+        } else {
+          setBranchType("");
+          setCountryBranchId("");
+          setCityBranchId("");
+        }
+
+        setPassword("");
+        setConfirmPassword("");
+        setSelectedPermissions(data.permissions || []);
+        setStep(1);
+        setSelectedReportUserId(data.userId);
+      }
+    } catch (err) {
+      console.error("Failed to load user for edit", err);
+    }
+  }
+
   const loadUserForEditing = (row: any) => {
     setBanner(null);
     setCreatedResult(null);
@@ -206,13 +248,10 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
   };
 
   useEffect(() => {
-    if (urlUserId && usersList.length > 0 && !editUserId) {
-      const match = usersList.find((u) => u.userId === urlUserId);
-      if (match) {
-        loadUserForEditing(match);
-      }
+    if (urlUserId && !editUserId) {
+      fetchSpecificUser(urlUserId);
     }
-  }, [urlUserId, usersList, editUserId]);
+  }, [urlUserId, editUserId]);
 
   const countryOptions = useMemo(() => countries.map(toCountryOption), [countries]);
   const branchTypeSelectOptions = useMemo(

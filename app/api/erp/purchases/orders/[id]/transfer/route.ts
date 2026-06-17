@@ -64,9 +64,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       cityBranchId:    (order as any).city_branch_id    ?? null
     };
 
-    const totalPurchaseAmount = Number((order as any).order_total || totals.grandFinal || 0);
-    if (totalPurchaseAmount <= 0) {
-      throw new Error("Purchase order total must be greater than zero to post ledger entries.");
+    // Safely parse the amount, removing any formatted commas
+    const rawTotal = String((order as any).order_total || totals.grandFinal || "0").replace(/,/g, "");
+    const totalPurchaseAmount = Number(rawTotal);
+    
+    if (isNaN(totalPurchaseAmount) || totalPurchaseAmount <= 0) {
+      throw new Error("Purchase order total must be a valid number greater than zero to post ledger entries.");
     }
 
     // Determine advance payment amount (starts at 0 for cash payment workflow)
@@ -154,12 +157,26 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const remainingDue = Math.max(0, totalPurchaseAmount - advancePaid);
     const paymentStatus = remainingDue === 0 ? "completed" : advancePaid > 0 ? "partial" : "pending";
 
+    const updatedFormData = {
+      ...(formData || {}),
+      form: {
+        ...(form || {}),
+        transferAudit: {
+          userId: session.userId,
+          userName: session.fullName || session.email || "User",
+          transferDate: new Date().toISOString(),
+          transferId: transferPaymentId || "N/A"
+        }
+      }
+    };
+
     const patch = {
       ledger_posting_status: "posted",
       payment_status:        paymentStatus,
       advance_paid:          advancePaid,
       remaining_due:         remainingDue,
-      updated_at:            new Date().toISOString()
+      updated_at:            new Date().toISOString(),
+      form_data:             updatedFormData
     };
 
     await requireSupabaseData(

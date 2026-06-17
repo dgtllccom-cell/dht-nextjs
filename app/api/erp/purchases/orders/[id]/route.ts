@@ -112,8 +112,22 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       patch.advance_paid = advanceAmount;
       patch.remaining_due = remainingDue;
       patch.payment_status = remainingDue === 0 ? "completed" : advanceAmount > 0 ? "partial" : "pending";
-      const debitLedgerId = await getLedgerIdByCode(supabase, form.purchaseAccountNo);
-      const creditLedgerId = await getLedgerIdByCode(supabase, form.salesAccountNo);
+      const debitLedgerId = await getLedgerIdByCode(supabase, form.purchaseAccountNo, {
+        userId: session.userId,
+        countryId: (before as any)?.country_id ?? null,
+        countryBranchId: (before as any)?.country_branch_id ?? null,
+        cityBranchId: (before as any)?.city_branch_id ?? null,
+        kind: "asset",
+        name: form.purchaseAccountName || `${form.purchaseAccountNo} Account`
+      });
+      const creditLedgerId = await getLedgerIdByCode(supabase, form.salesAccountNo, {
+        userId: session.userId,
+        countryId: (before as any)?.country_id ?? null,
+        countryBranchId: (before as any)?.country_branch_id ?? null,
+        cityBranchId: (before as any)?.city_branch_id ?? null,
+        kind: "liability",
+        name: form.salesAccountName || form.supplierName || `${form.salesAccountNo} Account`
+      });
       
       if (!debitLedgerId) {
         throw new Error(`Debit Ledger (Inventory) not found for account code: ${form.purchaseAccountNo}`);
@@ -161,47 +175,198 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   }
 }
 
-async function getLedgerIdByCode(supabase: any, code: string) {
+async function getLedgerIdByCode(supabase: any, code: string, input?: any) {
   const lookup = String(code || "").trim();
   if (!lookup) return null;
 
-  const { data, error } = await supabase
+  const expectedScope = input?.cityBranchId ? "city_branch" : input?.countryBranchId ? "main_branch" : "super_admin";
+
+  let ledgerQuery = supabase
     .from("ledgers")
     .select("id")
     .eq("code", lookup)
     .is("deleted_at", null)
-    .maybeSingle();
+    .eq("scope", expectedScope);
+  if (input?.cityBranchId) ledgerQuery = ledgerQuery.eq("city_branch_id", input.cityBranchId);
+  else if (input?.countryBranchId) ledgerQuery = ledgerQuery.eq("country_branch_id", input.countryBranchId);
+  else if (input?.countryId) ledgerQuery = ledgerQuery.eq("country_id", input.countryId);
+
+  const { data, error } = await ledgerQuery.maybeSingle();
   if (!error && data?.id) return data.id;
 
-  const { data: account } = await supabase
+  let accountQuery = supabase
     .from("enterprise_accounts")
-    .select("id, code, account_number, manual_reference_number, customer_number")
+    .select("id, code, account_number, manual_reference_number, customer_number, name")
     .or(`code.eq.${lookup},account_number.eq.${lookup},manual_reference_number.eq.${lookup},customer_number.eq.${lookup}`)
     .is("deleted_at", null)
-    .maybeSingle();
+    .limit(1);
 
-  if (!account?.id) return null;
+  const { data: accountList } = await accountQuery;
+  const account = accountList?.[0];
 
-  const { data: ledgerByAccount } = await supabase
-    .from("ledgers")
-    .select("id")
-    .eq("enterprise_account_id", account.id)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (ledgerByAccount?.id) return ledgerByAccount.id;
+  if (account?.id) {
+    let ledgerByAccountQuery = supabase
+      .from("ledgers")
+      .select("id")
+      .eq("enterprise_account_id", account.id)
+      .eq("scope", expectedScope)
+      .is("deleted_at", null);
+      
+    if (input?.cityBranchId) ledgerByAccountQuery = ledgerByAccountQuery.eq("city_branch_id", input.cityBranchId);
+    else if (input?.countryBranchId) ledgerByAccountQuery = ledgerByAccountQuery.eq("country_branch_id", input.countryBranchId);
+    else if (input?.countryId) ledgerByAccountQuery = ledgerByAccountQuery.eq("country_id", input.countryId);
 
-  const accountCodes = [account.code, account.account_number, account.manual_reference_number, account.customer_number].filter(Boolean);
-  if (!accountCodes.length) return null;
+    const { data: ledgerByAccount } = await ledgerByAccountQuery.maybeSingle();
+    if (ledgerByAccount?.id) return ledgerByAccount.id;
 
-  const { data: ledgerByCode } = await supabase
-    .from("ledgers")
-    .select("id")
-    .in("code", accountCodes)
-    .is("deleted_at", null)
-    .limit(1)
-    .maybeSingle();
+    const { data: newLedger } = await supabase
+      .from("ledgers")
+      .insert({
+        scope: expectedScope,
+        country_id: input?.countryId || null,
+        country_branch_id: input?.countryBranchId || null,
+        city_branch_id: input?.cityBranchId || null,
+        enterprise_account_id: account.id,
+        code: account.code || lookup,
+        name: account.name || `${lookup} Account`,
+        currency: "PKR",
+        opening_balance: 0,
+        current_balance: 0,
+        debit_total: 0,
+        credit_total: 0,
+        normal_balance: input?.kind === "liability" ? "credit" : "debit",
+        is_active: true,
+        created_by: input?.userId
+      })
+      .select("id")
+      .single();
+    if (newLedger?.id) return newLedger.id;
+  }
 
-  return ledgerByCode?.id ?? null;
+  const accountCodes = account ? [account.code, account.account_number, account.manual_reference_number, account.customer_number].filter(Boolean) : [];
+  if (accountCodes.length) {
+    let ledgerByCodeQuery = supabase
+      .from("ledgers")
+      .select("id")
+      .in("code", accountCodes)
+      .is("deleted_at", null)
+      .eq("scope", expectedScope)
+      .limit(1);
+    if (input?.cityBranchId) ledgerByCodeQuery = ledgerByCodeQuery.eq("city_branch_id", input.cityBranchId);
+    else if (input?.countryBranchId) ledgerByCodeQuery = ledgerByCodeQuery.eq("country_branch_id", input.countryBranchId);
+    else if (input?.countryId) ledgerByCodeQuery = ledgerByCodeQuery.eq("country_id", input.countryId);
+
+    const { data: ledgerByCode } = await ledgerByCodeQuery.maybeSingle();
+    if (ledgerByCode?.id) return ledgerByCode.id;
+  }
+
+  // If we reach here, neither Account nor Ledger exists. Auto-create both as a fallback.
+  if (input?.userId) {
+    try {
+      const scope = input.cityBranchId ? "city_branch" : input.countryBranchId ? "main_branch" : "super_admin";
+      let branchCode = "BRANCH";
+      let branchPrefix = "BR";
+      let countryPrefix = "CT";
+
+      if (input.cityBranchId) {
+        const { data: cb } = await supabase.from("city_branches").select("code, city_name").eq("id", input.cityBranchId).maybeSingle();
+        if (cb) {
+          branchCode = cb.code || cb.city_name || "CITY";
+          branchPrefix = cb.city_name || cb.code || "CITY";
+        }
+      } else if (input.countryBranchId) {
+        const { data: cb } = await supabase.from("country_branches").select("code, name").eq("id", input.countryBranchId).maybeSingle();
+        if (cb) {
+          branchCode = cb.code || cb.name || "MAIN";
+          branchPrefix = "MAIN";
+        }
+      }
+
+      if (input.countryId) {
+        const { data: c } = await supabase.from("countries").select("name, iso2").eq("id", input.countryId).maybeSingle();
+        if (c) {
+          countryPrefix = c.name?.toLowerCase().includes("united arab emirates") ? "UAE" : (c.iso2 || "CT");
+        }
+      }
+
+      const { count: totalCount } = await supabase.from("enterprise_accounts").select("id", { count: "exact", head: true });
+      let branchQuery = supabase.from("enterprise_accounts").select("id", { count: "exact", head: true }).eq("scope", scope).is("deleted_at", null);
+      if (input.countryId) branchQuery = branchQuery.eq("country_id", input.countryId);
+      if (input.countryBranchId) branchQuery = branchQuery.eq("country_branch_id", input.countryBranchId);
+      if (input.cityBranchId) branchQuery = branchQuery.eq("city_branch_id", input.cityBranchId);
+      const { count: branchCount } = await branchQuery;
+
+      let countryQuery = supabase.from("enterprise_accounts").select("id", { count: "exact", head: true }).is("deleted_at", null);
+      if (input.countryId) countryQuery = countryQuery.eq("country_id", input.countryId);
+      const { count: countryCount } = await countryQuery;
+
+      const accountSerialNumber = Number(totalCount ?? 0) + 1;
+      const branchAccountSequence = Number(branchCount ?? 0) + 1;
+      const countrySerialNumber = `${countryPrefix.toUpperCase()}-${String(Number(countryCount ?? 0) + 1).padStart(6, "0")}`;
+      const branchSerialNumber = `${countryPrefix.toUpperCase()}-${branchPrefix.slice(0, 3).toUpperCase()}-${String(branchAccountSequence).padStart(6, "0")}`;
+
+      const { data: newAcc, error: accErr } = await supabase
+        .from("enterprise_accounts")
+        .insert({
+          scope,
+          country_id: input.countryId || null,
+          country_branch_id: input.countryBranchId || null,
+          city_branch_id: input.cityBranchId || null,
+          code: lookup,
+          account_number: `${lookup}-${Date.now().toString().slice(-6)}`,
+          customer_number: `CUST-${lookup}-${Date.now().toString().slice(-6)}`,
+          account_serial_number: accountSerialNumber,
+          country_serial_number: countrySerialNumber,
+          branch_serial_number: branchSerialNumber,
+          branch_code: branchCode.slice(0, 6).toUpperCase(),
+          branch_account_sequence: branchAccountSequence,
+          name: input.name || `${lookup} Fallback Account`,
+          kind: input.kind || "liability",
+          currency: "PKR",
+          status: "active",
+          is_control_account: false,
+          opening_balance: 0,
+          current_balance: 0,
+          creation_date: new Date().toISOString(),
+          created_by: input.userId
+        })
+        .select("id, code, name")
+        .single();
+
+      if (accErr) {
+        console.error("Failed creating fallback acc", accErr);
+      }
+
+      if (newAcc?.id) {
+        const { data: newLedg } = await supabase
+          .from("ledgers")
+          .insert({
+            scope,
+            country_id: input.countryId || null,
+            country_branch_id: input.countryBranchId || null,
+            city_branch_id: input.cityBranchId || null,
+            enterprise_account_id: newAcc.id,
+            code: newAcc.code,
+            name: newAcc.name,
+            currency: "PKR",
+            opening_balance: 0,
+            current_balance: 0,
+            debit_total: 0,
+            credit_total: 0,
+            normal_balance: input.kind === "liability" ? "credit" : "debit",
+            is_active: true,
+            created_by: input.userId
+          })
+          .select("id")
+          .single();
+        if (newLedg?.id) return newLedg.id;
+      }
+    } catch (e) {
+      console.error("Auto-create fallback account failed", e);
+    }
+  }
+
+  return null;
 }
 
 async function resolveOrCreateCashLedger(
@@ -389,4 +554,66 @@ async function resolveOrCreateCashLedger(
   }
 
   return newLedger.id;
+}
+
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await requireErpSession();
+    const params = paramsSchema.parse(await context.params);
+
+    const supabase = await createApiSupabaseClient();
+    const row = await requireSupabaseData(
+      supabase
+        .from("purchase_orders")
+        .select("id, country_id, country_branch_id, city_branch_id, ledger_posting_status, payment_status")
+        .eq("id", params.id)
+        .is("deleted_at", null)
+        .maybeSingle()
+    );
+
+    // Explicitly require super_admin or country_admin for deletion
+    if (!session.scopes?.isSuperAdmin && !session.roles?.includes("super_admin") && !session.roles?.includes("country_admin")) {
+      throw new Error("Unauthorized: Only Super Admin or Country Admin can delete purchase bookings.");
+    }
+
+    authorizeApiScope(session, {
+      resource: "purchases",
+      action: "delete",
+      countryId: (row as any)?.country_id ?? null,
+      countryBranchId: (row as any)?.country_branch_id ?? null,
+      cityBranchId: (row as any)?.city_branch_id ?? null
+    });
+
+    // If it was posted to ledger, we must revert the journal entries first
+    if ((row as any).ledger_posting_status === "posted" || (row as any).payment_status !== "pending") {
+      const adminSupabase = createSupabaseAdminClient() as any;
+      await revertOrderBookingTransfer(params.id, supabase, adminSupabase);
+    }
+
+    // Soft delete the purchase order
+    const deleted = await requireSupabaseData(
+      supabase
+        .from("purchase_orders")
+        .update({ 
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", params.id)
+        .select("id")
+        .single()
+    );
+
+    await writeAuditLog({
+      action: "delete",
+      entityTable: "purchase_orders",
+      entityId: params.id,
+      before: row,
+      after: { deleted_at: new Date().toISOString() },
+      ipAddress: request.headers.get("x-forwarded-for") ?? null
+    });
+
+    return apiOk({ success: true, deletedId: params.id });
+  } catch (error) {
+    return handleApiError(error);
+  }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { Menu, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -40,6 +40,18 @@ export function DashboardFrame({
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const filteredNodes = useMemo(() => filterSidebarTree(nodes, roles, permissions ?? null), [nodes, roles, permissions]);
   const roleLabel = useMemo(() => {
@@ -257,10 +269,14 @@ export function DashboardFrame({
               </button>
             </div>
 
-            <div className="ms-auto flex items-center gap-4">
+            <div className="ms-auto flex items-center gap-4 relative" ref={profileMenuRef}>
               <PreferencesControls />
               <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
-              <div className={cn("hidden text-end text-xs sm:block")}>
+              <button 
+                type="button"
+                onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                className={cn("hidden text-end text-xs sm:block hover:bg-slate-50 dark:hover:bg-slate-800/50 p-1.5 rounded-lg transition-colors cursor-pointer focus:outline-none")}
+              >
                 <p className="font-bold text-slate-800 dark:text-slate-200">{userName || "User"}</p>
                 <div className="mt-0.5 flex items-center justify-end gap-1.5">
                   {roleLabel ? (
@@ -270,7 +286,63 @@ export function DashboardFrame({
                   ) : null}
                   <span className="text-[10px] text-slate-400 font-mono font-medium">{userEmail}</span>
                 </div>
-              </div>
+              </button>
+
+              {/* Profile Dropdown */}
+              {profileMenuOpen && (
+                <div className="absolute top-full right-0 mt-2 w-72 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-50">
+                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                    <p className="font-bold text-sm text-slate-800 dark:text-slate-100">{userName || "User"}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{userEmail}</p>
+                  </div>
+                  
+                  <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2.5">Assigned Permissions</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {roles?.map((r, i) => (
+                        <span key={i} className="inline-flex items-center rounded bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50">
+                          {r.replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                      {(!roles || roles.length === 0) && (
+                        <span className="text-xs text-slate-500 italic">No specific role assigned</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-2 flex flex-col gap-1">
+                    <Link href="/dashboard/new-entry/users/registration" onClick={() => setProfileMenuOpen(false)} className="px-3 py-2.5 text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-3 transition-colors">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+                      </span>
+                      Sign Up New User
+                    </Link>
+                    
+                    <Link href="/dashboard/settings/profile" onClick={() => setProfileMenuOpen(false)} className="px-3 py-2.5 text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-3 transition-colors">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+                      </span>
+                      Reset Password
+                    </Link>
+
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        fetch("/api/erp/auth/logout", { method: "POST" }).then(() => {
+                          window.location.href = "/";
+                        });
+                      }}
+                      className="w-full text-left px-3 py-2.5 text-xs font-semibold rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 flex items-center gap-3 transition-colors"
+                    >
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-red-100 dark:bg-red-900/50">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                      </span>
+                      Log Out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>

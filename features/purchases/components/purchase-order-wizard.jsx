@@ -28,7 +28,8 @@ import {
   FileSignature,
   Receipt,
   PenLine,
-  Pin
+  Pin,
+  Save
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -419,6 +420,7 @@ export function PurchaseOrderWizard() {
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
   const [verifyDropdownOpen, setVerifyDropdownOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [showTransferScreen, setShowTransferScreen] = useState(false);
   const [previewType, setPreviewType] = useState("booking_report"); // "booking_report" | "contract" | "invoice"
   const [form, setForm] = useState(() => {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -435,6 +437,7 @@ export function PurchaseOrderWizard() {
   const [tempRemarksText, setTempRemarksText] = useState("");
   const [reportType, setReportType] = useState("branch"); // "branch" | "totaling" | "payment"
   const [previewRemarks, setPreviewRemarks] = useState(false);
+  const [branchPinOpen, setBranchPinOpen] = useState(false);
 
   const previewItems = useMemo(() => {
     return goodsEntries.map((g, index) => {
@@ -600,7 +603,8 @@ export function PurchaseOrderWizard() {
     async function initSession() {
       try {
         const response = await fetch("/api/erp/auth/session");
-        const sessionRes = await response.json();
+        const payload = await response.json();
+        const sessionRes = payload?.data || payload;
         if (!cancelled && sessionRes) {
           setSession(sessionRes);
           setForm((prev) => ({
@@ -766,6 +770,7 @@ export function PurchaseOrderWizard() {
   }, [form.customerId]);
 
   const isSuperAdmin = session?.scopes?.isSuperAdmin ?? false;
+  const isCountryAdmin = session?.scopes?.isCountryAdmin || session?.roles?.includes("country_admin") || (session?.scopes?.countryIds?.length > 0) || false;
 
   // Derived country options from master data (replaces old COUNTRY_OPTIONS hardcode)
   const masterCountryOptions = useMemo(() => countries, [countries]);
@@ -992,11 +997,78 @@ export function PurchaseOrderWizard() {
     };
   }, [form.countryId, form.countryBranchId]);
 
-  // Load latest exchange rate when country or branch changes
+  // Sync Branch Code and Name for Branch Serial display and generate formatted Bill No
+  useEffect(() => {
+    let selectedBranch = null;
+    if (form.cityBranchId && cityBranches.length > 0) {
+      selectedBranch = cityBranches.find(cb => cb.id === form.cityBranchId);
+    } else if (form.countryBranchId && mainBranches.length > 0) {
+      selectedBranch = mainBranches.find(b => b.id === form.countryBranchId);
+    }
+    
+    if (selectedBranch) {
+      const codeBase = selectedBranch.code || "BR";
+      const suffix = form.purchaseOrderNo ? form.purchaseOrderNo.split("-").pop() : "0000";
+      
+      const parts = codeBase.split("-");
+      let serialPrefix = codeBase;
+      let cityCode = "CITY";
+      if (parts.length >= 3) {
+        serialPrefix = parts.slice(0, 2).join("-");
+        cityCode = parts[1];
+      } else if (parts.length === 2) {
+        cityCode = parts[1];
+      }
+      
+      const country = transitCountryOptions.find(c => String(c.id) === String(form.countryId));
+      const countryPrefix = country ? (country.iso2 || country.name.substring(0, 2).toUpperCase()) : "CT";
+      
+      setForm(prev => {
+        const newCode = `${serialPrefix}-${suffix}`;
+        const newName = selectedBranch.name || selectedBranch.city_name || prev.branchName;
+        const newBillNo = `${countryPrefix}-${cityCode}-${suffix}`;
+        
+        if (prev.branchCode === newCode && prev.branchName === newName && prev.billNo === newBillNo) return prev;
+        return {
+          ...prev,
+          branchName: newName,
+          branchCode: newCode,
+          billNo: newBillNo
+        };
+      });
+    } else {
+      setForm(prev => {
+        if (!prev.branchCode || prev.branchCode === "BR-KBL-001") {
+          return {
+            ...prev,
+            branchName: "Branch Not Selected",
+            branchCode: "BR-XXXX-000",
+            branchCity: "",
+            branchCountry: ""
+          };
+        }
+        return prev;
+      });
+    }
+  }, [form.countryId, form.countryBranchId, form.cityBranchId, mainBranches, cityBranches, form.purchaseOrderNo, transitCountryOptions]);
+
+  // Load latest exchange rate and set secondary currency when country or branch changes
   useEffect(() => {
     const countryId = form.countryId;
     const countryBranchId = form.countryBranchId;
     if (!countryId) return;
+
+    let localCurrency = "PKR";
+    const activeCountry = transitCountryOptions.find(c => String(c.id) === String(countryId));
+    if (activeCountry) {
+      const iso = (activeCountry.iso2 || "").toUpperCase();
+      const name = (activeCountry.name || "").toUpperCase();
+      if (iso === "AE" || name.includes("UNITED ARAB EMIRATES") || name.includes("DUBAI")) localCurrency = "AED";
+      else if (iso === "PK" || name.includes("PAKISTAN")) localCurrency = "PKR";
+      else if (iso === "AF" || name.includes("AFGHANISTAN")) localCurrency = "AFN";
+      else if (iso === "IN" || name.includes("INDIA")) localCurrency = "INR";
+      else if (iso === "US" || name.includes("UNITED STATES")) localCurrency = "USD";
+    }
 
     let cancelled = false;
     async function loadLatestRate() {
@@ -1015,18 +1087,31 @@ export function PurchaseOrderWizard() {
           setForm((prev) => ({
             ...prev,
             exchangeRate: rate,
-            rate2: rate
+            rate2: rate,
+            secondaryCurrency: localCurrency
+          }));
+        } else if (!cancelled) {
+          // Even if rate fails, still set the correct local currency
+          setForm((prev) => ({
+            ...prev,
+            secondaryCurrency: localCurrency
           }));
         }
       } catch (err) {
         console.error("Failed to load exchange rate in wizard:", err);
+        if (!cancelled) {
+          setForm((prev) => ({
+            ...prev,
+            secondaryCurrency: localCurrency
+          }));
+        }
       }
     }
     loadLatestRate();
     return () => {
       cancelled = true;
     };
-  }, [form.countryId, form.countryBranchId]);
+  }, [form.countryId, form.countryBranchId, transitCountryOptions]);
 
   // Keep display labels in sync with UUID scopes
   useEffect(() => {
@@ -1504,6 +1589,34 @@ export function PurchaseOrderWizard() {
       router.push(`/dashboard/purchase/purchase-booking-journal-report?purchaseOrderNo=${encodeURIComponent(nextOrderNo)}`);
     } catch (err) {
       setSaveMessage(err instanceof Error ? err.message : "Error saving order.");
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!savedOrderId) return;
+    if (!window.confirm("Are you sure you want to permanently delete this booking? All associated ledger transfers will be reverted.")) {
+      return;
+    }
+    
+    setSavingOrder(true);
+    setSaveMessage("Deleting booking and reverting transfers...");
+    try {
+      const response = await fetch(`/api/erp/purchases/orders/${savedOrderId}`, {
+        method: "DELETE"
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || "Failed to delete booking.");
+      }
+      
+      alert("Booking successfully deleted and transfers reverted.");
+      setRegisterRefreshKey(k => k + 1);
+      setIsFormOpen(false);
+      handleReset();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error deleting order.");
     } finally {
       setSavingOrder(false);
     }
@@ -3153,6 +3266,24 @@ export function PurchaseOrderWizard() {
                   >
                     Done (Back to List)
                   </Button>
+                  {savedOrderId && (
+                    <Button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={savingOrder}
+                      className="flex items-center gap-1.5 h-9 bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
+                    >
+                      <Trash2 className="h-4 w-4" /> Delete
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={() => handleSavePurchaseOrder(false)}
+                    disabled={savingOrder || goodsEntries.length === 0}
+                    className="flex items-center gap-1.5 h-9 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
+                  >
+                    <Save className="h-4 w-4" /> Save Booking
+                  </Button>
                 </div>
               </div>
 
@@ -3336,6 +3467,24 @@ export function PurchaseOrderWizard() {
                     className="flex items-center gap-1.5 h-10 text-xs font-bold border-slate-200 text-slate-705 hover:bg-slate-50"
                   >
                     Done (Back to List)
+                  </Button>
+                  {savedOrderId && (
+                    <Button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={savingOrder}
+                      className="flex items-center gap-1.5 h-10 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase px-5 shadow transition-all"
+                    >
+                      <Trash2 className="h-4 w-4" /> Delete
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={() => handleSavePurchaseOrder(false)}
+                    disabled={savingOrder || goodsEntries.length === 0}
+                    className="flex items-center gap-1.5 h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase px-5 shadow transition-all"
+                  >
+                    <Save className="h-4 w-4" /> Save Booking
                   </Button>
                   <Button
                     type="button"
@@ -3655,9 +3804,92 @@ export function PurchaseOrderWizard() {
                   <span className="text-muted-foreground block text-[9px] uppercase">Journal Serial</span>
                   <span className="text-foreground font-semibold truncate block font-mono" title={form.purchaseOrderNo}>{form.purchaseOrderNo}</span>
                 </div>
-                <div>
-                  <span className="text-muted-foreground block text-[9px] uppercase">Branch Serial</span>
+                <div className="relative">
+                  <span className="text-muted-foreground flex items-center justify-between text-[9px] uppercase">
+                    Branch Serial
+                    {(isSuperAdmin || isCountryAdmin) && (
+                      <button type="button" onClick={() => setBranchPinOpen(!branchPinOpen)} className="text-muted-foreground hover:text-primary z-30 relative" title="Change Location/Branch">
+                        <Pin className={`h-2.5 w-2.5 transition-transform ${branchPinOpen ? "text-primary fill-primary/20 rotate-45" : ""}`} />
+                      </button>
+                    )}
+                  </span>
                   <span className="text-foreground font-semibold truncate block font-mono" title={form.branchCode}>{form.branchCode}</span>
+                  {branchPinOpen && (
+                    <div className="absolute top-6 left-0 w-[220px] rounded-xl bg-card border border-border shadow-2xl z-[60] p-2.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                      <div className="text-[10px] font-black uppercase text-primary tracking-wider border-b border-border/40 pb-1 mb-2 flex items-center justify-between">
+                        <span>{isSuperAdmin ? "Super Admin" : "Country Admin"}: Select</span>
+                        <button type="button" onClick={() => setBranchPinOpen(false)} className="text-muted-foreground hover:text-foreground"><span className="text-xs">×</span></button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2.5">
+                        <label className="grid gap-1 text-[10px] font-bold">
+                          Country
+                          <select
+                            value={form.countryId}
+                            onChange={(e) => {
+                              const cid = e.target.value;
+                              setForm(prev => ({
+                                ...prev,
+                                countryId: cid,
+                                countryBranchId: "",
+                                cityBranchId: ""
+                              }));
+                            }}
+                            disabled={!isSuperAdmin}
+                            className="h-8 rounded border bg-background px-2 text-[10px] font-semibold text-foreground outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <option value="">Select Country</option>
+                            {countries.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} ({c.currency_code})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-[10px] font-bold">
+                          Country Branch
+                          <select
+                            value={form.countryBranchId}
+                            onChange={(e) => {
+                              const bid = e.target.value;
+                              setForm(prev => ({
+                                ...prev,
+                                countryBranchId: bid,
+                                cityBranchId: ""
+                              }));
+                            }}
+                            className="h-8 rounded border bg-background px-2 text-[10px] font-semibold text-foreground outline-none focus:border-primary"
+                            disabled={!form.countryId}
+                          >
+                            <option value="">Select Country Branch</option>
+                            {mainBranches.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name} ({b.code})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-[10px] font-bold">
+                          City Branch
+                          <select
+                            value={form.cityBranchId}
+                            onChange={(e) => {
+                              setForm(prev => ({ ...prev, cityBranchId: e.target.value }));
+                              setBranchPinOpen(false); // Auto close on final select
+                            }}
+                            className="h-8 rounded border bg-background px-2 text-[10px] font-semibold text-foreground outline-none focus:border-primary"
+                            disabled={!form.countryBranchId}
+                          >
+                            <option value="">Select City Branch</option>
+                            {cityBranches.map((cb) => (
+                              <option key={cb.id} value={cb.id}>
+                                {cb.city_name} - {cb.name} ({cb.code})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <span className="text-muted-foreground block text-[9px] uppercase">Bill Serial</span>
@@ -3712,80 +3944,6 @@ export function PurchaseOrderWizard() {
                     <h3 className="text-xs font-black uppercase tracking-wider text-foreground">Purchase Booking / Bill Info</h3>
                     <p className="text-[10px] text-muted-foreground">Order headers, accounts and shipment rules setup</p>
                   </div>
-
-                  {isSuperAdmin && (
-                    <div className="space-y-3 p-3 rounded-lg border bg-muted/30">
-                      <div className="text-[10px] font-black uppercase text-primary tracking-wider border-b border-border/40 pb-1 mb-2">
-                        Super Admin: Location Select
-                      </div>
-                      <div className="grid grid-cols-1 gap-2.5">
-                        <label className="grid gap-1 text-[10px] font-bold">
-                          Country
-                          <select
-                            value={form.countryId}
-                            onChange={(e) => {
-                              const cid = e.target.value;
-                              setForm(prev => ({
-                                ...prev,
-                                countryId: cid,
-                                countryBranchId: "",
-                                cityBranchId: ""
-                              }));
-                            }}
-                            className="h-8 rounded border bg-background px-2 text-[10px] font-semibold text-foreground outline-none focus:border-primary"
-                          >
-                            <option value="">Select Country</option>
-                            {countries.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name} ({c.currency_code})
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="grid gap-1 text-[10px] font-bold">
-                          Country Branch (Main/Trade)
-                          <select
-                            value={form.countryBranchId}
-                            onChange={(e) => {
-                              const bid = e.target.value;
-                              setForm(prev => ({
-                                ...prev,
-                                countryBranchId: bid,
-                                cityBranchId: ""
-                              }));
-                            }}
-                            className="h-8 rounded border bg-background px-2 text-[10px] font-semibold text-foreground outline-none focus:border-primary"
-                            disabled={!form.countryId}
-                          >
-                            <option value="">Select Country Branch</option>
-                            {mainBranches.map((b) => (
-                              <option key={b.id} value={b.id}>
-                                {b.name} ({b.code})
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="grid gap-1 text-[10px] font-bold">
-                          City Branch (Tehsils/Borders)
-                          <select
-                            value={form.cityBranchId}
-                            onChange={(e) => {
-                              setForm(prev => ({ ...prev, cityBranchId: e.target.value }));
-                            }}
-                            className="h-8 rounded border bg-background px-2 text-[10px] font-semibold text-foreground outline-none focus:border-primary"
-                            disabled={!form.countryBranchId}
-                          >
-                            <option value="">Select City Branch</option>
-                            {cityBranches.map((cb) => (
-                              <option key={cb.id} value={cb.id}>
-                                {cb.city_name} - {cb.name} ({cb.code})
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                    </div>
-                  )}
 
                   <div className="space-y-3">
                     <div className="relative" ref={purchaseDropdownRef}>
@@ -4765,6 +4923,16 @@ export function PurchaseOrderWizard() {
                                 </div>
                               </div>
                             </div>
+                          </div>
+                          
+                          <div className="pt-3 border-t border-border/40">
+                            <Button
+                              type="button"
+                              onClick={() => setShowTransferScreen(true)}
+                              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] h-8 uppercase tracking-wider"
+                            >
+                              Open Purchase Transfer Payment Screen
+                            </Button>
                           </div>
                         </div>
                       ) : (

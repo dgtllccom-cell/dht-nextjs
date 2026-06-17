@@ -640,6 +640,24 @@ function RowActionsMenu({
             }}
           />
           <MenuAction
+            icon={<span className="text-red-500"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>}
+            label="Delete Booking"
+            onClick={async () => {
+              setOpen(false);
+              if (window.confirm("Are you sure you want to permanently delete this booking? All associated ledger transfers will be reverted.")) {
+                try {
+                  const response = await fetch(`/api/erp/purchases/orders/${report.id}`, { method: "DELETE" });
+                  const payload = await response.json().catch(() => ({}));
+                  if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || payload?.error || "Failed to delete");
+                  alert("Booking successfully deleted.");
+                  window.location.reload();
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "Error deleting order.");
+                }
+              }
+            }}
+          />
+          <MenuAction
             icon={<FileText />}
             label="Open Report Preview"
             onClick={() => {
@@ -897,6 +915,18 @@ export function PurchaseBookingJournalReportView({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
         throw new Error(payload?.error?.message || payload?.error || "Transfer failed.");
+      }
+
+      // Also hit the transfer API to post to Roznamcha and Ledger
+      const transferResponse = await fetch(`/api/erp/purchases/orders/${selected.id}/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+
+      const transferPayload = await transferResponse.json().catch(() => ({}));
+      if (!transferResponse.ok || !transferPayload.ok) {
+        throw new Error(transferPayload?.error?.message || transferPayload?.error || "Roznamcha/Ledger Transfer failed.");
       }
 
       setIsDrawerOpen(false);
@@ -1730,9 +1760,30 @@ export function PurchaseBookingJournalReportView({
             const totalQty = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.qtyNo || 0), 0);
             const totalGross = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.grossWeight || 0), 0);
             const totalNet = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.netWeight || 0), 0);
-            const totalUSDVal = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.totalAmount || 0), 0);
-            const totalPKRVal = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.finalAmount || 0), 0);
+            
             const exRate = goodsEntries[0]?.exchangeRate || selected.exchange_rate || 280;
+
+            const totalUSDVal = goodsEntries.reduce((sum: number, item: any) => {
+              const qtyNo = Number(item.qtyNo || 0);
+              const qtyKgs = Number(item.qtyKgs || 0);
+              const grossWeight = Number(item.grossWeight || qtyNo * qtyKgs);
+              const netWeight = Number(item.netWeight || grossWeight);
+              const coursePrice = Number(item.coursePrice || 0);
+              const amount = Number(item.totalAmount || netWeight * coursePrice);
+              return sum + amount;
+            }, 0);
+
+            const totalPKRVal = goodsEntries.reduce((sum: number, item: any) => {
+              const qtyNo = Number(item.qtyNo || 0);
+              const qtyKgs = Number(item.qtyKgs || 0);
+              const grossWeight = Number(item.grossWeight || qtyNo * qtyKgs);
+              const netWeight = Number(item.netWeight || grossWeight);
+              const coursePrice = Number(item.coursePrice || 0);
+              const amount = Number(item.totalAmount || netWeight * coursePrice);
+              const exVal = Number(item.exchangeRate || exRate);
+              const finalAmountVal = Number(item.finalAmount || amount * exVal);
+              return sum + finalAmountVal;
+            }, 0);
 
             const avgRateKg = totalNet > 0 ? (totalUSDVal / totalNet) : 0;
             const avgRateTon = avgRateKg * 1000;
@@ -1839,15 +1890,28 @@ export function PurchaseBookingJournalReportView({
                   <div className="flex gap-3">
                     <div className="w-[38%] bg-emerald-500/5 border border-emerald-500/10 rounded p-2.5 flex flex-col justify-center">
                       <span className="text-[7.5px] text-emerald-600 uppercase font-black tracking-wider block">Transfer Status</span>
-                      <span className="text-xs font-black text-emerald-700 block mt-1">
-                        ● {selected.status === "Posted" ? "Fully Transferred & Posted" : "Approved & Ready for Transfer"}
+                      <span className="text-xs font-black text-emerald-700 block mt-1 mb-1.5">
+                        ● {selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" ? "Fully Transferred & Posted" : "Approved & Ready for Transfer"}
                       </span>
+                      {(selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted") && selected.form_data?.form?.transferAudit && (
+                        <div className="text-[7.5px] text-emerald-800/80 bg-emerald-500/10 p-1.5 rounded-sm border border-emerald-500/20 leading-snug font-semibold mt-0.5">
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <span className="font-black uppercase tracking-wider text-emerald-700">Transferred By:</span> {selected.form_data.form.transferAudit.userName}
+                          </div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <span className="font-black uppercase tracking-wider text-emerald-700">Date/Time:</span> {new Date(selected.form_data.form.transferAudit.transferDate).toLocaleString()}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-black uppercase tracking-wider text-emerald-700">Transfer ID:</span> <span className="font-mono font-bold text-emerald-900">{selected.form_data.form.transferAudit.transferId}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="w-[62%] bg-emerald-500/5 border border-emerald-500/10 rounded p-2.5 text-[8.5px] text-slate-655 leading-relaxed font-semibold">
                       <span className="text-[7.5px] text-emerald-650 uppercase font-black tracking-wider block mb-1">Transferred To (Destination Accounts)</span>
                       <ul className="list-disc pl-3.5 space-y-0.5">
-                        <li>General Ledger Debit Account: <strong className="text-slate-800 font-mono">{selected.purchaseAccountNumber}</strong> & Credit Account: <strong className="text-slate-800 font-mono">{selected.salesAccountNumber}</strong></li>
-                        <li>Internal Voucher Entry No: <strong className="text-slate-800 font-mono">{selected.status === "Posted" ? `JV-${selected.purchaseBookingOrderNumber.slice(-6)}` : `Pending Posting`}</strong></li>
+                        <li>General Ledger Debit Account: <strong className="text-slate-800 font-mono">{selected.form_data?.form?.purchaseAccountNo || selected.purchaseAccountNumber} - {selected.form_data?.form?.purchaseAccountName || selected.purchaseAccountName}</strong> & Credit Account: <strong className="text-slate-800 font-mono">{selected.form_data?.form?.salesAccountNo || selected.salesAccountNumber} - {selected.form_data?.form?.salesAccountName || selected.salesAccountName}</strong></li>
+                        <li>Internal Voucher Entry No: <strong className="text-slate-800 font-mono">{selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" ? `JV-${selected.purchaseBookingOrderNumber.slice(-6)}` : `Pending Posting`}</strong></li>
                         <li>Logistics cargo loading module (<strong className="text-slate-800">{containerCount} Container</strong>)</li>
                       </ul>
                     </div>
@@ -2051,8 +2115,44 @@ export function PurchaseBookingJournalReportView({
                       <table className="w-full text-[8px] font-semibold text-slate-600">
                         <tbody>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Journal Entry Number:</td><td className="px-2 py-1 text-slate-800 font-mono font-bold">{journalEntryNumberText}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Debit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.purchaseAccountNumber}</td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Credit Account:</td><td className="px-2 py-1 text-slate-800 font-mono">{selected.salesAccountNumber}</td></tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Debit Account:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono">
+                              {selected.form_data?.form?.purchaseAccountNo || selected.purchaseAccountNumber || "-"} 
+                              <span className="ml-1 text-slate-500 font-sans font-semibold">
+                                {selected.form_data?.form?.purchaseAccountName || selected.purchaseAccountName ? `(${selected.form_data?.form?.purchaseAccountName || selected.purchaseAccountName})` : ""}
+                              </span>
+                            </td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Debit Amount:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono font-bold text-emerald-600">
+                              {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {selected.currency || "USD"} 
+                              <span className="text-slate-400 font-medium px-1.5">@</span> 
+                              <span className="text-blue-600">{exRate}</span> 
+                              <span className="text-slate-400 font-medium px-1.5">=</span> 
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs
+                            </td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Credit Account:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono">
+                              {selected.form_data?.form?.salesAccountNo || selected.salesAccountNumber || "-"} 
+                              <span className="ml-1 text-slate-500 font-sans font-semibold">
+                                {selected.form_data?.form?.salesAccountName || selected.salesAccountName ? `(${selected.form_data?.form?.salesAccountName || selected.salesAccountName})` : ""}
+                              </span>
+                            </td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-2 py-1 text-slate-400">Credit Amount:</td>
+                            <td className="px-2 py-1 text-slate-800 font-mono font-bold text-emerald-600">
+                              {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {selected.currency || "USD"} 
+                              <span className="text-slate-400 font-medium px-1.5">@</span> 
+                              <span className="text-blue-600">{exRate}</span> 
+                              <span className="text-slate-400 font-medium px-1.5">=</span> 
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs
+                            </td>
+                          </tr>
                           <tr className="border-b border-slate-100">
                             <td className="px-2 py-1 text-slate-400">Total Quantity:</td>
                             <td className="px-2 py-1 text-slate-800 font-bold">{totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || "Units"}</td>

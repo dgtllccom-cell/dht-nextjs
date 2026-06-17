@@ -106,7 +106,7 @@ function weekDue(value: string | null | undefined) {
   return d >= now && d <= sevenDays;
 }
 
-function kpis(rows: PurchaseOrderRow[], mode: PaymentMode): KpiCard[] {
+function kpis(rows: PurchaseOrderRow[], mode: PaymentMode, baseCurrency: string): KpiCard[] {
   const count = rows.length;
 
   if (mode === "remaining") {
@@ -125,21 +125,21 @@ function kpis(rows: PurchaseOrderRow[], mode: PaymentMode): KpiCard[] {
       {
         label: "Total Remaining",
         value: money(totalRemaining),
-        sublabel: "PKR",
+        sublabel: baseCurrency,
         icon: <Banknote className="h-5 w-5" />,
         tone: "green"
       },
       {
         label: "Cleared Amount",
         value: money(totalRemainingPaid),
-        sublabel: "PKR",
+        sublabel: baseCurrency,
         icon: <CheckCircle className="h-5 w-5" />,
         tone: "amber"
       },
       {
         label: "Outstanding Due",
         value: money(totalOutstanding),
-        sublabel: "PKR",
+        sublabel: baseCurrency,
         icon: <XCircle className="h-5 w-5" />,
         tone: "red"
       }
@@ -162,21 +162,21 @@ function kpis(rows: PurchaseOrderRow[], mode: PaymentMode): KpiCard[] {
       {
         label: "Total Credit",
         value: money(totalCredit),
-        sublabel: "PKR",
+        sublabel: baseCurrency,
         icon: <Banknote className="h-5 w-5" />,
         tone: "green"
       },
       {
         label: "Used Credit",
         value: money(usedCredit),
-        sublabel: "PKR",
+        sublabel: baseCurrency,
         icon: <CheckCircle className="h-5 w-5" />,
         tone: "amber"
       },
       {
         label: "Available Credit",
         value: money(availableCredit),
-        sublabel: "PKR",
+        sublabel: baseCurrency,
         icon: <XCircle className="h-5 w-5" />,
         tone: "red"
       }
@@ -207,21 +207,21 @@ function kpis(rows: PurchaseOrderRow[], mode: PaymentMode): KpiCard[] {
     {
       label: "Total Advance",
       value: money(totalAdvanceRequired),
-      sublabel: "PKR",
+      sublabel: baseCurrency,
       icon: <Banknote className="h-5 w-5" />,
       tone: "green"
     },
     {
       label: "Paid Advance",
       value: money(totalPaidAdvance),
-      sublabel: "PKR",
+      sublabel: baseCurrency,
       icon: <CheckCircle className="h-5 w-5" />,
       tone: "amber"
     },
     {
       label: "Pending Advance",
       value: money(pendingAdvance),
-      sublabel: "PKR",
+      sublabel: baseCurrency,
       icon: <XCircle className="h-5 w-5" />,
       tone: "red"
     }
@@ -570,7 +570,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const pageRows = useMemo(() => {
     return filtered.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
   }, [filtered, pageIndex, pageSize]);
-  const cards = useMemo(() => kpis(filtered, activeMode), [activeMode, filtered]);
 
   function reset() {
     setQuery("");
@@ -653,10 +652,37 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     }
   }, [selectedId, selected]);
 
-  const isLocalCurrency = currency.trim().toUpperCase() === "PKR";
+  const baseCurrency = useMemo(() => {
+    // Auto-detect from user name or roles
+    const userName = (session?.user?.fullName || "").toUpperCase();
+    if (userName.includes("EMIRATES") || userName.includes("DUBAI") || userName.includes("AE")) return "AED";
+    if (userName.includes("AFGHANISTAN") || userName.includes("KABUL")) return "AFN";
+    if (userName.includes("INDIA") || userName.includes("MUMBAI")) return "INR";
+    if (userName.includes("US") || userName.includes("UNITED STATES")) return "USD";
+
+    // If still nothing, check roles or session country defaults if available
+    const roleStr = (session?.roles?.[0] || "").toUpperCase();
+    if (roleStr.includes("EMIRATES") || roleStr.includes("DUBAI") || roleStr.includes("AE")) return "AED";
+
+    // Only fallback to selected form if we really can't tell (e.g. super admin looking at a specific record)
+    if (selectedForm) {
+      const sec = selectedForm.secondaryCurrency || "";
+      if (sec) return sec.replace(" - Rs", "").trim().toUpperCase();
+      return (selectedForm.salesAccountCurrency || "PKR").toUpperCase();
+    }
+
+    return "PKR";
+  }, [selectedForm, session]);
+
+  const cards = useMemo(() => kpis(filtered, activeMode, baseCurrency), [activeMode, filtered, baseCurrency]);
+
+  const isLocalCurrency = currency.trim().toUpperCase() === baseCurrency;
   const showCalcPanel =
     Boolean(currency) &&
+    Boolean(exchangeRate) &&
     !isLocalCurrency &&
+    Boolean(calcAmount) &&
+    !Number.isNaN(Number(calcAmount)) &&
     ["USD", "AED", "AFN", "INR", "IRR", "PKR"].includes(currency.toUpperCase());
 
   const calcFinal = useMemo(() => {
@@ -769,7 +795,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       // 4. Add Calculation Details
       if (showCalcPanel && calcAmount && exchangeRate && calcFinal !== null) {
         const opSymbol = calcOp === "mul" ? "×" : "÷";
-        systemLines.push(`Calculation: ${Number(calcAmount).toLocaleString()} ${currency.toUpperCase()} ${opSymbol} ${Number(exchangeRate).toLocaleString()} = ${calcFinal.toFixed(2)} PKR`);
+        systemLines.push(`Calculation: ${Number(calcAmount).toLocaleString()} ${currency.toUpperCase()} ${opSymbol} ${Number(exchangeRate).toLocaleString()} = ${calcFinal.toFixed(2)} ${baseCurrency}`);
       }
 
       return [...systemLines, ...userLines].filter(Boolean).join("\n");
@@ -899,16 +925,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       const requiredAdvanceBC = (totalPrice * advancePercent) / 100;
       const paidAdvanceBC = Number(selected.advance_paid || 0) / (selected.exchange_rate || 1);
       const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
-      const remainingAdvancePKR = remainingAdvanceBC * (selected.exchange_rate || 1);
+      const remainingAdvanceLocal = remainingAdvanceBC * (selected.exchange_rate || 1);
 
-      if (Number(amount) > remainingAdvancePKR + 1) {
-        setPaymentError(`Payment amount (${Number(amount).toFixed(2)} PKR) cannot exceed the remaining advance amount (${remainingAdvancePKR.toFixed(2)} PKR).`);
+      if (Number(amount) > remainingAdvanceLocal + 1) {
+        setPaymentError(`Payment amount (${Number(amount).toFixed(2)} ${baseCurrency}) cannot exceed the remaining advance amount (${remainingAdvanceLocal.toFixed(2)} ${baseCurrency}).`);
         return;
       }
     } else if (activeMode === "remaining") {
-      const remainingDuePKR = Number(selected.remaining_due || 0);
-      if (Number(amount) > remainingDuePKR + 1) {
-        setPaymentError(`Payment amount (${Number(amount).toFixed(2)} PKR) cannot exceed the remaining due balance (${remainingDuePKR.toFixed(2)} PKR).`);
+      const remainingDueLocal = Number(selected.remaining_due || 0);
+      if (Number(amount) > remainingDueLocal + 1) {
+        setPaymentError(`Payment amount (${Number(amount).toFixed(2)} ${baseCurrency}) cannot exceed the remaining due balance (${remainingDueLocal.toFixed(2)} ${baseCurrency}).`);
         return;
       }
     }
@@ -922,9 +948,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       let auditTrail = "";
       if (showCalcPanel && calcFinal !== null) {
         const opSymbol = calcOp === "mul" ? "×" : "÷";
-        auditTrail = `[Audit Trail - Qty: ${calcAmount} | Currency: ${currency.toUpperCase()} | Rate: ${exchangeRate} | Op: ${opSymbol} | Converted: ${amount.toFixed(2)} PKR]`;
+        auditTrail = `[Audit Trail - Qty: ${calcAmount} | Currency: ${currency.toUpperCase()} | Rate: ${exchangeRate} | Op: ${opSymbol} | Converted: ${amount.toFixed(2)} ${baseCurrency}]`;
       } else {
-        auditTrail = `[Audit Trail - Final Amount: ${amount.toFixed(2)} PKR (Local Currency Entry)]`;
+        auditTrail = `[Audit Trail - Final Amount: ${amount.toFixed(2)} ${baseCurrency} (Local Currency Entry)]`;
       }
       const combinedNarration = remarks.trim();
       const finalNarration = `${combinedNarration.trim()}\n${auditTrail}`;
@@ -1034,12 +1060,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     );
   };
 
-  const renderDualCurrency = (amountFC: number, amountPKR: number, currencyCode: string, colorClass = "text-slate-800 dark:text-slate-200") => {
-    const isPKR = (currencyCode || "PKR").toUpperCase() === "PKR";
-    if (isPKR) {
+  const renderDualCurrency = (amountFC: number, amountLocal: number, currencyCode: string, colorClass = "text-slate-800 dark:text-slate-200") => {
+    const isLocal = (currencyCode || baseCurrency).toUpperCase() === baseCurrency;
+    if (isLocal) {
       return (
         <span className={cn("font-mono font-bold text-xs", colorClass)}>
-          {money(amountPKR, "PKR")}
+          {money(amountLocal, baseCurrency)}
         </span>
       );
     }
@@ -1049,7 +1075,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           {money(amountFC, currencyCode)}
         </span>
         <span className="text-[10px] text-slate-400 font-mono mt-0.5">
-          {money(amountPKR, "PKR")}
+          {money(amountLocal, baseCurrency)}
         </span>
       </span>
     );
@@ -1110,9 +1136,47 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </div>
       </div>
 
-      {/* KPI Cards Row */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => <Metric key={card.label} {...card} />)}
+      {/* Unified Executive & Operations Summary Box */}
+      <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase flex flex-col gap-3">
+        
+        {/* Row 1: Session Info */}
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-2.5">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Branch Name:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{session?.branchName || "QUETTA MAIN BRANCH"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">User Name:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{session?.name || session?.username || session?.user?.fullName || "SUPER ADMIN"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Date:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Time:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }).toUpperCase()}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Executive Summary (Financials) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 pt-0.5">
+          {cards.map((card, i) => (
+            <div key={card.label} className="flex flex-col">
+              <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">{card.label}</span>
+              <span className={cn("font-black text-sm", 
+                i === 0 ? "text-slate-800 dark:text-slate-200" :
+                i === 1 ? "text-blue-700 dark:text-blue-400" :
+                i === 2 ? "text-emerald-600 dark:text-emerald-450" :
+                "text-rose-600 dark:text-rose-400"
+              )}>
+                {card.value} {card.sublabel === "PKR" ? "PKR" : ""}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {error && (
@@ -1659,7 +1723,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 )}
                 <div>
                   <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Exchange Rate</span>
-                  <span className="font-bold text-slate-600 dark:text-slate-400 font-mono">1 {selected.currency_code} = {Number(selected.exchange_rate || 1).toFixed(2)} PKR</span>
+                  <span className="font-bold text-slate-600 dark:text-slate-400 font-mono">1 {selected.currency_code} = {Number(selected.exchange_rate || 1).toFixed(2)} {baseCurrency}</span>
                 </div>
               </div>
             </div>
@@ -1697,7 +1761,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     {selectedSourceLedger && (
                       <div className="mt-1 text-[10px] font-semibold text-slate-500 flex justify-between">
                         <span>Balance: {sourceBalanceText}</span>
-                        <span>Currency: {selectedSourceLedger.currency || "PKR"}</span>
+                        <span>Currency: {selectedSourceLedger.currency || baseCurrency}</span>
                       </div>
                     )}
                   </FieldBlock>
@@ -1950,7 +2014,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 {currency && showCalcPanel && (
                   <div className="rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/20">
                     <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                      Transaction Conversion Details (Local Calculation) ({currency} ➔ PKR)
+                      Transaction Conversion Details (Local Calculation) ({currency} ➔ {baseCurrency})
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
                       <FieldBlock label="Quantity / Amount">
@@ -1974,10 +2038,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 )}
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <FieldBlock label="Final Local Amount (PKR)" required>
+                  <FieldBlock label={`Final Local Amount (${baseCurrency})`} required>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
-                        PKR
+                        {baseCurrency}
                       </span>
                       <Input
                         className="h-9 pl-12 text-right text-xs font-black font-mono"
@@ -2000,7 +2064,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         }}
                         className="text-[10px] text-primary font-semibold hover:underline mt-1 block"
                       >
-                        Use suggested: {money(suggestedAdvance, currency)} / {money(suggestedAdvance * Number(exchangeRate || 1), "PKR")}
+                        Use suggested: {money(suggestedAdvance, currency)} / {money(suggestedAdvance * Number(exchangeRate || 1), baseCurrency)}
                       </button>
                     )}
                   </FieldBlock>
@@ -2032,7 +2096,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       <span className="font-bold text-foreground">Posting: </span>
                       <><span className="font-bold text-indigo-600">DR</span> {doubleEntry.debitName} ({doubleEntry.debitCode}) / <span className="font-bold text-violet-600">CR</span> {doubleEntry.creditName} ({doubleEntry.creditCode})</>
                     </div>
-                    <div><span className="font-bold text-foreground">Amount: </span>{amount ? money(amount, "PKR") : "—"}</div>
+                    <div><span className="font-bold text-foreground">Amount: </span>{amount ? money(amount, baseCurrency) : "—"}</div>
                     {selected && (
                       <div>
                         <span className="font-bold text-foreground font-semibold">Remaining Bill Balance (Baqaya): </span>
@@ -2050,13 +2114,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           if (activeMode === "advance") {
                             return (
                               <span className="font-extrabold text-rose-600">
-                                {money(remainingAdvanceBC, selected.currency_code ?? "USD")} ({money(remainingAdvanceBC * (selected.exchange_rate || 1), "PKR")})
+                                {money(remainingAdvanceBC, selected.currency_code ?? "USD")} ({money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)})
                               </span>
                             );
                           } else {
                             return (
                               <span className="font-extrabold text-rose-600">
-                                {money(remainingDue / (selected.exchange_rate || 1), selected.currency_code ?? "USD")} ({money(remainingDue, "PKR")})
+                                {money(remainingDue / (selected.exchange_rate || 1), selected.currency_code ?? "USD")} ({money(remainingDue, baseCurrency)})
                               </span>
                             );
                           }
@@ -2122,7 +2186,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         </td>
                         <td className="px-3 py-3 text-right font-mono font-bold text-indigo-600 whitespace-nowrap">
                           {amount ? money(amount / Number(exchangeRate || 1), currency) : <span className="text-muted-foreground">—</span>}
-                          <span className="block text-[9px] text-muted-foreground font-normal">{money(amount, "PKR")}</span>
+                          <span className="block text-[9px] text-muted-foreground font-normal">{money(amount, baseCurrency)}</span>
                         </td>
                         <td className="px-2 py-3 text-center">
                           <input
@@ -2148,12 +2212,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         <td className="px-3 py-3 text-right font-mono font-bold text-violet-600 whitespace-nowrap">
                           {(() => {
                             if (!amount) return <span className="text-muted-foreground">—</span>;
-                            const isCrPKR = !selectedSourceLedger || selectedSourceLedger.currency?.toUpperCase() === "PKR";
-                            if (isCrPKR) {
+                            const isCrLocal = !selectedSourceLedger || selectedSourceLedger.currency?.toUpperCase() === baseCurrency;
+                            if (isCrLocal) {
                               return (
                                 <>
-                                  {money(amount, "PKR")}
-                                  {currency !== "PKR" && (
+                                  {money(amount, baseCurrency)}
+                                  {currency !== baseCurrency && (
                                     <span className="block text-[9px] text-muted-foreground font-normal mt-0.5">
                                       {money(amount / Number(exchangeRate || 1), currency)}
                                     </span>
@@ -2165,9 +2229,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               return (
                                 <>
                                   {money(amount / Number(exchangeRate || 1), crCurrency)}
-                                  {crCurrency !== "PKR" && (
+                                  {crCurrency !== baseCurrency && (
                                     <span className="block text-[9px] text-muted-foreground font-normal mt-0.5">
-                                      {money(amount, "PKR")}
+                                      {money(amount, baseCurrency)}
                                     </span>
                                   )}
                                 </>
@@ -2196,7 +2260,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   <ul className="list-disc pl-4 space-y-1">
                     <li>The Debit (Dr) records are updated to settle liabilities with the seller/supplier.</li>
                     <li>The Credit (Cr) records deduct funds from your payment source ledger.</li>
-                    <li>Exchange conversion calculates local currency value (PKR) automatically.</li>
+                    <li>Exchange conversion calculates local currency value ({baseCurrency}) automatically.</li>
                   </ul>
                 </div>
               </div>
