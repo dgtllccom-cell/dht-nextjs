@@ -1,10 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, Banknote, Building, Database, GitBranch, Globe, ReceiptText, ShieldCheck, Ship, ShoppingCart, Users, Activity, CheckCircle2, TrendingUp } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, Banknote, Building, Database, GitBranch, Globe, ReceiptText, ShieldCheck, Ship, ShoppingCart, Users, Activity, TrendingUp, Landmark, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/layout/stat-card";
 import { getRequestLanguage } from "@/lib/i18n/server";
-import { t } from "@/lib/i18n/ui";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type CountMap = {
@@ -75,37 +72,17 @@ async function countRows(supabase: ReturnType<typeof createSupabaseAdminClient>,
 
 async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
   const emptyCounts: CountMap = {
-    countries: 0,
-    branches: 0,
-    users: 0,
-    accounts: 0,
-    ledgers: 0,
-    roznamcha: 0,
-    purchases: 0,
-    sales: 0,
-    shipping: 0
+    countries: 0, branches: 0, users: 0, accounts: 0,
+    ledgers: 0, roznamcha: 0, purchases: 0, sales: 0, shipping: 0
   };
 
   try {
     const supabase = createSupabaseAdminClient();
     const [
-      countriesCount,
-      countryBranchesCount,
-      cityBranchesCount,
-      usersCount,
-      accountsCount,
-      ledgersCount,
-      roznamchaCount,
-      purchasesCount,
-      salesCount,
-      shippingCount,
-      purchaseRows,
-      salesRows,
-      balanceRows,
-      recentRows,
-      countriesList,
-      mainBranchesList,
-      cityBranchesList
+      countriesCount, countryBranchesCount, cityBranchesCount, usersCount,
+      accountsCount, ledgersCount, roznamchaCount, purchasesCount, salesCount,
+      shippingCount, purchaseRows, salesRows, balanceRows, recentRows,
+      countriesList, mainBranchesList, cityBranchesList
     ] = await Promise.all([
       countRows(supabase, "countries"),
       countRows(supabase, "country_branches"),
@@ -122,11 +99,7 @@ async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
       supabase.from("ledger_balances").select("debit_total, credit_total, current_balance"),
       supabase
         .from("roznamcha_entries")
-        .select(`
-          id, voucher_no, entry_date, type, status, created_at,
-          countries(name),
-          city_branches(name)
-        `)
+        .select(`id, voucher_no, entry_date, type, status, created_at, countries(name), city_branches(name)`)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(10),
@@ -141,7 +114,6 @@ async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
     const ledgerCredit = (balanceRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.credit_total || 0), 0);
     const ledgerBalance = (balanceRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.current_balance || 0), 0);
 
-    // Build the country branch hierarchy tree
     const countryBranches: CountryBranchNode[] = (countriesList.data ?? []).map((country: any) => {
       const countryMain = (mainBranchesList.data ?? []).filter((b: any) => b.country_id === country.id);
       return {
@@ -152,14 +124,9 @@ async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
         mainBranches: countryMain.map((mb: any) => {
           const mainCityBranches = (cityBranchesList.data ?? []).filter((cb: any) => cb.country_branch_id === mb.id);
           return {
-            id: mb.id,
-            name: mb.name,
-            code: mb.code,
+            id: mb.id, name: mb.name, code: mb.code,
             cityBranches: mainCityBranches.map((cb: any) => ({
-              id: cb.id,
-              name: cb.name,
-              cityName: cb.city_name,
-              code: cb.code
+              id: cb.id, name: cb.name, cityName: cb.city_name, code: cb.code
             }))
           };
         })
@@ -189,68 +156,103 @@ async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
         sales: salesCount,
         shipping: shippingCount
       },
-      purchaseTotal,
-      salesTotal,
-      ledgerDebit,
-      ledgerCredit,
-      ledgerBalance,
-      recentRoznamcha,
-      countryBranches,
-      databaseReady: true,
-      error: null
+      purchaseTotal, salesTotal, ledgerDebit, ledgerCredit, ledgerBalance,
+      recentRoznamcha, countryBranches, databaseReady: true, error: null
     };
   } catch (error) {
     return {
-      counts: {
-        countries: 0,
-        branches: 0,
-        users: 0,
-        accounts: 0,
-        ledgers: 0,
-        roznamcha: 0,
-        purchases: 0,
-        sales: 0,
-        shipping: 0
-      },
-      purchaseTotal: 0,
-      salesTotal: 0,
-      ledgerDebit: 0,
-      ledgerCredit: 0,
-      ledgerBalance: 0,
-      recentRoznamcha: [],
-      countryBranches: [],
-      databaseReady: false,
+      counts: emptyCounts,
+      purchaseTotal: 0, salesTotal: 0, ledgerDebit: 0, ledgerCredit: 0, ledgerBalance: 0,
+      recentRoznamcha: [], countryBranches: [], databaseReady: false,
       error: error instanceof Error ? error.message : "Database load failed"
     };
   }
 }
 
-function StatusPill({ value }: { value: string }) {
-  const tone =
-    value === "posted" || value === "approved"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
-      : value === "draft"
-        ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
-        : "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800";
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}>{value}</span>;
+const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  posted:   { bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
+  approved: { bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
+  draft:    { bg: "bg-amber-50 border-amber-200",     text: "text-amber-700",   dot: "bg-amber-400"  },
+  pending:  { bg: "bg-blue-50 border-blue-200",       text: "text-blue-700",    dot: "bg-blue-400"   },
+};
+
+function getStatusStyle(status: string | null) {
+  const key = (status || "draft").toLowerCase();
+  return STATUS_COLORS[key] ?? { bg: "bg-slate-50 border-slate-200", text: "text-slate-600", dot: "bg-slate-400" };
+}
+
+const CARD_PALETTE = [
+  { gradient: "from-violet-500 to-purple-600",  icon: "text-violet-100",  badge: "bg-violet-400/30" },
+  { gradient: "from-sky-500 to-blue-600",        icon: "text-sky-100",     badge: "bg-sky-400/30"    },
+  { gradient: "from-emerald-500 to-teal-600",    icon: "text-emerald-100", badge: "bg-emerald-400/30"},
+  { gradient: "from-orange-500 to-rose-500",     icon: "text-orange-100",  badge: "bg-orange-400/30" },
+  { gradient: "from-pink-500 to-fuchsia-600",    icon: "text-pink-100",    badge: "bg-pink-400/30"   },
+  { gradient: "from-amber-500 to-yellow-500",    icon: "text-amber-100",   badge: "bg-amber-400/30"  },
+  { gradient: "from-cyan-500 to-sky-600",        icon: "text-cyan-100",    badge: "bg-cyan-400/30"   },
+  { gradient: "from-indigo-500 to-blue-700",     icon: "text-indigo-100",  badge: "bg-indigo-400/30" },
+];
+
+function ColorStatCard({
+  label, value, icon: Icon, palette
+}: {
+  label: string;
+  value: string;
+  icon: React.ElementType;
+  palette: typeof CARD_PALETTE[0];
+}) {
+  return (
+    <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${palette.gradient} p-5 shadow-lg`}>
+      <div className={`absolute -right-3 -top-3 h-20 w-20 rounded-full opacity-20 ${palette.badge} blur-xl`} />
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-white/70">{label}</p>
+          <p className="mt-2 text-3xl font-black text-white">{value}</p>
+        </div>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ${palette.icon}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FinancialRow({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between gap-2 rounded-xl px-4 py-3 ${highlight ? "bg-indigo-50 border border-indigo-200" : "bg-slate-50 border border-slate-100"}`}>
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <span className={`text-sm font-bold ${highlight ? "text-indigo-700" : "text-slate-800"}`}>{value}</span>
+    </div>
+  );
 }
 
 export default async function SuperAdminDashboardPage() {
-  const lang = await getRequestLanguage();
   const data = await loadSuperAdminData();
 
+  const statCards = [
+    { label: "Total Countries",        value: String(data.counts.countries),  icon: Globe,        palette: CARD_PALETTE[0] },
+    { label: "Branches (Main + City)", value: String(data.counts.branches),   icon: GitBranch,    palette: CARD_PALETTE[1] },
+    { label: "Registered Users",       value: String(data.counts.users),      icon: Users,        palette: CARD_PALETTE[2] },
+    { label: "Account Master",         value: String(data.counts.accounts),   icon: Banknote,     palette: CARD_PALETTE[3] },
+    { label: "Active Ledgers",         value: String(data.counts.ledgers),    icon: ReceiptText,  palette: CARD_PALETTE[4] },
+    { label: "Roznamcha Entries",      value: String(data.counts.roznamcha),  icon: ShieldCheck,  palette: CARD_PALETTE[5] },
+    { label: "Purchase Orders",        value: String(data.counts.purchases),  icon: ShoppingCart, palette: CARD_PALETTE[6] },
+    { label: "Shipping Records",       value: String(data.counts.shipping),   icon: Ship,         palette: CARD_PALETTE[7] },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
+      {/* ── Header ─── */}
       <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-6 items-center rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-700/10 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-500/20">
-              System Wide Scope
-            </span>
-          </div>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Super Admin Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Enterprise overview across all registered nations, branch office nodes, ledger systems, and postings.
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-700">
+            <Activity className="h-3 w-3 animate-pulse text-indigo-500" />
+            System Wide Scope
+          </span>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-50">
+            Super Admin Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Enterprise overview across all nations, branches, ledger systems, and postings.
           </p>
         </div>
 
@@ -261,170 +263,188 @@ export default async function SuperAdminDashboardPage() {
             </Link>
           </Button>
           <Button asChild>
-            <Link href="/dashboard/settings">Global Settings</Link>
+            <Link href="/dashboard/settings">
+              Global Settings <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
           </Button>
         </div>
       </section>
 
-      {!data.databaseReady ? (
-        <Card className="border-red-200 bg-red-50 text-red-900 dark:border-red-950/40 dark:bg-red-950/20 dark:text-red-300">
-          <CardContent className="p-4 text-sm font-semibold">
-            Database summary could not load: {data.error}
-          </CardContent>
-        </Card>
-      ) : null}
+      {!data.databaseReady && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+          ⚠️ Database summary could not load: {data.error}
+        </div>
+      )}
 
-      {/* Numerical Metrics Section */}
+      {/* ── Colorful Stat Cards ─── */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Countries" value={String(data.counts.countries)} icon={Globe} />
-        <StatCard label="Branches (Main + City)" value={String(data.counts.branches)} icon={GitBranch} />
-        <StatCard label="Total Registered Users" value={String(data.counts.users)} icon={Users} />
-        <StatCard label="Total Accounts" value={String(data.counts.accounts)} icon={Banknote} />
+        {statCards.map((card) => (
+          <ColorStatCard key={card.label} {...card} />
+        ))}
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Active Ledgers" value={String(data.counts.ledgers)} icon={ReceiptText} />
-        <StatCard label="Roznamcha Postings" value={String(data.counts.roznamcha)} icon={ShieldCheck} />
-        <StatCard label="Purchase Orders" value={String(data.counts.purchases)} icon={ShoppingCart} />
-        <StatCard label="Shipping Records" value={String(data.counts.shipping)} icon={Ship} />
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-3">
-        {/* Core Countries & Branches Hierarchy Visual */}
-        <Card className="xl:col-span-2 overflow-hidden border border-slate-200/80 shadow-sm dark:border-slate-800">
-          <CardHeader className="bg-slate-50/50 py-4 dark:bg-slate-900/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-semibold">Nations & Branch Networks</CardTitle>
-                <p className="text-xs text-muted-foreground">Detailed node topology mapping countries to branch locations.</p>
-              </div>
-              <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                <Activity className="h-3.5 w-3.5 animate-pulse text-emerald-500" /> Live Networks
-              </span>
+      {/* ── Financial Summary + Branch Tree ─── */}
+      <section className="grid gap-5 xl:grid-cols-3">
+        {/* Branch Hierarchy */}
+        <div className="xl:col-span-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/40">
+            <div>
+              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Nations & Branch Networks</h2>
+              <p className="text-xs text-slate-500">Country → Main Branch → City Branch topology</p>
             </div>
-          </CardHeader>
-          <CardContent className="p-4 space-y-4">
+            <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+              Live
+            </span>
+          </div>
+          <div className="p-5">
             {data.countryBranches.length ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                {data.countryBranches.map((country) => (
-                  <div key={country.id} className="rounded-xl border border-slate-100 bg-slate-50/30 p-4 transition duration-200 hover:shadow-md dark:border-slate-800/60 dark:bg-slate-950/20">
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 font-bold text-xs text-primary">
-                          {country.code}
-                        </div>
-                        <span className="font-semibold text-sm">{country.name}</span>
-                      </div>
-                      <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                        {country.currency}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 space-y-2">
-                      {country.mainBranches.length ? (
-                        country.mainBranches.map((mb) => (
-                          <div key={mb.id} className="rounded-lg bg-card p-3 border border-slate-200/60 dark:border-slate-800/40">
-                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                              <Building className="h-3 w-3 text-indigo-500" /> {mb.name} <span className="font-mono text-[9px] text-muted-foreground">({mb.code})</span>
-                            </p>
-
-                            {mb.cityBranches.length ? (
-                              <div className="mt-2 pl-4 border-l border-dashed border-slate-200 space-y-1.5 dark:border-slate-800">
-                                {mb.cityBranches.map((cb) => (
-                                  <div key={cb.id} className="flex items-center justify-between text-[11px]">
-                                    <span className="text-muted-foreground">{cb.cityName} - {cb.name}</span>
-                                    <span className="font-mono bg-slate-100 px-1 py-0.5 rounded text-[8px] dark:bg-slate-800">{cb.code}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="mt-1.5 pl-4 text-[10px] text-muted-foreground italic">No city branches configured</p>
-                            )}
+                {data.countryBranches.map((country, idx) => {
+                  const p = CARD_PALETTE[idx % CARD_PALETTE.length];
+                  return (
+                    <div key={country.id} className="rounded-xl border border-slate-100 bg-slate-50/40 p-4 dark:border-slate-800 dark:bg-slate-900/20">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br ${p.gradient} text-[10px] font-black text-white`}>
+                            {country.code}
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-[11px] text-muted-foreground italic">No main branch configured</p>
-                      )}
+                          <span className="font-bold text-sm text-slate-800 dark:text-slate-100">{country.name}</span>
+                        </div>
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                          {country.currency}
+                        </span>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {country.mainBranches.length ? (
+                          country.mainBranches.map((mb) => (
+                            <div key={mb.id} className="rounded-lg border border-slate-100 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                              <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                <Building className="h-3 w-3 text-indigo-500" />
+                                {mb.name}
+                                <span className="font-mono text-[9px] text-slate-400">({mb.code})</span>
+                              </p>
+                              {mb.cityBranches.length ? (
+                                <div className="mt-2 space-y-1 border-l-2 border-dashed border-slate-200 pl-4 dark:border-slate-700">
+                                  {mb.cityBranches.map((cb) => (
+                                    <div key={cb.id} className="flex items-center justify-between text-[11px]">
+                                      <span className="text-slate-500">{cb.cityName} – {cb.name}</span>
+                                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[8px] font-bold dark:bg-slate-800">{cb.code}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-1 pl-4 text-[10px] italic text-slate-400">No city branches</p>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-[11px] italic text-slate-400">No main branch configured</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-6">No countries configured in this ERP database yet.</p>
+              <p className="py-8 text-center text-sm text-slate-400">No countries configured yet.</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Global Financial Status Card */}
-        <Card className="border border-slate-200/80 shadow-sm dark:border-slate-800">
-          <CardHeader className="bg-slate-50/50 py-4 dark:bg-slate-900/50">
-            <CardTitle className="text-base font-semibold">Global Ledger Standings</CardTitle>
-            <p className="text-xs text-muted-foreground">Consolidated financial stats converted to USD.</p>
-          </CardHeader>
-          <CardContent className="p-4 space-y-4">
-            <div className="grid gap-3">
-              {[
-                { label: "Ledger Debit Total", value: money(data.ledgerDebit) },
-                { label: "Ledger Credit Total", value: money(data.ledgerCredit) },
-                { label: "Ledger Current Balance", value: money(data.ledgerBalance), highlight: true },
-                { label: "Purchase Booking Volume", value: money(data.purchaseTotal) },
-                { label: "Sales Booking Volume", value: money(data.salesTotal) }
-              ].map((item, idx) => (
-                <div key={idx} className={`flex flex-col rounded-lg border p-3 ${item.highlight ? "border-indigo-200 bg-indigo-50/40 dark:border-indigo-950/40 dark:bg-indigo-950/10" : "bg-card"}`}>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{item.label}</span>
-                  <span className={`mt-1 text-lg font-bold ${item.highlight ? "text-indigo-600 dark:text-indigo-400" : ""}`}>{item.value}</span>
+        {/* Financial Summary */}
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+          <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="flex items-center gap-2">
+              <Landmark className="h-4 w-4 text-indigo-600" />
+              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Global Ledger Standings</h2>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">Consolidated financial stats in USD</p>
+          </div>
+          <div className="space-y-2.5 p-5">
+            <FinancialRow label="Ledger Debit Total"       value={money(data.ledgerDebit)} />
+            <FinancialRow label="Ledger Credit Total"      value={money(data.ledgerCredit)} />
+            <FinancialRow label="Ledger Current Balance"   value={money(data.ledgerBalance)} highlight />
+            <FinancialRow label="Purchase Booking Volume"  value={money(data.purchaseTotal)} />
+            <FinancialRow label="Sales Booking Volume"     value={money(data.salesTotal)} />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Recent Postings — Colorful Cards ─── */}
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Recent System Postings</h2>
+            <p className="text-xs text-slate-500">Latest Roznamcha entries from branches worldwide</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+            {data.recentRoznamcha.length} entries
+          </span>
+        </div>
+
+        {data.recentRoznamcha.length ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            {data.recentRoznamcha.map((row, idx) => {
+              const p = CARD_PALETTE[idx % CARD_PALETTE.length];
+              const st = getStatusStyle(row.status);
+              const dateStr = row.entry_date
+                ? new Date(row.entry_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                : row.created_at
+                  ? new Date(row.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                  : "—";
+              return (
+                <div
+                  key={row.id}
+                  className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${p.gradient} p-4 shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5`}
+                >
+                  {/* Decorative blob */}
+                  <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-white/10 blur-lg" />
+
+                  {/* Status pill */}
+                  <div className={`mb-3 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${st.bg} ${st.text}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+                    {(row.status || "draft").toUpperCase()}
+                  </div>
+
+                  {/* Voucher */}
+                  <p className="font-mono text-sm font-black text-white leading-tight truncate">
+                    {row.voucher_no || "No Voucher"}
+                  </p>
+
+                  {/* Type */}
+                  <p className="mt-0.5 text-[11px] font-semibold capitalize text-white/80 truncate">
+                    {row.type || "General Entry"}
+                  </p>
+
+                  {/* Meta */}
+                  <div className="mt-3 space-y-1 border-t border-white/20 pt-2.5">
+                    {row.country_name && (
+                      <div className="flex items-center gap-1.5 text-[10px] text-white/70">
+                        <Globe className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{row.country_name}</span>
+                      </div>
+                    )}
+                    {row.branch_name && (
+                      <div className="flex items-center gap-1.5 text-[10px] text-white/70">
+                        <Building className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{row.branch_name}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 text-[10px] text-white/60">
+                      <Layers className="h-3 w-3 shrink-0" />
+                      <span>{dateStr}</span>
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* System-Wide Recent Postings */}
-        <Card className="xl:col-span-3 border border-slate-200/80 shadow-sm dark:border-slate-800">
-          <CardHeader className="bg-slate-50/50 py-4 dark:bg-slate-900/50">
-            <CardTitle className="text-base font-semibold">System-Wide Postings (Recent)</CardTitle>
-            <p className="text-xs text-muted-foreground">Latest live Roznamcha entries flowing in from branches worldwide.</p>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100 text-xs uppercase text-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                  <tr className="border-b">
-                    <th className="px-4 py-2.5 text-start font-semibold">Voucher / Doc ID</th>
-                    <th className="px-4 py-2.5 text-start font-semibold">Date</th>
-                    <th className="px-4 py-2.5 text-start font-semibold">Country</th>
-                    <th className="px-4 py-2.5 text-start font-semibold">Branch Office</th>
-                    <th className="px-4 py-2.5 text-start font-semibold">Entry Type</th>
-                    <th className="px-4 py-2.5 text-start font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.recentRoznamcha.length ? (
-                    data.recentRoznamcha.map((row) => (
-                      <tr key={row.id} className="border-b last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                        <td className="px-4 py-3">
-                          <p className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">{row.voucher_no || "N/A"}</p>
-                          <span className="font-mono text-[9px] text-muted-foreground">{row.id}</span>
-                        </td>
-                        <td className="px-4 py-3 text-xs">{row.entry_date || "-"}</td>
-                        <td className="px-4 py-3 text-xs">{row.country_name || "-"}</td>
-                        <td className="px-4 py-3 text-xs font-medium">{row.branch_name || "-"}</td>
-                        <td className="px-4 py-3 text-xs capitalize">{row.type || "-"}</td>
-                        <td className="px-4 py-3"><StatusPill value={row.status || "draft"} /></td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
-                        No roznamcha postings found in database.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 py-12 text-center dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-sm text-slate-400">No roznamcha postings found in database yet.</p>
+          </div>
+        )}
       </section>
     </div>
   );

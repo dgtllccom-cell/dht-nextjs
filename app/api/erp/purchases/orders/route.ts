@@ -211,7 +211,8 @@ export async function POST(request: NextRequest) {
       }
 
       // 1. Stage 1: Credit purchase entry: Debit Inventory, Credit Supplier Payable
-      const { error: transferError } = await supabase.rpc("post_purchase_order_payment", {
+      const { error: transferError } = await supabase.rpc("post_purchase_booking_transfer", {
+        p_actor_id: session.userId,
         p_purchase_order_id: orderId,
         p_kind: "credit",
         p_entry_date: entryDate,

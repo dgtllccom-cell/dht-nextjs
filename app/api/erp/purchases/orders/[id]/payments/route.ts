@@ -37,9 +37,17 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     const rows = await requireSupabaseData(
       supabase
         .from("purchase_order_payments")
-        .select(
-          "id, purchase_order_id, kind, entry_date, amount, currency_code, exchange_rate, debit_ledger_id, credit_ledger_id, roznamcha_entry_id, status, reference_no, narration, created_at"
-        )
+        .select(`
+          id, purchase_order_id, kind, entry_date, amount, currency_code, exchange_rate, 
+          debit_ledger_id, credit_ledger_id, roznamcha_entry_id, status, reference_no, 
+          narration, created_at,
+          roznamcha_entries (
+            id,
+            super_admin_serial_number,
+            country_transaction_serial_number,
+            branch_transaction_serial_number
+          )
+        `)
         .eq("purchase_order_id", params.id)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -80,8 +88,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       cityBranchId: (order as any)?.city_branch_id ?? null
     });
 
-    // Transaction-safe posting via RPC. Uses auth.uid() from the Supabase session cookies.
-    const { data, error } = await supabase.rpc("post_purchase_order_payment", {
+    // Transaction-safe posting via RPC using the security definer wrapper post_purchase_booking_transfer.
+    // This wrapper sets config('request.jwt.claims', ...) so audit log triggers find auth.uid().
+    const { data, error } = await supabase.rpc("post_purchase_booking_transfer", {
+      p_actor_id: session.userId,
       p_purchase_order_id: params.id,
       p_kind: body.kind,
       p_entry_date: body.entryDate,
