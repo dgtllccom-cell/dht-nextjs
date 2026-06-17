@@ -642,22 +642,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     };
   }, [selectedForm, selectedSourceLedger, supplierLedger]);
 
-  // Sync PO currency and exchange rate when order changes
-  useEffect(() => {
-    if (selected) {
-      const rate = String(selected.exchange_rate || 1);
-      setExchangeRate(rate);
-      const poCur = selected.currency_code || "USD";
-      setCurrency(poCur.toUpperCase());
-    }
-  }, [selectedId, selected]);
-
   const baseCurrency = useMemo(() => {
     // Auto-detect from user name or roles
     const userName = (session?.user?.fullName || "").toUpperCase();
     if (userName.includes("EMIRATES") || userName.includes("DUBAI") || userName.includes("AE")) return "AED";
     if (userName.includes("AFGHANISTAN") || userName.includes("KABUL")) return "AFN";
     if (userName.includes("INDIA") || userName.includes("MUMBAI")) return "INR";
+    if (userName.includes("IRAN")) return "IRR";
     if (userName.includes("US") || userName.includes("UNITED STATES")) return "USD";
 
     // If still nothing, check roles or session country defaults if available
@@ -673,6 +664,17 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
     return "PKR";
   }, [selectedForm, session]);
+
+  // Sync PO currency and exchange rate when order changes
+  useEffect(() => {
+    if (selected) {
+      const rate = String(selected.exchange_rate || 1);
+      setExchangeRate(rate);
+      const poCur = selected.currency_code || "USD";
+      // Auto-enforce local currency for payment
+      setCurrency(baseCurrency || poCur.toUpperCase());
+    }
+  }, [selectedId, selected, baseCurrency]);
 
   const cards = useMemo(() => kpis(filtered, activeMode, baseCurrency), [activeMode, filtered, baseCurrency]);
 
@@ -1489,8 +1491,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       <th className="p-2 border-r">Country Serial</th>
                                       <th className="p-2 border-r">Branch Serial</th>
                                       <th className="p-2 border-r">Date</th>
-                                      <th className="p-2 border-r">Debit Account (Supplier Payable)</th>
-                                      <th className="p-2 border-r">Credit Account (Payment Source)</th>
+                                      <th className="p-2 border-r">Debit Account (DR) - Supplier Payable</th>
+                                      <th className="p-2 border-r">Credit Account (CR) - Payment Source</th>
                                       <th className="p-2 border-r">Narration</th>
                                       <th className="p-2 text-right">Amount</th>
                                     </tr>
@@ -1511,8 +1513,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                           <td className="p-2 border-r font-mono">{re.country_transaction_serial_number || "—"}</td>
                                           <td className="p-2 border-r font-mono">{re.branch_transaction_serial_number || "—"}</td>
                                           <td className="p-2 border-r">{date(p.entry_date)}</td>
-                                          <td className="p-2 border-r font-semibold text-indigo-600" title={drLabel}>{drLabel}</td>
-                                          <td className="p-2 border-r font-semibold text-violet-600" title={crLabel}>{crLabel}</td>
+                                          <td className="p-2 border-r font-semibold text-indigo-600" title={drLabel}><span className="font-black text-indigo-800 text-[10px] mr-1">DR</span>{drLabel}</td>
+                                          <td className="p-2 border-r font-semibold text-violet-600" title={crLabel}><span className="font-black text-violet-800 text-[10px] mr-1">CR</span>{crLabel}</td>
                                           <td className="p-2 border-r text-slate-500 max-w-[320px] truncate" title={p.narration}>{p.narration || "—"}</td>
                                           <td className="p-2 text-right font-mono font-bold text-emerald-600 whitespace-nowrap">
                                             <div>{money(p.amount / (p.exchange_rate || 1), p.currency_code || "USD")}</div>
@@ -1843,19 +1845,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </FieldBlock>
 
                   <FieldBlock label="Currency" required>
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                    <input
+                      className="h-9 w-full rounded-md border border-input bg-muted/40 px-3 text-xs font-semibold text-muted-foreground outline-none"
                       value={currency}
-                      onChange={(e) => {
-                        setCurrency(e.target.value);
-                        setFinalPayment("");
-                      }}
-                    >
-                      <option value="">Select Currency</option>
-                      {["USD", "AED", "PKR", "AFN", "INR", "IRR"].map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
+                      disabled
+                      title="Currency is locked to your local country base currency."
+                    />
                   </FieldBlock>
                 </div>
 

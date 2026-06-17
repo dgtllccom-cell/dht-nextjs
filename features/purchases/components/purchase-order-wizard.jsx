@@ -898,8 +898,12 @@ export function PurchaseOrderWizard() {
           }
 
           // Check and set transferred/posted status
-          // When loading a PO for editing, we keep isTransferred as false initially so the wizard form is editable.
-          setIsTransferred(false);
+          const orderIsTransferred = orderData.ledger_posting_status === "posted";
+          setIsTransferred(orderIsTransferred);
+          setTransferredData(orderIsTransferred ? {
+            transferDate: orderData.created_at,
+            audit: (orderData.form_data && orderData.form_data.transferAudit) ? orderData.form_data.transferAudit : null
+          } : null);
 
           // Render the editing wizard directly at Step 1 (booking) for editing
           setActiveTab("booking");
@@ -1055,9 +1059,6 @@ export function PurchaseOrderWizard() {
   // Load latest exchange rate and set secondary currency when country or branch changes
   useEffect(() => {
     const countryId = form.countryId;
-    const countryBranchId = form.countryBranchId;
-    if (!countryId) return;
-
     let localCurrency = "PKR";
     const activeCountry = transitCountryOptions.find(c => String(c.id) === String(countryId));
     if (activeCountry) {
@@ -1067,50 +1068,19 @@ export function PurchaseOrderWizard() {
       else if (iso === "PK" || name.includes("PAKISTAN")) localCurrency = "PKR";
       else if (iso === "AF" || name.includes("AFGHANISTAN")) localCurrency = "AFN";
       else if (iso === "IN" || name.includes("INDIA")) localCurrency = "INR";
+      else if (iso === "IR" || name.includes("IRAN")) localCurrency = "IRR";
       else if (iso === "US" || name.includes("UNITED STATES")) localCurrency = "USD";
     }
 
-    let cancelled = false;
-    async function loadLatestRate() {
-      try {
-        const params = new URLSearchParams({
-          countryId,
-          currency: "USD"
-        });
-        if (countryBranchId) {
-          params.set("countryBranchId", countryBranchId);
-        }
-        const response = await fetch(`/api/erp/currency/latest-rate?${params.toString()}`);
-        const payload = await response.json();
-        if (!cancelled && payload?.ok && payload?.data) {
-          const rate = payload.data.rate || 1;
-          setForm((prev) => ({
-            ...prev,
-            exchangeRate: rate,
-            rate2: rate,
-            secondaryCurrency: localCurrency
-          }));
-        } else if (!cancelled) {
-          // Even if rate fails, still set the correct local currency
-          setForm((prev) => ({
-            ...prev,
-            secondaryCurrency: localCurrency
-          }));
-        }
-      } catch (err) {
-        console.error("Failed to load exchange rate in wizard:", err);
-        if (!cancelled) {
-          setForm((prev) => ({
-            ...prev,
-            secondaryCurrency: localCurrency
-          }));
-        }
-      }
-    }
-    loadLatestRate();
-    return () => {
-      cancelled = true;
-    };
+    setForm((prev) => ({
+      ...prev,
+      currencyType: localCurrency,
+      secondaryCurrency: localCurrency,
+      purchaseAccountCurrency: localCurrency,
+      salesAccountCurrency: localCurrency,
+      exchangeRate: 1,
+      rate2: 1
+    }));
   }, [form.countryId, form.countryBranchId, transitCountryOptions]);
 
   // Keep display labels in sync with UUID scopes
@@ -3279,7 +3249,7 @@ export function PurchaseOrderWizard() {
                   <Button
                     type="button"
                     onClick={() => handleSavePurchaseOrder(false)}
-                    disabled={savingOrder || goodsEntries.length === 0}
+                    disabled={savingOrder || goodsEntries.length === 0 || (isTransferred && !session?.scopes?.isSuperAdmin)}
                     className="flex items-center gap-1.5 h-9 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase px-4 shadow border-none"
                   >
                     <Save className="h-4 w-4" /> Save Booking
@@ -3481,7 +3451,7 @@ export function PurchaseOrderWizard() {
                   <Button
                     type="button"
                     onClick={() => handleSavePurchaseOrder(false)}
-                    disabled={savingOrder || goodsEntries.length === 0}
+                    disabled={savingOrder || goodsEntries.length === 0 || (isTransferred && !session?.scopes?.isSuperAdmin)}
                     className="flex items-center gap-1.5 h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase px-5 shadow transition-all"
                   >
                     <Save className="h-4 w-4" /> Save Booking
@@ -3933,13 +3903,38 @@ export function PurchaseOrderWizard() {
             </div>
           </div>
 
+          {/* TRANSFERRED LOCK BANNER */}
+          {isTransferred && (
+            <div className={`mt-0 mb-4 rounded-xl border p-4 flex items-start gap-4 ${session?.scopes?.isSuperAdmin ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'}`}>
+              <div className={`p-2 rounded-lg shrink-0 ${session?.scopes?.isSuperAdmin ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
+                <Lock className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className={`font-black uppercase tracking-wider text-sm ${session?.scopes?.isSuperAdmin ? 'text-amber-900' : 'text-rose-900'}`}>
+                  {session?.scopes?.isSuperAdmin ? "Admin Unlock: Transferred Booking" : "Booking Locked: Already Transferred"}
+                </h3>
+                <p className={`text-xs mt-1 ${session?.scopes?.isSuperAdmin ? 'text-amber-700' : 'text-rose-700'}`}>
+                  {session?.scopes?.isSuperAdmin 
+                    ? "This booking has already been transferred to payment/ledger. As an admin, you can edit it. Saving will automatically recalculate and re-post the ledger entries."
+                    : "This booking has already been transferred to payment records and ledgers. You cannot edit it directly. Please request Admin approval to make changes."}
+                </p>
+                {transferredData && transferredData.audit && (
+                  <div className="mt-3 bg-white/50 p-2 rounded text-[10px] space-y-1">
+                    <p><strong>Initially Transferred By:</strong> {transferredData.audit.userName} ({transferredData.audit.transferDate ? new Date(transferredData.audit.transferDate).toLocaleString() : 'N/A'})</p>
+                    {transferredData.audit.retransferDate && <p><strong>Last Recalculated / Re-Transferred:</strong> {new Date(transferredData.audit.retransferDate).toLocaleString()}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Form Content Wrapper */}
           <Card className="bg-card border-border shadow-md rounded-lg">
             <CardContent className="p-4">
               
               {/* TAB 1: PURCHASE BOOKING / BILL INFO */}
               {activeTab === "booking" && (
-                <div className="space-y-4">
+                <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4">
                   <div className="border-b border-border pb-2 mb-3">
                     <h3 className="text-xs font-black uppercase tracking-wider text-foreground">Purchase Booking / Bill Info</h3>
                     <p className="text-[10px] text-muted-foreground">Order headers, accounts and shipment rules setup</p>
@@ -4399,11 +4394,12 @@ export function PurchaseOrderWizard() {
                     </Button>
                   </div>
                 </div>
+                </fieldset>
               )}
 
               {/* TAB 2: GOODS ENTRY */}
               {activeTab === "goods" && (
-                <div className="space-y-4">
+                <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4">
                   <div className="border-b border-border pb-2 mb-3">
                     <h3 className="text-xs font-black uppercase tracking-wider text-foreground">Goods Entry</h3>
                     <p className="text-[10px] text-muted-foreground">Add materials, weights, rates & currency parameters</p>
@@ -4698,13 +4694,11 @@ export function PurchaseOrderWizard() {
                       <div className="grid grid-cols-5 gap-1.5 items-center">
                         <div className="col-span-2">
                           <label className="block text-[9px] text-muted-foreground mb-1">Currency 1</label>
-                          <select
+                          <input
                             value={form.currencyType}
-                            onChange={(e) => setValue("currencyType", e.target.value)}
-                            className="w-full bg-background border border-input rounded px-1 py-1 text-foreground focus:border-primary outline-none text-[10px]"
-                          >
-                            {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
+                            disabled
+                            className="w-full bg-muted/40 border border-input rounded px-1 py-1 text-muted-foreground outline-none text-[10px]"
+                          />
                         </div>
                         
                         <div className="col-span-1 text-center font-bold text-muted-foreground text-xs mt-3">
@@ -4713,26 +4707,21 @@ export function PurchaseOrderWizard() {
 
                         <div className="col-span-2">
                           <label className="block text-[9px] text-muted-foreground mb-1">Currency 2</label>
-                          <select
+                          <input
                             value={form.secondaryCurrency}
-                            onChange={(e) => setValue("secondaryCurrency", e.target.value)}
-                            className="w-full bg-background border border-input rounded px-1 py-1 text-foreground focus:border-primary outline-none text-[10px]"
-                          >
-                            {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
+                            disabled
+                            className="w-full bg-muted/40 border border-input rounded px-1 py-1 text-muted-foreground outline-none text-[10px]"
+                          />
                         </div>
                       </div>
 
                       <div className="pt-1">
-                        <label className="block text-[9px] text-muted-foreground mb-1">Conv. Rate (C2)</label>
+                        <label className="block text-[9px] text-muted-foreground mb-1">Conv. Rate (Locked)</label>
                         <input
                           type="number"
-                          value={form.rate2}
-                          onChange={(e) => {
-                            setValue("rate2", Number(e.target.value));
-                            setValue("exchangeRate", Number(e.target.value));
-                          }}
-                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none text-[10px]"
+                          value={1}
+                          disabled
+                          className="w-full bg-muted/40 border border-input rounded px-2 py-1 text-muted-foreground outline-none text-[10px]"
                         />
                       </div>
                     </div>
@@ -4753,6 +4742,7 @@ export function PurchaseOrderWizard() {
                     <Button
                       type="button"
                       onClick={handleAddGoodsEntry}
+                      disabled={isTransferred && !session?.scopes?.isSuperAdmin}
                       className="w-full font-bold h-7.5 text-[10px] py-1 shadow"
                     >
                       Submit
@@ -4775,12 +4765,12 @@ export function PurchaseOrderWizard() {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </fieldset>
               )}
 
               {/* TAB 3: DETAILS (OTHERS) */}
               {activeTab === "others" && (
-                <div className="space-y-4">
+                <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4">
                   <div className="border-b border-border pb-2 mb-3">
                     <h3 className="text-xs font-black uppercase tracking-wider text-foreground">Details & Reports</h3>
                     <p className="text-[10px] text-muted-foreground">Secondary details and database submission</p>

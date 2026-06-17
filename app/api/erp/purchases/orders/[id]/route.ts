@@ -104,6 +104,20 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       const formData = body.formData !== undefined ? body.formData : (before as any).form_data;
       
       const form = formData?.form ?? {};
+
+      // If this is an admin re-transfer, record it in the audit trail
+      if (isAlreadyPosted) {
+        if (!form.transferAudit) {
+          form.transferAudit = {
+            userId: session.userId,
+            userName: session.fullName || "Admin",
+            transferDate: (before as any).created_at
+          };
+        }
+        form.transferAudit.retransferDate = new Date().toISOString();
+        form.transferAudit.retransferBy = session.fullName || session.userId;
+        patch.form_data = { ...(formData as any), form };
+      }
       const advancePercent = Number(form.advancePercent ?? 10);
       const advanceAmount = (Number(orderTotal) * advancePercent) / 100;
       const remainingDue = Math.max(0, Number(orderTotal) - advanceAmount);

@@ -966,7 +966,7 @@ export function PurchaseOrderManagementDashboard() {
         .map((row) => row.branchName)
     ),
     suppliers: unique(reports.map((row) => row.supplierName)),
-    poStatuses: unique(reports.map((row) => row.status)),
+    poStatuses: unique(reports.map((row) => row.status === "Posted" ? "Transferred" : row.status)),
     paymentStatuses: unique(reports.map((row) => row.paymentStatus)),
     shipmentStatuses: unique(reports.map(shipmentStatus)),
     containerStatuses: ["Pending", "Container Loading", "In Transit", "Completed"],
@@ -982,7 +982,8 @@ export function PurchaseOrderManagementDashboard() {
       if (!lockedCountryName && filters.country !== "all" && row.countryName !== filters.country) return false;
       if (!lockedBranchName && filters.branch !== "all" && row.branchName !== filters.branch) return false;
       if (filters.supplier !== "all" && row.supplierName !== filters.supplier) return false;
-      if (filters.poStatus !== "all" && row.status !== filters.poStatus) return false;
+      const rowDisplayStatus = row.status === "Posted" ? "Transferred" : row.status;
+      if (filters.poStatus !== "all" && rowDisplayStatus !== filters.poStatus) return false;
       if (filters.paymentStatus !== "all" && row.paymentStatus !== filters.paymentStatus) return false;
       if (filters.shipmentStatus !== "all" && shipmentStatus(row) !== filters.shipmentStatus) return false;
       if (filters.containerStatus !== "all" && shipmentStatus(row) !== filters.containerStatus) return false;
