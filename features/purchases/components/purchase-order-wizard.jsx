@@ -156,7 +156,8 @@ const DEFAULT_FORM = {
   purchaseContact: "+93 700 000 000",
   purchaseDate: new Date().toISOString().slice(0, 10),
   currencyType: "USD",
-  exchangeRate: 280.00,
+  purchaseCurrency: "USD",
+  exchangeRate: 1,
   branchName: "Kabul Main Branch",
   branchCode: "BR-KBL-001",
   branchCity: "Kabul",
@@ -310,29 +311,25 @@ function calculateItemTotals(form) {
   const divideWeight = Number(form.divideWeight || 1);
   const currencyType = String(form.currencyType || "").toUpperCase();
 
+  const exchangeRate = Number(form.exchangeRate || 1);
+
   const grossWeight = qtyNo * qtyKgs;
   const totalEmptyDeduct = qtyNo * emptyKgs;
   const netWeight = Math.max(0, grossWeight - totalEmptyDeduct);
-  const inputTotal = (netWeight / divideWeight) * coursePrice;
-
-  let baseAmount = 0;
-  let localAmount = 0;
-
-  if (currencyType === "USD") {
-    baseAmount = inputTotal;
-    localAmount = inputTotal * rate2;
-  } else {
-    localAmount = inputTotal;
-    baseAmount = rate2 > 0 ? inputTotal / rate2 : inputTotal;
-  }
+  
+  // Amount in Purchase Currency (Original Amount)
+  const originalAmount = (netWeight / divideWeight) * coursePrice;
+  
+  // Amount in Local Country Currency
+  const localAmount = originalAmount * exchangeRate;
 
   return {
     grossWeight,
     netWeight,
-    totalAmount: inputTotal,
-    finalAmount: localAmount,
-    baseAmount,
-    localAmount
+    totalAmount: originalAmount, // Total in Purchase Currency
+    finalAmount: localAmount,    // Total in Local Currency
+    baseAmount: originalAmount,
+    localAmount: localAmount
   };
 }
 
@@ -638,6 +635,9 @@ export function PurchaseOrderWizard() {
         const countriesData = res?.data?.countries || res?.countries;
         if (!cancelled && countriesData) {
           setCountries(countriesData);
+          if (countriesData.length === 1) {
+            setForm(prev => ({ ...prev, countryId: prev.countryId || countriesData[0].id }));
+          }
         }
       } catch (err) {
         console.error("Failed to load countries:", err);
@@ -701,7 +701,8 @@ export function PurchaseOrderWizard() {
             accountSerialNumber: acc.account_serial_number || "",
             countrySerialNumber: acc.country_serial_number || "",
             branchSerialNumber: acc.branch_serial_number || "",
-            manualReferenceNumber: acc.manual_reference_number || ""
+            manualReferenceNumber: acc.manual_reference_number || "",
+            countryId: acc.country_id || null
           }));
           setDbAccounts(mapped);
         }
@@ -1046,12 +1047,13 @@ export function PurchaseOrderWizard() {
         const newName = selectedBranch.name || selectedBranch.city_name || prev.branchName;
         const newBillNo = `${countryPrefix}-${cityCode}-${suffix}`;
         
-        if (prev.branchCode === newCode && prev.branchName === newName && prev.billNo === newBillNo) return prev;
+        if (prev.branchCode === newCode && prev.branchName === newName && prev.billNo === newBillNo && prev.branchCountry === (country?.name || "")) return prev;
         return {
           ...prev,
           branchName: newName,
           branchCode: newCode,
-          billNo: newBillNo
+          billNo: newBillNo,
+          branchCountry: country ? country.name : ""
         };
       });
     } else {
@@ -1089,6 +1091,7 @@ export function PurchaseOrderWizard() {
     setForm((prev) => ({
       ...prev,
       currencyType: localCurrency,
+      purchaseCurrency: localCurrency,
       secondaryCurrency: localCurrency,
       purchaseAccountCurrency: localCurrency,
       salesAccountCurrency: localCurrency,
@@ -3521,7 +3524,7 @@ export function PurchaseOrderWizard() {
                     <span className="p-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
                       <ArrowDownLeft className="h-3.5 w-3.5" />
                     </span>
-                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Purchase Account</h4>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Purchase Account (DR)</h4>
                   </div>
                   <div className="space-y-1.5 text-[10px]">
                     <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-bold text-foreground font-mono">{form.purchaseAccountNo || "N/A"}</span></div>
@@ -3912,8 +3915,8 @@ export function PurchaseOrderWizard() {
                   </div>
                   <div className="bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10">
                     <span className="text-emerald-600 dark:text-emerald-450 block text-[8px] uppercase font-bold">Grand Final</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono block text-xs truncate" title={`${currencySymbol(goodsEntries[0]?.secondaryCurrency || "PKR")}${reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
-                      {currencySymbol(goodsEntries[0]?.secondaryCurrency || "PKR")}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono block text-xs truncate" title={`${currencySymbol(form.currencyType)}${reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
+                      {currencySymbol(form.currencyType)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -3960,7 +3963,7 @@ export function PurchaseOrderWizard() {
 
                   <div className="space-y-3">
                     <div className="relative" ref={purchaseDropdownRef}>
-                      <label className="block text-[10px] text-muted-foreground mb-1">Purchase Account No*</label>
+                      <label className="block text-[10px] text-muted-foreground mb-1">Purchase Account (DR)*</label>
                       <div className="relative flex items-center">
                         <input
                           type="text"
@@ -3996,12 +3999,14 @@ export function PurchaseOrderWizard() {
                         <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
                           <div className="max-h-56 overflow-y-auto space-y-0.5">
                             {(() => {
-                              const filtered = dbAccounts.filter(acc =>
-                                acc.accountCode?.toLowerCase().includes(purchaseSearch.toLowerCase()) ||
-                                acc.accountName?.toLowerCase().includes(purchaseSearch.toLowerCase()) ||
-                                (acc.mobile && acc.mobile.toLowerCase().includes(purchaseSearch.toLowerCase())) ||
-                                (acc.whatsapp && acc.whatsapp.toLowerCase().includes(purchaseSearch.toLowerCase()))
-                              );
+                              const filtered = dbAccounts.filter(acc => {
+                                const matchesCountry = !form.countryId || acc.countryId === form.countryId;
+                                const matchesSearch = acc.accountCode?.toLowerCase().includes(purchaseSearch.toLowerCase()) ||
+                                  acc.accountName?.toLowerCase().includes(purchaseSearch.toLowerCase()) ||
+                                  (acc.mobile && acc.mobile.toLowerCase().includes(purchaseSearch.toLowerCase())) ||
+                                  (acc.whatsapp && acc.whatsapp.toLowerCase().includes(purchaseSearch.toLowerCase()));
+                                return matchesCountry && matchesSearch;
+                              });
                               if (filtered.length === 0) {
                                 return (
                                   <div className="px-2.5 py-3 text-center text-muted-foreground text-[10px] font-bold italic">
@@ -4135,7 +4140,7 @@ export function PurchaseOrderWizard() {
                     </div>
 
                     <div className="relative" ref={salesDropdownRef}>
-                      <label className="block text-[10px] text-muted-foreground mb-1">Sales Account / Code No*</label>
+                      <label className="block text-[10px] text-muted-foreground mb-1">Sales Account (CR)*</label>
                       <div className="relative flex items-center">
                         <input
                           type="text"
@@ -4170,12 +4175,14 @@ export function PurchaseOrderWizard() {
                         <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
                           <div className="max-h-56 overflow-y-auto space-y-0.5">
                             {(() => {
-                              const filtered = dbAccounts.filter(acc =>
-                                acc.accountCode?.toLowerCase().includes(salesSearch.toLowerCase()) ||
-                                acc.accountName?.toLowerCase().includes(salesSearch.toLowerCase()) ||
-                                (acc.mobile && acc.mobile.toLowerCase().includes(salesSearch.toLowerCase())) ||
-                                (acc.whatsapp && acc.whatsapp.toLowerCase().includes(salesSearch.toLowerCase()))
-                              );
+                              const filtered = dbAccounts.filter(acc => {
+                                const matchesCountry = !form.countryId || acc.countryId === form.countryId;
+                                const matchesSearch = acc.accountCode?.toLowerCase().includes(salesSearch.toLowerCase()) ||
+                                  acc.accountName?.toLowerCase().includes(salesSearch.toLowerCase()) ||
+                                  (acc.mobile && acc.mobile.toLowerCase().includes(salesSearch.toLowerCase())) ||
+                                  (acc.whatsapp && acc.whatsapp.toLowerCase().includes(salesSearch.toLowerCase()));
+                                return matchesCountry && matchesSearch;
+                              });
                               if (filtered.length === 0) {
                                 return (
                                   <div className="px-2.5 py-3 text-center text-muted-foreground text-[10px] font-bold italic">
@@ -4310,7 +4317,61 @@ export function PurchaseOrderWizard() {
 
 
 
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* NEW PURCHASE CURRENCY DETAILS SECTION */}
+                    <div className="space-y-2 mt-4 pt-4 border-t border-border">
+                      <div className="text-[10px] font-bold text-primary uppercase mb-2">
+                        Purchase Currency Details
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 bg-primary/5 p-2 rounded border border-primary/10">
+                        <div>
+                          <label className="block text-[10px] text-muted-foreground mb-1">Purchase Currency*</label>
+                          <select
+                            value={form.purchaseCurrency || form.currencyType}
+                            onChange={(e) => setValue("purchaseCurrency", e.target.value)}
+                            className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px] font-bold"
+                          >
+                            {["USD", "AED", "PKR", "INR", "AFN", "IRR", "EUR", "GBP"].map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+
+                        {form.purchaseCurrency !== form.currencyType && (
+                          <div>
+                            <label className="block text-[10px] text-muted-foreground mb-1">Exchange Rate*</label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              value={form.exchangeRate}
+                              onChange={(e) => setValue("exchangeRate", parseFloat(e.target.value) || 1)}
+                              className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px] font-bold"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-4">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Contract No*</label>
+                        <input
+                          type="text"
+                          value={form.purchaseContractNo}
+                          onChange={(e) => setValue("purchaseContractNo", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Contract Date*</label>
+                        <input
+                          type="date"
+                          value={form.purchaseDate}
+                          onChange={(e) => setValue("purchaseDate", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-4">
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Contract No*</label>
                         <input
@@ -5636,7 +5697,7 @@ export function PurchaseOrderWizard() {
                     <span className="p-1 rounded-md bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400">
                       <ArrowUpRight className="h-3.5 w-3.5" />
                     </span>
-                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Sales Account Details</h4>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Sales Account (CR)</h4>
                   </div>
                   <div className="space-y-1.5 text-[10px]">
                     <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-bold text-foreground truncate block w-full text-right font-mono" title={form.salesAccountNo}>{form.salesAccountNo}</span></div>
@@ -5825,10 +5886,9 @@ export function PurchaseOrderWizard() {
                       <th className="px-2 py-3 text-center">Price Type</th>
                       <th className="px-2 py-3 text-center">Divide Type</th>
                       <th className="px-2 py-3 text-center">Divide Value</th>
-                      <th colSpan={3} className="px-2 py-3 text-center bg-primary/10 text-yellow-600 dark:text-yellow-450 font-bold">Primary Currency</th>
-                      <th className="px-2 py-3 text-center w-8">OP</th>
-                      <th colSpan={2} className="px-2 py-3 text-center bg-primary/5 text-yellow-600 dark:text-yellow-450 font-bold">Secondary Currency</th>
-                      <th className="px-2 py-3 text-right bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black">Final Amount</th>
+                      <th colSpan={3} className="px-2 py-3 text-center bg-primary/10 text-yellow-600 dark:text-yellow-450 font-bold">Purchase Currency</th>
+                      <th className="px-2 py-3 text-center w-8">Rate</th>
+                      <th className="px-2 py-3 text-right bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black">Local Amount</th>
                       <th className="px-2 py-3 text-center w-12">Action</th>
                     </tr>
                   </thead>
@@ -5863,21 +5923,17 @@ export function PurchaseOrderWizard() {
                           <td className="px-2 py-2.5 text-center text-muted-foreground">{row.divideType}</td>
                           <td className="px-2 py-2.5 text-center font-mono text-muted-foreground">{row.divideWeight || 1}</td>
                           
-                          {/* Primary Currency colSpan */}
-                          <td className="px-2 py-2.5 text-center font-bold text-yellow-600 dark:text-yellow-450 bg-primary/5">{currencySymbol(row.currencyType)}</td>
-                          <td className="px-2 py-2.5 text-right font-mono bg-primary/5">{currencySymbol(row.currencyType)}{row.coursePrice.toFixed(2)}</td>
-                          <td className="px-2 py-2.5 text-right font-mono bg-primary/5">{currencySymbol(row.currencyType)}{row.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          {/* Purchase Currency colSpan */}
+                          <td className="px-2 py-2.5 text-center font-bold text-yellow-600 dark:text-yellow-450 bg-primary/5">{row.purchaseCurrency || form.purchaseCurrency || form.currencyType}</td>
+                          <td className="px-2 py-2.5 text-right font-mono bg-primary/5">{row.coursePrice.toFixed(2)}</td>
+                          <td className="px-2 py-2.5 text-right font-mono bg-primary/5">{row.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           
-                          {/* OP */}
-                          <td className="px-2 py-2.5 text-center font-bold text-muted-foreground font-mono">*</td>
+                          {/* Exchange Rate */}
+                          <td className="px-2 py-2.5 text-center font-bold text-muted-foreground font-mono">{row.exchangeRate || form.exchangeRate || 1}</td>
                           
-                          {/* Secondary Currency colSpan */}
-                          <td className="px-2 py-2.5 text-center font-bold text-yellow-600 dark:text-yellow-450 bg-primary/5">{currencySymbol(row.secondaryCurrency)}</td>
-                          <td className="px-2 py-2.5 text-right font-mono bg-primary/5">{row.rate2.toFixed(2)}</td>
-                          
-                          {/* Final Amount */}
+                          {/* Local Amount */}
                           <td className="px-2 py-2.5 text-right bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black font-mono">
-                            {currencySymbol(row.secondaryCurrency)}{row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {currencySymbol(form.currencyType)}{row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
 
                           {/* Action Column */}
@@ -5904,11 +5960,10 @@ export function PurchaseOrderWizard() {
                       <td className="px-2 py-3 text-right font-mono text-rose-500 font-bold">{reportTotals.totalDeductions.toLocaleString()}</td>
                       <td className="px-2 py-3 text-right font-black bg-muted text-foreground font-mono">{reportTotals.totalNet.toLocaleString()}</td>
                       <td colSpan={3} className="px-2 py-3"></td>
-                      <td colSpan={3} className="px-2 py-3 text-right font-mono bg-primary/5 text-yellow-600 dark:text-yellow-450">{currencySymbol(form.currencyType)}{reportTotals.grandPrimaryFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td colSpan={3} className="px-2 py-3 text-right font-mono bg-primary/5 text-yellow-600 dark:text-yellow-450">{reportTotals.grandPrimaryFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-2 py-3"></td>
-                      <td colSpan={2} className="px-2 py-3"></td>
                       <td className="px-2 py-3 text-right bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black font-mono">
-                        {currencySymbol(goodsEntries[0]?.secondaryCurrency || "PKR")}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {currencySymbol(form.currencyType)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-3"></td>
                     </tr>
@@ -5935,10 +5990,8 @@ export function PurchaseOrderWizard() {
                   <strong className="text-sm font-black text-foreground font-mono">{currencySymbol(form.currencyType)}{reportTotals.grandPrimaryFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                 </div>
                 <div className="bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-lg">
-                  <span className="block text-[8px] uppercase tracking-wider text-emerald-600 dark:text-emerald-500 font-bold">Grand Final ({currencySymbol(goodsEntries[0]?.secondaryCurrency || "PKR")})</span>
-                  <strong className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                    {currencySymbol(goodsEntries[0]?.secondaryCurrency || "PKR")}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </strong>
+                  <span className="block text-[8px] uppercase tracking-wider text-emerald-600 dark:text-emerald-500 font-bold">Grand Final ({currencySymbol(form.currencyType)})</span>
+                  <strong className="text-sm font-black text-emerald-600 font-mono">{currencySymbol(form.currencyType)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                 </div>
               </div>
 
@@ -6053,14 +6106,14 @@ export function PurchaseOrderWizard() {
               {/* Grid: Purchase and Sales accounts side-by-side */}
               <div className="grid grid-cols-2 gap-6 bg-muted/20 border border-border/60 rounded-xl p-4 text-xs">
                 <div className="space-y-1.5">
-                  <h3 className="font-black uppercase tracking-wider text-[10px] text-primary mb-1">Purchase Account</h3>
+                  <h3 className="font-black uppercase tracking-wider text-[10px] text-primary mb-1">Purchase Account (DR)</h3>
                   <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-semibold">{form.purchaseAccountNo}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Account Name:</span> <span className="font-semibold truncate max-w-[180px]">{form.purchaseAccountName}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Currency:</span> <span className="font-bold">{form.purchaseAccountCurrency}</span></div>
                 </div>
 
                 <div className="space-y-1.5 border-l border-border/80 pl-6">
-                  <h3 className="font-black uppercase tracking-wider text-[10px] text-primary mb-1">Sales Account</h3>
+                  <h3 className="font-black uppercase tracking-wider text-[10px] text-primary mb-1">Sales Account (CR)</h3>
                   <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-semibold">{form.salesAccountNo}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Account Name:</span> <span className="font-semibold truncate max-w-[180px]">{form.salesAccountName}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Currency:</span> <span className="font-bold">{form.salesAccountCurrency}</span></div>

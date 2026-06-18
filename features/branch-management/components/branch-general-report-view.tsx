@@ -1,24 +1,27 @@
 "use client";
 
-import type { MouseEvent as ReactMouseEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { 
+  Ban,
   ChevronRight, 
+  Eye,
   Expand,
   FileSpreadsheet, 
+  KeyRound,
   Minimize2, 
+  PencilLine,
   Printer, 
   Search, 
   Mail, 
   PhoneCall,
-  ShieldCheck
+  Shield,
+  ShieldCheck,
+  Users
 } from "lucide-react";
 import { apiGet } from "@/lib/api/client";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 type CityBranchNode = {
@@ -34,6 +37,8 @@ type CityBranchNode = {
   contacts?: unknown;
   createdAt?: string | null;
   updatedAt?: string | null;
+  userCount?: number;
+  users?: BranchUserDetail[];
 };
 
 type MainBranchNode = {
@@ -50,6 +55,8 @@ type MainBranchNode = {
   createdAt?: string | null;
   updatedAt?: string | null;
   cityBranches: CityBranchNode[];
+  userCount?: number;
+  users?: BranchUserDetail[];
 };
 
 type CountryNode = {
@@ -63,6 +70,8 @@ type CountryNode = {
   totalActiveMainBranches: number;
   totalActiveCityBranches: number;
   mainBranches: MainBranchNode[];
+  userCount?: number;
+  users?: BranchUserDetail[];
 };
 
 type SuperAdminBranchNode = {
@@ -88,10 +97,31 @@ type BranchGeneralReportResponse = {
     totalCityBranches: number;
     totalActiveUsers: number;
     totalActiveBranches: number;
+    users?: BranchUserDetail[];
   };
   superAdminBranches: SuperAdminBranchNode[];
   countries: CountryNode[];
   generatedAt: string;
+};
+
+type BranchUserDetail = {
+  id: string;
+  name: string;
+  username: string;
+  temporaryPassword: string | null;
+  mobile: string;
+  email: string;
+  role: string;
+  classification: string;
+  mainUser: boolean;
+  countryName: string;
+  cityName: string;
+  branchName: string;
+  branchCode: string;
+  department: string;
+  permissions: string[];
+  status: string;
+  createdDate: string | null;
 };
 
 function normalizeSearch(value: string) {
@@ -171,6 +201,192 @@ function openSuperAdminBranchEdit(branchId: string) {
   window.location.href = `/dashboard/new-entry/branches/super-admin?editId=${encodeURIComponent(branchId)}`;
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
+}
+
+function openUserProfile(userId: string) {
+  window.location.href = `/dashboard/new-entry/users/journal-report?userId=${encodeURIComponent(userId)}`;
+}
+
+function openUserEdit(userId: string) {
+  window.location.href = `/dashboard/new-entry/users/registration?userId=${encodeURIComponent(userId)}`;
+}
+
+function UserCountButton({
+  count,
+  expanded,
+  onClick,
+  title
+}: {
+  count: number;
+  expanded: boolean;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-[9px] font-black tabular-nums transition-all",
+        expanded
+          ? "border-indigo-300 bg-indigo-600 text-white shadow-sm"
+          : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:border-indigo-300 hover:bg-indigo-100"
+      )}
+    >
+      <Users className="h-3 w-3" />
+      {count}
+      <span className="text-[10px] leading-none">{expanded ? "-" : "+"}</span>
+    </button>
+  );
+}
+
+function BranchUsersPanel({
+  title,
+  hierarchy,
+  users
+}: {
+  title: string;
+  hierarchy: string[];
+  users: BranchUserDetail[];
+}) {
+  const grouped = users.reduce<Record<string, BranchUserDetail[]>>((acc, user) => {
+    const key = user.classification || "Staff User";
+    acc[key] = acc[key] ?? [];
+    acc[key].push(user);
+    return acc;
+  }, {});
+
+  return (
+    <div className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-3 text-left shadow-inner">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-indigo-700">
+            <Users className="h-4 w-4" />
+            {title}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] font-bold text-slate-500">
+            {hierarchy.map((item, index) => (
+              <span key={`${item}-${index}`} className="inline-flex items-center gap-1">
+                <span className="rounded bg-white px-1.5 py-0.5 text-slate-700 ring-1 ring-slate-200">{item || "-"}</span>
+                {index < hierarchy.length - 1 ? <ChevronRight className="h-3 w-3 text-slate-400" /> : null}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-lg border border-indigo-100 bg-white px-3 py-1.5 text-right shadow-sm">
+          <div className="text-[9px] font-black uppercase text-slate-400">Total Users</div>
+          <div className="text-sm font-black text-indigo-700">{users.length}</div>
+        </div>
+      </div>
+
+      {users.length ? (
+        <>
+          <div className="mb-2 grid gap-2 md:grid-cols-3">
+            {Object.entries(grouped).map(([group, list]) => (
+              <div key={group} className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                <div className="text-[9px] font-black uppercase tracking-wide text-slate-500">{group}</div>
+                <div className="mt-1 text-sm font-black text-slate-900">{list.length}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="min-w-[1500px] w-full border-collapse text-[9px]">
+              <thead>
+                <tr className="border-b bg-slate-50 text-center font-black uppercase tracking-wide text-slate-500">
+                  <th className="border-r p-2 text-left">User Name</th>
+                  <th className="border-r p-2">Login ID</th>
+                  <th className="border-r p-2">Temp Password</th>
+                  <th className="border-r p-2">Mobile</th>
+                  <th className="border-r p-2">Email</th>
+                  <th className="border-r p-2">Role</th>
+                  <th className="border-r p-2">Main User</th>
+                  <th className="border-r p-2">Country</th>
+                  <th className="border-r p-2">City</th>
+                  <th className="border-r p-2">Branch</th>
+                  <th className="border-r p-2">Branch Code</th>
+                  <th className="border-r p-2">Department</th>
+                  <th className="border-r p-2">Permissions</th>
+                  <th className="border-r p-2">Status</th>
+                  <th className="border-r p-2">Created</th>
+                  <th className="p-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <tr key={user.id} className="border-b text-center text-slate-700 hover:bg-indigo-50/30">
+                    <td className="border-r p-2 text-left font-bold text-slate-900">{user.name || "-"}</td>
+                    <td className="border-r p-2 font-mono font-black text-indigo-700">{user.username || "-"}</td>
+                    <td className="border-r p-2 font-mono">{user.temporaryPassword || "-"}</td>
+                    <td className="border-r p-2">{user.mobile || "-"}</td>
+                    <td className="border-r p-2">{user.email || "-"}</td>
+                    <td className="border-r p-2">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-black text-slate-700">{user.role || "-"}</span>
+                    </td>
+                    <td className="border-r p-2 font-bold">{user.mainUser ? "Yes" : "No"}</td>
+                    <td className="border-r p-2">{user.countryName || "-"}</td>
+                    <td className="border-r p-2">{user.cityName || "-"}</td>
+                    <td className="border-r p-2">{user.branchName || "-"}</td>
+                    <td className="border-r p-2 font-mono font-bold">{user.branchCode || "-"}</td>
+                    <td className="border-r p-2">{user.department || "-"}</td>
+                    <td className="border-r p-2 text-left">
+                      <div className="max-w-[220px] truncate" title={(user.permissions || []).join(", ")}>
+                        {user.permissions?.length ? user.permissions.slice(0, 4).join(", ") : "-"}
+                        {user.permissions?.length > 4 ? `, +${user.permissions.length - 4} more` : ""}
+                      </div>
+                    </td>
+                    <td className="border-r p-2">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 font-black",
+                          user.status === "Active" ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100" : "bg-rose-50 text-rose-700 ring-1 ring-rose-100"
+                        )}
+                      >
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className="border-r p-2">{formatDateTime(user.createdDate)}</td>
+                    <td className="p-2">
+                      <div className="flex flex-wrap justify-center gap-1">
+                        <button type="button" title="View Profile" aria-label="View Profile" onClick={() => openUserProfile(user.id)} className="rounded border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50">
+                          <Eye className="h-3 w-3" />
+                        </button>
+                        <button type="button" title="Edit User" aria-label="Edit User" onClick={() => openUserEdit(user.id)} className="rounded border border-indigo-200 bg-white p-1 text-indigo-600 hover:bg-indigo-50">
+                          <PencilLine className="h-3 w-3" />
+                        </button>
+                        <button type="button" title="Reset Password" aria-label="Reset Password" onClick={() => alert(`Reset Password: ${user.username}`)} className="rounded border border-amber-200 bg-white p-1 text-amber-600 hover:bg-amber-50">
+                          <KeyRound className="h-3 w-3" />
+                        </button>
+                        <button type="button" title="Disable User" aria-label="Disable User" onClick={() => alert(`Disable User: ${user.username}`)} className="rounded border border-rose-200 bg-white p-1 text-rose-600 hover:bg-rose-50">
+                          <Ban className="h-3 w-3" />
+                        </button>
+                        <button type="button" title="View Permissions" aria-label="View Permissions" onClick={() => alert((user.permissions || []).join("\n") || "No explicit permissions found.")} className="rounded border border-emerald-200 bg-white p-1 text-emerald-600 hover:bg-emerald-50">
+                          <Shield className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-[10px] font-bold text-slate-400">
+          No users are assigned to this hierarchy level yet.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function BranchGeneralReportView({
   title,
   subtitle
@@ -178,9 +394,7 @@ export function BranchGeneralReportView({
   title: string;
   subtitle?: string | null;
 }) {
-  const actionsRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actionsOpen, setActionsOpen] = useState(false);
   const [expandedView, setExpandedView] = useState(false);
   const [data, setData] = useState<BranchGeneralReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -188,6 +402,7 @@ export function BranchGeneralReportView({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchType, setSearchType] = useState(""); // "", "branch", "country", "city"
   const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
+  const [expandedUserScope, setExpandedUserScope] = useState<string | null>(null);
   
   // Popover states
   const [activeContactPopup, setActiveContactPopup] = useState<{ id: string; type: "phone" | "email" } | null>(null);
@@ -206,10 +421,9 @@ export function BranchGeneralReportView({
       const row = json.countryBranches?.[0];
       if (!row) throw new Error("Main branch not found.");
       
-      const contactsArray = Array.isArray(row.contacts) ? row.contacts : [];
-      const phoneVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("phone") || String(c.type || "").toLowerCase().includes("mobile"))?.value || row.phone || "";
-      const emailVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("email"))?.value || row.email || "";
-      const whatsappVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("whatsapp"))?.value || "";
+      const phoneVal = findContactValue(row.contacts, "phone") || findContactValue(row.contacts, "mobile") || row.phone || "";
+      const emailVal = findContactValue(row.contacts, "email") || row.email || "";
+      const whatsappVal = findContactValue(row.contacts, "whatsapp") || "";
 
       const activeLang = typeof document !== "undefined" ? document.documentElement.lang : "en";
       openA4ReportWindow({
@@ -290,10 +504,9 @@ export function BranchGeneralReportView({
       const row = json.cityBranches?.[0];
       if (!row) throw new Error("City branch not found.");
       
-      const contactsArray = Array.isArray(row.contacts) ? row.contacts : [];
-      const phoneVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("phone") || String(c.type || "").toLowerCase().includes("mobile"))?.value || row.phone || "";
-      const emailVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("email"))?.value || row.email || "";
-      const whatsappVal = contactsArray.find((c: any) => String(c.type || "").toLowerCase().includes("whatsapp"))?.value || "";
+      const phoneVal = findContactValue(row.contacts, "phone") || findContactValue(row.contacts, "mobile") || row.phone || "";
+      const emailVal = findContactValue(row.contacts, "email") || row.email || "";
+      const whatsappVal = findContactValue(row.contacts, "whatsapp") || "";
 
       const activeLang = typeof document !== "undefined" ? document.documentElement.lang : "en";
       openA4ReportWindow({
@@ -519,6 +732,10 @@ export function BranchGeneralReportView({
     }));
   }
 
+  function toggleUserScope(scopeId: string) {
+    setExpandedUserScope((current) => (current === scopeId ? null : scopeId));
+  }
+
   const containerClassName = expandedView 
     ? "fixed inset-0 z-50 overflow-auto bg-slate-50 p-4 md:p-6 font-sans text-xs text-slate-800" 
     : "space-y-4 font-sans text-xs text-slate-800 bg-slate-50/50 p-4 rounded-xl border";
@@ -733,8 +950,12 @@ export function BranchGeneralReportView({
                     const phoneContact = findContactValue(branch.contacts, "phone") || branch.phone;
                     const emailContact = findContactValue(branch.contacts, "email") || branch.email;
 
+                    const scopeId = `super-admin-users-${branch.id}`;
+                    const users = data?.summary.users ?? [];
+
                     return (
-                      <tr key={branch.id} className="border-b text-[10px] text-center text-slate-700 hover:bg-slate-50/60 transition-colors">
+                      <Fragment key={branch.id}>
+                      <tr className="border-b text-[10px] text-center text-slate-700 hover:bg-slate-50/60 transition-colors">
                         <td className="p-2.5 border-r border-slate-200 font-bold text-slate-900 text-left">{branch.code}</td>
                         <td className="p-2.5 border-r border-slate-200 font-semibold text-slate-800">{branch.name}</td>
                         <td className="p-2.5 border-r border-slate-200">{branch.companyName}</td>
@@ -744,7 +965,14 @@ export function BranchGeneralReportView({
                         <td className="p-2.5 border-r border-slate-200 font-semibold text-slate-500">SA-1000</td>
                         <td className="p-2.5 border-r border-slate-200 tabular-nums">{data?.summary.totalCountries || 0}</td>
                         <td className="p-2.5 border-r border-slate-200 tabular-nums">{data?.summary.totalCityBranches || 0}</td>
-                        <td className="p-2.5 border-r border-slate-200 tabular-nums">{data?.summary.totalActiveUsers ?? "95+"}</td>
+                        <td className="p-2.5 border-r border-slate-200 tabular-nums">
+                          <UserCountButton
+                            count={users.length || data?.summary.totalActiveUsers || 0}
+                            expanded={expandedUserScope === scopeId}
+                            onClick={() => toggleUserScope(scopeId)}
+                            title="Show all ERP users under Super Admin"
+                          />
+                        </td>
                         <td className="p-2.5 border-r border-slate-200">
                           <div className="flex items-center justify-center gap-1.5">
                             {phoneContact ? (
@@ -788,6 +1016,18 @@ export function BranchGeneralReportView({
                           </button>
                         </td>
                       </tr>
+                      {expandedUserScope === scopeId ? (
+                        <tr className="border-b bg-indigo-50/20">
+                          <td colSpan={12} className="p-3">
+                            <BranchUsersPanel
+                              title="Super Admin User Directory"
+                              hierarchy={["Super Admin", "All Countries", "All Branches", "Users"]}
+                              users={users}
+                            />
+                          </td>
+                        </tr>
+                      ) : null}
+                      </Fragment>
                     );
                   })
                 ) : (
@@ -890,6 +1130,8 @@ export function BranchGeneralReportView({
                     const phoneContact = mainBranch ? (findContactValue(mainBranch.contacts, "phone") || mainBranch.contacts) : "";
                     const emailContact = mainBranch ? (findContactValue(mainBranch.contacts, "email") || mainBranch.contacts) : "";
                     const isExpanded = expandedCountries[country.id] || false;
+                    const countryUserScopeId = `country-users-${country.id}`;
+                    const countryUsers = country.users ?? [];
                     const tags = getCountryTags(country.name);
 
                     return (
@@ -933,7 +1175,14 @@ export function BranchGeneralReportView({
                           <td className="p-2 border-r border-slate-200 font-bold text-slate-800">{country.currency}</td>
                           <td className="p-2 border-r border-slate-200 font-semibold text-slate-500">ACC-2001</td>
                           <td className="p-2 border-r border-slate-200 tabular-nums font-semibold">{country.totalCityBranches}</td>
-                          <td className="p-2 border-r border-slate-200 tabular-nums font-semibold">21</td>
+                          <td className="p-2 border-r border-slate-200 tabular-nums font-semibold">
+                            <UserCountButton
+                              count={countryUsers.length}
+                              expanded={expandedUserScope === countryUserScopeId}
+                              onClick={() => toggleUserScope(countryUserScopeId)}
+                              title={`Show users for ${country.name}`}
+                            />
+                          </td>
                           <td className="p-2 border-r border-slate-200">
                             <div className="flex items-center justify-center gap-1.5">
                               {mainBranch && typeof phoneContact === "string" && phoneContact ? (
@@ -1053,6 +1302,18 @@ export function BranchGeneralReportView({
                           </td>
                         </tr>
 
+                        {expandedUserScope === countryUserScopeId ? (
+                          <tr className="bg-indigo-50/20">
+                            <td colSpan={13} className="p-3">
+                              <BranchUsersPanel
+                                title={`${country.name} Users`}
+                                hierarchy={[country.name, mainBranch?.name || "Main Branch", "All City Branches", "User List"]}
+                                users={countryUsers}
+                              />
+                            </td>
+                          </tr>
+                        ) : null}
+
                         {/* Collapsible Child Sub-Table */}
                         {isExpanded && (
                           <tr className="bg-slate-50/50">
@@ -1075,36 +1336,61 @@ export function BranchGeneralReportView({
                                   </thead>
                                   <tbody>
                                     {mainBranch && mainBranch.cityBranches.length ? (
-                                      mainBranch.cityBranches.map((cityBranch, cIdx) => (
-                                        <tr key={cityBranch.id} className="border-b text-[9px] text-center text-slate-700 hover:bg-slate-50/50">
-                                          <td className="p-2 border-r border-slate-200 font-bold text-slate-900">{country.code}</td>
-                                          <td className="p-2 border-r border-slate-200 text-left">{country.name}</td>
-                                          <td className="p-2 border-r border-slate-200 font-semibold text-slate-500">{mainBranch.code}</td>
-                                          <td className="p-2 border-r border-slate-200 font-bold text-slate-800 text-left">{cityBranch.code}</td>
-                                          <td className="p-2 border-r border-slate-200 font-semibold text-slate-800 text-left">{cityBranch.name}</td>
-                                          <td className="p-2 border-r border-slate-200">{cityBranch.companyId ? "ABC Pvt Ltd" : "ABC Pvt Ltd"}</td>
-                                          <td className="p-2 border-r border-slate-200">{cityBranch.ownerName || "-"}</td>
-                                          <td className="p-2 border-r border-slate-200">{cityBranch.cityName}</td>
-                                          <td className="p-2 border-r border-slate-200 tabular-nums">3</td>
-                                          <td className="p-2">
-                                            <div className="flex items-center justify-center gap-1.5">
-                                              <button
-                                                onClick={() => viewCityBranch(cityBranch.id, country.name, cityBranch.cityName)}
-                                                disabled={viewLoadingId !== null}
-                                                className="rounded border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm transition-all"
-                                              >
-                                                {viewLoadingId === cityBranch.id ? "Loading..." : "View"}
-                                              </button>
-                                              <button
-                                                onClick={() => openCityBranchEdit(cityBranch.id)}
-                                                className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all"
-                                              >
-                                                Edit
-                                              </button>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      ))
+                                      mainBranch.cityBranches.map((cityBranch) => {
+                                        const cityUserScopeId = `city-users-${cityBranch.id}`;
+                                        const cityUsers = cityBranch.users ?? [];
+
+                                        return (
+                                          <Fragment key={cityBranch.id}>
+                                            <tr className="border-b text-[9px] text-center text-slate-700 hover:bg-slate-50/50">
+                                              <td className="p-2 border-r border-slate-200 font-bold text-slate-900">{country.code}</td>
+                                              <td className="p-2 border-r border-slate-200 text-left">{country.name}</td>
+                                              <td className="p-2 border-r border-slate-200 font-semibold text-slate-500">{mainBranch.code}</td>
+                                              <td className="p-2 border-r border-slate-200 font-bold text-slate-800 text-left">{cityBranch.code}</td>
+                                              <td className="p-2 border-r border-slate-200 font-semibold text-slate-800 text-left">{cityBranch.name}</td>
+                                              <td className="p-2 border-r border-slate-200">{cityBranch.companyId ? "ABC Pvt Ltd" : "ABC Pvt Ltd"}</td>
+                                              <td className="p-2 border-r border-slate-200">{cityBranch.ownerName || "-"}</td>
+                                              <td className="p-2 border-r border-slate-200">{cityBranch.cityName}</td>
+                                              <td className="p-2 border-r border-slate-200 tabular-nums">
+                                                <UserCountButton
+                                                  count={cityUsers.length}
+                                                  expanded={expandedUserScope === cityUserScopeId}
+                                                  onClick={() => toggleUserScope(cityUserScopeId)}
+                                                  title={`Show users for ${cityBranch.name}`}
+                                                />
+                                              </td>
+                                              <td className="p-2">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                  <button
+                                                    onClick={() => viewCityBranch(cityBranch.id, country.name, cityBranch.cityName)}
+                                                    disabled={viewLoadingId !== null}
+                                                    className="rounded border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm transition-all"
+                                                  >
+                                                    {viewLoadingId === cityBranch.id ? "Loading..." : "View"}
+                                                  </button>
+                                                  <button
+                                                    onClick={() => openCityBranchEdit(cityBranch.id)}
+                                                    className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all"
+                                                  >
+                                                    Edit
+                                                  </button>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                            {expandedUserScope === cityUserScopeId ? (
+                                              <tr className="bg-indigo-50/20">
+                                                <td colSpan={10} className="p-3">
+                                                  <BranchUsersPanel
+                                                    title={`${cityBranch.name} Users`}
+                                                    hierarchy={[country.name, mainBranch.name, cityBranch.name, "User List"]}
+                                                    users={cityUsers}
+                                                  />
+                                                </td>
+                                              </tr>
+                                            ) : null}
+                                          </Fragment>
+                                        );
+                                      })
                                     ) : (
                                       <tr>
                                         <td colSpan={10} className="p-3 text-center text-slate-400">

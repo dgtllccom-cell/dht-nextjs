@@ -220,8 +220,24 @@ export const purchaseOrderCreateSchema = scopeSchema.extend({
   purchaseContractNo: z.string().trim().max(120).optional(),
 
   currencyCode: currencyCodeSchema.default("USD"),
+  paymentCurrencyCode: currencyCodeSchema.default("USD"),
   exchangeRate: z.coerce.number().finite().positive().default(1),
   orderTotal: z.coerce.number().finite().min(0).default(0),
+
+  totalGoodsOriginal: z.coerce.number().finite().min(0).default(0),
+  totalGoodsLocal: z.coerce.number().finite().min(0).default(0),
+  totalGoodsUsd: z.coerce.number().finite().min(0).default(0),
+  
+  totalExpensesOriginal: z.coerce.number().finite().min(0).default(0),
+  totalExpensesLocal: z.coerce.number().finite().min(0).default(0),
+  totalExpensesUsd: z.coerce.number().finite().min(0).default(0),
+  
+  landedCostOriginal: z.coerce.number().finite().min(0).default(0),
+  landedCostLocal: z.coerce.number().finite().min(0).default(0),
+  landedCostUsd: z.coerce.number().finite().min(0).default(0),
+
+  items: z.array(z.any()).optional(),
+  expenses: z.array(z.any()).optional(),
 
   // Flexible payload (goods, shipping, notes, etc.) until full PO schema is modeled.
   formData: z.unknown().optional(),

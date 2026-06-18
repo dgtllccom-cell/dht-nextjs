@@ -586,29 +586,7 @@ export function PurchaseTransferErpReportView({
               </div>
             )}
           </div>
-        </SectionCard>ard>Name="font-black text-slate-600 uppercase text-[9px] tracking-wider mb-1">Accounting Flow — Purchase Transfer Stage</p>
-            <p>
-              <span className="text-blue-700 font-black">DEBIT:</span>{" "}
-              Purchase Inventory Account (INV) = Goods received into inventory at purchase cost
-            </p>
-            <p>
-              <span className="text-emerald-700 font-black">CREDIT:</span>{" "}
-              Supplier Payable Account (AP) = Liability created against supplier for payment due
-            </p>
-            <div className="border-t border-slate-200 pt-1.5 mt-1.5">
-              <p className="font-black text-slate-600 uppercase text-[9px] tracking-wider mb-1">Payment Posting Stage (on Transfer To Payment)</p>
-              <p>
-                <span className="text-blue-700 font-black">DEBIT:</span>{" "}
-                Supplier Payable Account (AP) = Clears the supplier liability
-              </p>
-              <p>
-                <span className="text-emerald-700 font-black">CREDIT:</span>{" "}
-                Cash / Bank Account = Cash outflow recorded
-              </p>
-            </div>
-          </div>
         </SectionCard>
-
         {/* ── 8. TRANSFER TO PAYMENT CTA ───────────────── */}
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 print:hidden shadow-sm">
           <div className="flex items-center gap-3">

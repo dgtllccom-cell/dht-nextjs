@@ -28,6 +28,22 @@ type CountryBranchRow = {
   deleted_at: string | null;
 };
 
+type SuperAdminBranchRow = {
+  id: string;
+  company_id: string | null;
+  name: string;
+  code: string;
+  currency: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  owner_name: string | null;
+  contacts: unknown;
+  created_at: string | null;
+  updated_at: string | null;
+  companies?: { name?: string | null } | null;
+};
+
 type CityBranchRow = {
   id: string;
   country_id: string;
@@ -48,18 +64,77 @@ type CityBranchRow = {
 
 type AssignmentRow = {
   user_id: string;
+  role: string;
   country_id: string | null;
   country_branch_id: string | null;
   city_branch_id: string | null;
   is_active: boolean;
+  created_at: string | null;
   deleted_at: string | null;
+};
+
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  user_code: string | null;
+  raw_password: string | null;
+  created_at: string | null;
+};
+
+type PermissionSetRow = {
+  user_id: string;
+  permissions: string[] | null;
+};
+
+type AuthUserRow = {
+  id: string;
+  email?: string | null;
+  phone?: string | null;
+  created_at?: string | null;
+  user_metadata?: Record<string, string | null | undefined>;
+};
+
+type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
+
+type BranchUserDetail = {
+  id: string;
+  name: string;
+  username: string;
+  temporaryPassword: string | null;
+  mobile: string;
+  email: string;
+  role: string;
+  classification: string;
+  mainUser: boolean;
+  countryName: string;
+  cityName: string;
+  branchName: string;
+  branchCode: string;
+  department: string;
+  permissions: string[];
+  status: string;
+  createdDate: string | null;
 };
 
 function unique(values: Array<string | null | undefined>) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
-async function resolveAccessibleCountryIds(admin: any, session: Awaited<ReturnType<typeof requireErpSession>>) {
+function roleClassification(role: string) {
+  const normalized = String(role || "").toLowerCase();
+  if (normalized === "super_admin") return "Super Admin User";
+  if (normalized === "country_admin") return "Country Admin User";
+  if (normalized === "country_user") return "Main Country User";
+  if (normalized === "main_branch_admin") return "Main Branch User";
+  if (normalized === "city_branch_admin") return "City Branch User";
+  return "Staff User";
+}
+
+function isMainUserRole(role: string) {
+  return ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin"].includes(String(role || "").toLowerCase());
+}
+
+async function resolveAccessibleCountryIds(admin: AdminClient, session: Awaited<ReturnType<typeof requireErpSession>>) {
   if (session.isSuperAdmin) return null;
 
   const ids = new Set<string>(session.countryIds);
@@ -92,7 +167,7 @@ async function resolveAccessibleCountryIds(admin: any, session: Awaited<ReturnTy
 export async function GET() {
   try {
     const session = await requireErpSession();
-    const admin = createSupabaseAdminClient() as any;
+    const admin = createSupabaseAdminClient();
 
     const accessibleCountryIds = await resolveAccessibleCountryIds(admin, session);
 
@@ -103,7 +178,7 @@ export async function GET() {
       .is("deleted_at", null);
 
     if (superAdminBranchError) throw new Error(superAdminBranchError.message);
-    const superAdminBranches = (superAdminBranchData ?? []).map((branch: any) => ({
+    const superAdminBranches = ((superAdminBranchData ?? []) as SuperAdminBranchRow[]).map((branch) => ({
       id: branch.id,
       name: branch.name,
       code: branch.code,
@@ -127,7 +202,8 @@ export async function GET() {
             totalMainBranches: 0,
             totalCityBranches: 0,
             totalActiveUsers: 0,
-            totalActiveBranches: 0
+            totalActiveBranches: 0,
+            users: []
           },
           superAdminBranches,
           countries: [],
@@ -169,7 +245,7 @@ export async function GET() {
 
     const assignmentsQuery = admin
       .from("user_role_assignments")
-      .select("user_id, country_id, country_branch_id, city_branch_id, is_active, deleted_at")
+      .select("user_id, role, country_id, country_branch_id, city_branch_id, is_active, created_at, deleted_at")
       .eq("is_active", true)
       .is("deleted_at", null);
     const { data: assignmentData, error: assignmentError } = await assignmentsQuery;
@@ -178,6 +254,40 @@ export async function GET() {
     const countryBranches = (countryBranchData ?? []) as CountryBranchRow[];
     const cityBranches = (cityBranchData ?? []) as CityBranchRow[];
     const assignments = (assignmentData ?? []) as AssignmentRow[];
+    const assignedUserIds = unique(assignments.map((assignment) => assignment.user_id));
+
+    const [profileRes, permissionRes, authUsersRes] = await Promise.all([
+      assignedUserIds.length
+        ? admin
+            .from("profiles")
+            .select("id, full_name, user_code, raw_password, created_at")
+            .in("id", assignedUserIds)
+            .is("deleted_at", null)
+        : Promise.resolve({ data: [], error: null }),
+      assignedUserIds.length
+        ? admin
+            .from("user_permission_sets")
+            .select("user_id, permissions")
+            .in("user_id", assignedUserIds)
+            .is("deleted_at", null)
+        : Promise.resolve({ data: [], error: null }),
+      admin.auth.admin.listUsers({ perPage: 1000 }).then((res) => ({
+        data: res.data?.users ?? [],
+        error: res.error ?? null
+      }))
+    ]);
+
+    if (profileRes.error) throw new Error(profileRes.error.message);
+    if (permissionRes.error) throw new Error(permissionRes.error.message);
+
+    const profilesById = new Map(((profileRes.data ?? []) as ProfileRow[]).map((profile) => [profile.id, profile] as const));
+    const permissionsByUser = new Map(
+      ((permissionRes.data ?? []) as PermissionSetRow[]).map((row) => [
+        row.user_id,
+        Array.isArray(row.permissions) ? row.permissions.filter(Boolean) : []
+      ] as const)
+    );
+    const authUsersById = new Map(((authUsersRes.data ?? []) as AuthUserRow[]).map((user) => [user.id, user] as const));
 
     const countryBranchByCountry = new Map<string, CountryBranchRow[]>();
     for (const branch of countryBranches) {
@@ -195,6 +305,69 @@ export async function GET() {
 
     const mainBranchIds = countryBranches.map((branch) => branch.id);
     const cityBranchIds = cityBranches.map((branch) => branch.id);
+    const countriesById = new Map(countries.map((country) => [country.id, country] as const));
+    const countryBranchesById = new Map(countryBranches.map((branch) => [branch.id, branch] as const));
+    const cityBranchesById = new Map(cityBranches.map((branch) => [branch.id, branch] as const));
+
+    function buildUserDetail(assignment: AssignmentRow): BranchUserDetail | null {
+      const profile = profilesById.get(assignment.user_id);
+      const authUser = authUsersById.get(assignment.user_id);
+      if (!profile && !authUser) return null;
+      const country = assignment.country_id ? countriesById.get(assignment.country_id) : null;
+      const mainBranch = assignment.country_branch_id ? countryBranchesById.get(assignment.country_branch_id) : null;
+      const cityBranch = assignment.city_branch_id ? cityBranchesById.get(assignment.city_branch_id) : null;
+      const fallbackCountry = cityBranch?.country_id ? countriesById.get(cityBranch.country_id) : mainBranch?.country_id ? countriesById.get(mainBranch.country_id) : null;
+      const fallbackMainBranch = cityBranch?.country_branch_id ? countryBranchesById.get(cityBranch.country_branch_id) : null;
+      const metadata = authUser?.user_metadata ?? {};
+      const role = assignment.role || "staff_user";
+
+      return {
+        id: assignment.user_id,
+        name: profile?.full_name || metadata.full_name || authUser?.email || "Unnamed User",
+        username: profile?.user_code || metadata.user_code || authUser?.email || assignment.user_id,
+        temporaryPassword: profile?.raw_password || null,
+        mobile: metadata.phone || metadata.mobile || authUser?.phone || "",
+        email: authUser?.email || "",
+        role,
+        classification: roleClassification(role),
+        mainUser: isMainUserRole(role),
+        countryName: country?.name || fallbackCountry?.name || "-",
+        cityName: cityBranch?.city_name || "-",
+        branchName: cityBranch?.name || mainBranch?.name || fallbackMainBranch?.name || "-",
+        branchCode: cityBranch?.code || mainBranch?.code || fallbackMainBranch?.code || "-",
+        department: metadata.department || metadata.team || "-",
+        permissions: permissionsByUser.get(assignment.user_id) ?? [],
+        status: assignment.is_active ? "Active" : "Inactive",
+        createdDate: assignment.created_at || profile?.created_at || authUser?.created_at || null
+      };
+    }
+
+    const usersByCountry = new Map<string, BranchUserDetail[]>();
+    const usersByMainBranch = new Map<string, BranchUserDetail[]>();
+    const usersByCityBranch = new Map<string, BranchUserDetail[]>();
+    const allUserDetails: BranchUserDetail[] = [];
+
+    for (const assignment of assignments) {
+      const detail = buildUserDetail(assignment);
+      if (!detail) continue;
+      allUserDetails.push(detail);
+
+      if (assignment.country_id) {
+        const list = usersByCountry.get(assignment.country_id) ?? [];
+        list.push(detail);
+        usersByCountry.set(assignment.country_id, list);
+      }
+      if (assignment.country_branch_id) {
+        const list = usersByMainBranch.get(assignment.country_branch_id) ?? [];
+        list.push(detail);
+        usersByMainBranch.set(assignment.country_branch_id, list);
+      }
+      if (assignment.city_branch_id) {
+        const list = usersByCityBranch.get(assignment.city_branch_id) ?? [];
+        list.push(detail);
+        usersByCityBranch.set(assignment.city_branch_id, list);
+      }
+    }
 
     const allowedCountryIds = accessibleCountryIds ?? countryIds;
     const activeUserIds = new Set<string>();
@@ -227,6 +400,8 @@ export async function GET() {
         contacts: branch.contacts,
         createdAt: branch.created_at,
         updatedAt: branch.updated_at,
+        userCount: usersByMainBranch.get(branch.id)?.length ?? 0,
+        users: usersByMainBranch.get(branch.id) ?? [],
         cityBranches: (cityBranchByCountryBranch.get(branch.id) ?? []).map((cityBranch) => ({
           id: cityBranch.id,
           cityName: cityBranch.city_name,
@@ -239,7 +414,9 @@ export async function GET() {
           ownerName: cityBranch.owner_name,
           contacts: cityBranch.contacts,
           createdAt: cityBranch.created_at,
-          updatedAt: cityBranch.updated_at
+          updatedAt: cityBranch.updated_at,
+          userCount: usersByCityBranch.get(cityBranch.id)?.length ?? 0,
+          users: usersByCityBranch.get(cityBranch.id) ?? []
         }))
       }));
 
@@ -259,6 +436,8 @@ export async function GET() {
           (sum, branch) => sum + branch.cityBranches.filter((cityBranch) => cityBranch.status === "active").length,
           0
         ),
+        userCount: usersByCountry.get(country.id)?.length ?? 0,
+        users: usersByCountry.get(country.id) ?? [],
         mainBranches
       };
     });
@@ -273,7 +452,8 @@ export async function GET() {
           totalActiveUsers: activeUserIds.size,
           totalActiveBranches:
             countryBranches.filter((branch) => branch.status === "active").length +
-            cityBranches.filter((branch) => branch.status === "active").length
+            cityBranches.filter((branch) => branch.status === "active").length,
+          users: allUserDetails
         },
         superAdminBranches,
         countries: countriesPayload,

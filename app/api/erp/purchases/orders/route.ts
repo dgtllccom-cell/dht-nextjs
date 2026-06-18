@@ -181,9 +181,23 @@ export async function POST(request: NextRequest) {
       purchase_order_no: purchaseOrderNo,
       purchase_contract_no: body.purchaseContractNo?.trim() || null,
       supplier_company_id: body.supplierCompanyId ?? null,
-      currency_code: body.currencyCode,
+      
+      purchase_currency: body.currencyCode || "USD",
+      payment_currency: body.paymentCurrencyCode || "USD",
+      currency_code: body.currencyCode, // Legacy column support
       exchange_rate: body.exchangeRate,
       order_total: body.orderTotal,
+      
+      total_goods_original: body.totalGoodsOriginal,
+      total_goods_local: body.totalGoodsLocal,
+      total_goods_usd: body.totalGoodsUsd,
+      total_expenses_original: body.totalExpensesOriginal,
+      total_expenses_local: body.totalExpensesLocal,
+      total_expenses_usd: body.totalExpensesUsd,
+      landed_cost_original: body.landedCostOriginal,
+      landed_cost_local: body.landedCostLocal,
+      landed_cost_usd: body.landedCostUsd,
+
       form_data: body.formData ?? null,
       payment_status: paymentStatus,
       ledger_posting_status: ledgerPostingStatus,
@@ -196,6 +210,45 @@ export async function POST(request: NextRequest) {
     );
 
     const orderId = (inserted as any).id;
+
+    if (body.items && body.items.length > 0) {
+      const itemsPayload = body.items.map((it: any) => ({
+        purchase_order_id: orderId,
+        product_id: it.productId || null,
+        goods_name: it.goodsName || "Unknown",
+        hs_code: it.hsCode || null,
+        size: it.size || null,
+        brand: it.brand || null,
+        origin: it.origin || null,
+        quantity: it.quantity || 0,
+        unit_name: it.unitName || "pcs",
+        unit_weight: it.unitWeight || 0,
+        gross_weight: it.grossWeight || 0,
+        net_weight: it.netWeight || 0,
+        rate_original: it.rateOriginal || 0,
+        rate_local: it.rateLocal || 0,
+        rate_usd: it.rateUsd || 0,
+        total_original: it.totalOriginal || 0,
+        total_local: it.totalLocal || 0,
+        total_usd: it.totalUsd || 0
+      }));
+      await requireSupabaseData(supabase.from("purchase_order_items").insert(itemsPayload));
+    }
+
+    if (body.expenses && body.expenses.length > 0) {
+      const expPayload = body.expenses.map((ex: any) => ({
+        purchase_order_id: orderId,
+        expense_type: ex.expenseType,
+        ledger_id: ex.ledgerId || null,
+        description: ex.description || null,
+        expense_currency: ex.expenseCurrency || "USD",
+        exchange_rate: ex.exchangeRate || 1,
+        amount_original: ex.amountOriginal || 0,
+        amount_local: ex.amountLocal || 0,
+        amount_usd: ex.amountUsd || 0
+      }));
+      await requireSupabaseData(supabase.from("purchase_order_expenses").insert(expPayload));
+    }
 
     if (ledgerPostingStatus === "posted") {
       const entryDate = form.advancePaymentDate || form.purchaseDate || new Date().toISOString().slice(0, 10);
