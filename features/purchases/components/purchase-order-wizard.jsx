@@ -35,6 +35,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CustomerPicker } from "@/features/customers/components/customer-picker";
 import { CompanyPicker } from "@/features/companies/components/company-picker";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-window";
 import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
 import { PurchaseBookingJournalReportView } from "./purchase-booking-journal-report-view";
@@ -4960,34 +4961,26 @@ export function PurchaseOrderWizard() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
-                              <select
+                              <SearchableSelect
                                 value={form.loadingCountry || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
-                                    e.target.value = form.loadingCountry || "";
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     setNewCountryModal(true);
                                     return;
                                   }
-                                  setValue("loadingCountry", e.target.value);
+                                  setValue("loadingCountry", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Country</option>
-                                {transitCountryOptions.map((c) => (
-                                  <option key={c.id} value={c.name}>{c.name}</option>
-                                ))}
-                                {form.loadingCountry && !transitCountryOptions.some(c => c.name === form.loadingCountry) && (
-                                  <option value={form.loadingCountry}>{form.loadingCountry}</option>
-                                )}
-                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
-                              </select>
+                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
+                                placeholder="Select Country"
+                                addOptionLabel="Add New Country..."
+                              />
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Port</label>
-                              <select
+                              <SearchableSelect
                                 value={form.loadingPort || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     if (!form.loadingCountry) {
                                       alert("Please select Loading Country first.");
                                       return;
@@ -5001,21 +4994,12 @@ export function PurchaseOrderWizard() {
                                     setNewPortModal(true);
                                     return;
                                   }
-                                  setValue("loadingPort", e.target.value);
+                                  setValue("loadingPort", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Port</option>
-                                {seaLoadingPorts.map((p) => (
-                                  <option key={p.id} value={p.port_name}>{p.port_name}</option>
-                                ))}
-                                {form.loadingPort && !seaLoadingPorts.some(p => p.port_name === form.loadingPort) && (
-                                  <option value={form.loadingPort}>{form.loadingPort}</option>
-                                )}
-                                {form.loadingCountry && (
-                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Port...</option>
-                                )}
-                              </select>
+                                options={seaLoadingPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
+                                placeholder="Select Port"
+                                addOptionLabel={form.loadingCountry ? "Add New Port..." : undefined}
+                              />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
@@ -5030,36 +5014,28 @@ export function PurchaseOrderWizard() {
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
-                              <select
+                              <SearchableSelect
                                 value={form.receivedCountry || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
-                                    e.target.value = form.receivedCountry || "";
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     setNewCountryModal(true);
                                     return;
                                   }
-                                  setValue("receivedCountry", e.target.value);
+                                  setValue("receivedCountry", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Country</option>
-                                {transitCountryOptions.map((c) => (
-                                  <option key={c.id} value={c.name}>{c.name}</option>
-                                ))}
-                                {form.receivedCountry && !transitCountryOptions.some(c => c.name === form.receivedCountry) && (
-                                  <option value={form.receivedCountry}>{form.receivedCountry}</option>
-                                )}
-                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
-                              </select>
+                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
+                                placeholder="Select Country"
+                                addOptionLabel="Add New Country..."
+                              />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Port</label>
-                              <select
+                              <SearchableSelect
                                 value={form.receivedPort || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     if (!form.receivedCountry) {
                                       alert("Please select Received Country first.");
                                       return;
@@ -5073,21 +5049,12 @@ export function PurchaseOrderWizard() {
                                     setNewPortModal(true);
                                     return;
                                   }
-                                  setValue("receivedPort", e.target.value);
+                                  setValue("receivedPort", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Port</option>
-                                {seaReceivedPorts.map((p) => (
-                                  <option key={p.id} value={p.port_name}>{p.port_name}</option>
-                                ))}
-                                {form.receivedPort && !seaReceivedPorts.some(p => p.port_name === form.receivedPort) && (
-                                  <option value={form.receivedPort}>{form.receivedPort}</option>
-                                )}
-                                {form.receivedCountry && (
-                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Port...</option>
-                                )}
-                              </select>
+                                options={seaReceivedPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
+                                placeholder="Select Port"
+                                addOptionLabel={form.receivedCountry ? "Add New Port..." : undefined}
+                              />
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Date</label>
@@ -5132,34 +5099,26 @@ export function PurchaseOrderWizard() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
-                              <select
+                              <SearchableSelect
                                 value={form.loadingCountry || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
-                                    e.target.value = form.loadingCountry || "";
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     setNewCountryModal(true);
                                     return;
                                   }
-                                  setValue("loadingCountry", e.target.value);
+                                  setValue("loadingCountry", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Country</option>
-                                {transitCountryOptions.map((c) => (
-                                  <option key={c.id} value={c.name}>{c.name}</option>
-                                ))}
-                                {form.loadingCountry && !transitCountryOptions.some(c => c.name === form.loadingCountry) && (
-                                  <option value={form.loadingCountry}>{form.loadingCountry}</option>
-                                )}
-                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
-                              </select>
+                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
+                                placeholder="Select Country"
+                                addOptionLabel="Add New Country..."
+                              />
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Border</label>
-                              <select
+                              <SearchableSelect
                                 value={form.loadingBorder || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     if (!form.loadingCountry) {
                                       alert("Please select Loading Country first.");
                                       return;
@@ -5173,21 +5132,12 @@ export function PurchaseOrderWizard() {
                                     setNewPortModal(true);
                                     return;
                                   }
-                                  setValue("loadingBorder", e.target.value);
+                                  setValue("loadingBorder", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Border</option>
-                                {roadLoadingPorts.map((p) => (
-                                  <option key={p.id} value={p.port_name}>{p.port_name}</option>
-                                ))}
-                                {form.loadingBorder && !roadLoadingPorts.some(p => p.port_name === form.loadingBorder) && (
-                                  <option value={form.loadingBorder}>{form.loadingBorder}</option>
-                                )}
-                                {form.loadingCountry && (
-                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Border...</option>
-                                )}
-                              </select>
+                                options={roadLoadingPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
+                                placeholder="Select Border"
+                                addOptionLabel={form.loadingCountry ? "Add New Border..." : undefined}
+                              />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
@@ -5202,36 +5152,28 @@ export function PurchaseOrderWizard() {
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
-                              <select
+                              <SearchableSelect
                                 value={form.receivedCountry || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
-                                    e.target.value = form.receivedCountry || "";
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     setNewCountryModal(true);
                                     return;
                                   }
-                                  setValue("receivedCountry", e.target.value);
+                                  setValue("receivedCountry", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Country</option>
-                                {transitCountryOptions.map((c) => (
-                                  <option key={c.id} value={c.name}>{c.name}</option>
-                                ))}
-                                {form.receivedCountry && !transitCountryOptions.some(c => c.name === form.receivedCountry) && (
-                                  <option value={form.receivedCountry}>{form.receivedCountry}</option>
-                                )}
-                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
-                              </select>
+                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
+                                placeholder="Select Country"
+                                addOptionLabel="Add New Country..."
+                              />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Border</label>
-                              <select
+                              <SearchableSelect
                                 value={form.receivedBorder || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     if (!form.receivedCountry) {
                                       alert("Please select Received Country first.");
                                       return;
@@ -5245,21 +5187,12 @@ export function PurchaseOrderWizard() {
                                     setNewPortModal(true);
                                     return;
                                   }
-                                  setValue("receivedBorder", e.target.value);
+                                  setValue("receivedBorder", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Border</option>
-                                {roadReceivedPorts.map((p) => (
-                                  <option key={p.id} value={p.port_name}>{p.port_name}</option>
-                                ))}
-                                {form.receivedBorder && !roadReceivedPorts.some(p => p.port_name === form.receivedBorder) && (
-                                  <option value={form.receivedBorder}>{form.receivedBorder}</option>
-                                )}
-                                {form.receivedCountry && (
-                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Border...</option>
-                                )}
-                              </select>
+                                options={roadReceivedPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
+                                placeholder="Select Border"
+                                addOptionLabel={form.receivedCountry ? "Add New Border..." : undefined}
+                              />
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Date</label>
@@ -5279,34 +5212,26 @@ export function PurchaseOrderWizard() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
-                              <select
+                              <SearchableSelect
                                 value={form.loadingCountry || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
-                                    e.target.value = form.loadingCountry || "";
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     setNewCountryModal(true);
                                     return;
                                   }
-                                  setValue("loadingCountry", e.target.value);
+                                  setValue("loadingCountry", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Country</option>
-                                {transitCountryOptions.map((c) => (
-                                  <option key={c.id} value={c.name}>{c.name}</option>
-                                ))}
-                                {form.loadingCountry && !transitCountryOptions.some(c => c.name === form.loadingCountry) && (
-                                  <option value={form.loadingCountry}>{form.loadingCountry}</option>
-                                )}
-                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
-                              </select>
+                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
+                                placeholder="Select Country"
+                                addOptionLabel="Add New Country..."
+                              />
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Airport Name</label>
-                              <select
+                              <SearchableSelect
                                 value={form.airportName || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     if (!form.loadingCountry) {
                                       alert("Please select Loading Country first.");
                                       return;
@@ -5320,21 +5245,12 @@ export function PurchaseOrderWizard() {
                                     setNewPortModal(true);
                                     return;
                                   }
-                                  setValue("airportName", e.target.value);
+                                  setValue("airportName", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Airport</option>
-                                {airLoadingPorts.map((p) => (
-                                  <option key={p.id} value={p.port_name}>{p.port_name}</option>
-                                ))}
-                                {form.airportName && !airLoadingPorts.some(p => p.port_name === form.airportName) && (
-                                  <option value={form.airportName}>{form.airportName}</option>
-                                )}
-                                {form.loadingCountry && (
-                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Airport...</option>
-                                )}
-                              </select>
+                                options={airLoadingPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
+                                placeholder="Select Airport"
+                                addOptionLabel={form.loadingCountry ? "Add New Airport..." : undefined}
+                              />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
@@ -5361,34 +5277,26 @@ export function PurchaseOrderWizard() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
-                              <select
+                              <SearchableSelect
                                 value={form.receivedCountry || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_COUNTRY__") {
-                                    e.target.value = form.receivedCountry || "";
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     setNewCountryModal(true);
                                     return;
                                   }
-                                  setValue("receivedCountry", e.target.value);
+                                  setValue("receivedCountry", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Country</option>
-                                {transitCountryOptions.map((c) => (
-                                  <option key={c.id} value={c.name}>{c.name}</option>
-                                ))}
-                                {form.receivedCountry && !transitCountryOptions.some(c => c.name === form.receivedCountry) && (
-                                  <option value={form.receivedCountry}>{form.receivedCountry}</option>
-                                )}
-                                <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
-                              </select>
+                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
+                                placeholder="Select Country"
+                                addOptionLabel="Add New Country..."
+                              />
                             </div>
                             <div>
                               <label className="block text-[9px] text-muted-foreground mb-0.5">Received Airport Name</label>
-                              <select
+                              <SearchableSelect
                                 value={form.receivedPortName || ""}
-                                onChange={(e) => {
-                                  if (e.target.value === "__ADD_NEW_PORT__") {
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
                                     if (!form.receivedCountry) {
                                       alert("Please select Received Country first.");
                                       return;
@@ -5402,21 +5310,12 @@ export function PurchaseOrderWizard() {
                                     setNewPortModal(true);
                                     return;
                                   }
-                                  setValue("receivedPortName", e.target.value);
+                                  setValue("receivedPortName", val);
                                 }}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                <option value="">Select Airport</option>
-                                {airReceivedPorts.map((p) => (
-                                  <option key={p.id} value={p.port_name}>{p.port_name}</option>
-                                ))}
-                                {form.receivedPortName && !airReceivedPorts.some(p => p.port_name === form.receivedPortName) && (
-                                  <option value={form.receivedPortName}>{form.receivedPortName}</option>
-                                )}
-                                {form.receivedCountry && (
-                                  <option value="__ADD_NEW_PORT__" className="text-primary font-semibold">+ Add New Airport...</option>
-                                )}
-                              </select>
+                                options={airReceivedPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
+                                placeholder="Select Airport"
+                                addOptionLabel={form.receivedCountry ? "Add New Airport..." : undefined}
+                              />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
