@@ -4254,7 +4254,7 @@ export function PurchaseOrderWizard() {
                           <td className="px-2 py-2.5 text-center font-mono text-muted-foreground">{row.divideWeight || 1}</td>
                           
                           {/* Purchase Amount details */}
-                          <td className="px-2 py-2.5 text-center font-bold text-yellow-600 dark:text-yellow-450 bg-primary/5">{row.purchaseCurrency || form.purchaseCurrency || form.currencyType}</td>
+                          <td className="px-2 py-2.5 text-center font-bold text-yellow-600 dark:text-yellow-450 bg-primary/5">{row.currencyType || form.currencyType || "USD"}</td>
                           <td className="px-2 py-2.5 text-right font-mono bg-primary/5">{row.coursePrice.toFixed(2)}</td>
                           <td className="px-2 py-2.5 text-right font-mono bg-primary/5">{row.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           

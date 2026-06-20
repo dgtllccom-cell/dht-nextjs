@@ -1511,7 +1511,7 @@ export function PurchaseBookingJournalReportView({
                 ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
                 : Number(report.purchaseAmount || report.totalPurchaseAmount || 0);
               const purchaseAmt = Number(report.purchaseAmount || report.totalPurchaseAmount || 0);
-              const exchangeRate = Number(g0?.exchangeRate || g0?.rate2 || report.exchange_rate || 0);
+              const exchangeRate = Number(g0?.exchangeRate || g0?.rate2 || report.form_data?.form?.exchangeRate || report.exchange_rate || 0);
               const finalAmt = goods.length > 0
                 ? goods.reduce((sum: number, g: any) => sum + Number(g.finalAmount || 0), 0)
                 : Number(report.finalAmount || 0);
@@ -1522,8 +1522,8 @@ export function PurchaseBookingJournalReportView({
                 || report.form_data?.form?.paymentCondition
                 || report.paymentStatus || "-";
               const currency = report.currency || "USD";
-              const localCurrency = report.form_data?.form?.secondaryCurrency?.split(" ")?.[0]
-                || report.form_data?.form?.localCurrency || "PKR";
+              const localCurrency = report.form_data?.form?.purchaseAccountCurrency 
+                || report.form_data?.form?.salesAccountCurrency || "PKR";
 
               // ── Route & Loading ──────────────────────────────────────────
               const routeRaw = report.form_data?.form?.shippingMode

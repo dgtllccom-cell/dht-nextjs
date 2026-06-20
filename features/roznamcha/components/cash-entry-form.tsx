@@ -757,23 +757,8 @@ export function CashEntryForm({
       }
     })();
 
-    (async () => {
-      setLoadingLedgers(true);
-      try {
-        const res = await listLedgerReportLedgers({
-          reportScope: "super_admin",
-          limit: 500
-        });
-        if (!cancelled) {
-          const rows = Array.isArray(res.ledgers) ? res.ledgers : [];
-          setLedgers(rows);
-        }
-      } catch (e) {
-        console.error("Failed to load global accounts", e);
-      } finally {
-        if (!cancelled) setLoadingLedgers(false);
-      }
-    })();
+    // Ledgers are now only fetched when the branch scope is selected (in the second useEffect).
+    // This prevents global ledgers from overwriting branch-specific ledgers.
 
     return () => {
       cancelled = true;

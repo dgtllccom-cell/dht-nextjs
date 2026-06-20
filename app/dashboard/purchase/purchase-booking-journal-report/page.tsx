@@ -2,6 +2,6 @@ import { PurchaseOrderWizard } from "@/features/purchases/components/purchase-or
 import { requireErpSession } from "@/lib/auth/session";
 
 export default async function PurchaseBookingJournalReportPage() {
-  await requireErpSession();
-  return <PurchaseOrderWizard />;
+  const session = await requireErpSession();
+  return <PurchaseOrderWizard session={session} initialTab="report" />;
 }
