@@ -2,6 +2,7 @@
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { BookOpen, Download, Eye, FileText, Filter, Link2, Maximize2, MoreVertical, Printer, RefreshCcw, Search, Globe, Building2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -770,6 +771,11 @@ export function SuperAdminRoznamchaReportView({
     setClientSession({ printDate, printTime, system });
   }, []);
 
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPortalNode(document.getElementById("erp-page-actions-slot"));
+  }, []);
+
   useEffect(() => {
     if (!visibleRows.length) {
       if (selectedId) setSelectedId("");
@@ -1043,33 +1049,14 @@ export function SuperAdminRoznamchaReportView({
   const uaeStr = uaeVal !== 0 ? formatCompact(Math.abs(uaeVal)) : "1.7M";
   const afgStr = afgVal !== 0 ? formatCompact(Math.abs(afgVal)) : "1.0M";
 
-  return (
-    <div className="mx-auto max-w-[1680px] space-y-3 bg-[#f7f8fb] px-3 py-3 text-[12.5px] md:px-4">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1 className="m-0 text-xl font-bold tracking-tight text-slate-950">
-            {typeFilter === "super_admin"
-              ? "Super Admin Roznamcha Report"
-              : typeFilter === "country"
-                ? "Country Roznamcha Report"
-                : "City Roznamcha Report"}
-          </h1>
-          <p className="m-0 text-xs text-slate-500 font-semibold mt-1">
-            {typeFilter === "super_admin"
-              ? "Country + Branch daily journal - USD rate used in table columns only (not in summary)"
-              : typeFilter === "country"
-                ? "Country wise daily Roznamcha details with account, branch, debit and credit activity."
-                : "Branch wise daily Roznamcha details with account, debit and credit activity."}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+  const filtersContent = (
+        <div className="flex flex-wrap items-center gap-1.5 ml-2 border-l pl-2 border-slate-200 dark:border-slate-800">
           {/* 1. Date Range Dropdown Popover */}
           <div className="relative" ref={(el) => { dateRef.current = el; }}>
             <button
               type="button"
               onClick={() => setDateOpen(!dateOpen)}
-              className="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm flex items-center gap-1.5 hover:bg-slate-50 outline-none"
+              className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm flex items-center gap-1 hover:bg-slate-50 outline-none"
             >
               <span>📅 {appliedFilters.fromDate} to {appliedFilters.toDate}</span>
             </button>
@@ -1133,7 +1120,7 @@ export function SuperAdminRoznamchaReportView({
               setDraftFilters((cur) => ({ ...cur, countryId: val, branchId: "all" }));
               setAppliedFilters((cur) => ({ ...cur, countryId: val, branchId: "all" }));
             }}
-            triggerClassName="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500 min-w-[140px]"
+            triggerClassName="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm outline-none focus:border-blue-500 w-[110px]"
           />
 
           {/* 3. Branch Dropdown */}
@@ -1147,7 +1134,7 @@ export function SuperAdminRoznamchaReportView({
               setDraftFilters((cur) => ({ ...cur, branchId: val }));
               setAppliedFilters((cur) => ({ ...cur, branchId: val }));
             }}
-            triggerClassName="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500 min-w-[140px]"
+            triggerClassName="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm outline-none focus:border-blue-500 w-[110px]"
           />
 
           {/* 4. Voucher Type Dropdown */}
@@ -1161,14 +1148,14 @@ export function SuperAdminRoznamchaReportView({
               setDraftFilters((cur) => ({ ...cur, voucherType: val }));
               setAppliedFilters((cur) => ({ ...cur, voucherType: val }));
             }}
-            triggerClassName="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500 min-w-[140px]"
+            triggerClassName="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm outline-none focus:border-blue-500 w-[100px]"
           />
 
           {/* 5. Account / Party Search Input */}
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
             <Input
-              className="h-8 pl-8 text-xs rounded-full border-slate-200 bg-white min-w-[160px] w-auto max-w-[200px]"
+              className="h-7 pl-6 text-[10px] rounded-md border-slate-200 bg-white w-[130px]"
               value={draftFilters.partySearch}
               onChange={(e) => {
                 const val = e.target.value;
@@ -1184,7 +1171,7 @@ export function SuperAdminRoznamchaReportView({
             <button
               type="button"
               onClick={() => setExchangeOpen(!exchangeOpen)}
-              className="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm flex items-center gap-1.5 hover:bg-slate-50 outline-none"
+              className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-blue-600 shadow-sm flex items-center gap-1 hover:bg-slate-50 outline-none"
             >
               <span>💱 Rates</span>
             </button>
@@ -1280,8 +1267,9 @@ export function SuperAdminRoznamchaReportView({
             variant="outline"
             size="sm"
             onClick={() => openSelectedReport(true, "journal")}
-            className="h-8 rounded-lg bg-white font-bold border-slate-200 hover:bg-slate-50 shadow-sm"
+            className="h-7 rounded-md bg-white text-[10px] font-bold border-slate-200 hover:bg-slate-50 shadow-sm"
           >
+            <Printer className="mr-1 h-3 w-3" />
             Print
           </Button>
 
@@ -1291,14 +1279,14 @@ export function SuperAdminRoznamchaReportView({
               type="button"
               variant="outline"
               size="icon"
-              className="h-8 w-8 rounded-lg bg-white border-slate-200 hover:bg-slate-50 shadow-sm flex items-center justify-center p-0"
+              className="h-7 w-7 rounded-md bg-white border-slate-200 hover:bg-slate-50 shadow-sm flex items-center justify-center p-0"
               aria-label="Report actions"
               onClick={() => setMenuOpen((v) => !v)}
             >
-              <MoreVertical className="h-4 w-4" aria-hidden />
+              <MoreVertical className="h-3 w-3" aria-hidden />
             </Button>
             {menuOpen ? (
-              <div className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl text-left">
+              <div className="absolute right-0 top-full z-[60] mt-1 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl text-left">
                 {onTypeFilterChange ? (
                   <>
                     <MenuAction icon={<Eye className="h-4 w-4" />} label="Super Admin View" active={typeFilter === "super_admin"} onClick={() => changeReportScope("super_admin")} />
@@ -1323,6 +1311,30 @@ export function SuperAdminRoznamchaReportView({
               </div>
             ) : null}
           </div>
+        </div>
+  );
+
+  return (
+    <div className="mx-auto max-w-[1680px] space-y-3 bg-[#f7f8fb] px-3 py-3 text-[12.5px] md:px-4">
+      {portalNode ? createPortal(filtersContent, portalNode) : null}
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-1.5 opacity-60">
+          <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase">
+            {typeFilter === "super_admin"
+              ? "Super Admin Roznamcha Report"
+              : typeFilter === "country"
+                ? "Country Roznamcha Report"
+                : "City Roznamcha Report"}
+          </span>
+          <span className="text-[10px] text-slate-400">•</span>
+          <span className="text-[9px] text-slate-400 font-semibold">
+            {typeFilter === "super_admin"
+              ? "Country + Branch daily journal - USD rate used in table columns only (not in summary)"
+              : typeFilter === "country"
+                ? "Country wise daily Roznamcha details with account, branch, debit and credit activity."
+                : "Branch wise daily Roznamcha details with account, debit and credit activity."}
+          </span>
         </div>
       </div>
 

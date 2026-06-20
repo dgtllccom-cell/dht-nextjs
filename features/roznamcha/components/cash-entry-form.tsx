@@ -1728,171 +1728,173 @@ export function CashEntryForm({
       <div className="mx-4 mt-4 mb-3 bg-white border border-slate-200 rounded-xl p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800 flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div className="flex flex-wrap items-start gap-x-10 gap-y-6">
           
-          {/* Column 1: Scope Context */}
-          <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">Country</span>
-            <div className="relative flex items-center">
-              <select
-                value={countryId}
-                disabled={loadingCountries || (effectiveScopeMode !== "super_admin" && !isSuperAdmin)}
-                onChange={(e) => setCountryId(e.target.value)}
-                className="bg-transparent border-none p-0 outline-none font-bold text-blue-600 dark:text-blue-400 cursor-pointer appearance-none text-xs hover:underline"
-              >
-                <option value="" className="text-slate-900">Select Country</option>
-                {countries.map((c) => (
-                  <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>
-                ))}
-              </select>
+          {/* Group 1: Branch Details & Transaction Info */}
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">Country</span>
+              <div className="relative flex items-center">
+                <select
+                  value={countryId}
+                  disabled={loadingCountries || (effectiveScopeMode !== "super_admin" && !isSuperAdmin)}
+                  onChange={(e) => setCountryId(e.target.value)}
+                  className="bg-transparent border-none p-0 outline-none font-bold text-blue-600 dark:text-blue-400 cursor-pointer appearance-none text-xs hover:underline"
+                >
+                  <option value="" className="text-slate-900">Select Country</option>
+                  {countries.map((c) => (
+                    <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">Branch Name</span>
+              <div className="relative flex items-center">
+                <select
+                  value={countryBranchId}
+                  disabled={!countryId}
+                  onChange={(e) => setCountryBranchId(e.target.value)}
+                  className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-200 cursor-pointer appearance-none text-xs hover:underline"
+                >
+                  <option value="" className="text-slate-900">Select Branch</option>
+                  {mainBranches.map((b) => (
+                    <option key={b.id} value={b.id} className="text-slate-900">{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Branch Code</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150">
+                {selectedMainBranch?.code || "—"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">City Branch</span>
+              <div className="relative flex items-center">
+                <select
+                  value={cityBranchId}
+                  disabled={!countryBranchId}
+                  onChange={(e) => setCityBranchId(e.target.value)}
+                  className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-200 cursor-pointer appearance-none text-xs hover:underline truncate max-w-[200px]"
+                >
+                  <option value="" className="text-slate-900">Select City Branch</option>
+                  {cityBranches.map((b) => (
+                    <option key={b.id} value={b.id} className="text-slate-900">{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">City Code</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150">
+                {selectedCityBranch?.code || "—"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Date</span>
+              <input
+                type="date"
+                value={entryDate}
+                onChange={(e) => setEntryDate(e.target.value)}
+                className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-150 cursor-pointer text-xs"
+              />
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Journal Serial</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
+                {savedSerials?.superAdmin || "—"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Country Serial</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
+                {savedSerials?.country || "—"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Branch Serial</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
+                {savedSerials?.branch || "—"}
+              </span>
             </div>
 
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">Branch Name</span>
-            <div className="relative flex items-center">
-              <select
-                value={countryBranchId}
-                disabled={!countryId}
-                onChange={(e) => setCountryBranchId(e.target.value)}
-                className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-200 cursor-pointer appearance-none text-xs hover:underline"
-              >
-                <option value="" className="text-slate-900">Select Branch</option>
-                {mainBranches.map((b) => (
-                  <option key={b.id} value={b.id} className="text-slate-900">{b.name}</option>
-                ))}
-              </select>
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Created By</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[120px]" title={activeCreator || session?.user?.fullName || "Current User"}>
+                {activeCreator || session?.user?.fullName || "Current User"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Approved By</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[120px]" title={activeApprover || "Pending"}>
+                {activeApprover || "Pending"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Status</span>
+              <div>
+                <span className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider border",
+                  activeStatus === "approved"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400"
+                    : activeStatus === "cancelled"
+                    ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-800 dark:text-rose-400"
+                    : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-400"
+                )}>
+                  {activeStatus || "Draft"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Group 2: User Context & Exchange Rates */}
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User Name</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150">
+                {session?.user?.fullName || "System User"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User ID</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
+                {session?.user?.id?.slice(0, 8).toUpperCase() || "ADM-001"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Team</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150">
+                Accounts Team
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Time</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150">
+                {loginTimeText || "—"}
+              </span>
             </div>
 
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Branch Code</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150">
-              {selectedMainBranch?.code || "—"}
-            </span>
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Exchange</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150">
+                {getCountryFlag(selectedCountry?.name)} USD / {branchCurrency}
+              </span>
 
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">City Branch</span>
-            <div className="relative flex items-center">
-              <select
-                value={cityBranchId}
-                disabled={!countryBranchId}
-                onChange={(e) => setCityBranchId(e.target.value)}
-                className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-200 cursor-pointer appearance-none text-xs hover:underline truncate max-w-[200px]"
-              >
-                <option value="" className="text-slate-900">Select City Branch</option>
-                {cityBranches.map((b) => (
-                  <option key={b.id} value={b.id} className="text-slate-900">{b.name}</option>
-                ))}
-              </select>
-            </div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Rate Date</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
+                {countryRate?.effectiveDate || entryDate.split("-").reverse().join("/") || "Today"}
+              </span>
 
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">City Code</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150">
-              {selectedCityBranch?.code || "—"}
-            </span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 text-right">Buy / Sell</span>
+              <span className="font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
+                {countryRate?.debitRate ? countryRate.debitRate.toFixed(4) : "—"} / {countryRate?.creditRate ? countryRate.creditRate.toFixed(4) : "—"}
+              </span>
 
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Date</span>
-            <input
-              type="date"
-              value={entryDate}
-              onChange={(e) => setEntryDate(e.target.value)}
-              className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-150 cursor-pointer text-xs"
-            />
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Budget Rate</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
+                {countryRate?.buyRate ? ((countryRate.buyRate + (countryRate.sellRate || countryRate.buyRate)) / 2).toFixed(4) : "—"}
+              </span>
 
-            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Journal Serial</span>
-            <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
-              {savedSerials?.superAdmin || "—"}
-            </span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Cash Ledger</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]" title={selectedCashLedger?.ledgerName || "—"}>
+                {selectedCashLedger?.ledgerName || "—"}
+              </span>
 
-            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Country Serial</span>
-            <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
-              {savedSerials?.country || "—"}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Branch Serial</span>
-            <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
-              {savedSerials?.branch || "—"}
-            </span>
-          </div>
-
-          {/* Column 2: User Context */}
-          <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User Name</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150">
-              {session?.user?.fullName || "System User"}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User ID</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
-              {session?.user?.id?.slice(0, 8).toUpperCase() || "ADM-001"}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Team</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150">
-              Accounts Team
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Time</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150">
-              {loginTimeText || "—"}
-            </span>
-          </div>
-
-          {/* Column 3: Exchange Rates */}
-          <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Exchange</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150">
-              {getCountryFlag(selectedCountry?.name)} USD / {branchCurrency}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Rate Date</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
-              {countryRate?.effectiveDate || entryDate.split("-").reverse().join("/") || "Today"}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 text-right">Buy / Sell</span>
-            <span className="font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
-              {countryRate?.debitRate ? countryRate.debitRate.toFixed(4) : "—"} / {countryRate?.creditRate ? countryRate.creditRate.toFixed(4) : "—"}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Budget Rate</span>
-            <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
-              {countryRate?.buyRate ? ((countryRate.buyRate + (countryRate.sellRate || countryRate.buyRate)) / 2).toFixed(4) : "—"}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Cash Ledger</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]" title={selectedCashLedger?.ledgerName || "—"}>
-              {selectedCashLedger?.ledgerName || "—"}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Cash Balance</span>
-            <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
-              {cashBalanceText}
-            </span>
-          </div>
-
-          {/* Column 4: Transaction Information */}
-          <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Created By</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[120px]" title={activeCreator || session?.user?.fullName || "Current User"}>
-              {activeCreator || session?.user?.fullName || "Current User"}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Approved By</span>
-            <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[120px]" title={activeApprover || "Pending"}>
-              {activeApprover || "Pending"}
-            </span>
-
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Status</span>
-            <div>
-              <span className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider border",
-                activeStatus === "approved"
-                  ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400"
-                  : activeStatus === "cancelled"
-                  ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-800 dark:text-rose-400"
-                  : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-400"
-              )}>
-                {activeStatus || "Draft"}
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Cash Balance</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
+                {cashBalanceText}
               </span>
             </div>
           </div>
 
-          {/* Column 5: Customer Details */}
+          {/* Group 3: Customer Details */}
           {selectedCounterLedger && (
             <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold border-l pl-6 border-slate-200 dark:border-slate-700">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Customer</span>
@@ -1914,7 +1916,12 @@ export function CashEntryForm({
               <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]">
                 {selectedCounterLedger.cityName || "-"} / {selectedCounterLedger.countryName || selectedCountry?.name || "-"}
               </span>
+            </div>
+          )}
 
+          {/* Group 4: Company Details */}
+          {selectedCounterLedger && (
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Company</span>
               <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]" title={selectedCounterLedger.companyName || `${selectedCounterLedger.accountName || "Test"} (Pvt.) Ltd.`}>
                 {selectedCounterLedger.companyName || `${selectedCounterLedger.accountName || "Test"} (Pvt.) Ltd.`}
@@ -1930,7 +1937,105 @@ export function CashEntryForm({
         </div>
 
         {/* Right Column: Header Actions */}
-        <div className="flex flex-col items-end gap-3 self-start pt-1">
+        <div className="flex items-start gap-2 pt-1 ml-auto">
+          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 p-1 rounded-full border border-slate-200 dark:border-slate-800 shadow-sm">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-8 rounded-full text-xs font-bold text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
+              onClick={() => {
+                resetPaymentDraft();
+                setEditEntryId(null);
+                setShowPaymentWorkReport(true);
+              }}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              New
+            </Button>
+
+            <div className="relative">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+                onClick={() => setHeaderMenuOpen(!headerMenuOpen)}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+              {headerMenuOpen && (
+                <div className="absolute right-0 z-50 mt-1.5 min-w-[180px] rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-800 dark:bg-slate-950">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setHeaderMenuOpen(false);
+                      if (lastEntryId) {
+                        await handleViewA4ById(lastEntryId);
+                      } else {
+                        setMessage("No saved entry found to view.");
+                      }
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    View Entry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setHeaderMenuOpen(false);
+                      if (lastEntryId) {
+                        await handleEditLastEntry();
+                      } else {
+                        setMessage("No saved entry found to edit.");
+                      }
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    Edit Entry
+                  </button>
+                  <div className="my-1 h-px bg-slate-200 dark:bg-slate-800" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeaderMenuOpen(false);
+                      window.print();
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    Print Page
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeaderMenuOpen(false)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
+                  >
+                    <DownloadActionIcon className="h-3.5 w-3.5" />
+                    Export PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeaderMenuOpen(false)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Send Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeaderMenuOpen(false)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    Share on WhatsApp
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -1952,104 +2057,7 @@ export function CashEntryForm({
               <X className="h-4 w-4" />
             </Button>
           </div>
-          
-          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 p-1 rounded-full border border-slate-200 dark:border-slate-800 shadow-sm">
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-8 rounded-full text-xs font-bold text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
-              onClick={() => {
-                resetPaymentDraft();
-                setEditEntryId(null);
-                setShowPaymentWorkReport(true);
-              }}
-            >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              New
-            </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-8 rounded-full text-xs font-bold text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/50"
-            onClick={async () => {
-              if (lastEntryId) {
-                await handleViewA4ById(lastEntryId);
-              } else {
-                setMessage("No saved entry found to view.");
-              }
-            }}
-          >
-            <Eye className="mr-1.5 h-3.5 w-3.5" />
-            View
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-8 rounded-full text-xs font-bold text-amber-600 hover:bg-amber-100 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/50"
-            onClick={async () => {
-              if (lastEntryId) {
-                await handleEditLastEntry();
-              } else {
-                setMessage("No saved entry found to edit.");
-              }
-            }}
-          >
-            <FileText className="mr-1.5 h-3.5 w-3.5" />
-            Edit
-          </Button>
-
-          <div className="relative">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
-              onClick={() => setHeaderMenuOpen(!headerMenuOpen)}
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-            {headerMenuOpen && (
-              <div className="absolute right-0 z-50 mt-1.5 min-w-[180px] rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-800 dark:bg-slate-950">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHeaderMenuOpen(false);
-                    window.print();
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
-                >
-                  <Printer className="h-3.5 w-3.5" />
-                  Print Page
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHeaderMenuOpen(false)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
-                >
-                  <DownloadActionIcon className="h-3.5 w-3.5" />
-                  Export PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHeaderMenuOpen(false)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  Send Email
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHeaderMenuOpen(false)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
-                >
-                  <Share2 className="h-3.5 w-3.5" />
-                  Share on WhatsApp
-                </button>
-              </div>
-            )}
-          </div>
         </div>
-      </div>
     </div>
 
       <div className="space-y-3 px-4 pb-4">
