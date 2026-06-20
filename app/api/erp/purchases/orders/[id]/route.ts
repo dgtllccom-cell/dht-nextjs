@@ -75,6 +75,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (body.currencyCode !== undefined) patch.currency_code = body.currencyCode;
     if (body.exchangeRate !== undefined) patch.exchange_rate = body.exchangeRate;
     if (body.orderTotal !== undefined) patch.order_total = body.orderTotal;
+    if (body.totalGoodsOriginal !== undefined) patch.total_goods_original = body.totalGoodsOriginal;
+    if (body.totalGoodsLocal !== undefined) patch.total_goods_local = body.totalGoodsLocal;
+    if (body.totalGoodsUsd !== undefined) patch.total_goods_usd = body.totalGoodsUsd;
+    if (body.totalExpensesOriginal !== undefined) patch.total_expenses_original = body.totalExpensesOriginal;
+    if (body.totalExpensesLocal !== undefined) patch.total_expenses_local = body.totalExpensesLocal;
+    if (body.totalExpensesUsd !== undefined) patch.total_expenses_usd = body.totalExpensesUsd;
+    if (body.landedCostOriginal !== undefined) patch.landed_cost_original = body.landedCostOriginal;
+    if (body.landedCostLocal !== undefined) patch.landed_cost_local = body.landedCostLocal;
+    if (body.landedCostUsd !== undefined) patch.landed_cost_usd = body.landedCostUsd;
     if (body.formData !== undefined) patch.form_data = body.formData ?? null;
     if (body.ledgerPostingStatus !== undefined) {
       const s = String(body.ledgerPostingStatus).toLowerCase();
@@ -173,6 +182,51 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const updated = await requireSupabaseData(
       supabase.from("purchase_orders").update(patch).eq("id", params.id).select("id").single()
     );
+
+    if (body.items !== undefined) {
+      await requireSupabaseData(supabase.from("purchase_order_items").delete().eq("purchase_order_id", params.id));
+      if (body.items && body.items.length > 0) {
+        const itemsPayload = body.items.map((it: any) => ({
+          purchase_order_id: params.id,
+          product_id: it.productId || null,
+          goods_name: it.goodsName || "Unknown",
+          hs_code: it.hsCode || null,
+          size: it.size || null,
+          brand: it.brand || null,
+          origin: it.origin || null,
+          quantity: it.quantity || 0,
+          unit_name: it.unitName || "pcs",
+          unit_weight: it.unitWeight || 0,
+          gross_weight: it.grossWeight || 0,
+          net_weight: it.netWeight || 0,
+          rate_original: it.rateOriginal || 0,
+          rate_local: it.rateLocal || 0,
+          rate_usd: it.rateUsd || 0,
+          total_original: it.totalOriginal || 0,
+          total_local: it.totalLocal || 0,
+          total_usd: it.totalUsd || 0
+        }));
+        await requireSupabaseData(supabase.from("purchase_order_items").insert(itemsPayload));
+      }
+    }
+
+    if (body.expenses !== undefined) {
+      await requireSupabaseData(supabase.from("purchase_order_expenses").delete().eq("purchase_order_id", params.id));
+      if (body.expenses && body.expenses.length > 0) {
+        const expPayload = body.expenses.map((ex: any) => ({
+          purchase_order_id: params.id,
+          expense_type: ex.expenseType,
+          ledger_id: ex.ledgerId || null,
+          description: ex.description || null,
+          expense_currency: ex.expenseCurrency || "USD",
+          exchange_rate: ex.exchangeRate || 1,
+          amount_original: ex.amountOriginal || 0,
+          amount_local: ex.amountLocal || 0,
+          amount_usd: ex.amountUsd || 0
+        }));
+        await requireSupabaseData(supabase.from("purchase_order_expenses").insert(expPayload));
+      }
+    }
 
     await writeAuditLog({
       action: "update",

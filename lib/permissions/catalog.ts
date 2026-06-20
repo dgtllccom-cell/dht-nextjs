@@ -521,7 +521,7 @@ export const permissionCatalog: PermissionDefinition[] = [
     label: "Inventory Management",
     description: "Access warehouses, goods, shipping records, and inventory reports.",
     group: "Operations",
-    resources: ["products", "product_categories", "product_brands", "product_units", "warehouses", "inventory", "shipping_records", "attachments"],
+    resources: ["products", "product_categories", "product_brands", "product_units", "warehouses", "inventory", "shipping_records", "attachments", "goods", "goods_variations"],
     actions: ["create", "read", "update", "post", "export"],
     hidden: true
   },
@@ -548,7 +548,9 @@ export const permissionCatalog: PermissionDefinition[] = [
       "product_categories",
       "product_brands",
       "product_units",
-      "chs_products"
+      "chs_products",
+      "goods",
+      "goods_variations"
     ],
     actions: ["create", "read", "update", "delete", "export"],
     hidden: true
@@ -558,7 +560,7 @@ export const permissionCatalog: PermissionDefinition[] = [
     label: "Accounts Management",
     description: "Manage accounts, ledgers, journals, and customer balances.",
     group: "Finance",
-    resources: ["accounts", "ledgers", "ledger", "journal_entries"],
+    resources: ["accounts", "ledgers", "ledger", "journal_entries", "roznamcha", "cash_entry", "payment"],
     actions: ["create", "read", "update", "post", "export"],
     hidden: true
   },

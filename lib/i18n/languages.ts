@@ -47,3 +47,4 @@ export function getLanguageDirection(languageCode: SupportedLanguage): LanguageD
   return supportedLanguages.find((language) => language.code === languageCode)?.direction ?? "ltr";
 }
 
+

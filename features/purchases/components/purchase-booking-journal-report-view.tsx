@@ -595,10 +595,16 @@ function ReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[]; onExpor
 
 function RowActionsMenu({
   report,
-  onSelect
+  onSelect,
+  isSuperAdmin,
+  isCountryAdmin,
+  isBranchAdmin
 }: {
   report: any;
   onSelect: () => void;
+  isSuperAdmin: boolean;
+  isCountryAdmin: boolean;
+  isBranchAdmin: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -631,32 +637,36 @@ function RowActionsMenu({
               onSelect();
             }}
           />
-          <MenuAction
-            icon={<Edit3 />}
-            label="Edit Booking"
-            onClick={() => {
-              setOpen(false);
-              router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
-            }}
-          />
-          <MenuAction
-            icon={<span className="text-red-500"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>}
-            label="Delete Booking"
-            onClick={async () => {
-              setOpen(false);
-              if (window.confirm("Are you sure you want to permanently delete this booking? All associated ledger transfers will be reverted.")) {
-                try {
-                  const response = await fetch(`/api/erp/purchases/orders/${report.id}`, { method: "DELETE" });
-                  const payload = await response.json().catch(() => ({}));
-                  if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || payload?.error || "Failed to delete");
-                  alert("Booking successfully deleted.");
-                  window.location.reload();
-                } catch (err) {
-                  alert(err instanceof Error ? err.message : "Error deleting order.");
-                }
-              }
-            }}
-          />
+          {(!isCountryAdmin || isSuperAdmin) && (
+            <>
+              <MenuAction
+                icon={<Edit3 />}
+                label="Edit Booking"
+                onClick={() => {
+                  setOpen(false);
+                  router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
+                }}
+              />
+              <MenuAction
+                icon={<span className="text-red-500"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>}
+                label="Delete Booking"
+                onClick={async () => {
+                  setOpen(false);
+                  if (window.confirm("Are you sure you want to permanently delete this booking? All associated ledger transfers will be reverted.")) {
+                    try {
+                      const response = await fetch(`/api/erp/purchases/orders/${report.id}`, { method: "DELETE" });
+                      const payload = await response.json().catch(() => ({}));
+                      if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || payload?.error || "Failed to delete");
+                      alert("Booking successfully deleted.");
+                      window.location.reload();
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : "Error deleting order.");
+                    }
+                  }
+                }}
+              />
+            </>
+          )}
           <MenuAction
             icon={<FileText />}
             label="Open Report Preview"
@@ -878,6 +888,13 @@ export function PurchaseBookingJournalReportView({
 
   const handleTransfer = async () => {
     if (!selected) return;
+    
+    const form = selected.form_data?.form || {};
+    if (!form.cityBranchId) {
+      alert("یہ عمل نامکمل ہے۔ برائے مہربانی ٹرانسفر سے پہلے سٹی برانچ منتخب کریں۔\n\n(City Branch is missing. Please select a City Branch before transferring to the journal.)");
+      return;
+    }
+
     setTransferring(true);
     try {
       const updatedFormData = {
@@ -1294,7 +1311,7 @@ export function PurchaseBookingJournalReportView({
             {/* Calendar Date/Time Indicator */}
             <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
               <CalendarDays className="h-4 w-4 text-slate-400" />
-              <span>17 Jun 2026, 08:54 PM</span>
+              <span>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
             </div>
 
             {/* CTA Button */}
@@ -1321,7 +1338,7 @@ export function PurchaseBookingJournalReportView({
             <div className="space-y-1.5">
               <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
                 <span>Branch Name:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-bold">{lockedBranchName || "QUETTA MAIN BRANCH"}</span>
+                <span className="text-slate-800 dark:text-slate-200 font-bold">{lockedBranchName || "ALL BRANCHES"}</span>
               </div>
               <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
                 <span>User Name:</span>
@@ -1329,7 +1346,9 @@ export function PurchaseBookingJournalReportView({
               </div>
               <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
                 <span>Date:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">17 JUN 2026</span>
+                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">
+                  {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Time:</span>
@@ -1438,17 +1457,19 @@ export function PurchaseBookingJournalReportView({
               const g0 = goods[0] as any;
 
               // ── General Information ──────────────────────────────────────
+              const purchaseCode = report.purchaseBookingOrderNumber || "-";
+              const codeSuffix = purchaseCode.split("-").pop() || "001";
               const superSerialNo = (report as any).superAdminSerialNo
                 || report.form_data?.form?.superAdminSerialNo
                 || report.form_data?.form?.globalSerialNo
-                || report.audit?.branchCode?.replace(/[^0-9]/g, "") || "-";
+                || `GBL-${codeSuffix}`;
               const countrySerialNo = (report as any).countrySerialNo
                 || report.form_data?.form?.countrySerialNo
-                || "-";
+                || (report.countryName ? `${report.countryName.substring(0,3).toUpperCase()}-${codeSuffix}` : "-");
               const branchSerialNo = (report as any).branchSerialNo
                 || report.form_data?.form?.branchSerialNo
-                || report.audit?.branchCode || "-";
-              const purchaseCode = report.purchaseBookingOrderNumber || "-";
+                || report.audit?.branchCode
+                || (report.branchName ? `${report.branchName.substring(0,3).toUpperCase()}-${codeSuffix}` : "-");
               const salesCode = report.form_data?.form?.salesOrderNo || "-";
               const invoiceNo = report.form_data?.form?.billNo
                 || report.form_data?.form?.invoiceNo
@@ -1643,16 +1664,18 @@ export function PurchaseBookingJournalReportView({
                   {/* ── Actions ─────────────────────────────────── */}
                   <Td center onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
-                        }}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
-                        title="Edit Booking"
-                      >
-                        <Edit3 className="h-3.5 w-3.5" />
-                      </button>
+                      {(!isCountryAdmin || isSuperAdmin) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
+                          }}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
+                          title="Edit Booking"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <RowActionsMenu
                         report={report}
                         onSelect={() => {
@@ -1874,9 +1897,9 @@ export function PurchaseBookingJournalReportView({
                       </div>
                     </div>
                     <div className="text-right text-[8px] font-bold text-slate-650 uppercase">
-                      <div>BRANCH : {selected.branchName || "Kabul Main Branch"}</div>
-                      <div>COUNTRY : {selected.countryName || "Afghanistan"}</div>
-                      <div>ADDRESS : House # 123, Street No. 5, Kabul, Afghanistan</div>
+                      <div>BRANCH : {selected.branchName || "Main Branch"}</div>
+                      <div>COUNTRY : {selected.countryName || ""}</div>
+                      <div>ADDRESS : {selected.branchName || "Branch Address"}</div>
                       <div>PHONE : +93 700 000 000</div>
                       <div>EMAIL : info@demitrading.com</div>
                     </div>
@@ -2204,7 +2227,7 @@ export function PurchaseBookingJournalReportView({
                         <path d="M85 50 A35 35 0 0 1 50 85" fill="none" stroke="currentColor" strokeWidth="1.5" />
                         <text x="50" y="42" textAnchor="middle" fontSize="6.5" fontWeight="900" fill="currentColor" letterSpacing="0.3">DEMI TRADING</text>
                         <text x="50" y="52" textAnchor="middle" fontSize="6" fontWeight="bold" fill="currentColor">★ STAMP ★</text>
-                        <text x="50" y="62" textAnchor="middle" fontSize="5.5" fontWeight="900" fill="currentColor" letterSpacing="0.3">KABUL BRANCH</text>
+                        <text x="50" y="62" textAnchor="middle" fontSize="5.5" fontWeight="900" fill="currentColor" letterSpacing="0.3">{(selected.branchName || "MAIN BRANCH").toUpperCase()}</text>
                       </svg>
                     </div>
                     <div className="w-[18%] text-center border-t border-slate-300 pt-1">

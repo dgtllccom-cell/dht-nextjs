@@ -84,11 +84,11 @@ const ledgerPostingLineCoreSchema = z.object({
 });
 
 export const ledgerPostingLineSchema = ledgerPostingLineCoreSchema.superRefine((input, context) => {
-  if (!input.accountId && !input.enterpriseAccountId) {
+  if (!input.accountId && !input.enterpriseAccountId && !input.ledgerId) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["accountId"],
-      message: "accountId or enterpriseAccountId is required"
+      message: "accountId, enterpriseAccountId, or ledgerId is required"
     });
   }
 });
@@ -117,11 +117,11 @@ export const roznamchaLineSchema = ledgerPostingLineCoreSchema
     paymentEntryType: z.enum(paymentEntryTypes)
   })
   .superRefine((input, context) => {
-    if (!input.accountId && !input.enterpriseAccountId) {
+    if (!input.accountId && !input.enterpriseAccountId && !input.ledgerId) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["accountId"],
-        message: "accountId or enterpriseAccountId is required"
+        message: "accountId, enterpriseAccountId, or ledgerId is required"
       });
     }
   });

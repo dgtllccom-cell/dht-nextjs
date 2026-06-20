@@ -5,6 +5,7 @@ import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  ArrowLeft,
   Building2,
   CalendarDays,
   ChevronDown,
@@ -1409,7 +1410,7 @@ export function CashEntryForm({
       branch: row.branch_transaction_serial_number
     });
 
-    setActiveCreator(row.profiles?.full_name || "Muhammad Asmatullah");
+    setActiveCreator(row.profiles?.full_name || "System User");
     setActiveApprover(row.approver_profile?.full_name || (row.status === "approved" ? "Approved" : "Pending"));
     setActiveStatus(row.status || "posted");
     
@@ -1443,11 +1444,6 @@ export function CashEntryForm({
       return null;
     }
 
-    if (!computed) {
-      setMessage("Select account, Debit/Credit transaction type, and enter a valid amount.");
-      savingRef.current = false;
-      return null;
-    }
 
     if (editEntryId) {
       try {
@@ -1481,9 +1477,9 @@ export function CashEntryForm({
       const payload = {
         mode: "post" as const,
         type: postingType,
-        countryId: countryId || null,
-        countryBranchId: countryBranchId || null,
-        cityBranchId: cityBranchId || null,
+        countryId: selectedCounterLedger?.countryId || countryId || null,
+        countryBranchId: selectedCounterLedger?.countryBranchId || countryBranchId || null,
+        cityBranchId: selectedCounterLedger?.cityBranchId || cityBranchId || null,
         entryDate,
         roznamchaBookType,
         journalNo: effectiveJournal,
@@ -1529,12 +1525,12 @@ export function CashEntryForm({
         },
         lines: [
           {
-            paymentEntryType: computed.entryType,
-            enterpriseAccountId: computed.counter.enterpriseAccountId,
-            ledgerId: computed.counter.ledgerId,
+            paymentEntryType: roznamchaBookType === "bank" ? (paymentMode === "DEBIT" ? "bank_deposit" : "bank_cheque") : (paymentMode === "DEBIT" ? "cash_receipt" : "cash_payment"),
+            enterpriseAccountId: selectedCounterLedger?.accountId || null,
+            ledgerId: counterLedgerId || "",
             description: finalNarration.trim() ? finalNarration.trim() : undefined,
-            debit: computed.counter.debit,
-            credit: computed.counter.credit,
+            debit: paymentMode === "CREDIT" ? amount : 0,
+            credit: paymentMode === "DEBIT" ? amount : 0,
             currency: targetAccountCurrency.trim().toUpperCase(),
             exchangeRate: Number(exchangeRate),
             accountNumber: selectedCounterLedger?.accountCode || selectedCounterLedger?.rawAccountCode || null,
@@ -1542,6 +1538,21 @@ export function CashEntryForm({
             customerNumber: selectedCounterLedger?.customerNumber || null,
             countrySerialNumber: selectedCounterLedger?.countrySerialNumber || null,
             branchSerialNumber: selectedCounterLedger?.branchSerialNumber || null
+          },
+          {
+            paymentEntryType: roznamchaBookType === "bank" ? (paymentMode === "DEBIT" ? "bank_deposit" : "bank_cheque") : (paymentMode === "DEBIT" ? "cash_receipt" : "cash_payment"),
+            enterpriseAccountId: selectedCashLedger?.accountId || null,
+            ledgerId: selectedCashLedger?.ledgerId || "",
+            description: finalNarration.trim() ? finalNarration.trim() : undefined,
+            debit: paymentMode === "DEBIT" ? amount : 0,
+            credit: paymentMode === "CREDIT" ? amount : 0,
+            currency: targetAccountCurrency.trim().toUpperCase(),
+            exchangeRate: Number(exchangeRate),
+            accountNumber: selectedCashLedger?.accountCode || selectedCashLedger?.rawAccountCode || null,
+            manualReferenceNumber: selectedCashLedger?.manualReferenceNumber || null,
+            customerNumber: selectedCashLedger?.customerNumber || null,
+            countrySerialNumber: selectedCashLedger?.countrySerialNumber || null,
+            branchSerialNumber: selectedCashLedger?.branchSerialNumber || null
           }
         ]
       };
@@ -1554,7 +1565,8 @@ export function CashEntryForm({
         country: res.countryTransactionSerialNumber,
         branch: res.branchTransactionSerialNumber
       });
-      setActiveCreator(session?.user?.fullName || "Muhammad Asmatullah");
+      const roleName = session?.roles?.[0] ? session.roles[0].replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : "User";
+      setActiveCreator(`${session?.user?.fullName || "System User"} | ${roleName}`);
       setActiveApprover(res.balanced ? "System / Auto Approved" : "Pending");
       setActiveStatus("posted");
       const serialText = [res.superAdminSerialNumber, res.countryTransactionSerialNumber, res.branchTransactionSerialNumber]
@@ -1753,6 +1765,26 @@ export function CashEntryForm({
               {selectedMainBranch?.code || "—"}
             </span>
 
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right self-center">City Branch</span>
+            <div className="relative flex items-center">
+              <select
+                value={cityBranchId}
+                disabled={!countryBranchId}
+                onChange={(e) => setCityBranchId(e.target.value)}
+                className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-200 cursor-pointer appearance-none text-xs hover:underline truncate max-w-[200px]"
+              >
+                <option value="" className="text-slate-900">Select City Branch</option>
+                {cityBranches.map((b) => (
+                  <option key={b.id} value={b.id} className="text-slate-900">{b.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">City Code</span>
+            <span className="font-extrabold text-slate-850 dark:text-slate-150">
+              {selectedCityBranch?.code || "—"}
+            </span>
+
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Date</span>
             <input
               type="date"
@@ -1761,9 +1793,19 @@ export function CashEntryForm({
               className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-150 cursor-pointer text-xs"
             />
 
-            <span className="text-base font-black text-blue-600 dark:text-blue-400 text-right leading-none">#</span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Journal Serial</span>
             <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
-              {savedSerials ? [savedSerials.superAdmin, savedSerials.country, savedSerials.branch].filter(Boolean).join(" / ") : "—"}
+              {savedSerials?.superAdmin || "—"}
+            </span>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Country Serial</span>
+            <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
+              {savedSerials?.country || "—"}
+            </span>
+
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Branch Serial</span>
+            <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
+              {savedSerials?.branch || "—"}
             </span>
           </div>
 
@@ -1771,7 +1813,7 @@ export function CashEntryForm({
           <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User Name</span>
             <span className="font-extrabold text-slate-850 dark:text-slate-150">
-              {session?.user?.fullName || "Muhammad Asmatullah"}
+              {session?.user?.fullName || "System User"}
             </span>
 
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">User ID</span>
@@ -1850,27 +1892,85 @@ export function CashEntryForm({
             </div>
           </div>
 
+          {/* Column 5: Customer Details */}
+          {selectedCounterLedger && (
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold border-l pl-6 border-slate-200 dark:border-slate-700">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Customer</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]" title={selectedCounterLedger.accountName || selectedCounterLedger.ledgerName || "-"}>
+                {selectedCounterLedger.accountName || selectedCounterLedger.ledgerName || "-"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Account No</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
+                {selectedCounterLedger.accountCode || selectedCounterLedger.ledgerCode || "-"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Customer No</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
+                {selectedCounterLedger.customerNumber || "-"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Location</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]">
+                {selectedCounterLedger.cityName || "-"} / {selectedCounterLedger.countryName || selectedCountry?.name || "-"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Company</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]" title={selectedCounterLedger.companyName || `${selectedCounterLedger.accountName || "Test"} (Pvt.) Ltd.`}>
+                {selectedCounterLedger.companyName || `${selectedCounterLedger.accountName || "Test"} (Pvt.) Ltd.`}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Tax / NTN</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
+                {selectedCounterLedger.customerNumber ? "1234567-8" : "-"}
+              </span>
+            </div>
+          )}
+
         </div>
 
         {/* Right Column: Header Actions */}
-        <div className="flex items-center gap-2 self-start pt-1">
+        <div className="flex flex-col items-end gap-3 self-start pt-1">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => router.back()}
+              className="h-8 gap-1.5 rounded-full border-slate-200 px-3 text-[11px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => router.push("/dashboard")}
+              className="h-8 w-8 rounded-full border-slate-200 text-rose-600 shadow-sm hover:bg-rose-50 hover:text-rose-700 dark:border-slate-700 dark:text-rose-400 dark:hover:bg-rose-950/30"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 p-1 rounded-full border border-slate-200 dark:border-slate-800 shadow-sm">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-8 rounded-full text-xs font-bold text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
+              onClick={() => {
+                resetPaymentDraft();
+                setEditEntryId(null);
+                setShowPaymentWorkReport(true);
+              }}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              New
+            </Button>
           <Button
             type="button"
-            variant="outline"
-            className="h-8 text-xs font-bold border-slate-200 text-blue-600 hover:bg-slate-50 dark:border-slate-800 dark:text-blue-400 dark:hover:bg-slate-900"
-            onClick={() => {
-              resetPaymentDraft();
-              setEditEntryId(null);
-              setShowPaymentWorkReport(true);
-            }}
-          >
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            New
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-8 text-xs font-bold border-slate-200 text-blue-600 hover:bg-slate-50 dark:border-slate-800 dark:text-blue-400 dark:hover:bg-slate-900"
+            variant="ghost"
+            className="h-8 rounded-full text-xs font-bold text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/50"
             onClick={async () => {
               if (lastEntryId) {
                 await handleViewA4ById(lastEntryId);
@@ -1884,8 +1984,8 @@ export function CashEntryForm({
           </Button>
           <Button
             type="button"
-            variant="outline"
-            className="h-8 text-xs font-bold border-slate-200 text-blue-600 hover:bg-slate-50 dark:border-slate-800 dark:text-blue-400 dark:hover:bg-slate-900"
+            variant="ghost"
+            className="h-8 rounded-full text-xs font-bold text-amber-600 hover:bg-amber-100 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/50"
             onClick={async () => {
               if (lastEntryId) {
                 await handleEditLastEntry();
@@ -1901,9 +2001,9 @@ export function CashEntryForm({
           <div className="relative">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
-              className="h-8 w-8 border-slate-200 hover:bg-slate-50 dark:border-slate-800"
+              className="h-8 w-8 rounded-full text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
               onClick={() => setHeaderMenuOpen(!headerMenuOpen)}
             >
               <MoreVertical className="h-4 w-4" />
@@ -1950,6 +2050,7 @@ export function CashEntryForm({
           </div>
         </div>
       </div>
+    </div>
 
       <div className="space-y-3 px-4 pb-4">
         {message ? (
@@ -1961,164 +2062,7 @@ export function CashEntryForm({
 
 
 
-        {/* Customer Details & Exchange Rates (Side-by-Side) */}
-        {selectedCounterLedger && (
-          <div className="space-y-3">
-            <Card className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-              <div className="border-b border-blue-200 bg-gradient-to-r from-blue-50 to-white px-4 py-2.5 dark:border-slate-800 dark:from-slate-900 dark:to-slate-950 flex items-center justify-between">
-                <h3 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
-                  🏢 CUSTOMER DETAILS & PROFILE
-                </h3>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded dark:bg-slate-800 dark:text-slate-500">
-                  Active
-                </span>
-              </div>
-              <CardContent className="p-4 space-y-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  {/* Left Panel: Account Details */}
-                  <div className="space-y-4">
-                    <h4 className="text-[11px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-400 pb-1.5 border-b dark:border-slate-850">
-                      💳 Account Details
-                    </h4>
-                    <div className="space-y-1.5 text-xs">
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Account Name</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCounterLedger.accountName || selectedCounterLedger.ledgerName || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Account Number</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCounterLedger.accountCode || selectedCounterLedger.ledgerCode || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Manual Ref</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCounterLedger.manualReferenceNumber || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Customer Number</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCounterLedger.customerNumber || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Country</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCounterLedger.countryName || selectedCountry?.name || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Branch Name</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCounterLedger.cityBranchName || selectedCityBranch?.name || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Branch Code</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCityBranch?.code || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">City / State</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCounterLedger.cityName || "-"} / {selectedCounterLedger.stateName || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Address</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100 break-words">{selectedCounterLedger.address || "-"}</span>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Right Panel: Company Details */}
-                  <div className="space-y-4">
-                    <h4 className="text-[11px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-400 pb-1.5 border-b dark:border-slate-850">
-                      🏢 Company Details
-                    </h4>
-                    <div className="space-y-1.5 text-xs">
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Company Name</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100 break-words">
-                          {selectedCounterLedger.companyName || `${selectedCounterLedger.accountName || "Test Payment"} (Pvt.) Ltd.`}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">NTN / Tax No.</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">
-                          {selectedCounterLedger.customerNumber ? "1234567-8" : "-"}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Registration No.</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">
-                          {selectedCounterLedger.customerNumber ? "0156789" : "-"}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Business Type</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">
-                          {selectedCounterLedger.customerNumber ? "Private Limited" : "-"}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Email</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100 break-all">
-                          {selectedCounterLedger.accountName ? `info@${selectedCounterLedger.accountName.toLowerCase().replace(/[^a-z0-9]/g, "")}.com` : "info@testpayment.com"}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Phone No.</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">
-                          {selectedCounterLedger.customerNumber ? "+92 300 1234567" : "-"}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Country</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCounterLedger.countryName || selectedCountry?.name || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">City / State</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedCounterLedger.cityName || "-"} / {selectedCounterLedger.stateName || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[110px_8px_1fr] gap-1.5">
-                        <span className="font-bold text-slate-500">Address</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100 break-words">{selectedCounterLedger.address || "-"}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ENTRY DETAILS CARD */}
-            <Card className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-              <CardContent className="p-3 text-xs flex flex-wrap items-center justify-between gap-4 font-semibold text-slate-700 dark:text-slate-300">
-                <div>
-                  <span className="text-slate-400">Subject:</span> <strong className="text-slate-900 dark:text-slate-100">{remarks.trim() || remarks || narration || "—"}</strong>
-                </div>
-                <div className="flex gap-4">
-                  <div>
-                    <span className="text-slate-400">Journal Serial No.:</span> <strong className="text-slate-900 dark:text-slate-100 font-mono">{savedSerials?.superAdmin || "—"}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Country Serial No.:</span> <strong className="text-slate-900 dark:text-slate-100 font-mono">{savedSerials?.country || "—"}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Branch Serial No.:</span> <strong className="text-slate-900 dark:text-slate-100 font-mono">{savedSerials?.branch || "—"}</strong>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
         {/* Main Workspace layout */}
         {showPaymentWorkReport ? (
@@ -2484,8 +2428,8 @@ export function CashEntryForm({
                       <div className="flex flex-wrap gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 justify-end">
                         <Button
                           type="button"
+                          onClick={() => window.location.reload()}
                           variant="outline"
-                          onClick={resetPaymentDraft}
                           className="h-10 px-4 rounded-lg font-bold gap-2 text-xs"
                         >
                           <RefreshCw className="h-4 w-4" />
@@ -2494,38 +2438,17 @@ export function CashEntryForm({
                         <Button
                           type="button"
                           disabled={!canSave || saving}
-                          onClick={save}
-                          className="h-10 px-5 rounded-lg font-bold bg-blue-600 hover:bg-blue-700 text-white gap-2 text-xs"
-                        >
-                          <Save className="h-4 w-4" />
-                          {saving ? "Saving..." : t(lang, "form.save")}
-                        </Button>
-                        <Button
-                          type="button"
-                          disabled={!canSave || saving}
                           onClick={async () => {
                             const newId = await save();
                             if (newId) {
-                              handleViewA4ById(newId);
+                              resetPaymentDraft();
+                              setMessage("Accepted successfully.");
                             }
                           }}
-                          className="h-10 px-5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 text-xs"
+                          className="h-10 px-8 rounded-lg font-bold bg-blue-600 hover:bg-blue-700 text-white gap-2 text-xs"
                         >
-                          <Eye className="h-4 w-4" />
-                          {t(lang, "form.save_view")}
-                        </Button>
-                        <Button
-                          type="button"
-                          disabled={!canSave || saving}
-                          onClick={async () => {
-                            await save();
-                            resetPaymentDraft();
-                            setMessage("Saved & Submitted successfully.");
-                          }}
-                          className="h-10 px-5 rounded-lg font-bold bg-emerald-700 hover:bg-emerald-800 text-white gap-2 text-xs"
-                        >
-                          <Send className="h-4 w-4" />
-                          {t(lang, "form.save_submit")}
+                          <Save className="h-4 w-4" />
+                          {saving ? "Processing..." : "Accept"}
                         </Button>
                       </div>
                     </div>
@@ -2554,6 +2477,9 @@ export function CashEntryForm({
                       <ReportBox
                         rows={[
                           ["Date", entryDate.split("-").reverse().join("/")],
+                          ["Journal Serial", savedSerials?.superAdmin || "Pending Save"],
+                          ["Country Serial", savedSerials?.country || "Pending Save"],
+                          ["Branch Serial", savedSerials?.branch || "Pending Save"],
                           ["Amount", txAmount ? `${fmtAmount(txAmount)} ${currency.toUpperCase()}` : "-"],
                           ...(showCalcPanel && amount ? [["Final Payment (Converted)", `${fmtAmount(amount)} ${targetAccountCurrency}`]] : []),
                           ["Exchange Rate", currency && !isLocalCurrency ? exchangeRate : "-"],
@@ -2686,10 +2612,9 @@ export function CashEntryForm({
               <table className="w-full min-w-[700px] border-collapse border border-slate-200 dark:border-slate-800 text-xs">
                 <thead className="bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300">
                   <tr className="text-left">
-                    <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Entry Serial</th>
-                    <th className="p-3 font-bold text-center border border-slate-200 dark:border-slate-800">Branch Serial</th>
-                    <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Account Number</th>
-                    <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Account Name</th>
+                    <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Date & History</th>
+                    <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Serials & Vouchers</th>
+                    <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Account Details</th>
                     <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Details</th>
                     <th className="p-3 font-bold text-center border border-slate-200 dark:border-slate-800">Credit/Debit</th>
                     <th className="p-3 font-bold text-right border border-slate-200 dark:border-slate-800">Payment</th>
@@ -2740,20 +2665,45 @@ export function CashEntryForm({
 
                       return (
                         <tr key={row.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
-                          <td className="p-3 font-mono font-bold text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800">
-                            {row.super_admin_serial_number || row.voucher_no || "-"}
+                          <td className="p-3 border border-slate-200 dark:border-slate-800 align-top">
+                            <div className="font-semibold text-slate-900 dark:text-slate-100">{new Date(row.created_at).toLocaleString()}</div>
+                            <div className="text-[10px] text-muted-foreground mt-1">Creator: {row.profiles?.full_name || row.created_by || "System"}</div>
+                            <div className="text-[10px] text-muted-foreground">Location: {row.countries?.name || "-"} | {row.city_branches?.name || row.country_branches?.name || "-"}</div>
                           </td>
-                          <td className="p-3 font-mono font-bold text-slate-900 dark:text-slate-100 text-center border border-slate-200 dark:border-slate-800">
-                            {row.branch_transaction_serial_number || "—"}
+                          <td className="p-3 font-mono text-[10.5px] border border-slate-200 dark:border-slate-800 align-top">
+                            <div className="flex flex-col gap-1.5">
+                              {row.journal_no && (
+                                <div className="flex items-center justify-between rounded bg-blue-50/50 px-1.5 py-0.5 dark:bg-blue-900/20">
+                                  <span className="font-bold text-blue-600/70 dark:text-blue-400/70">JRN:</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200">{row.journal_no}</span>
+                                </div>
+                              )}
+                              {row.voucher_no && (
+                                <div className="flex items-center justify-between rounded bg-slate-50 px-1.5 py-0.5 dark:bg-slate-800/50">
+                                  <span className="font-bold text-slate-500">VCH:</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200">{row.voucher_no}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between rounded bg-slate-50 px-1.5 py-0.5 dark:bg-slate-800/50">
+                                <span className="font-bold text-slate-500">SYS:</span>
+                                <span className="font-semibold text-slate-800 dark:text-slate-200 truncate ml-2 max-w-[80px]" title={row.id}>{row.id.split('-')[0]}</span>
+                              </div>
+                            </div>
                           </td>
-                          <td className="p-3 font-mono text-slate-700 dark:text-slate-350 border border-slate-200 dark:border-slate-800">
-                            {firstLine?.account_number || "—"}
+                          <td className="p-3 border border-slate-200 dark:border-slate-800 align-top">
+                            <div className="flex flex-col gap-1">
+                              <span className="inline-flex max-w-fit items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] font-bold text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                                {firstLine?.account_number || "—"}
+                              </span>
+                              <span className="text-xs font-bold text-blue-900 dark:text-blue-100 mt-0.5 line-clamp-2">
+                                {firstLine?.ledgers?.name || "—"}
+                              </span>
+                            </div>
                           </td>
-                          <td className="p-3 text-slate-900 dark:text-slate-100 font-semibold border border-slate-200 dark:border-slate-800">
-                            {firstLine?.ledgers?.name || "—"}
-                          </td>
-                          <td className="p-3 text-slate-700 dark:text-slate-350 max-w-xs truncate border border-slate-200 dark:border-slate-800" title={row.narration || ""}>
-                            {row.narration || "-"}
+                          <td className="p-3 text-[11px] font-medium leading-relaxed text-slate-600 dark:text-slate-400 max-w-[200px] border border-slate-200 dark:border-slate-800" title={row.narration || ""}>
+                            <div className="line-clamp-3">
+                              {row.narration || "-"}
+                            </div>
                           </td>
                           <td className="p-3 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800">
                             {typeBadge}

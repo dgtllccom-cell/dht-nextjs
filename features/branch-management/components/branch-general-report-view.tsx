@@ -8,6 +8,7 @@ import {
   Expand,
   FileSpreadsheet, 
   KeyRound,
+  LogIn,
   Minimize2, 
   PencilLine,
   Printer, 
@@ -16,7 +17,8 @@ import {
   PhoneCall,
   Shield,
   ShieldCheck,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import { apiGet } from "@/lib/api/client";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
@@ -250,11 +252,13 @@ function UserCountButton({
 function BranchUsersPanel({
   title,
   hierarchy,
-  users
+  users,
+  onClose
 }: {
   title: string;
   hierarchy: string[];
   users: BranchUserDetail[];
+  onClose?: () => void;
 }) {
   const grouped = users.reduce<Record<string, BranchUserDetail[]>>((acc, user) => {
     const key = user.classification || "Staff User";
@@ -280,9 +284,22 @@ function BranchUsersPanel({
             ))}
           </div>
         </div>
-        <div className="rounded-lg border border-indigo-100 bg-white px-3 py-1.5 text-right shadow-sm">
-          <div className="text-[9px] font-black uppercase text-slate-400">Total Users</div>
-          <div className="text-sm font-black text-indigo-700">{users.length}</div>
+        <div className="flex items-start gap-2">
+          <div className="rounded-lg border border-indigo-100 bg-white px-3 py-1.5 text-right shadow-sm">
+            <div className="text-[9px] font-black uppercase text-slate-400">Total Users</div>
+            <div className="text-sm font-black text-indigo-700">{users.length}</div>
+          </div>
+          {onClose ? (
+            <button
+              type="button"
+              title="Close user details"
+              aria-label="Close user details"
+              onClick={onClose}
+              className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 shadow-sm hover:bg-rose-50 hover:text-rose-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -381,6 +398,115 @@ function BranchUsersPanel({
       ) : (
         <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-[10px] font-bold text-slate-400">
           No users are assigned to this hierarchy level yet.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoginListPanel({ users, onClose }: { users: BranchUserDetail[]; onClose?: () => void }) {
+  const sortedUsers = [...users].sort((a, b) => {
+    const countryCompare = (a.countryName || "").localeCompare(b.countryName || "");
+    if (countryCompare) return countryCompare;
+    const branchCompare = (a.branchName || "").localeCompare(b.branchName || "");
+    if (branchCompare) return branchCompare;
+    return (a.username || "").localeCompare(b.username || "");
+  });
+
+  return (
+    <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-3 text-left shadow-inner">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">
+            <LogIn className="h-4 w-4" />
+            Login Access List
+          </div>
+          <div className="mt-1 text-[10px] font-bold text-slate-500">
+            Country, main branch, city branch and user login details for Super Admin review.
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            title="Open Login Page"
+            aria-label="Open Login Page"
+            onClick={() => {
+              window.location.href = "/auth/login";
+            }}
+            className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-[10px] font-black text-blue-700 shadow-sm hover:bg-blue-50"
+          >
+            Open Login Page
+          </button>
+          {onClose ? (
+            <button
+              type="button"
+              title="Close login list"
+              aria-label="Close login list"
+              onClick={onClose}
+              className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 shadow-sm hover:bg-rose-50 hover:text-rose-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {sortedUsers.length ? (
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <table className="min-w-[1250px] w-full border-collapse text-[9px]">
+            <thead>
+              <tr className="border-b bg-slate-50 text-center font-black uppercase tracking-wide text-slate-500">
+                <th className="border-r p-2 text-left">Country Login</th>
+                <th className="border-r p-2 text-left">Main Branch Login</th>
+                <th className="border-r p-2 text-left">City Branch Login</th>
+                <th className="border-r p-2">Username</th>
+                <th className="border-r p-2">Password</th>
+                <th className="border-r p-2">Role</th>
+                <th className="border-r p-2">User Name</th>
+                <th className="border-r p-2">Email</th>
+                <th className="border-r p-2">Status</th>
+                <th className="p-2">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedUsers.map((user) => (
+                <tr key={`login-${user.id}`} className="border-b text-center text-slate-700 hover:bg-blue-50/40">
+                  <td className="border-r p-2 text-left font-bold">{user.countryName || "-"}</td>
+                  <td className="border-r p-2 text-left">{user.branchName || "-"}</td>
+                  <td className="border-r p-2 text-left">{user.cityName || "-"}</td>
+                  <td className="border-r p-2 font-mono font-black text-blue-700">{user.username || "-"}</td>
+                  <td className="border-r p-2 font-mono">{user.temporaryPassword || "-"}</td>
+                  <td className="border-r p-2">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 font-black text-slate-700">{user.role || "-"}</span>
+                  </td>
+                  <td className="border-r p-2 text-left font-bold text-slate-900">{user.name || "-"}</td>
+                  <td className="border-r p-2">{user.email || "-"}</td>
+                  <td className="border-r p-2">
+                    <span className={cn("rounded-full px-2 py-0.5 font-black", user.status === "Active" ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100" : "bg-rose-50 text-rose-700 ring-1 ring-rose-100")}>
+                      {user.status}
+                    </span>
+                  </td>
+                  <td className="p-2">
+                    <button
+                      type="button"
+                      title="Open Login"
+                      aria-label="Open Login"
+                      onClick={() => {
+                        window.location.href = `/auth/login?username=${encodeURIComponent(user.username || "")}`;
+                      }}
+                      className="rounded border border-blue-200 bg-white px-2 py-1 text-[9px] font-black text-blue-700 hover:bg-blue-50"
+                    >
+                      Login
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-[10px] font-bold text-slate-400">
+          No login users found.
         </div>
       )}
     </div>
@@ -832,19 +958,37 @@ export function BranchGeneralReportView({
             type="button"
             className={cn(
               "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500",
-              searchType === "city"
+              expandedUserScope === "all-users"
                 ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-100"
                 : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-355"
             )}
-            onClick={() => setSearchType(searchType === "city" ? "" : "city")}
+            onClick={() => toggleUserScope("all-users")}
+            title="Show all user details"
+            aria-label="Show all user details"
           >
             <span>Users</span>
             <span className={cn(
               "px-1.5 py-0.5 rounded font-mono text-[9px] font-extrabold leading-none",
-              searchType === "city" ? "bg-indigo-500/40 text-white" : "bg-slate-100 text-slate-600"
+              expandedUserScope === "all-users" ? "bg-indigo-500/40 text-white" : "bg-slate-100 text-slate-600"
             )}>
               {data?.summary.totalActiveUsers ?? "95+"}
             </span>
+          </button>
+
+          <button
+            type="button"
+            className={cn(
+              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500",
+              expandedUserScope === "login-list"
+                ? "bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-100"
+                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-355"
+            )}
+            onClick={() => toggleUserScope("login-list")}
+            title="Show user login list"
+            aria-label="Show user login list"
+          >
+            <LogIn className="h-3 w-3" />
+            <span>Login</span>
           </button>
 
           <button
@@ -911,6 +1055,19 @@ export function BranchGeneralReportView({
         <Card className="border-rose-200 bg-rose-50/60">
           <CardContent className="p-4 text-xs text-rose-800 font-semibold">{error}</CardContent>
         </Card>
+      ) : null}
+
+      {expandedUserScope === "all-users" ? (
+        <BranchUsersPanel
+          title="All ERP Users"
+          hierarchy={["Super Admin", "All Countries", "All Branches", "All Users"]}
+          users={data?.summary.users ?? []}
+          onClose={() => setExpandedUserScope(null)}
+        />
+      ) : null}
+
+      {expandedUserScope === "login-list" ? (
+        <LoginListPanel users={data?.summary.users ?? []} onClose={() => setExpandedUserScope(null)} />
       ) : null}
 
       {/* Main Report Table Container */}
@@ -1023,6 +1180,7 @@ export function BranchGeneralReportView({
                               title="Super Admin User Directory"
                               hierarchy={["Super Admin", "All Countries", "All Branches", "Users"]}
                               users={users}
+                              onClose={() => setExpandedUserScope(null)}
                             />
                           </td>
                         </tr>
@@ -1309,6 +1467,7 @@ export function BranchGeneralReportView({
                                 title={`${country.name} Users`}
                                 hierarchy={[country.name, mainBranch?.name || "Main Branch", "All City Branches", "User List"]}
                                 users={countryUsers}
+                                onClose={() => setExpandedUserScope(null)}
                               />
                             </td>
                           </tr>
@@ -1384,6 +1543,7 @@ export function BranchGeneralReportView({
                                                     title={`${cityBranch.name} Users`}
                                                     hierarchy={[country.name, mainBranch.name, cityBranch.name, "User List"]}
                                                     users={cityUsers}
+                                                    onClose={() => setExpandedUserScope(null)}
                                                   />
                                                 </td>
                                               </tr>

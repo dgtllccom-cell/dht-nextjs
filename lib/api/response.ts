@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { ErpAuthError, getCurrentErpSession } from "@/lib/auth/session";
 import { ErpPermissionError } from "@/lib/permissions/middleware";
 import { LedgerValidationError } from "@/lib/services/ledger-service";
+import { recordEnterpriseMultilingualEvent } from "@/lib/services/enterprise-multilingual-service";
 import { RoznamchaValidationError } from "@/lib/services/roznamcha-service";
 
 export type ApiErrorBody = {
@@ -16,43 +17,44 @@ export type ApiErrorBody = {
 
 export function translateToUrdu(message: string): string {
   const msg = message.toLowerCase();
-  
+
   if (msg.includes("does not exist in the referenced users table") || msg.includes("requires a valid user reference")) {
-    return "یوزر آئی ڈی ریفرنسڈ یوزرز ٹیبل میں موجود نہیں ہے۔ اس عمل کے لیے ایک درست یوزر ریفرنس درکار ہے۔";
+    return "یوزر آئی ڈی متعلقہ users table میں موجود نہیں ہے۔ اس عمل کے لیے درست یوزر reference ضروری ہے۔";
   }
   if (msg.includes("violates foreign key constraint")) {
     if (msg.includes("city_branches_created_by_fkey")) {
-      return "ٹیبل 'city_branches' پر فارن کی (Foreign Key) کی خلاف ورزی ہوئی ہے۔ 'created_by' آئی ڈی موجود نہیں ہے۔";
+      return "City Branch record میں created_by user reference موجود نہیں ہے۔ پہلے درست user/profile بنائیں یا session user درست کریں۔";
     }
-    return "فارن کی (Foreign Key) کی خلاف ورزی ہوئی ہے۔ متعلقہ ریکارڈ ڈیٹا بیس میں موجود نہیں ہے۔";
+    return "Foreign key constraint کی خلاف ورزی ہوئی ہے۔ متعلقہ record database میں موجود نہیں ہے۔";
   }
   if (msg.includes("violates unique constraint")) {
-    return "یہ ریکارڈ پہلے سے موجود ہے۔ ڈپلیکیٹ انٹری کی اجازت نہیں ہے۔";
+    return "یہ record پہلے سے موجود ہے۔ duplicate entry کی اجازت نہیں ہے۔";
   }
   if (msg.includes("country scope is not allowed")) {
-    return "ملک کا دائرہ اختیار مجاز نہیں ہے۔";
+    return "اس user کو منتخب ملک کے data تک رسائی کی اجازت نہیں ہے۔";
   }
   if (msg.includes("main branch not found")) {
-    return "مین برانچ نہیں ملی۔";
+    return "Main Branch نہیں ملی۔";
   }
   if (msg.includes("main branch does not belong to selected country")) {
-    return "مین برانچ منتخب کردہ ملک سے تعلق نہیں رکھتی۔";
+    return "منتخب Main Branch اس country سے تعلق نہیں رکھتی۔";
   }
   if (msg.includes("already exists for this city under the selected main branch")) {
-    return "منتخب کردہ مین برانچ کے تحت اس شہر کے لیے سٹی برانچ پہلے سے موجود ہے۔";
+    return "اس city کے لیے منتخب Main Branch کے تحت City Branch پہلے سے موجود ہے۔";
   }
   if (msg.includes("request validation failed")) {
-    return "درخواست کی تصدیق (Validation) ناکام ہو گئی۔";
+    return "درخواست کی validation ناکام ہو گئی۔ required fields اور data format چیک کریں۔";
   }
-  
-  // Generic matches
+  if (msg.includes("authentication is required")) {
+    return "لاگ اِن ضروری ہے۔ براہِ کرم دوبارہ لاگ اِن کریں۔";
+  }
   if (msg.includes("not found")) {
-    return `مطلوبہ ریکارڈ نہیں ملا: ${message}`;
+    return `مطلوبہ record نہیں ملا: ${message}`;
   }
   if (msg.includes("is required")) {
-    return `یہ فیلڈ لازمی ہے: ${message}`;
+    return `یہ field لازمی ہے: ${message}`;
   }
-  
+
   return message;
 }
 
@@ -68,7 +70,7 @@ export function apiError(code: string, message: string, status = 400, details?: 
   let finalMessage = message;
   if (isSuperAdmin) {
     const urduTranslation = translateToUrdu(message);
-    finalMessage = `بھائی اس میں یہ خرابی ہے: ${urduTranslation}`;
+    finalMessage = `بھائی، اس میں یہ خرابی ہے: ${urduTranslation}`;
   }
 
   return NextResponse.json<ApiErrorBody>(
@@ -88,37 +90,73 @@ function messageFromError(error: unknown) {
   return error instanceof Error ? error.message : "Unexpected server error";
 }
 
-export async function handleApiError(error: unknown) {
+async function logApiErrorForSuperAdmin(code: string, message: string, details?: unknown) {
   let isSuperAdmin = false;
   try {
     const session = await getCurrentErpSession();
-    if (session?.isSuperAdmin) {
-      isSuperAdmin = true;
+    if (!session) return { isSuperAdmin };
+    isSuperAdmin = session.isSuperAdmin;
+
+    try {
+      await recordEnterpriseMultilingualEvent(session, {
+        eventType: "system.error",
+        severity: "error",
+        sourceModule: "api",
+        message,
+        messageLanguage: "en",
+        payload: { code, details },
+        notifyEmail: session.isSuperAdmin,
+        notifyMobile: false
+      });
+    } catch {
+      // The API response must not fail if multilingual logging migration is not applied yet.
     }
   } catch {
-    // ignore session resolution failures in non-request contexts
+    isSuperAdmin = false;
   }
+
+  return { isSuperAdmin };
+}
+
+export async function handleApiError(error: unknown) {
+  let code = "SERVER_ERROR";
+  let message = messageFromError(error);
+  let status = 500;
+  let details: unknown;
 
   if (error instanceof ZodError) {
-    return apiError("VALIDATION_ERROR", "Request validation failed", 422, error.flatten(), isSuperAdmin);
+    code = "VALIDATION_ERROR";
+    message = "Request validation failed";
+    status = 422;
+    details = error.flatten();
+  } else if (error instanceof ErpAuthError) {
+    code = "AUTH_REQUIRED";
+    message = error.message;
+    status = error.status;
+  } else if (error instanceof ErpPermissionError) {
+    code = "FORBIDDEN";
+    message = error.message;
+    status = error.status;
+  } else if (error instanceof LedgerValidationError) {
+    code = "LEDGER_VALIDATION_ERROR";
+    message = error.message;
+    status = 422;
+  } else if (error instanceof RoznamchaValidationError) {
+    code = "ROZNAMCHA_VALIDATION_ERROR";
+    message = error.message;
+    status = 422;
   }
 
-  if (error instanceof ErpAuthError) {
-    return apiError("AUTH_REQUIRED", error.message, error.status, undefined, isSuperAdmin);
-  }
+  const { isSuperAdmin } = await logApiErrorForSuperAdmin(code, message, details);
+  
+  try {
+    const fs = require("fs");
+    fs.appendFileSync(
+      "C:\\Users\\dgtll\\.gemini\\antigravity-ide\\scratch\\error_logs.txt", 
+      new Date().toISOString() + " - " + code + " - " + message + " - " + JSON.stringify(details || {}) + "\n"
+    );
+  } catch (e) {}
 
-  if (error instanceof ErpPermissionError) {
-    return apiError("FORBIDDEN", error.message, error.status, undefined, isSuperAdmin);
-  }
-
-  if (error instanceof LedgerValidationError) {
-    return apiError("LEDGER_VALIDATION_ERROR", error.message, 422, undefined, isSuperAdmin);
-  }
-
-  if (error instanceof RoznamchaValidationError) {
-    return apiError("ROZNAMCHA_VALIDATION_ERROR", error.message, 422, undefined, isSuperAdmin);
-  }
-
-  return apiError("SERVER_ERROR", messageFromError(error), 500, undefined, isSuperAdmin);
+  return apiError(code, message, status, details, isSuperAdmin);
 }
 

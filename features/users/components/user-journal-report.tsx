@@ -563,7 +563,6 @@ export function UserJournalReport() {
             setStatus={setStatus}
             shareBy={shareBy}
             setShareBy={setShareBy}
-            setDraftShareBy={setDraftShareBy}
             adminOnly={adminOnly}
             setAdminOnly={setAdminOnly}
             recentLoginsOnly={recentLoginsOnly}

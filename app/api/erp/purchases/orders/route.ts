@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiCreated, apiOk, handleApiError } from "@/lib/api/response";
+import { apiCreated, apiOk, handleApiError, apiError } from "@/lib/api/response";
 import { purchaseOrderCreateSchema, uuidSchema } from "@/lib/api/erp-validation";
 import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { requireErpSession } from "@/lib/auth/session";
@@ -205,9 +205,14 @@ export async function POST(request: NextRequest) {
       remaining_due: remainingDue
     };
 
-    const inserted = await requireSupabaseData(
-      supabase.from("purchase_orders").insert(payload).select("id, purchase_order_no").single()
-    );
+    let inserted;
+    try {
+      inserted = await requireSupabaseData(
+        supabase.from("purchase_orders").insert(payload).select("id, purchase_order_no").single()
+      );
+    } catch (e: any) {
+      return apiError("INSERT_FAILED", e.message || String(e), 400);
+    }
 
     const orderId = (inserted as any).id;
 
@@ -232,7 +237,11 @@ export async function POST(request: NextRequest) {
         total_local: it.totalLocal || 0,
         total_usd: it.totalUsd || 0
       }));
-      await requireSupabaseData(supabase.from("purchase_order_items").insert(itemsPayload));
+      try {
+        await requireSupabaseData(supabase.from("purchase_order_items").insert(itemsPayload));
+      } catch (e: any) {
+        return apiError("ITEMS_INSERT_FAILED", e.message || String(e), 400);
+      }
     }
 
     if (body.expenses && body.expenses.length > 0) {
@@ -247,7 +256,11 @@ export async function POST(request: NextRequest) {
         amount_local: ex.amountLocal || 0,
         amount_usd: ex.amountUsd || 0
       }));
-      await requireSupabaseData(supabase.from("purchase_order_expenses").insert(expPayload));
+      try {
+        await requireSupabaseData(supabase.from("purchase_order_expenses").insert(expPayload));
+      } catch (e: any) {
+        return apiError("EXPENSES_INSERT_FAILED", e.message || String(e), 400);
+      }
     }
 
     if (ledgerPostingStatus === "posted") {

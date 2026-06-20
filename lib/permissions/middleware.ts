@@ -32,12 +32,12 @@ export function canAccessCountry(session: ErpSession, countryId?: string | null)
 }
 
 export function canAccessCountryBranch(session: ErpSession, countryBranchId?: string | null) {
-  if (!countryBranchId) return session.isSuperAdmin;
+  if (!countryBranchId) return session.isSuperAdmin || session.countryBranchIds.length > 0;
   return session.isSuperAdmin || session.countryBranchIds.includes(countryBranchId);
 }
 
 export function canAccessCityBranch(session: ErpSession, cityBranchId?: string | null) {
-  if (!cityBranchId) return session.isSuperAdmin;
+  if (!cityBranchId) return session.isSuperAdmin || session.countryBranchIds.length > 0 || session.cityBranchIds.length > 0;
   return session.isSuperAdmin || session.cityBranchIds.includes(cityBranchId);
 }
 

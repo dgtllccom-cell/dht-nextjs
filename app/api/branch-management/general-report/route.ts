@@ -116,10 +116,6 @@ type BranchUserDetail = {
   createdDate: string | null;
 };
 
-function unique(values: Array<string | null | undefined>) {
-  return [...new Set(values.filter((value): value is string => Boolean(value)))];
-}
-
 function roleClassification(role: string) {
   const normalized = String(role || "").toLowerCase();
   if (normalized === "super_admin") return "Super Admin User";
@@ -254,23 +250,15 @@ export async function GET() {
     const countryBranches = (countryBranchData ?? []) as CountryBranchRow[];
     const cityBranches = (cityBranchData ?? []) as CityBranchRow[];
     const assignments = (assignmentData ?? []) as AssignmentRow[];
-    const assignedUserIds = unique(assignments.map((assignment) => assignment.user_id));
-
     const [profileRes, permissionRes, authUsersRes] = await Promise.all([
-      assignedUserIds.length
-        ? admin
-            .from("profiles")
-            .select("id, full_name, user_code, raw_password, created_at")
-            .in("id", assignedUserIds)
-            .is("deleted_at", null)
-        : Promise.resolve({ data: [], error: null }),
-      assignedUserIds.length
-        ? admin
-            .from("user_permission_sets")
-            .select("user_id, permissions")
-            .in("user_id", assignedUserIds)
-            .is("deleted_at", null)
-        : Promise.resolve({ data: [], error: null }),
+      admin
+        .from("profiles")
+        .select("id, full_name, user_code, raw_password, created_at")
+        .is("deleted_at", null),
+      admin
+        .from("user_permission_sets")
+        .select("user_id, permissions")
+        .is("deleted_at", null),
       admin.auth.admin.listUsers({ perPage: 1000 }).then((res) => ({
         data: res.data?.users ?? [],
         error: res.error ?? null
@@ -352,21 +340,57 @@ export async function GET() {
       if (!detail) continue;
       allUserDetails.push(detail);
 
-      if (assignment.country_id) {
-        const list = usersByCountry.get(assignment.country_id) ?? [];
+      const assignmentCityBranch = assignment.city_branch_id ? cityBranchesById.get(assignment.city_branch_id) : null;
+      const assignmentMainBranch = assignment.country_branch_id
+        ? countryBranchesById.get(assignment.country_branch_id)
+        : assignmentCityBranch?.country_branch_id
+          ? countryBranchesById.get(assignmentCityBranch.country_branch_id)
+          : null;
+      const mappedCountryId = assignment.country_id || assignmentCityBranch?.country_id || assignmentMainBranch?.country_id || null;
+      const mappedMainBranchId = assignment.country_branch_id || assignmentCityBranch?.country_branch_id || null;
+
+      if (mappedCountryId) {
+        const list = usersByCountry.get(mappedCountryId) ?? [];
         list.push(detail);
-        usersByCountry.set(assignment.country_id, list);
+        usersByCountry.set(mappedCountryId, list);
       }
-      if (assignment.country_branch_id) {
-        const list = usersByMainBranch.get(assignment.country_branch_id) ?? [];
+      if (mappedMainBranchId) {
+        const list = usersByMainBranch.get(mappedMainBranchId) ?? [];
         list.push(detail);
-        usersByMainBranch.set(assignment.country_branch_id, list);
+        usersByMainBranch.set(mappedMainBranchId, list);
       }
       if (assignment.city_branch_id) {
         const list = usersByCityBranch.get(assignment.city_branch_id) ?? [];
         list.push(detail);
         usersByCityBranch.set(assignment.city_branch_id, list);
       }
+    }
+
+    const userIdsWithAssignments = new Set(allUserDetails.map((user) => user.id));
+    for (const [userId, authUser] of authUsersById.entries()) {
+      if (userIdsWithAssignments.has(userId)) continue;
+      const profile = profilesById.get(userId);
+      const metadata = authUser.user_metadata ?? {};
+      const role = metadata.role || metadata.user_role || "staff_user";
+      allUserDetails.push({
+        id: userId,
+        name: profile?.full_name || metadata.full_name || authUser.email || "Unnamed User",
+        username: profile?.user_code || metadata.user_code || authUser.email || userId,
+        temporaryPassword: profile?.raw_password || null,
+        mobile: metadata.phone || metadata.mobile || authUser.phone || "",
+        email: authUser.email || "",
+        role,
+        classification: roleClassification(role),
+        mainUser: isMainUserRole(role),
+        countryName: metadata.country_name || "-",
+        cityName: metadata.city_name || "-",
+        branchName: metadata.branch_name || "-",
+        branchCode: metadata.branch_code || "-",
+        department: metadata.department || metadata.team || "-",
+        permissions: permissionsByUser.get(userId) ?? [],
+        status: "Active",
+        createdDate: profile?.created_at || authUser.created_at || null
+      });
     }
 
     const allowedCountryIds = accessibleCountryIds ?? countryIds;
@@ -449,7 +473,7 @@ export async function GET() {
           totalCountries: countriesPayload.length,
           totalMainBranches: countryBranches.length,
           totalCityBranches: cityBranches.length,
-          totalActiveUsers: activeUserIds.size,
+          totalActiveUsers: allUserDetails.length || activeUserIds.size,
           totalActiveBranches:
             countryBranches.filter((branch) => branch.status === "active").length +
             cityBranches.filter((branch) => branch.status === "active").length,

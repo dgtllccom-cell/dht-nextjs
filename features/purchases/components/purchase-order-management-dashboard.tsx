@@ -905,20 +905,28 @@ export function PurchaseOrderManagementDashboard() {
     } finally { setLoading(false); }
   }
 
-  const handleTransfer = async () => {
-    if (!selected) return;
+  const handleTransfer = async (selectedData?: any) => {
+    const itemToTransfer = selectedData || selected;
+    if (!itemToTransfer) return;
+    
+    // Prevent transferring mock data
+    if (String(itemToTransfer.id).startsWith("sample-po-")) {
+      alert("This is sample/dummy data and cannot be transferred. Please create a real purchase booking first.");
+      return;
+    }
+    
     setTransferring(true);
     try {
       const updatedFormData = {
-        ...(selected.form_data || {}),
+        ...(itemToTransfer.form_data || {}),
         workflow: {
-          ...(selected.form_data?.workflow || {}),
+          ...(itemToTransfer.form_data?.workflow || {}),
           lifecycleStatus: "Booking Confirmed",
           paymentStatus: "Advance Paid"
         }
       };
 
-      const response = await fetch(`/api/erp/purchases/orders/${selected.id}`, {
+      const response = await fetch(`/api/erp/purchases/orders/${itemToTransfer.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -934,7 +942,7 @@ export function PurchaseOrderManagementDashboard() {
       }
 
       // Also hit the transfer API to post to Roznamcha and Ledger
-      const transferResponse = await fetch(`/api/erp/purchases/orders/${selected.id}/transfer`, {
+      const transferResponse = await fetch(`/api/erp/purchases/orders/${itemToTransfer.id}/transfer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({})
@@ -948,7 +956,7 @@ export function PurchaseOrderManagementDashboard() {
       setIsDrawerOpen(false);
       await loadReports();
       // Redirect to Purchase Payment screen directly after successful transfer
-      window.location.href = `/dashboard/journal/purchase-order-payment/advance?po_id=${selected.id}`;
+      window.location.href = `/dashboard/journal/purchase-order-payment/advance?po_id=${itemToTransfer.id}`;
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error transferring booking.");
     } finally {
@@ -1784,8 +1792,8 @@ export function PurchaseOrderManagementDashboard() {
             const paymentStatusLabel = (selected.paymentStatus || "PENDING").toUpperCase();
 
             return (
-              <div className="w-full bg-slate-100 dark:bg-slate-900/60 p-4 flex flex-col lg:flex-row gap-4 rounded-xl border border-border select-none">
-                {/* Left Side: Simulated A4 Page */}
+              <div className="w-full bg-slate-100 dark:bg-slate-900/60 p-4 flex flex-col lg:flex-row-reverse gap-4 rounded-xl border border-border select-none">
+                {/* Right Side: Simulated A4 Page (Moved by flex-row-reverse) */}
                 <div className="flex-1 overflow-auto flex justify-center rounded-xl bg-slate-200/50 dark:bg-slate-950 p-2 lg:p-4 border border-slate-200 dark:border-slate-800">
                   <div className="print-a4-content bg-white text-slate-800 border border-slate-300 w-[210mm] min-h-[297mm] p-[10mm] shadow-lg text-[9px] font-sans flex flex-col gap-3 relative rounded-sm text-left leading-relaxed shrink-0">
                   
@@ -1832,9 +1840,9 @@ export function PurchaseOrderManagementDashboard() {
                       </div>
                     </div>
                     <div className="text-right text-[8px] font-bold text-slate-600 uppercase">
-                      <div>BRANCH : {selected.branchName || "Kabul Main Branch"}</div>
-                      <div>COUNTRY : {selected.countryName || "Afghanistan"}</div>
-                      <div>ADDRESS : House # 123, Street No. 5, Kabul, Afghanistan</div>
+                      <div>BRANCH : {selected.branchName || "Main Branch"}</div>
+                      <div>COUNTRY : {selected.countryName || ""}</div>
+                      <div>ADDRESS : {selected.branchName || "Branch Address"}</div>
                       <div>PHONE : +93 700 000 000</div>
                       <div>EMAIL : info@demitrading.com</div>
                     </div>
@@ -2188,7 +2196,7 @@ export function PurchaseOrderManagementDashboard() {
                         <path d="M85 50 A35 35 0 0 1 50 85" fill="none" stroke="currentColor" strokeWidth="1.5" />
                         <text x="50" y="42" textAnchor="middle" fontSize="6.5" fontWeight="900" fill="currentColor" letterSpacing="0.3">DEMI TRADING</text>
                         <text x="50" y="52" textAnchor="middle" fontSize="6" fontWeight="bold" fill="currentColor">★ STAMP ★</text>
-                        <text x="50" y="62" textAnchor="middle" fontSize="5.5" fontWeight="900" fill="currentColor" letterSpacing="0.3">KABUL BRANCH</text>
+                        <text x="50" y="62" textAnchor="middle" fontSize="5.5" fontWeight="900" fill="currentColor" letterSpacing="0.3">{(selected.branchName || "MAIN BRANCH").toUpperCase()}</text>
                       </svg>
                     </div>
                     <div className="w-[18%] text-center border-t border-slate-300 pt-1">
@@ -2204,18 +2212,19 @@ export function PurchaseOrderManagementDashboard() {
                 </div>
                 </div>
 
-                {/* Right Side: Verification Panel */}
-                <div className="w-full lg:w-[350px] shrink-0 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm flex flex-col h-full overflow-y-auto">
+                {/* Left Side: Verification Panel (Moved by flex-row-reverse) */}
+                <div className="w-full lg:w-[400px] shrink-0 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg flex flex-col h-full overflow-y-auto">
                   
                   {/* Panel Header */}
-                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 sticky top-0 z-10">
-                    <h3 className="text-sm font-black text-[#0f2942] dark:text-white uppercase tracking-widest flex items-center gap-2">
-                      <FileCheck2 className="h-4 w-4 text-blue-600" />
-                      Verification Summary
+                  <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-10 shadow-sm">
+                    <h3 className="text-base font-black text-[#0f2942] dark:text-white uppercase tracking-widest flex items-center gap-2">
+                      <FileCheck2 className="h-5 w-5 text-emerald-600" />
+                      Transfer Verification Form
                     </h3>
+                    <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-bold">Review details before posting to Roznamcha</p>
                   </div>
 
-                  <div className="p-4 space-y-5 flex-1">
+                  <div className="p-5 space-y-6 flex-1 bg-slate-50/50 dark:bg-slate-900/20">
                     
                     {/* User, Branch & Country Info */}
                     <div className="space-y-3">
@@ -2233,7 +2242,7 @@ export function PurchaseOrderManagementDashboard() {
                         <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
                           <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Branch Info</div>
                           <div><span className="text-slate-400 block text-[9px] uppercase">Name</span><span className="font-bold text-xs truncate block" title={selected.branchName}>{selected.branchName || "Main"}</span></div>
-                          <div className="mt-1"><span className="text-slate-400 block text-[9px] uppercase">Code</span><span className="font-bold text-xs font-mono">BR-01</span></div>
+                          <div className="mt-1"><span className="text-slate-400 block text-[9px] uppercase">Code</span><span className="font-bold text-xs font-mono">{selected.audit?.branchCode || selected.form_data?.form?.branchCode || "-"}</span></div>
                         </div>
                         <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
                           <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Country Info</div>

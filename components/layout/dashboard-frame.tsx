@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { PreferencesControls } from "@/components/layout/preferences-controls";
+import { ErpPageActions } from "@/components/layout/erp-page-actions";
 
 export function DashboardFrame({
   children,
@@ -348,7 +349,10 @@ export function DashboardFrame({
         </header>
 
         {/* Main Work Area */}
-        <main className="w-full flex-1 p-4 lg:p-6 bg-slate-50/30 dark:bg-slate-950/20">{children}</main>
+        <main className="w-full flex-1 p-4 lg:p-6 bg-slate-50/30 dark:bg-slate-950/20">
+          <ErpPageActions />
+          {children}
+        </main>
       </div>
 
       {/* Global Command Palette search Modal Overlay */}
