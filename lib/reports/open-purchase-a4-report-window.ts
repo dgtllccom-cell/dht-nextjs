@@ -102,6 +102,11 @@ export function openPurchaseA4ReportWindow(input: {
       const rateTon = rateKg * 1000;
       const amountUsd = Number(g.totalAmount || 0);
       const finalAmountPkr = Number(g.finalAmount || 0);
+      
+      const purchCurr = g.purchaseCurrency || form.purchaseCurrency || form.currencyType || "USD";
+      const finalCurr = form.purchaseAccountCurrency || form.salesAccountCurrency || "PKR";
+      const exRate = Number(g.exchangeRate || form.exchangeRate || g.rate2 || 1);
+
       return {
         srNo: index + 1,
         goodsName: g.goodsName || "N/A",
@@ -115,12 +120,16 @@ export function openPurchaseA4ReportWindow(input: {
         rateKg,
         rateTon,
         amountUsd,
-        exRate: g.rate2 || 280.00,
+        exRate,
+        purchCurr,
+        finalCurr,
         finalAmountPkr
       };
     });
   } else {
     // Fallback if goods entries list is empty
+    const defaultPurchCurr = form.purchaseCurrency || form.currencyType || "USD";
+    const defaultFinalCurr = form.purchaseAccountCurrency || form.salesAccountCurrency || "PKR";
     items = [{
       srNo: 1,
       goodsName: b.productName || "WALNUTS IN SHELL",
@@ -134,7 +143,9 @@ export function openPurchaseA4ReportWindow(input: {
       rateKg: b.purchaseRate || 0,
       rateTon: (b.purchaseRate || 0) * 1000,
       amountUsd: b.totalPurchaseAmount || 0,
-      exRate: 280.00,
+      exRate: Number(form.exchangeRate || 280.00),
+      purchCurr: defaultPurchCurr,
+      finalCurr: defaultFinalCurr,
       finalAmountPkr: b.finalAmount || (b.totalPurchaseAmount || 0) * 280.00
     }];
   }
@@ -570,14 +581,14 @@ export function openPurchaseA4ReportWindow(input: {
               <tr>
                 <th style="width: 4%; text-align: center;">SR</th>
                 <th style="width: 14%;">Goods Specification</th>
-                <th style="width: 10%; text-align: center;">Grade</th>
-                <th style="width: 10%; text-align: center;">Origin</th>
-                <th style="width: 10%; text-align: right;">Quantity</th>
-                <th style="width: 12%; text-align: center;">Packing</th>
-                <th style="width: 10%; text-align: right;">Gross Weight</th>
-                <th style="width: 10%; text-align: right;">Net Weight</th>
-                <th style="width: 10%; text-align: right;">Rate/KG</th>
-                <th style="width: 10%; text-align: right;">Amount (USD)</th>
+                <th style="width: 8%; text-align: center;">Origin</th>
+                <th style="width: 8%; text-align: right;">Quantity</th>
+                <th style="width: 8%; text-align: right;">Net Wt</th>
+                <th style="width: 8%; text-align: center;">Purch Curr</th>
+                <th style="width: 8%; text-align: right;">Rate</th>
+                <th style="width: 10%; text-align: right;">Amount</th>
+                <th style="width: 8%; text-align: center;">Ex. Rate</th>
+                <th style="width: 8%; text-align: center;">Final Curr</th>
                 <th style="width: 10%; text-align: right;">Final Amount</th>
               </tr>
             </thead>
@@ -586,15 +597,15 @@ export function openPurchaseA4ReportWindow(input: {
                 <tr>
                   <td style="text-align: center;">${item.srNo}</td>
                   <td style="font-weight: bold; color: #1e3a8a;">${escapeHtml(item.goodsName)}</td>
-                  <td style="text-align: center;">${escapeHtml(item.grade)}</td>
                   <td style="text-align: center;">${escapeHtml(item.origin)}</td>
                   <td style="text-align: right; font-weight: bold;">${formatNumber(item.quantity)} ${item.qtyName}</td>
-                  <td style="text-align: center;">${escapeHtml(item.packing)}</td>
-                  <td style="text-align: right; font-family: monospace;">${formatNumber(item.grossWt)} kg</td>
                   <td style="text-align: right; font-family: monospace; font-weight: bold;">${formatNumber(item.netWt)} kg</td>
-                  <td style="text-align: right; font-family: monospace;">$${item.rateKg.toFixed(2)}</td>
-                  <td style="text-align: right; font-family: monospace; font-weight: bold;">$${formatMoney(item.amountUsd)}</td>
-                  <td style="text-align: right; font-family: monospace; font-weight: 800; color: #1e3a8a;">${formatMoney(item.finalAmountPkr)} Rs</td>
+                  <td style="text-align: center; font-weight: bold;">${escapeHtml(item.purchCurr)}</td>
+                  <td style="text-align: right; font-family: monospace;">${item.rateKg.toFixed(2)}</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: bold;">${formatMoney(item.amountUsd)}</td>
+                  <td style="text-align: center; font-family: monospace;">${item.exRate}</td>
+                  <td style="text-align: center; font-weight: bold; color: #059669;">${escapeHtml(item.finalCurr)}</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: 800; color: #059669;">${formatMoney(item.finalAmountPkr)}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -628,12 +639,12 @@ export function openPurchaseA4ReportWindow(input: {
             <div class="aggregate-val">$${avgRateTon.toFixed(2)}</div>
           </div>
           <div class="aggregate-box">
-            <div class="aggregate-lbl" style="color: #2563eb;">Total Purchase (USD)</div>
-            <div class="aggregate-val font-mono" style="color: #2563eb;">$${formatMoney(totalAmountUsd)}</div>
+            <div class="aggregate-lbl" style="color: #2563eb;">Total Purchase (${escapeHtml(items[0]?.purchCurr || "USD")})</div>
+            <div class="aggregate-val font-mono" style="color: #2563eb;">${formatMoney(totalAmountUsd)}</div>
           </div>
           <div class="aggregate-box" style="background: #ecfdf5;">
-            <div class="aggregate-lbl" style="color: #059669;">Grand Final Amount</div>
-            <div class="aggregate-val font-mono" style="color: #059669;">${formatMoney(totalAmountPkr)} Rs</div>
+            <div class="aggregate-lbl" style="color: #059669;">Grand Final (${escapeHtml(items[0]?.finalCurr || "PKR")})</div>
+            <div class="aggregate-val font-mono" style="color: #059669;">${formatMoney(totalAmountPkr)}</div>
           </div>
         </div>
 
@@ -686,9 +697,9 @@ export function openPurchaseA4ReportWindow(input: {
                   <strong>${escapeHtml(b.purchaseAccountName || "Dubai Purchase Account")}</strong>
                   <span style="font-size: 6.5px; color: #64748b; display: block;">${escapeHtml(b.branchName || "Kabul Main Branch")}</span>
                 </td>
-                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #2563eb;">$${formatMoney(totalAmountUsd)}</td>
+                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #2563eb;">${formatMoney(totalAmountUsd)}</td>
                 <td style="text-align: right; color: #94a3b8;">-</td>
-                <td style="text-align: center; font-weight: bold;">USD</td>
+                <td style="text-align: center; font-weight: bold;">${escapeHtml(items[0]?.purchCurr || "USD")}</td>
               </tr>
               <tr>
                 <td style="font-weight: bold; color: #059669;">CREDIT (CR)</td>
@@ -698,8 +709,8 @@ export function openPurchaseA4ReportWindow(input: {
                   <span style="font-size: 6.5px; color: #64748b; display: block;">${escapeHtml(b.branchName || "Kabul Main Branch")}</span>
                 </td>
                 <td style="text-align: right; color: #94a3b8;">-</td>
-                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #059669;">${formatMoney(totalAmountPkr)} Rs</td>
-                <td style="text-align: center; font-weight: bold;">PKR</td>
+                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #059669;">${formatMoney(totalAmountPkr)}</td>
+                <td style="text-align: center; font-weight: bold;">${escapeHtml(items[0]?.finalCurr || "PKR")}</td>
               </tr>
             </tbody>
           </table>
@@ -714,13 +725,13 @@ export function openPurchaseA4ReportWindow(input: {
                 <span>Payment Condition / Type:</span><strong style="color: #0f172a;">${escapeHtml(form.paymentType || b.paymentStatus || "Advance Payment")}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
-                <span>Exchange Rate (USD → PKR):</span><strong style="color: #0f172a; font-family: monospace;">${exRateVal} Rs</strong>
+                <span>Exchange Rate:</span><strong style="color: #0f172a; font-family: monospace;">${exRateVal}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
-                <span>Total Invoice Amount (USD):</span><strong style="color: #1e3a8a; font-family: monospace;">$${formatMoney(totalAmountUsd)}</strong>
+                <span>Total Invoice Amount (${escapeHtml(items[0]?.purchCurr || "USD")}):</span><strong style="color: #1e3a8a; font-family: monospace;">${formatMoney(totalAmountUsd)}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
-                <span>Total Invoice Amount (PKR):</span><strong style="color: #059669; font-family: monospace;">${formatMoney(totalAmountPkr)} Rs</strong>
+                <span>Total Invoice Amount (${escapeHtml(items[0]?.finalCurr || "PKR")}):</span><strong style="color: #059669; font-family: monospace;">${formatMoney(totalAmountPkr)}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; padding-top: 1px;">
                 <span>Payment Method Details:</span><strong style="color: #0f172a; max-w: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(form.paymentDaysAndMethodDetails || "N/A")}</strong>
@@ -732,13 +743,13 @@ export function openPurchaseA4ReportWindow(input: {
                 <span>Advance % / Ratio:</span><strong style="color: #0f172a;">${advancePercentVal}%</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
-                <span>Advance Amount (USD / PKR):</span><strong style="color: #0f172a; font-family: monospace;">$${formatMoney(advanceUsd)} / ${formatMoney(advancePkr)} Rs</strong>
+                <span>Advance Amount:</span><strong style="color: #0f172a; font-family: monospace;">${formatMoney(advanceUsd)} ${escapeHtml(items[0]?.purchCurr || "USD")} / ${formatMoney(advancePkr)} ${escapeHtml(items[0]?.finalCurr || "PKR")}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
                 <span>Advance Payment Date:</span><strong style="color: #2563eb; font-family: monospace;">${formatDate(form.advancePaymentDate)}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
-                <span>Remaining Balance (USD / PKR):</span><strong style="color: #ef4444; font-family: monospace;">$${formatMoney(remainingUsd)} / ${formatMoney(remainingPkr)} Rs</strong>
+                <span>Remaining Balance:</span><strong style="color: #ef4444; font-family: monospace;">${formatMoney(remainingUsd)} ${escapeHtml(items[0]?.purchCurr || "USD")} / ${formatMoney(remainingPkr)} ${escapeHtml(items[0]?.finalCurr || "PKR")}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; padding-top: 1px;">
                 <span>Remaining Due Date:</span><strong style="color: #ef4444; font-family: monospace;">${formatDate(form.paymentDate)}</strong>

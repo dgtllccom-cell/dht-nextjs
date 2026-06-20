@@ -772,8 +772,10 @@ export function SuperAdminRoznamchaReportView({
   }, []);
 
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+  const [titlePortalNode, setTitlePortalNode] = useState<HTMLElement | null>(null);
   useEffect(() => {
     setPortalNode(document.getElementById("erp-page-actions-slot"));
+    setTitlePortalNode(document.getElementById("erp-page-title-slot"));
   }, []);
 
   useEffect(() => {
@@ -1314,29 +1316,30 @@ export function SuperAdminRoznamchaReportView({
         </div>
   );
 
+  const titleContent = (
+    <div className="flex items-center gap-2">
+      <h1 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+        {typeFilter === "super_admin"
+          ? "Super Admin Roznamcha Report"
+          : typeFilter === "country"
+            ? "Country Roznamcha Report"
+            : "City Roznamcha Report"}
+      </h1>
+      <span className="text-[10px] text-slate-400">•</span>
+      <span className="hidden lg:block text-[10px] text-slate-500 font-semibold truncate max-w-[400px]">
+        {typeFilter === "super_admin"
+          ? "Country + Branch daily journal - USD rate used in table columns only (not in summary)"
+          : typeFilter === "country"
+            ? "Country wise daily Roznamcha details with account, branch, debit and credit activity."
+            : "Branch wise daily Roznamcha details with account, debit and credit activity."}
+      </span>
+    </div>
+  );
+
   return (
     <div className="mx-auto max-w-[1680px] space-y-3 bg-[#f7f8fb] px-3 py-3 text-[12.5px] md:px-4">
       {portalNode ? createPortal(filtersContent, portalNode) : null}
-
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-1.5 opacity-60">
-          <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase">
-            {typeFilter === "super_admin"
-              ? "Super Admin Roznamcha Report"
-              : typeFilter === "country"
-                ? "Country Roznamcha Report"
-                : "City Roznamcha Report"}
-          </span>
-          <span className="text-[10px] text-slate-400">•</span>
-          <span className="text-[9px] text-slate-400 font-semibold">
-            {typeFilter === "super_admin"
-              ? "Country + Branch daily journal - USD rate used in table columns only (not in summary)"
-              : typeFilter === "country"
-                ? "Country wise daily Roznamcha details with account, branch, debit and credit activity."
-                : "Branch wise daily Roznamcha details with account, debit and credit activity."}
-          </span>
-        </div>
-      </div>
+      {titlePortalNode ? createPortal(titleContent, titlePortalNode) : null}
 
 
 
@@ -1425,49 +1428,49 @@ export function SuperAdminRoznamchaReportView({
       ) : (
         <div className="space-y-4">
           {/* Daily Summary Dashboard Cards */}
-          <div className="bg-slate-900 text-white rounded-xl p-4 shadow-md border border-slate-800">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">📅 Daily Operations Summary (USD Converted)</span>
+          <div className="bg-white text-slate-900 rounded-xl p-4 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">📅 Daily Operations Summary (USD Converted)</span>
               <span className="text-[10px] text-slate-500 font-semibold">Active Date Range: {appliedFilters.fromDate} to {appliedFilters.toDate}</span>
             </div>
             
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {/* Card 1: Active Branches */}
-              <div className="bg-slate-950/40 rounded-lg p-3 border border-slate-800 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-lg font-bold">🏢</div>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-lg font-bold">🏢</div>
                 <div className="space-y-0.5">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Worked Branches</p>
-                  <p className="text-lg font-black text-white">{branchesIncludedCount} Branches</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Worked Branches</p>
+                  <p className="text-lg font-black text-slate-900">{branchesIncludedCount} Branches</p>
                   <p className="text-[9px] text-slate-500 font-medium">Active branch offices today</p>
                 </div>
               </div>
 
               {/* Card 2: Debit Entries */}
-              <div className="bg-slate-950/40 rounded-lg p-3 border border-slate-800 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg font-bold">📈</div>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg font-bold">📈</div>
                 <div className="space-y-0.5">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Debit (Money Received)</p>
-                  <p className="text-sm font-black text-emerald-400">${fmtNumber(visibleRows.reduce((sum, r) => sum + (r.debit > 0 ? (r.debitUsd > 0 ? r.debitUsd : r.debit / getRowRate(r.currency)) : 0), 0))} USD</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Debit (Money Received)</p>
+                  <p className="text-sm font-black text-emerald-600">${fmtNumber(visibleRows.reduce((sum, r) => sum + (r.debit > 0 ? (r.debitUsd > 0 ? r.debitUsd : r.debit / getRowRate(r.currency)) : 0), 0))} USD</p>
                   <p className="text-[9px] text-slate-500 font-bold">{visibleRows.filter(r => r.debit > 0).length} Debit Voucher Entries</p>
                 </div>
               </div>
 
               {/* Card 3: Credit Entries */}
-              <div className="bg-slate-950/40 rounded-lg p-3 border border-slate-800 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-lg font-bold">📉</div>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-lg font-bold">📉</div>
                 <div className="space-y-0.5">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Credit (Money Paid)</p>
-                  <p className="text-sm font-black text-red-400">${fmtNumber(visibleRows.reduce((sum, r) => sum + (r.credit > 0 ? (r.creditUsd > 0 ? r.creditUsd : r.credit / getRowRate(r.currency)) : 0), 0))} USD</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Credit (Money Paid)</p>
+                  <p className="text-sm font-black text-red-600">${fmtNumber(visibleRows.reduce((sum, r) => sum + (r.credit > 0 ? (r.creditUsd > 0 ? r.creditUsd : r.credit / getRowRate(r.currency)) : 0), 0))} USD</p>
                   <p className="text-[9px] text-slate-500 font-bold">{visibleRows.filter(r => r.credit > 0).length} Credit Voucher Entries</p>
                 </div>
               </div>
 
               {/* Card 4: Exchange Rates */}
-              <div className="bg-slate-950/40 rounded-lg p-3 border border-slate-800 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg font-bold">💱</div>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-lg font-bold">💱</div>
                 <div className="space-y-0.5 flex-1 min-w-0">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Active Exchange Rates</p>
-                  <div className="grid grid-cols-2 gap-x-2 text-[9.5px] font-mono font-bold text-slate-300">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Active Exchange Rates</p>
+                  <div className="grid grid-cols-2 gap-x-2 text-[9.5px] font-mono font-bold text-slate-700">
                     <div>PKR: {ratesApplied.pkr.toFixed(1)}</div>
                     <div>AED: {ratesApplied.aed.toFixed(3)}</div>
                     <div>AFN: {ratesApplied.afn.toFixed(1)}</div>
@@ -1543,6 +1546,7 @@ export function SuperAdminRoznamchaReportView({
                   <thead className="bg-slate-900 text-white dark:bg-slate-800">
                     <tr className="whitespace-nowrap text-left">
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Date</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">General Serial No</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Country Serial No</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Branch Serial No</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">User Name</th>
@@ -1550,13 +1554,20 @@ export function SuperAdminRoznamchaReportView({
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Details</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Debit</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Credit</th>
+                      {showUsd && (
+                        <>
+                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">USD Rate</th>
+                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Dr (USD)</th>
+                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Cr (USD)</th>
+                        </>
+                      )}
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={9} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
+                        <td colSpan={showUsd ? 13 : 10} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
                           Loading entries...
                         </td>
                       </tr>
@@ -1578,6 +1589,7 @@ export function SuperAdminRoznamchaReportView({
                             }}
                           >
                             <td className="p-2.5 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.entryDate}</td>
+                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold text-slate-800">{row.superAdminSerialNo}</td>
                             <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold text-slate-800">{row.countrySerialNo}</td>
                             <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-700">{row.branchSerialNo}</td>
                             <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-700">{row.createdBy}</td>
@@ -1595,6 +1607,19 @@ export function SuperAdminRoznamchaReportView({
                             )}>
                               {row.credit > 0 ? fmtCountryValue(row.credit) : "0"}
                             </td>
+                            {showUsd && (
+                              <>
+                                <td className="p-2.5 text-right whitespace-nowrap font-medium text-[10px] text-slate-500 bg-slate-50/50 border border-slate-200 dark:border-slate-800 dark:bg-slate-900/50">
+                                  {fmtRate(getRowRate(row.currency))}
+                                </td>
+                                <td className="p-2.5 text-right whitespace-nowrap font-bold text-red-700 border border-slate-200 dark:border-slate-800">
+                                  {row.debit > 0 ? fmtNumber(row.debitUsd > 0 ? row.debitUsd : row.debit / getRowRate(row.currency)) : "-"}
+                                </td>
+                                <td className="p-2.5 text-right whitespace-nowrap font-bold text-emerald-700 border border-slate-200 dark:border-slate-800">
+                                  {row.credit > 0 ? fmtNumber(row.creditUsd > 0 ? row.creditUsd : row.credit / getRowRate(row.currency)) : "-"}
+                                </td>
+                              </>
+                            )}
                             <td className="p-2.5 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 relative row-action-menu-relative">
                               <Button
                                 type="button"
@@ -1670,7 +1695,7 @@ export function SuperAdminRoznamchaReportView({
                       })
                     ) : (
                       <tr>
-                        <td colSpan={9} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
+                        <td colSpan={showUsd ? 13 : 10} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
                           {t(lang, "roz.no_entries")}
                         </td>
                       </tr>

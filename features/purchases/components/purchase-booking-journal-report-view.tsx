@@ -1404,6 +1404,14 @@ export function PurchaseBookingJournalReportView({
 
           <div className="p-4 space-y-3">
           <DarkTable
+            tableGroups={[
+              { label: "General Information", span: 11, cls: "bg-[#0f2942] text-white" },
+              { label: "Product Information", span: 7, cls: "bg-emerald-800 text-emerald-100" },
+              { label: "Financial Information", span: isSuperAdmin ? 10 : 9, cls: "bg-blue-800 text-blue-100" },
+              { label: "Route & Loading", span: 7, cls: "bg-indigo-700 text-indigo-100" },
+              { label: "Status", span: 3, cls: "bg-slate-700 text-slate-200" },
+              { label: "Actions", span: 1, cls: "bg-slate-600 text-slate-200" },
+            ]}
             headers={[
               // ── General Information ──────────────────────────────────────
               "SR.",
@@ -1426,10 +1434,12 @@ export function PurchaseBookingJournalReportView({
               "GROSS WT (KG)",
               "NET WT (KG)",
               // ── Financial Information ────────────────────────────────────
+              "PURCH. CURR",
               "PURCH. PRICE",
               "TOTAL AMT",
               "PURCH. AMT",
               "EX. RATE",
+              "FINAL CURR",
               "FINAL AMT",
               ...(isSuperAdmin ? ["USD EQ."] : []),
               "INV. %",
@@ -1622,24 +1632,26 @@ export function PurchaseBookingJournalReportView({
                   <Td right className={`font-mono ${getRowColor()} text-[10px]`}>{formatNumber(totalGross)}</Td>
                   <Td right className={`font-mono ${getRowColor()} text-[10px]`}>{formatNumber(totalNet)}</Td>
                   {/* ── Financial Information ───────────────────── */}
+                  <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{currency}</Td>
                   <Td right className={`font-mono font-semibold ${getRowColor()} text-[10px]`}>
-                    {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${currency}` : "-"}
+                    {purchasePrice > 0 ? `${purchasePrice.toFixed(3)}` : "-"}
                   </Td>
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
-                    {totalAmt > 0 ? `${formatMoney(totalAmt)} ${currency}` : "-"}
+                    {totalAmt > 0 ? `${formatMoney(totalAmt)}` : "-"}
                   </Td>
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
-                    {purchaseAmt > 0 ? `${formatMoney(purchaseAmt)} ${currency}` : "-"}
+                    {purchaseAmt > 0 ? `${formatMoney(purchaseAmt)}` : "-"}
                   </Td>
                   <Td right className={`font-mono ${getRowColor()} text-[10px]`}>
                     {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
                   </Td>
+                  <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{localCurrency}</Td>
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
-                    {finalAmt > 0 ? `${formatMoney(finalAmt)} ${localCurrency}` : "-"}
+                    {finalAmt > 0 ? `${formatMoney(finalAmt)}` : "-"}
                   </Td>
                   {isSuperAdmin && (
                     <Td right className={`font-mono font-bold text-blue-500 text-[10px]`}>
-                      {finalAmt > 0 ? `${formatMoney(exchangeRate > 0 ? finalAmt / exchangeRate : finalAmt)} USD` : "-"}
+                      {finalAmt > 0 ? `${formatMoney(exchangeRate > 0 ? finalAmt / exchangeRate : finalAmt)}` : "-"}
                     </Td>
                   )}
                   <Td center className="text-[10px]">
@@ -2326,24 +2338,14 @@ function SummaryCard({ icon, label, value, accent }: { icon: React.ReactNode; la
   );
 }
 
-// Color-coded column group definitions used by DarkTable
-const TABLE_GROUPS = [
-  { label: "General Information", span: 11, cls: "bg-[#0f2942] text-white" },
-  { label: "Product Information", span: 7, cls: "bg-emerald-800 text-emerald-100" },
-  { label: "Financial Information", span: 7, cls: "bg-blue-800 text-blue-100" },
-  { label: "Route & Loading", span: 7, cls: "bg-indigo-700 text-indigo-100" },
-  { label: "Status", span: 3, cls: "bg-slate-700 text-slate-200" },
-  { label: "Actions", span: 1, cls: "bg-slate-600 text-slate-200" },
-];
-
-function DarkTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
+function DarkTable({ headers, tableGroups, children }: { headers: string[]; tableGroups: {label: string, span: number, cls: string}[]; children: React.ReactNode }) {
   return (
     <div className="overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm max-h-[calc(100vh-320px)] min-h-[350px]">
       <table className="min-w-[4200px] border-collapse text-xs text-slate-800">
         <thead className="sticky top-0 z-10 border-b border-slate-200">
           {/* Group header row */}
           <tr>
-            {TABLE_GROUPS.map((group) => (
+            {tableGroups.map((group) => (
               <th
                 key={group.label}
                 colSpan={group.span}

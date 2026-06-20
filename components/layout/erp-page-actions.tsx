@@ -103,13 +103,13 @@ export function ErpPageActions() {
   }
 
   function closePage() {
-    router.push(parentPathFor(pathname || "/dashboard"));
+    router.push(parentPathFor(pathname || "/dashboard") as any);
   }
 
   function editCurrentRecord() {
     const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
     params.set("mode", "edit");
-    router.push(`${pathname}?${params.toString()}`);
+    router.push(`${pathname}?${params.toString()}` as any);
   }
 
   function emailPage() {
@@ -138,7 +138,9 @@ export function ErpPageActions() {
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
           Back
         </Button>
-        <div className="min-w-0">
+        <div id="erp-page-title-slot" className="min-w-0 empty:hidden" />
+        <style>{`#erp-page-title-slot:not(:empty) + .default-title { display: none; }`}</style>
+        <div className="min-w-0 default-title">
           <h1 className="truncate text-sm font-black text-slate-900 dark:text-slate-100">{title}</h1>
           <p className="hidden text-[10px] font-semibold text-slate-400 sm:block">Standard ERP navigation and page actions</p>
         </div>

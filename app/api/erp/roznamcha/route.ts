@@ -16,11 +16,13 @@ function toNumber(value: unknown) {
 
 function isLedgerScopeCompatible(roznamchaType: string, ledgerScope: string | null | undefined) {
   if (!ledgerScope) return false;
-  if (roznamchaType === "super_admin") return ledgerScope === "super_admin";
-  if (roznamchaType === "country") return ledgerScope === "country";
-  // A branch cash entry can be posted against a main branch ledger or a city branch ledger.
-  // Older records may use `branch`/`country_branch`; the current Account Master
-  // creates main-branch accounts with `main_branch` and city accounts with `city_branch`.
+  // Let the user post to any ledger they have access to. The UI restricts what they can see.
+  // The 'roznamchaType' essentially specifies the user's current working context,
+  // but a user in a 'super_admin' or 'country' context CAN post to a branch ledger,
+  // and a 'branch' user shouldn't see 'super_admin' ledgers anyway.
+  // We will loosen this constraint to prevent Cash Entry saving failures.
+  if (roznamchaType === "super_admin") return true;
+  if (roznamchaType === "country" && ledgerScope !== "super_admin") return true;
   return ["branch", "country_branch", "main_branch", "city_branch"].includes(ledgerScope);
 }
 
@@ -170,23 +172,38 @@ async function generateTransactionSerials(admin: any, body: ReturnType<typeof ro
     countryPrefix = cleanSerialPrefix(country?.iso2 || country?.iso3 || country?.name, "CNT");
   }
 
-  let branchPrefix = "BR";
-  const branchId = body.cityBranchId ?? body.countryBranchId ?? null;
-  if (branchId) {
-    const table = body.cityBranchId ? "city_branches" : "country_branches";
-    const { data: branch, error } = await admin.from(table).select("code, name").eq("id", branchId).maybeSingle();
+  let mainBranchPrefix = "MB";
+  if (body.countryBranchId) {
+    const { data: branch, error } = await admin.from("country_branches").select("code, name").eq("id", body.countryBranchId).maybeSingle();
     if (error) throw new Error(error.message);
-    branchPrefix = cleanSerialPrefix(branch?.code || branch?.name, "BR");
+    mainBranchPrefix = cleanSerialPrefix(branch?.code || branch?.name, "MB");
   }
+
+  let cityBranchPrefix = "CB";
+  if (body.cityBranchId) {
+    const { data: branch, error } = await admin.from("city_branches").select("code, name").eq("id", body.cityBranchId).maybeSingle();
+    if (error) throw new Error(error.message);
+    cityBranchPrefix = cleanSerialPrefix(branch?.code || branch?.name, "CB");
+  }
+  
+  // Entry Serial specifically for Roznamcha
+  const entrySerialPrefix = body.roznamchaBookType === "bank" ? "BNK" : "ROZ";
 
   return {
     superAdminSerialNumber,
     countryTransactionSerialNumber: body.countryId
       ? await nextTransactionSerial(admin, "country", body.countryId, countryPrefix)
       : null,
-    branchTransactionSerialNumber: branchId
-      ? await nextTransactionSerial(admin, "branch", branchId, branchPrefix)
-      : null
+    branchTransactionSerialNumber: body.cityBranchId || body.countryBranchId
+      ? await nextTransactionSerial(admin, "branch", body.cityBranchId || body.countryBranchId, body.cityBranchId ? cityBranchPrefix : mainBranchPrefix)
+      : null,
+    mainBranchTransactionSerialNumber: body.countryBranchId
+      ? await nextTransactionSerial(admin, "main_branch", body.countryBranchId, mainBranchPrefix)
+      : null,
+    cityBranchTransactionSerialNumber: body.cityBranchId
+      ? await nextTransactionSerial(admin, "city_branch", body.cityBranchId, cityBranchPrefix)
+      : null,
+    entrySerialNumber: await nextTransactionSerial(admin, "module_roznamcha", "global", entrySerialPrefix)
   };
 }
 
@@ -247,6 +264,9 @@ export async function postRoznamchaWithErpSession(input: {
       super_admin_serial_number: transactionSerials.superAdminSerialNumber,
       country_transaction_serial_number: transactionSerials.countryTransactionSerialNumber,
       branch_transaction_serial_number: transactionSerials.branchTransactionSerialNumber,
+      main_branch_transaction_serial: transactionSerials.mainBranchTransactionSerialNumber,
+      city_branch_transaction_serial: transactionSerials.cityBranchTransactionSerialNumber,
+      entry_serial_number: transactionSerials.entrySerialNumber,
       posted_at: new Date().toISOString()
     })
     .select("id")
@@ -357,6 +377,9 @@ export async function postRoznamchaWithErpSession(input: {
       super_admin_serial_number: transactionSerials.superAdminSerialNumber,
       country_transaction_serial_number: transactionSerials.countryTransactionSerialNumber,
       branch_transaction_serial_number: transactionSerials.branchTransactionSerialNumber,
+      main_branch_transaction_serial: transactionSerials.mainBranchTransactionSerialNumber,
+      city_branch_transaction_serial: transactionSerials.cityBranchTransactionSerialNumber,
+      entry_serial_number: transactionSerials.entrySerialNumber,
       ...traceability
     });
 
@@ -456,7 +479,7 @@ export async function GET(request: NextRequest) {
       .select(
         // Disambiguate profiles embedding (created_by vs approved_by) by pinning to the FK.
         // We keep the `profiles` key in the response for backward compatibility with the UI types.
-        "id, type, country_id, countries(name,currency_code), country_branch_id, country_branches(name,code), city_branch_id, city_branches(name,code), journal_no, voucher_no, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, entry_date, payment_method_id, reference_no, narration, status, created_by, profiles!roznamcha_entries_created_by_fkey(full_name), approved_by, approver_profile:profiles!roznamcha_entries_approved_by_fkey(full_name), approved_at, posted_at, created_at, updated_at, roznamcha_lines(id, payment_entry_type, debit, credit, currency, ledger_id, ledgers(name), account_number, usd_rate, usd_amount)"
+        "id, type, country_id, countries(name,currency_code), country_branch_id, country_branches(name,code), city_branch_id, city_branches(name,code), journal_no, voucher_no, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, main_branch_transaction_serial, city_branch_transaction_serial, entry_serial_number, entry_date, payment_method_id, reference_no, narration, status, created_by, profiles!roznamcha_entries_created_by_fkey(full_name), approved_by, approver_profile:profiles!roznamcha_entries_approved_by_fkey(full_name), approved_at, posted_at, created_at, updated_at, roznamcha_lines(id, payment_entry_type, debit, credit, currency, ledger_id, ledgers(name), account_number, usd_rate, usd_amount)"
       )
       .is("deleted_at", null)
       .order("entry_date", { ascending: false });

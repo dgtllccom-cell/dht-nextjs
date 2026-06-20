@@ -29,7 +29,8 @@ import {
   Receipt,
   PenLine,
   Pin,
-  Save
+  Save,
+  X
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -559,76 +560,7 @@ export function PurchaseOrderWizard() {
   const [salesCompanySelectOpen, setSalesCompanySelectOpen] = useState(false);
   const [dbCompanies, setDbCompanies] = useState([]);
 
-      {/* New Report Modal */}
-      {isNewReportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-background rounded-xl border border-border shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-border/60 bg-muted/30">
-              <h3 className="font-bold text-base text-foreground flex items-center gap-2">
-                Create New Report
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsNewReportModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <form onSubmit={handleNewReportSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-bold text-foreground mb-1.5 block">Report Name <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  required
-                  value={newReportForm.name}
-                  onChange={(e) => setNewReportForm({ ...newReportForm, name: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  placeholder="e.g. Loading Report, Shipping Report"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-foreground mb-1.5 block">Description</label>
-                <input
-                  type="text"
-                  value={newReportForm.description}
-                  onChange={(e) => setNewReportForm({ ...newReportForm, description: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  placeholder="Optional description"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-foreground mb-1.5 block">Notes</label>
-                <textarea
-                  rows={3}
-                  value={newReportForm.notes}
-                  onChange={(e) => setNewReportForm({ ...newReportForm, notes: e.target.value })}
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  placeholder="Additional notes for this report"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2 border-t border-border/60">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsNewReportModalOpen(false)}
-                  className="h-9"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="h-9 bg-primary hover:bg-primary/90 font-bold"
-                >
-                  Create & Save
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Account Creation Modal */}States
+  // Account Creation Modal States
   const [createAccountModalOpen, setCreateAccountModalOpen] = useState(false);
   const [createAccountType, setCreateAccountType] = useState("purchase"); // "purchase" | "sales"
   const [createAccountForm, setCreateAccountForm] = useState({
@@ -892,7 +824,7 @@ export function PurchaseOrderWizard() {
       filtered = variations.filter(v => v.origin_country_id === originCountryId);
     }
     const sizes = [...new Set(filtered.map(v => (v.size || "").trim().toUpperCase()).filter(Boolean))];
-    return sizes.length > 0 ? sizes : SIZE_OPTIONS;
+    return sizes;
   }, [selectedDbGood, form.origin, transitCountryOptions]);
   const availableBrands = useMemo(() => {
     const variations = selectedDbGood?.variations || selectedDbGood?.goods_variations || [];
@@ -906,7 +838,7 @@ export function PurchaseOrderWizard() {
       filtered = filtered.filter(v => (v.size || "").trim().toLowerCase() === (form.size || "").trim().toLowerCase());
     }
     const brands = [...new Set(filtered.map(v => (v.brand || "").trim().toUpperCase()).filter(Boolean))];
-    return brands.length > 0 ? brands : BRAND_OPTIONS;
+    return brands;
   }, [selectedDbGood, form.origin, form.size, transitCountryOptions]);
 
   // Load existing purchase order if purchaseOrderNo or id is in URL query parameters
@@ -1159,13 +1091,29 @@ export function PurchaseOrderWizard() {
       else if (iso === "US" || name.includes("UNITED STATES")) localCurrency = "USD";
     }
 
-    setForm((prev) => ({
-      ...prev,
-      // We no longer blindly overwrite currencyType so product pricing can remain independent.
-      purchaseCurrency: prev.purchaseCurrency || localCurrency,
-      purchaseAccountCurrency: prev.purchaseAccountCurrency || localCurrency,
-      salesAccountCurrency: prev.salesAccountCurrency || localCurrency,
-    }));
+    setForm((prev) => {
+      let newPurchaseCurr = prev.purchaseCurrency;
+      let newPurchaseAccCurr = prev.purchaseAccountCurrency;
+      let newSalesAccCurr = prev.salesAccountCurrency;
+
+      // If no account is selected, sync the ledger currencies to the branch's local currency.
+      // This prevents a stale "PKR" default from sticking when country options load late.
+      if (!prev.purchaseAccountNo) {
+        newPurchaseCurr = localCurrency;
+        newPurchaseAccCurr = localCurrency;
+      }
+      if (!prev.salesAccountNo) {
+        newSalesAccCurr = localCurrency;
+      }
+
+      return {
+        ...prev,
+        // We no longer blindly overwrite currencyType so product pricing can remain independent.
+        purchaseCurrency: newPurchaseCurr || localCurrency,
+        purchaseAccountCurrency: newPurchaseAccCurr || localCurrency,
+        salesAccountCurrency: newSalesAccCurr || localCurrency,
+      };
+    });
   }, [form.countryId, form.countryBranchId, transitCountryOptions]);
 
   // Keep display labels in sync with UUID scopes
@@ -2605,7 +2553,7 @@ export function PurchaseOrderWizard() {
                       <div className="bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10">
                         <span className="text-emerald-600 block text-[8px] uppercase font-bold">Grand Final</span>
                         <span className="text-emerald-600 font-extrabold font-mono block text-xs truncate">
-                          {currencySymbol(form.purchaseCurrency)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                     </div>
@@ -3274,22 +3222,22 @@ export function PurchaseOrderWizard() {
                                 <div>
                                   <span className="text-muted-foreground block text-[7px] uppercase">Total</span>
                                   <strong className="text-foreground block font-mono">
-                                    {currencySymbol(form.purchaseAccountCurrency || form.currencyType)}
-                                    {reportTotals.grandPrimaryFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}
+                                    {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </strong>
                                 </div>
                                 <div>
                                   <span className="text-primary block text-[7px] uppercase font-bold">Advance Paid</span>
                                   <strong className="text-primary block font-mono font-bold">
-                                    {currencySymbol(form.purchaseAccountCurrency || form.currencyType)}
-                                    {((reportTotals.grandPrimaryFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}
+                                    {((reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </strong>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground block text-[7px] uppercase">Remaining</span>
                                   <strong className="text-foreground block font-mono">
-                                    {currencySymbol(form.purchaseAccountCurrency || form.currencyType)}
-                                    {(reportTotals.grandPrimaryFinal - (reportTotals.grandPrimaryFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}
+                                    {(reportTotals.grandFinal - (reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </strong>
                                 </div>
                               </div>
@@ -4265,9 +4213,12 @@ export function PurchaseOrderWizard() {
                       <th className="px-2 py-3 text-center">Price Type</th>
                       <th className="px-2 py-3 text-center">Divide Type</th>
                       <th className="px-2 py-3 text-center">Divide Value</th>
-                      <th colSpan={3} className="px-2 py-3 text-center bg-primary/10 text-yellow-600 dark:text-yellow-450 font-bold">Purchase Currency</th>
-                      <th className="px-2 py-3 text-center w-8">Rate</th>
-                      <th className="px-2 py-3 text-right bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black">Local Amount</th>
+                      <th className="px-2 py-3 text-center bg-primary/10 text-yellow-600 dark:text-yellow-450 font-bold">Purchase Currency</th>
+                      <th className="px-2 py-3 text-right bg-primary/10 text-yellow-600 dark:text-yellow-450 font-bold">Unit Price</th>
+                      <th className="px-2 py-3 text-right bg-primary/10 text-yellow-600 dark:text-yellow-450 font-bold">Purchase Amount</th>
+                      <th className="px-2 py-3 text-center">Exchange Rate</th>
+                      <th className="px-2 py-3 text-center">Final Currency</th>
+                      <th className="px-2 py-3 text-right bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black">Final Amount</th>
                       <th className="px-2 py-3 text-center w-12">Action</th>
                     </tr>
                   </thead>
@@ -4302,7 +4253,7 @@ export function PurchaseOrderWizard() {
                           <td className="px-2 py-2.5 text-center text-muted-foreground">{row.divideType}</td>
                           <td className="px-2 py-2.5 text-center font-mono text-muted-foreground">{row.divideWeight || 1}</td>
                           
-                          {/* Purchase Currency colSpan */}
+                          {/* Purchase Amount details */}
                           <td className="px-2 py-2.5 text-center font-bold text-yellow-600 dark:text-yellow-450 bg-primary/5">{row.purchaseCurrency || form.purchaseCurrency || form.currencyType}</td>
                           <td className="px-2 py-2.5 text-right font-mono bg-primary/5">{row.coursePrice.toFixed(2)}</td>
                           <td className="px-2 py-2.5 text-right font-mono bg-primary/5">{row.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -4310,9 +4261,14 @@ export function PurchaseOrderWizard() {
                           {/* Exchange Rate */}
                           <td className="px-2 py-2.5 text-center font-bold text-muted-foreground font-mono">{row.exchangeRate || form.exchangeRate || 1}</td>
                           
-                          {/* Local Amount */}
+                          {/* Final Currency */}
+                          <td className="px-2 py-2.5 text-center font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                            {form.purchaseAccountCurrency || form.salesAccountCurrency || "PKR"}
+                          </td>
+                          
+                          {/* Final Amount */}
                           <td className="px-2 py-2.5 text-right bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black font-mono">
-                            {currencySymbol(form.currencyType)}{row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
 
                           {/* Action Column */}
@@ -4339,10 +4295,11 @@ export function PurchaseOrderWizard() {
                       <td className="px-2 py-3 text-right font-mono text-rose-500 font-bold">{reportTotals.totalDeductions.toLocaleString()}</td>
                       <td className="px-2 py-3 text-right font-black bg-muted text-foreground font-mono">{reportTotals.totalNet.toLocaleString()}</td>
                       <td colSpan={3} className="px-2 py-3"></td>
-                      <td colSpan={3} className="px-2 py-3 text-right font-mono bg-primary/5 text-yellow-600 dark:text-yellow-450">{reportTotals.grandPrimaryFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="px-2 py-3"></td>
+                      <td colSpan={2} className="px-2 py-3"></td>
+                      <td className="px-2 py-3 text-right font-mono bg-primary/5 text-yellow-600 dark:text-yellow-450">{reportTotals.grandPrimaryFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td colSpan={2} className="px-2 py-3"></td>
                       <td className="px-2 py-3 text-right bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black font-mono">
-                        {currencySymbol(form.currencyType)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-3"></td>
                     </tr>
@@ -4369,8 +4326,8 @@ export function PurchaseOrderWizard() {
                   <strong className="text-sm font-black text-foreground font-mono">{currencySymbol(form.currencyType)}{reportTotals.grandPrimaryFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                 </div>
                 <div className="bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-lg">
-                  <span className="block text-[8px] uppercase tracking-wider text-emerald-600 dark:text-emerald-500 font-bold">Grand Final ({currencySymbol(form.currencyType)})</span>
-                  <strong className="text-sm font-black text-emerald-600 font-mono">{currencySymbol(form.currencyType)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  <span className="block text-[8px] uppercase tracking-wider text-emerald-600 dark:text-emerald-500 font-bold">Grand Final ({currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)})</span>
+                  <strong className="text-sm font-black text-emerald-600 font-mono">{currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                 </div>
               </div>
 
@@ -4550,8 +4507,8 @@ export function PurchaseOrderWizard() {
                           <td className="px-3 py-2 text-right font-semibold">
                             {currencySymbol(row.purchaseCurrency || form.purchaseCurrency)}{row.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            {currencySymbol(form.currencyType)}{row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <td className="px-3 py-2 text-right bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black font-mono">
+                            {currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                         </tr>
                       ))}
@@ -4580,10 +4537,10 @@ export function PurchaseOrderWizard() {
                       {/* Purchase Side */}
                       <div className="space-y-1">
                         <span className="text-muted-foreground block text-[8px] uppercase font-bold text-primary">Purchase Side ({form.purchaseAccountNo}):</span>
-                        <div className="grid grid-cols-6 gap-1 font-mono text-[9px] pl-2 border-l border-primary/20 leading-tight">
+                        <div className="grid grid-cols-6 gap-1 font-mono text-[9px] pl-2 border-l border-primary/20 text-primary leading-tight">
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Total</span>
-                            <strong className="text-foreground block">{currencySymbol(form.purchaseCurrency)}{reportTotals.grandPrimaryFinal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
+                            <strong className="text-foreground block">{currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
                           </div>
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Pct</span>
@@ -4591,7 +4548,7 @@ export function PurchaseOrderWizard() {
                           </div>
                           <div>
                             <span className="text-[7px] text-primary block uppercase font-bold">Adv Paid</span>
-                            <strong className="text-primary block">{currencySymbol(form.purchaseCurrency)}{((reportTotals.grandPrimaryFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
+                            <strong className="text-primary block">{currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{((reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
                           </div>
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Adv Date</span>
@@ -4599,7 +4556,7 @@ export function PurchaseOrderWizard() {
                           </div>
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Remaining</span>
-                            <strong className="text-foreground block">{currencySymbol(form.purchaseCurrency)}{(reportTotals.grandPrimaryFinal - (reportTotals.grandPrimaryFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
+                            <strong className="text-foreground block">{currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{(reportTotals.grandFinal - (reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
                           </div>
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Pay Date</span>
@@ -4614,7 +4571,7 @@ export function PurchaseOrderWizard() {
                         <div className="grid grid-cols-6 gap-1 font-mono text-[9px] pl-2 border-l border-emerald-500/20 text-emerald-600 leading-tight">
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Total</span>
-                            <strong className="text-foreground block">{currencySymbol(form.currencyType)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
+                            <strong className="text-foreground block">{currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
                           </div>
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Pct</span>
@@ -4622,7 +4579,7 @@ export function PurchaseOrderWizard() {
                           </div>
                           <div>
                             <span className="text-[7px] text-emerald-600 dark:text-emerald-500 block uppercase font-bold">Adv Recd</span>
-                            <strong className="text-emerald-600 block">{currencySymbol(form.currencyType)}{((reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
+                            <strong className="text-emerald-600 block">{currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{((reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
                           </div>
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Adv Date</span>
@@ -4630,7 +4587,7 @@ export function PurchaseOrderWizard() {
                           </div>
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Remaining</span>
-                            <strong className="text-foreground block">{currencySymbol(form.currencyType)}{(reportTotals.grandFinal - (reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
+                            <strong className="text-foreground block">{currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{(reportTotals.grandFinal - (reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong>
                           </div>
                           <div>
                             <span className="text-[7px] text-muted-foreground block uppercase">Pay Date</span>
@@ -4718,10 +4675,10 @@ export function PurchaseOrderWizard() {
                   <div className="flex justify-between text-muted-foreground"><span>Total Deductions:</span> <span className="font-bold text-destructive font-mono">{reportTotals.totalDeductions.toLocaleString()} KGS</span></div>
                   <div className="flex justify-between text-muted-foreground"><span>Total Net weight:</span> <span className="font-bold text-foreground font-mono">{reportTotals.totalNet.toLocaleString()} KGS</span></div>
                   <div className="border-t border-border/85 pt-2 flex justify-between text-sm font-black text-primary">
-                    <span>Grand Total:</span>
-                    <span className="font-mono text-emerald-600 dark:text-emerald-400">
-                      {currencySymbol(form.currencyType)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Final Order Total</span>
+                    <strong className="text-lg font-black text-emerald-600 font-mono">
+                      {currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}{reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </strong>
                   </div>
                 </div>
               </div>
@@ -5114,6 +5071,75 @@ export function PurchaseOrderWizard() {
                 {createAccountLoading ? "Saving…" : "Save Account"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Report Modal */}
+      {isNewReportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-background rounded-xl border border-border shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-border/60 bg-muted/30">
+              <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                Create New Report
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsNewReportModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleNewReportSubmit} className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-foreground mb-1.5 block">Report Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={newReportForm.name}
+                  onChange={(e) => setNewReportForm({ ...newReportForm, name: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="e.g. Loading Report, Shipping Report"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-foreground mb-1.5 block">Description</label>
+                <input
+                  type="text"
+                  value={newReportForm.description}
+                  onChange={(e) => setNewReportForm({ ...newReportForm, description: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="Optional description"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-foreground mb-1.5 block">Notes</label>
+                <textarea
+                  rows={3}
+                  value={newReportForm.notes}
+                  onChange={(e) => setNewReportForm({ ...newReportForm, notes: e.target.value })}
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="Additional notes for this report"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-border/60">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsNewReportModalOpen(false)}
+                  className="h-9"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="h-9 bg-primary hover:bg-primary/90 font-bold"
+                >
+                  Create & Save
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

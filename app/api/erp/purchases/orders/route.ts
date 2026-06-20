@@ -5,6 +5,7 @@ import { purchaseOrderCreateSchema, uuidSchema } from "@/lib/api/erp-validation"
 import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { requireErpSession } from "@/lib/auth/session";
 import { createApiSupabaseClient, requireSupabaseData, writeAuditLog } from "@/lib/api/supabase";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const listQuerySchema = z.object({
   countryId: uuidSchema.optional(),
@@ -13,13 +14,20 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50)
 });
 
-function randomCode(prefix: string) {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(now.getUTCDate()).padStart(2, "0");
-  const rand = Math.random().toString(16).slice(2, 8).toUpperCase();
-  return `${prefix}-${y}${m}${d}-${rand}`;
+function cleanSerialPrefix(val: string | null | undefined, fallback: string) {
+  if (!val) return fallback;
+  const clean = val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return clean || fallback;
+}
+
+async function nextTransactionSerial(admin: any, scopeType: string, scopeKey: string, prefix: string) {
+  const { data, error } = await admin.rpc("next_transaction_serial", {
+    p_scope_type: scopeType,
+    p_scope_key: scopeKey,
+    p_prefix: prefix
+  });
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function resolveEffectiveScope(input: {
@@ -104,7 +112,7 @@ export async function GET(request: NextRequest) {
     let q = supabase
       .from("purchase_orders")
       .select(
-        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, payment_status, ledger_posting_status, form_data, created_at, updated_at"
+        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, payment_status, ledger_posting_status, form_data, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, main_branch_transaction_serial, city_branch_transaction_serial, created_at, updated_at"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -163,7 +171,33 @@ export async function POST(request: NextRequest) {
     const lps = String(body.ledgerPostingStatus || "draft").toLowerCase();
     const ledgerPostingStatus = lps === "posted" ? "posted" : lps === "cancelled" ? "cancelled" : "draft";
 
-    const purchaseOrderNo = randomCode("PO");
+    const admin = createSupabaseAdminClient() as any;
+
+    const superAdminSerialNumber = await nextTransactionSerial(admin, "global", "global", "SA");
+
+    let countryPrefix = "CNT";
+    if (effective.countryId) {
+      const { data: country } = await admin.from("countries").select("iso2, iso3, name").eq("id", effective.countryId).maybeSingle();
+      countryPrefix = cleanSerialPrefix(country?.iso2 || country?.iso3 || country?.name, "CNT");
+    }
+
+    let mainBranchPrefix = "MB";
+    if (effective.countryBranchId) {
+      const { data: branch } = await admin.from("country_branches").select("code, name").eq("id", effective.countryBranchId).maybeSingle();
+      mainBranchPrefix = cleanSerialPrefix(branch?.code || branch?.name, "MB");
+    }
+
+    let cityBranchPrefix = "CB";
+    if (effective.cityBranchId) {
+      const { data: branch } = await admin.from("city_branches").select("code, name").eq("id", effective.cityBranchId).maybeSingle();
+      cityBranchPrefix = cleanSerialPrefix(branch?.code || branch?.name, "CB");
+    }
+
+    const countryTransactionSerialNumber = effective.countryId ? await nextTransactionSerial(admin, "country", effective.countryId, countryPrefix) : null;
+    const branchTransactionSerialNumber = effective.cityBranchId || effective.countryBranchId ? await nextTransactionSerial(admin, "branch", effective.cityBranchId || effective.countryBranchId || "", effective.cityBranchId ? cityBranchPrefix : mainBranchPrefix) : null;
+    const mainBranchTransactionSerialNumber = effective.countryBranchId ? await nextTransactionSerial(admin, "main_branch", effective.countryBranchId, mainBranchPrefix) : null;
+    const cityBranchTransactionSerialNumber = effective.cityBranchId ? await nextTransactionSerial(admin, "city_branch", effective.cityBranchId, cityBranchPrefix) : null;
+    const purchaseOrderNo = await nextTransactionSerial(admin, "module_purchase", "global", "PUR");
     const paymentStatusRaw = String(body.paymentStatus || "pending").toLowerCase();
     const form = (body.formData as any)?.form ?? {};
     const advancePercent = Number(form.advancePercent ?? 10);
@@ -202,7 +236,12 @@ export async function POST(request: NextRequest) {
       payment_status: paymentStatus,
       ledger_posting_status: ledgerPostingStatus,
       advance_paid: advanceAmount,
-      remaining_due: remainingDue
+      remaining_due: remainingDue,
+      super_admin_serial_number: superAdminSerialNumber,
+      country_transaction_serial_number: countryTransactionSerialNumber,
+      branch_transaction_serial_number: branchTransactionSerialNumber,
+      main_branch_transaction_serial: mainBranchTransactionSerialNumber,
+      city_branch_transaction_serial: cityBranchTransactionSerialNumber
     };
 
     let inserted;

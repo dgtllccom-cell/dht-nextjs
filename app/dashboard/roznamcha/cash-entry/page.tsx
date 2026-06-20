@@ -11,7 +11,6 @@ export default async function CashEntryPage() {
         lang={lang}
         pageTitle={t(lang, "nav.cash_entry")}
         scopeMode="auto"
-        postingType="branch"
       />
     </div>
   );
