@@ -5,6 +5,7 @@ import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { uuidSchema } from "@/lib/api/erp-validation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createApiSupabaseClient } from "@/lib/api/supabase";
+import { revalidatePath } from "next/cache";
 
 type RoznamchaHeader = {
   id: string;
@@ -173,6 +174,11 @@ export async function DELETE(
     });
 
     if (error) throw new Error(error.message);
+
+    // Requirement 9 & 11: Real-time Synchronization
+    revalidatePath("/dashboard/roznamcha", "layout");
+    revalidatePath("/dashboard/reports", "layout");
+    revalidatePath("/dashboard/journal", "layout");
 
     return apiOk({ success: true, reversalId: data });
   } catch (error) {

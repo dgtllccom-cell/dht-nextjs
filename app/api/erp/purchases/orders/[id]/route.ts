@@ -7,6 +7,7 @@ import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { createApiSupabaseClient, requireSupabaseData, writeAuditLog } from "@/lib/api/supabase";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { revertOrderBookingTransfer } from "./transfer/route";
+import { revalidatePath } from "next/cache";
 
 const paramsSchema = z.object({
   id: uuidSchema
@@ -141,7 +142,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         countryBranchId: (before as any)?.country_branch_id ?? null,
         cityBranchId: (before as any)?.city_branch_id ?? null,
         kind: "asset",
-        name: form.purchaseAccountName || `${form.purchaseAccountNo} Account`
+        name: form.purchaseAccountName || `${form.purchaseAccountNo} Account`,
+        currencyCode: currencyCode || "USD"
       });
       const creditLedgerId = await getLedgerIdByCode(supabase, form.salesAccountNo, {
         userId: session.userId,
@@ -149,7 +151,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         countryBranchId: (before as any)?.country_branch_id ?? null,
         cityBranchId: (before as any)?.city_branch_id ?? null,
         kind: "liability",
-        name: form.salesAccountName || form.supplierName || `${form.salesAccountNo} Account`
+        name: form.salesAccountName || form.supplierName || `${form.salesAccountNo} Account`,
+        currencyCode: currencyCode || "USD"
       });
       
       if (!debitLedgerId) {
@@ -237,6 +240,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       ipAddress: request.headers.get("x-forwarded-for") ?? null
     });
 
+    // Requirement 9 & 11: Real-time Synchronization
+    revalidatePath("/dashboard/purchases", "layout");
+    revalidatePath("/dashboard/reports", "layout");
+
     return apiOk({ purchaseOrderId: params.id });
   } catch (error) {
     return handleApiError(error);
@@ -297,7 +304,7 @@ async function getLedgerIdByCode(supabase: any, code: string, input?: any) {
         enterprise_account_id: account.id,
         code: account.code || lookup,
         name: account.name || `${lookup} Account`,
-        currency: "PKR",
+        currency: input?.currencyCode || "USD",
         opening_balance: 0,
         current_balance: 0,
         debit_total: 0,
@@ -390,7 +397,7 @@ async function getLedgerIdByCode(supabase: any, code: string, input?: any) {
           branch_account_sequence: branchAccountSequence,
           name: input.name || `${lookup} Fallback Account`,
           kind: input.kind || "liability",
-          currency: "PKR",
+          currency: input?.currencyCode || "USD",
           status: "active",
           is_control_account: false,
           opening_balance: 0,
@@ -416,7 +423,7 @@ async function getLedgerIdByCode(supabase: any, code: string, input?: any) {
             enterprise_account_id: newAcc.id,
             code: newAcc.code,
             name: newAcc.name,
-            currency: "PKR",
+            currency: input?.currencyCode || "USD",
             opening_balance: 0,
             current_balance: 0,
             debit_total: 0,

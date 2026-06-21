@@ -8,6 +8,7 @@ import { requireErpSession } from "@/lib/auth/session";
 import { roznamchaService } from "@/lib/services/roznamcha-service";
 import { createApiSupabaseClient } from "@/lib/api/supabase";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { revalidatePath } from "next/cache";
 
 function toNumber(value: unknown) {
   const n = typeof value === "number" ? value : Number(value);
@@ -586,6 +587,11 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await postRoznamchaWithErpSession({ sessionUserId: session.userId, body });
+
+    // Requirement 9 & 11: Real-time Synchronization
+    revalidatePath("/dashboard/roznamcha", "layout");
+    revalidatePath("/dashboard/reports", "layout");
+    revalidatePath("/dashboard/journal", "layout");
 
     return apiCreated({
       mode: body.mode,

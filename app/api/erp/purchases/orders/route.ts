@@ -6,6 +6,7 @@ import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { requireErpSession } from "@/lib/auth/session";
 import { createApiSupabaseClient, requireSupabaseData, writeAuditLog } from "@/lib/api/supabase";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { revalidatePath } from "next/cache";
 
 const listQuerySchema = z.object({
   countryId: uuidSchema.optional(),
@@ -343,6 +344,10 @@ export async function POST(request: NextRequest) {
       after: payload,
       ipAddress: request.headers.get("x-forwarded-for") ?? null
     });
+
+    // Requirement 9 & 11: Real-time Synchronization
+    revalidatePath("/dashboard/purchases", "layout");
+    revalidatePath("/dashboard/reports", "layout");
 
     return apiCreated({
       purchaseOrderId: orderId as string,
