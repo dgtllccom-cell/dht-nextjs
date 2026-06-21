@@ -50,15 +50,15 @@ export function canApprove(session: ErpSession, countryId?: string | null, cityB
 
 export function authorize(session: ErpSession, check: PermissionCheck) {
   if (!hasRolePermission(session, check.resource, check.action)) {
-    throw new ErpPermissionError();
+    throw new ErpPermissionError(`Missing permission: ${check.resource}:${check.action}`);
   }
 
   if (check.countryId && !canAccessCountry(session, check.countryId)) {
-    throw new ErpPermissionError("Country scope is not allowed for this user");
+    throw new ErpPermissionError(`Country scope is not allowed for this user. Required: ${check.countryId}`);
   }
 
   if (check.countryBranchId && !canAccessCountryBranch(session, check.countryBranchId)) {
-    throw new ErpPermissionError("Main branch scope is not allowed for this user");
+    throw new ErpPermissionError(`Main branch scope is not allowed for this user. Required: ${check.countryBranchId}`);
   }
 
   if (check.cityBranchId && !canAccessCityBranch(session, check.cityBranchId)) {

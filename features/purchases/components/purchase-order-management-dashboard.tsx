@@ -2,6 +2,7 @@
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BadgeDollarSign,
   Boxes,
@@ -819,8 +820,30 @@ export function PurchaseOrderManagementDashboard() {
   const [warning, setWarning] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [titlePortal, setTitlePortal] = useState<Element | null>(null);
+  const [actionsPortal, setActionsPortal] = useState<Element | null>(null);
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      setTitlePortal(document.getElementById("erp-page-title-slot"));
+      setActionsPortal(document.getElementById("erp-page-actions-slot"));
+    }
+  }, []);
+
   const [activeTab, setActiveTab] = useState<LifecycleTab>("Dashboard Overview");
   const [session, setSession] = useState<any>(null);
+
+  const lockedCountryName = session?.scopes?.countryNames?.[0] || "";
+  const lockedBranchName = session?.scopes?.branchNames?.[0] || "";
+
+  const localCurrencyLabel = useMemo(() => {
+    const c = (lockedCountryName || "").toUpperCase();
+    if (c.includes("UNITED ARAB") || c === "UAE") return "AED";
+    if (c.includes("INDIA") || c === "IN") return "INR";
+    if (c.includes("AFGHANISTAN") || c === "AF") return "AFN";
+    if (c.includes("PAKISTAN") || c === "PK") return "PKR";
+    return "PKR";
+  }, [lockedCountryName]);
   const [filters, setFilters] = useState({
     country: "all",
     branch: "all",
@@ -883,7 +906,7 @@ export function PurchaseOrderManagementDashboard() {
       const response = await fetch("/api/erp/purchases/booking-journal-report?limit=200", { cache: "no-store" });
       const body = await response.json();
       const payload = (body?.ok ? body.data : body) as ApiPayload;
-      const rows = payload?.reports?.length ? payload.reports : sampleReports;
+      const rows = payload?.reports || [];
       
       // Sort reports descending so that the newest created PO appears at the top
       const sortedRows = [...rows].sort((a, b) => {
@@ -895,25 +918,14 @@ export function PurchaseOrderManagementDashboard() {
       setReports(sortedRows);
       setSelectedId((current) => current || sortedRows[0]?.id || "");
     } catch (error) {
-      const sortedSample = [...sampleReports].sort((a, b) => {
-        const dateA = new Date(a.bookingDate || a.purchaseDate || a.createdAt).getTime();
-        const dateB = new Date(b.bookingDate || b.purchaseDate || b.createdAt).getTime();
-        return dateB - dateA;
-      });
-      setReports(sortedSample);
-      setSelectedId((current) => current || sortedSample[0]?.id || "");
+      setReports([]);
+      setSelectedId("");
     } finally { setLoading(false); }
   }
 
   const handleTransfer = async (selectedData?: any) => {
     const itemToTransfer = selectedData || selected;
     if (!itemToTransfer) return;
-    
-    // Prevent transferring mock data
-    if (String(itemToTransfer.id).startsWith("sample-po-")) {
-      alert("This is sample/dummy data and cannot be transferred. Please create a real purchase booking first.");
-      return;
-    }
     
     setTransferring(true);
     try {
@@ -1116,90 +1128,104 @@ export function PurchaseOrderManagementDashboard() {
     return filtered.filter(row => String(row.status || "").toUpperCase() === "DELIVERED").length;
   }, [filtered]);
 
+  const pageHeaderContent = (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-4">
+      <div>
+        <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">Purchase Transfer Payment</h1>
+        <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">Logistics ERP Master Console</p>
+      </div>
+    </div>
+  );
+
+  const pageActionsContent = (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Dropdown Selector */}
+      <select
+        value={activeTab}
+        onChange={(event) => setActiveTab(event.target.value as LifecycleTab)}
+        className="h-9 min-w-[150px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350 cursor-pointer"
+        aria-label="Select Stage"
+      >
+        {lifecycleTabs.map((tab) => {
+          const count = tab === "Dashboard Overview"
+            ? reports.length
+            : tab === "Stock Management"
+              ? reports.filter(r => stockStage(r)).length
+              : reports.filter(r => lifecycleStage(r) === tab).length;
+          return (
+            <option key={tab} value={tab}>
+              {tab.toUpperCase()} ({count})
+            </option>
+          );
+        })}
+      </select>
+
+      {/* Search Input */}
+      <div className="relative min-w-[200px]">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
+        <input
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+          placeholder="Search PO#, Supplier..."
+          className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+        />
+      </div>
+
+      {/* Filter Toggle */}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => setFiltersOpen((open) => !open)}
+        className="h-9 rounded-xl border-slate-200 font-bold text-xs"
+      >
+        <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+        Filter
+      </Button>
+
+      {/* Reset Button */}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={resetFilters}
+        className="h-9 rounded-xl border-slate-200 font-bold text-xs"
+      >
+        <RefreshCw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
+        Reset
+      </Button>
+
+      {/* Three-dots menu (ReportActions) */}
+      <PurchaseReportActionsMenu rows={filtered} onExport={() => downloadCsv(filtered)} />
+
+      {/* Calendar Date/Time Indicator */}
+      <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+        <CalendarDays className="h-4 w-4 text-slate-400" />
+        <span>17 Jun 2026, 08:54 PM</span>
+      </div>
+
+      {/* CTA Button */}
+      <Button
+        type="button"
+        onClick={() => router.push("/dashboard/purchase/new-purchase-booking-order")}
+        className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
+      >
+        <Plus className="h-4 w-4" /> New Booking
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-4 text-slate-900 dark:text-slate-100 max-w-none mx-auto p-4 bg-slate-50/30 rounded-2xl">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
-        <div>
-          <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">Purchase Transfer Payment</h1>
-          <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">Logistics ERP Master Console</p>
+      {titlePortal && createPortal(pageHeaderContent, titlePortal)}
+      {actionsPortal && createPortal(pageActionsContent, actionsPortal)}
+      
+      {(!titlePortal || !actionsPortal) && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+          {pageHeaderContent}
+          {pageActionsContent}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Dropdown Selector */}
-          <select
-            value={activeTab}
-            onChange={(event) => setActiveTab(event.target.value as LifecycleTab)}
-            className="h-9 min-w-[150px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350 cursor-pointer"
-            aria-label="Select Stage"
-          >
-            {lifecycleTabs.map((tab) => {
-              const count = tab === "Dashboard Overview"
-                ? reports.length
-                : tab === "Stock Management"
-                  ? reports.filter(r => stockStage(r)).length
-                  : reports.filter(r => lifecycleStage(r) === tab).length;
-              return (
-                <option key={tab} value={tab}>
-                  {tab.toUpperCase()} ({count})
-                </option>
-              );
-            })}
-          </select>
-
-          {/* Search Input */}
-          <div className="relative min-w-[200px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
-            <input
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search PO#, Supplier..."
-              className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
-            />
-          </div>
-
-          {/* Filter Toggle */}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setFiltersOpen((open) => !open)}
-            className="h-9 rounded-xl border-slate-200 font-bold text-xs"
-          >
-            <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
-            Filter
-          </Button>
-
-          {/* Reset Button */}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={resetFilters}
-            className="h-9 rounded-xl border-slate-200 font-bold text-xs"
-          >
-            <RefreshCw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
-            Reset
-          </Button>
-
-          {/* Three-dots menu (ReportActions) */}
-          <PurchaseReportActionsMenu rows={filtered} onExport={() => downloadCsv(filtered)} />
-
-          {/* Calendar Date/Time Indicator */}
-          <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-            <CalendarDays className="h-4 w-4 text-slate-400" />
-            <span>17 Jun 2026, 08:54 PM</span>
-          </div>
-
-          {/* CTA Button */}
-          <Button
-            type="button"
-            onClick={() => router.push("/dashboard/purchase/new-purchase-booking-order")}
-            className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
-          >
-            <Plus className="h-4 w-4" /> New Booking
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* Unified Executive & Operations Summary Box */}
       <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase flex flex-col gap-3">
@@ -1238,11 +1264,11 @@ export function PurchaseOrderManagementDashboard() {
           </div>
           <div className="flex flex-col">
             <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Purchase Amount</span>
-            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{money(totalAmountPKR)} PKR</span>
+            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{money(totalAmountPKR)} {localCurrencyLabel}</span>
           </div>
           <div className="flex flex-col">
             <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Revenue Amount</span>
-            <span className="text-emerald-600 dark:text-emerald-450 font-black text-sm">{money(totalRevenuePKR)} PKR</span>
+            <span className="text-emerald-600 dark:text-emerald-450 font-black text-sm">{money(totalRevenuePKR)} {localCurrencyLabel}</span>
           </div>
           <div className="flex flex-col">
             <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Asset (USD)</span>
@@ -1281,8 +1307,8 @@ export function PurchaseOrderManagementDashboard() {
             <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{deliveredBalanceCount}</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[9px] text-rose-500 dark:text-rose-450 mb-0.5 tracking-wider">Remaining Due (PKR)</span>
-            <span className="text-rose-600 dark:text-rose-400 font-black text-sm truncate" title={money(remainingDuePKR) + " PKR"}>{money(remainingDuePKR)}</span>
+            <span className="text-[9px] text-rose-500 dark:text-rose-450 mb-0.5 tracking-wider">Remaining Due ({localCurrencyLabel})</span>
+            <span className="text-rose-600 dark:text-rose-400 font-black text-sm truncate" title={money(remainingDuePKR) + " " + localCurrencyLabel}>{money(remainingDuePKR)}</span>
           </div>
         </div>
       </div>
@@ -1412,7 +1438,7 @@ export function PurchaseOrderManagementDashboard() {
                   const invoicePercent = row.form_data?.form?.advancePercent || row.form_data?.form?.invoicePercent;
                   const payCondition = row.form_data?.form?.paymentType || row.form_data?.form?.paymentCondition || row.paymentStatus || "-";
                   const rowCurrency = row.currency || "USD";
-                  const localCur = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0] || "PKR";
+                  const localCur = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0] || localCurrencyLabel;
 
                   // Route
                   const routeRaw = row.form_data?.form?.shippingMode || row.form_data?.form?.shippingType || row.form_data?.form?.shipmentType || "";

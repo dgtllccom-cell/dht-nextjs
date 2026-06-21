@@ -43,7 +43,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         isActive: body.isActive,
         originalLanguage: body.originalLanguage
       },
-      session.user.id
+      session.userId
     );
 
     await auditApiAction(request, {

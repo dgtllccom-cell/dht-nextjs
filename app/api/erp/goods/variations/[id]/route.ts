@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         brand: body.brand,
         isActive: body.isActive
       },
-      session.user?.id
+      session.userId
     );
 
     await auditApiAction(request, {

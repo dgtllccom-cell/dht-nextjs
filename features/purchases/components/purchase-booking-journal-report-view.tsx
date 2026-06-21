@@ -1232,10 +1232,12 @@ export function PurchaseBookingJournalReportView({
       <div className="mx-auto w-full max-w-none px-4 py-3 space-y-3">
         
         {/* Page Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
-          <div>
+        <div className="flex flex-col gap-4 border-b pb-4">
+          <div className="flex items-center justify-between">
+            <div>
             <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">Purchase Booking Register</h1>
             <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">Wholesaler / Import Export / Container Trading</p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Draft Dropdown */}
@@ -1332,41 +1334,32 @@ export function PurchaseBookingJournalReportView({
         </div>
 
         {/* Session & Summary Info */}
-        <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Column 1: Session Details */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
-                <span>Branch Name:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-bold">{lockedBranchName || "ALL BRANCHES"}</span>
-              </div>
-              <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
-                <span>User Name:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-bold">{session?.user?.fullName || session?.name || "SUPER ADMIN"}</span>
-              </div>
-              <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
-                <span>Date:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">
-                  {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Time:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">08:54 PM</span>
-              </div>
-            </div>
-
-            {/* Column 2: Summary Metrics */}
-            <div className="space-y-1.5 border-t pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4 border-slate-100 dark:border-slate-850">
-              <div className="flex justify-between border-b pb-0.5 border-slate-100 dark:border-slate-850">
-                <span>Total Purchase Orders:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">{totals.totalBookings}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Total Transfer:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-mono font-bold">{totals.totalPosted}</span>
-              </div>
-            </div>
+        <div className="grid grid-cols-2 lg:grid-cols-5 xl:grid-cols-6 gap-3 uppercase">
+          <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col justify-center dark:bg-slate-950/80 dark:border-slate-800">
+            <span className="text-[9px] text-slate-400 font-bold tracking-wider mb-1">Branch Name</span>
+            <span className="text-xs text-slate-800 dark:text-slate-200 font-bold truncate" title={lockedBranchName || "ALL BRANCHES"}>{lockedBranchName || "ALL BRANCHES"}</span>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col justify-center dark:bg-slate-950/80 dark:border-slate-800">
+            <span className="text-[9px] text-slate-400 font-bold tracking-wider mb-1">User Name</span>
+            <span className="text-xs text-slate-800 dark:text-slate-200 font-bold truncate" title={session?.user?.fullName || session?.name || "SUPER ADMIN"}>{session?.user?.fullName || session?.name || "SUPER ADMIN"}</span>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col justify-center dark:bg-slate-950/80 dark:border-slate-800">
+            <span className="text-[9px] text-slate-400 font-bold tracking-wider mb-1">Date & Time</span>
+            <span className="text-xs text-slate-800 dark:text-slate-200 font-bold truncate">
+              {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()} &bull; 08:54 PM
+            </span>
+          </div>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 shadow-sm flex flex-col justify-center border-l-4 border-l-blue-500 dark:bg-blue-950/20 dark:border-blue-900/50">
+            <span className="text-[9px] text-blue-500 font-bold tracking-wider mb-1">Total Purchase Orders</span>
+            <span className="text-lg text-blue-700 dark:text-blue-400 font-black leading-none">{totals.totalBookings}</span>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 shadow-sm flex flex-col justify-center border-l-4 border-l-emerald-500 dark:bg-emerald-950/20 dark:border-emerald-900/50">
+            <span className="text-[9px] text-emerald-600 font-bold tracking-wider mb-1">Total Transfer</span>
+            <span className="text-lg text-emerald-700 dark:text-emerald-400 font-black leading-none">{totals.totalPosted}</span>
+          </div>
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 shadow-sm flex flex-col justify-center border-l-4 border-l-amber-500 dark:bg-amber-950/20 dark:border-amber-900/50">
+            <span className="text-[9px] text-amber-600 font-bold tracking-wider mb-1">Outstanding</span>
+            <span className="text-lg text-amber-700 dark:text-amber-400 font-black leading-none">{formatNumber(totals.outstanding)}</span>
           </div>
         </div>
 
@@ -1405,12 +1398,12 @@ export function PurchaseBookingJournalReportView({
           <div className="p-4 space-y-3">
           <DarkTable
             tableGroups={[
-              { label: "General Information", span: 11, cls: "bg-[#0f2942] text-white" },
-              { label: "Product Information", span: 7, cls: "bg-emerald-800 text-emerald-100" },
-              { label: "Financial Information", span: isSuperAdmin ? 10 : 9, cls: "bg-blue-800 text-blue-100" },
-              { label: "Route & Loading", span: 7, cls: "bg-indigo-700 text-indigo-100" },
-              { label: "Status", span: 3, cls: "bg-slate-700 text-slate-200" },
-              { label: "Actions", span: 1, cls: "bg-slate-600 text-slate-200" },
+              { label: "General Information", span: 11, cls: "bg-slate-100 text-slate-800 border-b-2 border-slate-300" },
+              { label: "Product Information", span: 7, cls: "bg-emerald-50 text-emerald-800 border-b-2 border-emerald-300" },
+              { label: "Financial Information", span: isSuperAdmin ? 10 : 9, cls: "bg-blue-50 text-blue-800 border-b-2 border-blue-300" },
+              { label: "Route & Loading", span: 7, cls: "bg-indigo-50 text-indigo-800 border-b-2 border-indigo-300" },
+              { label: "Status", span: 3, cls: "bg-amber-50 text-amber-800 border-b-2 border-amber-300" },
+              { label: "Actions", span: 1, cls: "bg-rose-50 text-rose-800 border-b-2 border-rose-300" },
             ]}
             headers={[
               // ── General Information ──────────────────────────────────────
@@ -1780,7 +1773,7 @@ export function PurchaseBookingJournalReportView({
             </div>
           }
         >
-          {selected && (() => {
+          {selected ? (function() {
             const goodsEntries = selected.form_data?.goodsEntries || [
               {
                 goodsName: selected.productName || selected.goodsDescription || "Purchase Cargo",
@@ -2255,7 +2248,7 @@ export function PurchaseBookingJournalReportView({
                 </div>
               </div>
             );
-          })()}
+          })() : null}
         </DetailDrawer>
       </div>
     </div>

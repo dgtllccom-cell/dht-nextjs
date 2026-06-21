@@ -17,10 +17,30 @@ export async function POST(request: NextRequest) {
     });
     const body = payloadSchema.parse(await request.json());
 
-    authorizeApiScope(session, {
-      resource: "goods",
-      action: "update"
-    });
+    let authorized = false;
+    const scopesToTry = [
+      { resource: "goods", action: "update" },
+      { resource: "goods_variation", action: "create" },
+      { resource: "goods_variation", action: "update" },
+      { resource: "goods_master", action: "update" },
+      { resource: "purchases", action: "create" },
+      { resource: "purchases", action: "update" }
+    ];
+
+    let lastError = null;
+    for (const scope of scopesToTry) {
+      try {
+        authorizeApiScope(session, scope);
+        authorized = true;
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (!authorized && lastError) {
+      throw new Error(`Missing permissions. You need one of the following: ${scopesToTry.map(s => `${s.resource}:${s.action}`).join(', ')}`);
+    }
 
     const variationId = await goodsService.createVariation(
       {
@@ -28,7 +48,7 @@ export async function POST(request: NextRequest) {
         size: body.size,
         brand: body.brand
       },
-      session.user?.id
+      session.userId
     );
 
     await auditApiAction(request, {

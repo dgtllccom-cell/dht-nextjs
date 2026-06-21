@@ -34,10 +34,29 @@ export async function POST(request: NextRequest) {
     const session = await requireErpSession();
     const body = goodsCreateSchema.parse(await request.json());
 
-    authorizeApiScope(session, {
-      resource: "goods",
-      action: "create"
-    });
+    let authorized = false;
+    const scopesToTry = [
+      { resource: "goods", action: "create" },
+      { resource: "goods_master", action: "create" },
+      { resource: "goods_master", action: "update" },
+      { resource: "purchases", action: "create" },
+      { resource: "purchases", action: "update" }
+    ];
+
+    let lastError = null;
+    for (const scope of scopesToTry) {
+      try {
+        authorizeApiScope(session, scope);
+        authorized = true;
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (!authorized && lastError) {
+      throw lastError;
+    }
 
     const goodsId = await goodsService.create(
       {
