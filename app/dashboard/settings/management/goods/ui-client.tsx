@@ -12,7 +12,6 @@ import { listGoods, type GoodsListRow } from "@/features/inventory/goods-api";
 type GoodsVariation = {
   id: string;
   goods_id: string;
-  origin_country_id: string | null;
   size: string;
   brand: string;
   is_active: boolean;
@@ -23,6 +22,7 @@ type GoodsRecord = {
   id: string;
   chs_code: string;
   goods_name: string;
+  origin_country_id: string | null;
   is_active: boolean;
   total_origins: number;
   total_sizes: number;
@@ -135,6 +135,7 @@ export default function GoodsManagementClient({ session }: { session: any }) {
       await apiPatch(`/api/erp/goods/${editRow.id}`, {
         chsCode: next.chsCode,
         goodsName: next.goodsName,
+        originCountryId: next.originCountryId || null,
         originalLanguage: "en"
       });
       setEditRow(null);
@@ -165,7 +166,7 @@ export default function GoodsManagementClient({ session }: { session: any }) {
 
   // --- Variation Handlers ---
 
-  async function handleAddVariation(next: { originCountryId: string; size: string; brand: string }) {
+  async function handleAddVariation(next: { size: string; brand: string }) {
     if (!addVarGoods) return;
     if (!next.size.trim() || !next.brand.trim()) {
       alert("Size and Brand are required fields.");
@@ -176,7 +177,6 @@ export default function GoodsManagementClient({ session }: { session: any }) {
     try {
       await apiPost("/api/erp/goods/variations", {
         goodsId: addVarGoods.id,
-        originCountryId: next.originCountryId || null,
         size: next.size,
         brand: next.brand
       });
@@ -190,7 +190,7 @@ export default function GoodsManagementClient({ session }: { session: any }) {
     }
   }
 
-  async function handleEditVariation(next: { originCountryId: string; size: string; brand: string }) {
+  async function handleEditVariation(next: { size: string; brand: string }) {
     if (!editVarRow) return;
     if (!next.size.trim() || !next.brand.trim()) {
       alert("Size and Brand are required fields.");
@@ -201,7 +201,6 @@ export default function GoodsManagementClient({ session }: { session: any }) {
     try {
       await apiPatch(`/api/erp/goods/variations/${editVarRow.variation.id}`, {
         goodsId: editVarRow.goodsId,
-        originCountryId: next.originCountryId || null,
         size: next.size,
         brand: next.brand
       });
@@ -274,7 +273,7 @@ export default function GoodsManagementClient({ session }: { session: any }) {
       {/* Creation form */}
       <Card className="border-border bg-card">
         <CardContent className="p-4">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-3">
             <label className="grid gap-1">
               <span className="text-xs text-muted-foreground font-semibold">CHS Code</span>
               <input
@@ -294,26 +293,27 @@ export default function GoodsManagementClient({ session }: { session: any }) {
                 placeholder="e.g. Almonds"
               />
             </label>
+
+            <label className="grid gap-1">
+              <span className="text-xs text-muted-foreground font-semibold">Origin Country</span>
+              <select
+                value={form.originCountryId}
+                onChange={(e) => setForm((s) => ({ ...s, originCountryId: e.target.value }))}
+                className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary"
+              >
+                <option value="">Select origin country</option>
+                {countries.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="mt-4 border-t pt-3">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Initial Variation (Optional)</span>
-            <div className="mt-2 grid gap-3 md:grid-cols-3">
-              <label className="grid gap-1">
-                <span className="text-xs text-muted-foreground font-semibold">Origin Country</span>
-                <select
-                  value={form.originCountryId}
-                  onChange={(e) => setForm((s) => ({ ...s, originCountryId: e.target.value }))}
-                  className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary"
-                >
-                  <option value="">Select origin country</option>
-                  {countries.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className="mt-2 grid gap-3 md:grid-cols-2">
 
               <label className="grid gap-1">
                 <span className="text-xs text-muted-foreground font-semibold">Size</span>
@@ -375,7 +375,7 @@ export default function GoodsManagementClient({ session }: { session: any }) {
                   <th className="w-10 px-3 py-3"></th>
                   <th className="px-3 py-3 text-start font-semibold uppercase tracking-wider">CHS Code</th>
                   <th className="px-3 py-3 text-start font-semibold uppercase tracking-wider">Goods Name</th>
-                  <th className="px-3 py-3 text-center font-semibold uppercase tracking-wider">Total Origins</th>
+                  <th className="px-3 py-3 text-start font-semibold uppercase tracking-wider">Origin Country</th>
                   <th className="px-3 py-3 text-center font-semibold uppercase tracking-wider">Total Sizes</th>
                   <th className="px-3 py-3 text-center font-semibold uppercase tracking-wider">Total Brands</th>
                   <th className="px-3 py-3 text-end font-semibold uppercase tracking-wider">Actions</th>
@@ -401,7 +401,7 @@ export default function GoodsManagementClient({ session }: { session: any }) {
                           </td>
                           <td className="px-3 py-3 font-semibold text-foreground">{r.chs_code}</td>
                           <td className="px-3 py-3 text-foreground">{r.goods_name}</td>
-                          <td className="px-3 py-3 text-center font-medium">{r.total_origins}</td>
+                          <td className="px-3 py-3 text-foreground">{r.origin_country_id ? originNameById.get(r.origin_country_id) ?? "-" : "Global"}</td>
                           <td className="px-3 py-3 text-center font-medium">{r.total_sizes}</td>
                           <td className="px-3 py-3 text-center font-medium">{r.total_brands}</td>
                           <td className="px-3 py-3 text-end">
@@ -441,7 +441,6 @@ export default function GoodsManagementClient({ session }: { session: any }) {
                                   <table className="w-full text-xs text-start">
                                     <thead>
                                       <tr className="text-muted-foreground border-b font-medium">
-                                        <th className="py-2 text-start">Origin Country</th>
                                         <th className="py-2 text-start">Size</th>
                                         <th className="py-2 text-start">Brand</th>
                                         <th className="py-2 text-end">Actions</th>
@@ -450,9 +449,6 @@ export default function GoodsManagementClient({ session }: { session: any }) {
                                     <tbody className="divide-y divide-border/60">
                                       {r.variations.map((v) => (
                                         <tr key={v.id} className="hover:bg-muted/20">
-                                          <td className="py-2 text-foreground font-semibold">
-                                            {v.origin_country_id ? originNameById.get(v.origin_country_id) ?? "-" : "Global"}
-                                          </td>
                                           <td className="py-2 text-muted-foreground">{v.size}</td>
                                           <td className="py-2 text-muted-foreground">{v.brand}</td>
                                           <td className="py-2 text-end">
@@ -508,7 +504,7 @@ export default function GoodsManagementClient({ session }: { session: any }) {
       {viewRow ? (
         <SimpleModal title="Goods Details" onClose={() => setViewRow(null)}>
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-lg border border-border bg-background p-3 shadow-sm">
                 <div className="text-xs text-muted-foreground font-semibold">CHS Code</div>
                 <div className="mt-1 text-sm font-bold text-foreground">{viewRow.chs_code}</div>
@@ -516,6 +512,10 @@ export default function GoodsManagementClient({ session }: { session: any }) {
               <div className="rounded-lg border border-border bg-background p-3 shadow-sm">
                 <div className="text-xs text-muted-foreground font-semibold">Goods Name</div>
                 <div className="mt-1 text-sm font-bold text-foreground">{viewRow.goods_name}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background p-3 shadow-sm">
+                <div className="text-xs text-muted-foreground font-semibold">Origin Country</div>
+                <div className="mt-1 text-sm font-bold text-foreground">{viewRow.origin_country_id ? originNameById.get(viewRow.origin_country_id) ?? "-" : "Global"}</div>
               </div>
             </div>
 
@@ -525,7 +525,6 @@ export default function GoodsManagementClient({ session }: { session: any }) {
                 <div className="max-h-52 overflow-y-auto space-y-1">
                   {viewRow.variations.map((v) => (
                     <div key={v.id} className="text-xs py-1 px-2 hover:bg-muted/30 rounded flex justify-between border border-border/40">
-                      <span className="font-semibold">{v.origin_country_id ? originNameById.get(v.origin_country_id) ?? "-" : "Global"}</span>
                       <span className="text-muted-foreground">{v.size}</span>
                       <span className="text-muted-foreground font-medium">{v.brand}</span>
                     </div>
@@ -543,6 +542,7 @@ export default function GoodsManagementClient({ session }: { session: any }) {
       {editRow ? (
         <EditMasterModal
           row={editRow}
+          countries={countries}
           onClose={() => setEditRow(null)}
           onSave={saveEditMaster}
           busy={busy}
@@ -553,7 +553,6 @@ export default function GoodsManagementClient({ session }: { session: any }) {
       {addVarGoods ? (
         <VariationModal
           title={`Add Variation for ${addVarGoods.goods_name}`}
-          countries={countries}
           onClose={() => setAddVarGoods(null)}
           onSave={handleAddVariation}
           busy={busy}
@@ -564,9 +563,7 @@ export default function GoodsManagementClient({ session }: { session: any }) {
       {editVarRow ? (
         <VariationModal
           title={`Edit Variation`}
-          countries={countries}
           initialValues={{
-            originCountryId: editVarRow.variation.origin_country_id ?? "",
             size: editVarRow.variation.size,
             brand: editVarRow.variation.brand
           }}
@@ -588,12 +585,14 @@ function EditMasterModal({
 }: {
   row: GoodsRecord;
   onClose: () => void;
-  onSave: (next: { goodsName: string; chsCode: string }) => void;
+  onSave: (next: { goodsName: string; chsCode: string; originCountryId: string }) => void;
   busy: boolean;
+  countries: Array<{ id: string; name: string }>;
 }) {
   const [draft, setDraft] = useState({
     goodsName: row.goods_name ?? "",
-    chsCode: row.chs_code ?? ""
+    chsCode: row.chs_code ?? "",
+    originCountryId: row.origin_country_id ?? ""
   });
 
   return (
@@ -615,6 +614,21 @@ function EditMasterModal({
             className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary"
           />
         </label>
+        <label className="grid gap-1">
+          <span className="text-xs text-muted-foreground font-semibold">Origin Country</span>
+          <select
+            value={draft.originCountryId}
+            onChange={(e) => setDraft((s) => ({ ...s, originCountryId: e.target.value }))}
+            className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary"
+          >
+            <option value="">Select origin country</option>
+            {countries.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="flex justify-end gap-2 border-t pt-3">
@@ -633,21 +647,18 @@ function EditMasterModal({
 // Modal helper for adding / editing variation record properties
 function VariationModal({
   title,
-  countries,
   initialValues,
   onClose,
   onSave,
   busy
 }: {
   title: string;
-  countries: Array<{ id: string; name: string }>;
-  initialValues?: { originCountryId: string; size: string; brand: string };
+  initialValues?: { size: string; brand: string };
   onClose: () => void;
-  onSave: (next: { originCountryId: string; size: string; brand: string }) => void;
+  onSave: (next: { size: string; brand: string }) => void;
   busy: boolean;
 }) {
   const [draft, setDraft] = useState({
-    originCountryId: initialValues?.originCountryId ?? "",
     size: initialValues?.size ?? "",
     brand: initialValues?.brand ?? ""
   });
@@ -655,21 +666,6 @@ function VariationModal({
   return (
     <SimpleModal title={title} onClose={onClose}>
       <div className="grid gap-3 mb-4">
-        <label className="grid gap-1">
-          <span className="text-xs text-muted-foreground font-semibold">Origin Country</span>
-          <select
-            value={draft.originCountryId}
-            onChange={(e) => setDraft((s) => ({ ...s, originCountryId: e.target.value }))}
-            className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary"
-          >
-            <option value="">Select origin country</option>
-            {countries.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
         <label className="grid gap-1">
           <span className="text-xs text-muted-foreground font-semibold">Size</span>
           <input

@@ -25,11 +25,10 @@ export async function POST(request: NextRequest) {
     const variationId = await goodsService.createVariation(
       {
         goodsId: body.goodsId,
-        originCountryId: body.originCountryId || null,
         size: body.size,
         brand: body.brand
       },
-      session.userId
+      session.user?.id
     );
 
     await auditApiAction(request, {
@@ -38,7 +37,6 @@ export async function POST(request: NextRequest) {
       entityId: variationId,
       after: {
         goodsId: body.goodsId,
-        originCountryId: body.originCountryId || null,
         size: body.size,
         brand: body.brand
       }

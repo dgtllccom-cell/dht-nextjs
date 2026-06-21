@@ -6,9 +6,9 @@ import { multilingualService } from "@/lib/services/multilingual-service";
 export type GoodsMasterInput = {
   chsCode: string;
   goodsName: string;
+  originCountryId?: string | null;
   originalLanguage: SupportedLanguage;
   initialVariation?: {
-    originCountryId?: string | null;
     size: string;
     brand: string;
   } | null;
@@ -16,7 +16,6 @@ export type GoodsMasterInput = {
 
 export type GoodsVariationInput = {
   goodsId: string;
-  originCountryId?: string | null;
   size: string;
   brand: string;
 };
@@ -40,6 +39,7 @@ export class GoodsService {
     const goodsId = await goodsRepository.create({
       chsCode: input.chsCode,
       goodsName: input.goodsName,
+      originCountryId: input.originCountryId,
       originalLanguageCode: input.originalLanguage,
       createdBy: actorId
     });
@@ -50,7 +50,6 @@ export class GoodsService {
       await this.createVariation(
         {
           goodsId,
-          originCountryId: input.initialVariation.originCountryId,
           size: input.initialVariation.size,
           brand: input.initialVariation.brand
         },
@@ -66,6 +65,7 @@ export class GoodsService {
     input: {
       chsCode?: string;
       goodsName?: string;
+      originCountryId?: string | null;
       isActive?: boolean;
       originalLanguage?: SupportedLanguage;
     },
@@ -81,6 +81,7 @@ export class GoodsService {
     await goodsRepository.update(id, {
       chsCode: input.chsCode,
       goodsName: input.goodsName,
+      originCountryId: input.originCountryId,
       isActive: input.isActive
     });
 
@@ -103,7 +104,6 @@ export class GoodsService {
   async createVariation(input: GoodsVariationInput, actorId?: string | null) {
     const variationId = await goodsRepository.createVariation({
       goodsId: input.goodsId,
-      originCountryId: input.originCountryId,
       size: input.size,
       brand: input.brand,
       createdBy: actorId
@@ -118,7 +118,6 @@ export class GoodsService {
     id: string,
     input: {
       goodsId: string;
-      originCountryId?: string | null;
       size?: string;
       brand?: string;
       isActive?: boolean;

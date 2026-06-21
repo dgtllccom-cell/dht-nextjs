@@ -3,7 +3,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 export type GoodsVariationRow = {
   id: string;
   goods_id: string;
-  origin_country_id: string | null;
   size: string;
   brand: string;
   is_active: boolean;
@@ -16,6 +15,7 @@ export type GoodsRow = {
   id: string;
   chs_code: string;
   goods_name: string;
+  origin_country_id: string | null;
   original_language_code: string;
   is_active: boolean;
   created_by: string | null;
@@ -42,6 +42,7 @@ export class GoodsRepository {
         id,
         chs_code,
         goods_name,
+        origin_country_id,
         original_language_code,
         is_active,
         created_by,
@@ -50,7 +51,6 @@ export class GoodsRepository {
         variations:goods_variations(
           id,
           goods_id,
-          origin_country_id,
           size,
           brand,
           is_active,
@@ -94,7 +94,8 @@ export class GoodsRepository {
       // Filter out soft-deleted variations
       const variations = (row.variations ?? []).filter((v: any) => v.deleted_at === undefined || v.deleted_at === null);
       
-      const uniqueOrigins = new Set(variations.map((v: any) => v.origin_country_id).filter(Boolean));
+      // Unique origin is just the master's origin
+      const uniqueOrigins = new Set([row.origin_country_id].filter(Boolean));
       const uniqueSizes = new Set(variations.map((v: any) => v.size).filter(Boolean));
       const uniqueBrands = new Set(variations.map((v: any) => v.brand).filter(Boolean));
 
@@ -118,6 +119,7 @@ export class GoodsRepository {
         id,
         chs_code,
         goods_name,
+        origin_country_id,
         original_language_code,
         is_active,
         created_by,
@@ -126,7 +128,6 @@ export class GoodsRepository {
         variations:goods_variations(
           id,
           goods_id,
-          origin_country_id,
           size,
           brand,
           is_active,
@@ -142,7 +143,7 @@ export class GoodsRepository {
     if (error) throw new Error(error.message);
 
     const variations = (data.variations ?? []).filter((v: any) => v.deleted_at === undefined || v.deleted_at === null);
-    const uniqueOrigins = new Set(variations.map((v: any) => v.origin_country_id).filter(Boolean));
+    const uniqueOrigins = new Set([data.origin_country_id].filter(Boolean));
     const uniqueSizes = new Set(variations.map((v: any) => v.size).filter(Boolean));
     const uniqueBrands = new Set(variations.map((v: any) => v.brand).filter(Boolean));
 
@@ -175,6 +176,7 @@ export class GoodsRepository {
   async create(input: {
     chsCode: string;
     goodsName: string;
+    originCountryId?: string | null;
     originalLanguageCode?: string;
     createdBy?: string | null;
   }) {
@@ -184,6 +186,7 @@ export class GoodsRepository {
       .insert({
         chs_code: input.chsCode.trim(),
         goods_name: input.goodsName.trim(),
+        origin_country_id: input.originCountryId || null,
         original_language_code: input.originalLanguageCode || "en",
         is_active: true,
         created_by: input.createdBy || null,
@@ -202,6 +205,7 @@ export class GoodsRepository {
     input: {
       chsCode?: string;
       goodsName?: string;
+      originCountryId?: string | null;
       isActive?: boolean;
     }
   ) {
@@ -212,6 +216,7 @@ export class GoodsRepository {
 
     if (input.chsCode !== undefined) patch.chs_code = input.chsCode.trim();
     if (input.goodsName !== undefined) patch.goods_name = input.goodsName.trim();
+    if (input.originCountryId !== undefined) patch.origin_country_id = input.originCountryId;
     if (input.isActive !== undefined) patch.is_active = input.isActive;
 
     const { error } = await supabase
@@ -250,7 +255,6 @@ export class GoodsRepository {
 
   async createVariation(input: {
     goodsId: string;
-    originCountryId?: string | null;
     size: string;
     brand: string;
     createdBy?: string | null;
@@ -268,24 +272,17 @@ export class GoodsRepository {
       .eq("brand", cleanBrand)
       .is("deleted_at", null);
 
-    if (input.originCountryId) {
-      dupCheckQuery = dupCheckQuery.eq("origin_country_id", input.originCountryId);
-    } else {
-      dupCheckQuery = dupCheckQuery.is("origin_country_id", null);
-    }
-
     const { data: existing, error: checkError } = await dupCheckQuery;
 
     if (checkError) throw new Error(checkError.message);
     if (Array.isArray(existing) && existing.length > 0) {
-      throw new Error("A variation with this combination of Origin, Size, and Brand already exists.");
+      throw new Error("A variation with this combination of Size and Brand already exists.");
     }
 
     const { data, error } = await supabase
       .from("goods_variations")
       .insert({
         goods_id: input.goodsId,
-        origin_country_id: input.originCountryId || null,
         size: cleanSize,
         brand: cleanBrand,
         is_active: true,
@@ -304,7 +301,6 @@ export class GoodsRepository {
     id: string,
     input: {
       goodsId?: string;
-      originCountryId?: string | null;
       size?: string;
       brand?: string;
       isActive?: boolean;
@@ -318,21 +314,19 @@ export class GoodsRepository {
     const cleanSize = input.size !== undefined ? input.size.trim().toUpperCase() : undefined;
     const cleanBrand = input.brand !== undefined ? input.brand.trim().toUpperCase() : undefined;
 
-    if (input.originCountryId !== undefined) patch.origin_country_id = input.originCountryId;
     if (cleanSize !== undefined) patch.size = cleanSize;
     if (cleanBrand !== undefined) patch.brand = cleanBrand;
     if (input.isActive !== undefined) patch.is_active = input.isActive;
 
     // Duplication check if changing key details
-    if (input.goodsId && (input.originCountryId !== undefined || input.size !== undefined || input.brand !== undefined)) {
+    if (input.goodsId && (input.size !== undefined || input.brand !== undefined)) {
       const { data: existingVar } = await supabase
         .from("goods_variations")
-        .select("goods_id, origin_country_id, size, brand")
+        .select("goods_id, size, brand")
         .eq("id", id)
         .single();
       
       const checkGoodsId = input.goodsId;
-      const checkOrigin = input.originCountryId !== undefined ? input.originCountryId : existingVar?.origin_country_id;
       const checkSize = cleanSize !== undefined ? cleanSize : existingVar?.size;
       const checkBrand = cleanBrand !== undefined ? cleanBrand : existingVar?.brand;
 
@@ -345,17 +339,11 @@ export class GoodsRepository {
         .neq("id", id)
         .is("deleted_at", null);
 
-      if (checkOrigin) {
-        dupQuery = dupQuery.eq("origin_country_id", checkOrigin);
-      } else {
-        dupQuery = dupQuery.is("origin_country_id", null);
-      }
-
       const { data: dup, error: checkError } = await dupQuery;
 
       if (checkError) throw new Error(checkError.message);
       if (Array.isArray(dup) && dup.length > 0) {
-        throw new Error("Another variation with this combination of Origin, Size, and Brand already exists.");
+        throw new Error("Another variation with this combination of Size and Brand already exists.");
       }
     }
 

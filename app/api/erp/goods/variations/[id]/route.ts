@@ -27,12 +27,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       id,
       {
         goodsId: body.goodsId || "",
-        originCountryId: body.originCountryId,
         size: body.size,
         brand: body.brand,
         isActive: body.isActive
       },
-      session.userId
+      session.user?.id
     );
 
     await auditApiAction(request, {

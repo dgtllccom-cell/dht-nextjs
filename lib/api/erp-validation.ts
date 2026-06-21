@@ -329,9 +329,9 @@ export const companyUpdateSchema = companyCreateSchema.partial();
 export const goodsCreateSchema = z.object({
   chsCode: z.string().trim().min(2).max(100),
   goodsName: z.string().trim().min(2).max(200),
+  originCountryId: uuidSchema.nullable().optional(),
   originalLanguage: supportedLanguageSchema.default("en"),
   initialVariation: z.object({
-    originCountryId: uuidSchema.nullable().optional(),
     size: z.string().trim().min(1).max(100),
     brand: z.string().trim().min(1).max(100)
   }).optional().nullable()
@@ -340,7 +340,6 @@ export const goodsCreateSchema = z.object({
 export const goodsUpdateSchema = goodsCreateSchema.partial();
 
 export const goodsVariationCreateSchema = z.object({
-  originCountryId: uuidSchema.nullable().optional(),
   size: z.string().trim().min(1).max(100),
   brand: z.string().trim().min(1).max(100)
 });

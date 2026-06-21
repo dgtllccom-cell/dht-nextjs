@@ -1,12 +1,10 @@
-﻿"use client";
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import {
   Search, UserRound, Building2, Landmark, Hash,
-  Phone, Mail, MoreVertical, Download, FileSpreadsheet,
+  Phone, Mail, MoreVertical, FileSpreadsheet,
   FileText, Send, MessageCircle, Printer, RefreshCw,
   Eye, Edit3, Filter, X, ChevronDown, CheckCircle2,
   XCircle, Loader2, LayoutList,
@@ -46,11 +44,6 @@ type AccountRow = {
 type ReportMeta = {
   companyName: string;
   companyOwner: string;
-};
-
-type SummaryStats = {
-  totalAccounts: number;
-  activeAccounts: number;
 };
 
 type SessionInfo = {
@@ -109,7 +102,6 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
   /* ── Data ─────────────────────────────────────────────────── */
   const [rows, setRows] = useState<AccountRow[]>([]);
   const [meta, setMeta] = useState<ReportMeta>({ companyName: "—", companyOwner: "—" });
-  const [summary, setSummary] = useState<SummaryStats>({ totalAccounts: 0, activeAccounts: 0 });
   const [generatedAt, setGeneratedAt] = useState("");
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -154,10 +146,6 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
         setMeta({
           companyName: json.data.workspace?.companyName ?? "—",
           companyOwner: json.data.workspace?.companyOwner ?? "—",
-        });
-        setSummary({
-          totalAccounts: json.data.summary?.totalAccounts ?? 0,
-          activeAccounts: json.data.summary?.activeAccounts ?? 0,
         });
         setGeneratedAt(json.data.generatedAt ?? new Date().toISOString());
       }
@@ -481,7 +469,6 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                 filtered.map((row, idx) => {
                   const hasCompany = Boolean(row.companyName && row.companyName !== "—");
                   const hasBank = row.accountCategory.toLowerCase().includes("asset") || row.accountCategory.toLowerCase().includes("bank");
-                  const hasContact = true; // all accounts assumed to have contact links
 
                   return (
                     <tr key={row.accountId} className="asr-row">
@@ -1045,6 +1032,8 @@ function AsrStyles() {
     `}</style>
   );
 }
+
+
 
 
 

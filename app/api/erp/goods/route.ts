@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
       {
         chsCode: body.chsCode,
         goodsName: body.goodsName,
+        originCountryId: body.originCountryId,
         originalLanguage: body.originalLanguage || "en",
         initialVariation: body.initialVariation
       },

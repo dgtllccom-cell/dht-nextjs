@@ -39,9 +39,11 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       {
         chsCode: body.chsCode,
         goodsName: body.goodsName,
-        originalLanguage: body.originalLanguage ?? "en"
+        originCountryId: body.originCountryId,
+        isActive: body.isActive,
+        originalLanguage: body.originalLanguage
       },
-      session.userId
+      session.user.id
     );
 
     await auditApiAction(request, {
