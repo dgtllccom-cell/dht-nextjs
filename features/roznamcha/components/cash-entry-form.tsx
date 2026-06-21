@@ -450,11 +450,11 @@ export function CashEntryForm({
     branchCurrency;
 
   const allowedCurrencies = useMemo(() => {
-    const list = [targetAccountCurrency, "PKR", "USD", "AED", "AFN", "INR", "IRR"]
+    const list = [branchCurrency]
       .map((v) => (v ?? "").toString().trim().toUpperCase())
       .filter(Boolean);
     return new Set(list);
-  }, [targetAccountCurrency]);
+  }, [branchCurrency]);
 
   const normalizedCurrency = currency.trim().toUpperCase();
   const isLocalCurrency = normalizedCurrency === targetAccountCurrency.toUpperCase();
@@ -1742,6 +1742,52 @@ export function CashEntryForm({
   return (
     <div className="mx-auto w-full bg-[#f8fbff] dark:bg-slate-950/40 text-slate-950 dark:text-slate-50 min-h-screen">
       {portalNode ? createPortal(actionButtons, portalNode) : null}
+
+      {/* Super Admin Scope Modal */}
+      {isSuperAdmin && (!countryId || !countryBranchId) && (
+        <SimpleModal
+          isOpen={true}
+          onClose={() => {}} // Cannot close without selecting
+          title="Super Admin: Select Working Scope"
+          width="md"
+        >
+          <div className="space-y-4 p-2">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Please select the Country and Branch you want to work in for Cash Entry.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs font-black">Country</Label>
+                <select
+                  value={countryId}
+                  onChange={(e) => setCountryId(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                >
+                  <option value="">Select Country...</option>
+                  {countries.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.currency_code})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs font-black">Branch</Label>
+                <select
+                  value={countryBranchId}
+                  onChange={(e) => setCountryBranchId(e.target.value)}
+                  disabled={!countryId}
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                >
+                  <option value="">Select Branch...</option>
+                  {mainBranches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </SimpleModal>
+      )}
+
       {/* Horizontal Scope & Session Grid */}
       <div className="mx-4 mt-4 mb-3 bg-white border border-slate-200 rounded-xl p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800 flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div className="flex flex-wrap items-start gap-x-10 gap-y-6">

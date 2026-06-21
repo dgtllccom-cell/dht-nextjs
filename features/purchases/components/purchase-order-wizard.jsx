@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { CustomerPicker } from "@/features/customers/components/customer-picker";
 import { CompanyPicker } from "@/features/companies/components/company-picker";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SimpleModal } from "@/components/ui/simple-modal";
 import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-window";
 import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
 import { PurchaseBookingJournalReportView } from "./purchase-booking-journal-report-view";
@@ -710,7 +711,8 @@ export function PurchaseOrderWizard() {
             countrySerialNumber: acc.country_serial_number || "",
             branchSerialNumber: acc.branch_serial_number || "",
             manualReferenceNumber: acc.manual_reference_number || "",
-            countryId: acc.country_id || null
+            countryId: acc.country_id || null,
+            countryBranchId: acc.country_branch_id || null
           }));
           setDbAccounts(mapped);
         }
@@ -749,6 +751,24 @@ export function PurchaseOrderWizard() {
       cancelled = true;
     };
   }, []);
+
+  // Fetch branches for scoping
+  useEffect(() => {
+    let cancelled = false;
+    if (!form.countryId) {
+      setMainBranches([]);
+      setCityBranches([]);
+      return;
+    }
+    fetch(`/api/erp/locations/branches/main?countryId=${form.countryId}`)
+      .then(res => res.json())
+      .then(json => {
+        if (!cancelled && json?.data?.branches) setMainBranches(json.data.branches);
+      })
+      .catch(() => {});
+      
+    return () => { cancelled = true; };
+  }, [form.countryId]);
 
   // Fetch full details when supplierId changes
   useEffect(() => {
@@ -802,12 +822,31 @@ export function PurchaseOrderWizard() {
   const transitCountryOptions = allCountries.length > 0 ? allCountries : countries;
 
   // Port filtering by transport type and country
+  const HARDCODED_SEA_PORTS = {
+    "United Arab Emirates": ["Jebel Ali Port", "Port Rashid", "Mina Zayed", "Khalifa Port", "Sharjah Port", "Khor Fakkan", "Fujairah Port"],
+    "India": ["Nhava Sheva (JNPT)", "Mumbai Port", "Mundra Port", "Chennai Port", "Kochi Port", "Kolkata Port", "Visakhapatnam Port", "Kandla Port"],
+    "Iran": ["Bandar Abbas", "Chabahar Port", "Bandar Imam Khomeini", "Bushehr Port", "Khorramshahr Port"],
+    "Pakistan": ["Karachi Port", "Port Qasim", "Gwadar Port"]
+  };
+
   const seaLoadingPorts = useMemo(() => {
-    return dbLoadingPorts.filter(p => p.transport_type === "sea" && (!form.loadingCountry || !p.country?.name || p.country?.name === form.loadingCountry));
+    const dbPorts = dbLoadingPorts.filter(p => p.transport_type === "sea" && (!form.loadingCountry || !p.country?.name || p.country?.name === form.loadingCountry));
+    if (form.loadingCountry && HARDCODED_SEA_PORTS[form.loadingCountry]) {
+      const hardcoded = HARDCODED_SEA_PORTS[form.loadingCountry].map(name => ({ port_name: name, transport_type: "sea", country: { name: form.loadingCountry } }));
+      const existingNames = new Set(dbPorts.map(p => p.port_name));
+      return [...dbPorts, ...hardcoded.filter(p => !existingNames.has(p.port_name))];
+    }
+    return dbPorts;
   }, [dbLoadingPorts, form.loadingCountry]);
 
   const seaReceivedPorts = useMemo(() => {
-    return dbReceivedPorts.filter(p => p.transport_type === "sea" && (!form.receivedCountry || !p.country?.name || p.country?.name === form.receivedCountry));
+    const dbPorts = dbReceivedPorts.filter(p => p.transport_type === "sea" && (!form.receivedCountry || !p.country?.name || p.country?.name === form.receivedCountry));
+    if (form.receivedCountry && HARDCODED_SEA_PORTS[form.receivedCountry]) {
+      const hardcoded = HARDCODED_SEA_PORTS[form.receivedCountry].map(name => ({ port_name: name, transport_type: "sea", country: { name: form.receivedCountry } }));
+      const existingNames = new Set(dbPorts.map(p => p.port_name));
+      return [...dbPorts, ...hardcoded.filter(p => !existingNames.has(p.port_name))];
+    }
+    return dbPorts;
   }, [dbReceivedPorts, form.receivedCountry]);
 
   const roadLoadingPorts = useMemo(() => {
@@ -833,7 +872,9 @@ export function PurchaseOrderWizard() {
     if (form.origin) {
       const originCountry = transitCountryOptions.find(c => c.name === form.origin);
       const originCountryId = originCountry?.id || null;
-      filtered = variations.filter(v => v.origin_country_id === originCountryId);
+      if (selectedDbGood?.origin_country_id !== originCountryId) {
+        filtered = []; // If good origin mismatch, no sizes
+      }
     }
     const sizes = [...new Set(filtered.map(v => (v.size || "").trim().toUpperCase()).filter(Boolean))];
     return sizes;
@@ -844,7 +885,9 @@ export function PurchaseOrderWizard() {
     if (form.origin) {
       const originCountry = transitCountryOptions.find(c => c.name === form.origin);
       const originCountryId = originCountry?.id || null;
-      filtered = filtered.filter(v => v.origin_country_id === originCountryId);
+      if (selectedDbGood?.origin_country_id !== originCountryId) {
+        filtered = [];
+      }
     }
     if (form.size) {
       filtered = filtered.filter(v => (v.size || "").trim().toLowerCase() === (form.size || "").trim().toLowerCase());
@@ -1379,8 +1422,7 @@ export function PurchaseOrderWizard() {
       
       const exists = variations.some(v => 
         (v.size || "").trim().toLowerCase() === (form.size || "").trim().toLowerCase() && 
-        (v.brand || "").trim().toLowerCase() === (form.brand || "").trim().toLowerCase() && 
-        (v.origin_country_id === originCountryId)
+        (v.brand || "").trim().toLowerCase() === (form.brand || "").trim().toLowerCase()
       );
 
       if (!exists && form.size.trim() && form.brand.trim()) {
@@ -1464,6 +1506,38 @@ export function PurchaseOrderWizard() {
       allotName: `ALT-${Math.floor(4424 + Math.random() * 1000)}`
     }));
 
+  };
+
+  const handleEditGoodsEntry = (index) => {
+    const row = goodsEntries[index];
+    setForm((prev) => ({
+      ...prev,
+      goodsName: row.goodsName,
+      size: row.size,
+      brand: row.brand,
+      origin: row.origin,
+      hsCode: row.hsCode,
+      qtyName: row.qtyName,
+      qtyNo: row.qtyNo,
+      qtyKgs: row.qtyKgs,
+      emptyKgs: row.emptyKgs,
+      priceType: row.priceType,
+      divideType: row.divideType,
+      divideWeight: row.divideWeight,
+      coursePrice: row.coursePrice,
+      currencyType: row.currencyType,
+      purchaseCurrency: row.purchaseCurrency,
+      exchangeRate: row.exchangeRate,
+      operator: row.op,
+      allotName: row.allotName
+    }));
+    setGoodsEntries((prev) => prev.filter((_, idx) => idx !== index));
+    setSaveMessage("Item moved to form for editing.");
+  };
+
+  const handleViewGoodsEntry = (index) => {
+    const row = goodsEntries[index];
+    alert(`View Item:\n\nGoods: ${row.goodsName}\nBrand: ${row.brand}\nSize: ${row.size}\nOrigin: ${row.origin}\nQty: ${row.qtyNo} ${row.qtyName}\nPrice: ${row.coursePrice} ${row.currencyType}\nAmount: ${row.totalAmount.toLocaleString()} ${row.currencyType}`);
   };
 
   const handleCreatePort = async (portName, countryName, transportType, side) => {
@@ -1589,7 +1663,8 @@ export function PurchaseOrderWizard() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
-        throw new Error(payload?.error?.message || payload?.error || "Purchase order failed to save.");
+        const errDetails = payload?.error?.details ? JSON.stringify(payload.error.details) : "";
+        throw new Error(`${payload?.error?.message || payload?.error || "Purchase order failed to save."} ${errDetails}`);
       }
       const nextOrderId = payload.data?.purchaseOrderId || savedOrderId || payload.data?.id;
       const nextOrderNo = payload.data?.purchaseOrderNo || savedOrderNo || form.purchaseOrderNo;
@@ -1624,7 +1699,8 @@ export function PurchaseOrderWizard() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
-        throw new Error(payload?.error?.message || payload?.error || "Purchase order failed to save.");
+        const errDetails = payload?.error?.details ? JSON.stringify(payload.error.details) : "";
+        throw new Error(`${payload?.error?.message || payload?.error || "Purchase order failed to save."} ${errDetails}`);
       }
       const nextOrderId = payload.data?.purchaseOrderId || savedOrderId;
       const nextOrderNo = payload.data?.purchaseOrderNo || savedOrderNo || form.purchaseOrderNo;
@@ -2123,6 +2199,13 @@ export function PurchaseOrderWizard() {
 
   const headerActions = (
     <div className="flex items-center gap-1.5 shrink-0 relative" ref={dropdownRef}>
+        <div className="flex items-center gap-0.5 bg-muted/40 p-0.5 rounded border border-border/50 mr-2">
+          <button type="button" onClick={() => setActiveTab("booking")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "booking" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>1 Booking</button>
+          <button type="button" onClick={() => setActiveTab("goods")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "goods" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>2 Goods</button>
+          <button type="button" onClick={() => setActiveTab("others")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "others" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>3 Others</button>
+          <button type="button" onClick={() => setActiveTab("report")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "report" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>4 Verify</button>
+          <button type="button" onClick={() => setActiveTab("reports_tab")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "reports_tab" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>5 Reports</button>
+        </div>
         <div className="flex items-center gap-2 bg-muted/50 rounded-md p-1 border border-border/50 mr-1">
           <span className="relative flex h-2 w-2 ml-1">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -2376,6 +2459,58 @@ export function PurchaseOrderWizard() {
 
   return (
     <div className="space-y-2 text-foreground bg-background mt-[-10px]">
+      {isSuperAdmin && (!form.countryId || !form.countryBranchId) && (
+        <SimpleModal
+          isOpen={true}
+          onClose={() => {}} // Cannot close without selecting
+          title="Super Admin: Select Working Scope"
+          width="md"
+        >
+          <div className="space-y-4 p-2">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Please select the Country and Branch you want to work in for Purchase Orders.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-black">Country</label>
+                <select
+                  value={form.countryId}
+                  onChange={(e) => {
+                    const country = countries.find(c => c.id === e.target.value);
+                    setForm(p => ({ 
+                      ...p, 
+                      countryId: e.target.value, 
+                      countryBranchId: "",
+                      currencyType: country ? country.currency_code : p.currencyType,
+                      purchaseCurrency: country ? country.currency_code : p.purchaseCurrency
+                    }));
+                  }}
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                >
+                  <option value="">Select Country...</option>
+                  {countries.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.currency_code})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-black">Branch</label>
+                <select
+                  value={form.countryBranchId}
+                  onChange={(e) => setForm(p => ({ ...p, countryBranchId: e.target.value }))}
+                  disabled={!form.countryId}
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                >
+                  <option value="">Select Branch...</option>
+                  {mainBranches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </SimpleModal>
+      )}
       {isTransferred ? (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in duration-300">
           <div className="space-y-1">
@@ -2415,9 +2550,7 @@ export function PurchaseOrderWizard() {
 
           {activeTab === "report" && isMounted && document.getElementById("erp-page-actions-slot") && createPortal(
             <>
-              <button type="button" onClick={() => setActiveTab("booking")} className="border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-4 py-1.5 rounded text-[11px] font-bold transition-colors shadow-sm">
-                &larr; BACK TO EDITING
-              </button>
+              {/* BACK TO EDITING removed as per user request */}
               <button type="button" onClick={() => handleSavePurchaseOrder(true)} disabled={savingOrder} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold shadow-md transition-colors flex items-center gap-1.5 disabled:opacity-50">
                 <CheckCircle2 className="h-3.5 w-3.5"/> TRANSFER TO PAYMENT
               </button>
@@ -2815,10 +2948,10 @@ export function PurchaseOrderWizard() {
                           <tr className="bg-muted/80 text-muted-foreground border-b border-border font-bold uppercase tracking-wider">
                             <th className="px-3 py-2.5 text-center w-8">#</th>
                             <th className="px-3 py-2.5">Goods Name</th>
+                            <th className="px-3 py-2.5 text-center">Size</th>
+                            <th className="px-3 py-2.5 text-center">Brand</th>
                             <th className="px-3 py-2.5 text-center">HS Code</th>
                             <th className="px-3 py-2.5 text-center">Origin</th>
-                            <th className="px-3 py-2.5 text-center">Brand</th>
-                            <th className="px-3 py-2.5 text-center">Size</th>
                             <th className="px-3 py-2.5 text-right">Qty</th>
                             <th className="px-3 py-2.5 text-center">Unit</th>
                             <th className="px-3 py-2.5 text-right">Price ({form.purchaseCurrency || form.currencyType})</th>
@@ -2840,10 +2973,10 @@ export function PurchaseOrderWizard() {
                               <tr key={index} className="border-t border-border hover:bg-muted/50 transition">
                                 <td className="px-3 py-2 text-center font-mono text-muted-foreground">{index + 1}</td>
                                 <td className="px-3 py-2 font-black text-primary">{row.goodsName}</td>
+                                <td className="px-3 py-2 text-center font-semibold">{row.size}</td>
+                                <td className="px-3 py-2 text-center font-semibold">{row.brand}</td>
                                 <td className="px-3 py-2 text-center font-mono text-muted-foreground">{row.hsCode}</td>
                                 <td className="px-3 py-2 text-center font-semibold">{row.origin}</td>
-                                <td className="px-3 py-2 text-center font-semibold">{row.brand}</td>
-                                <td className="px-3 py-2 text-center font-semibold">{row.size}</td>
                                 <td className="px-3 py-2 text-right font-mono font-bold">{row.qtyNo.toLocaleString()}</td>
                                 <td className="px-3 py-2 text-center font-semibold">{row.qtyName}</td>
                                 <td className="px-3 py-2 text-right font-mono font-bold text-muted-foreground">{row.coursePrice.toFixed(2)}</td>
@@ -2852,15 +2985,33 @@ export function PurchaseOrderWizard() {
                                 <td className="px-3 py-2 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
                                   {row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td className="px-3 py-2 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => setGoodsEntries(prev => prev.filter((_, idx) => idx !== index))}
-                                    className="text-red-500 hover:text-red-400 font-bold p-1 rounded transition bg-red-500/10 hover:bg-red-500/20"
-                                    title="Delete Item"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
+                                <td className="px-3 py-2 text-center relative group">
+                                  <button className="p-1 hover:bg-slate-200 rounded text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <MoreVertical className="h-4 w-4" />
                                   </button>
+                                  <div className="absolute right-0 top-full mt-1 w-28 bg-white border border-slate-200 shadow-xl rounded py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[60] origin-top-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleViewGoodsEntry(index)}
+                                      className="w-full text-left px-3 py-2 hover:bg-slate-100 text-[10px] font-bold text-slate-700 flex items-center gap-2 transition-colors"
+                                    >
+                                      <Eye className="h-3.5 w-3.5" /> View
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditGoodsEntry(index)}
+                                      className="w-full text-left px-3 py-2 hover:bg-slate-100 text-[10px] font-bold text-blue-600 flex items-center gap-2 transition-colors"
+                                    >
+                                      <Edit3 className="h-3.5 w-3.5" /> Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setGoodsEntries(prev => prev.filter((_, idx) => idx !== index))}
+                                      className="w-full text-left px-3 py-2 hover:bg-red-50 text-[10px] font-bold text-red-600 flex items-center gap-2 transition-colors"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))
@@ -2873,13 +3024,7 @@ export function PurchaseOrderWizard() {
             </section>
 
             <main className="lg:col-span-3 space-y-0 flex flex-col order-1 mt-4">
-              <div className="grid grid-cols-5 gap-1 mb-3">
-                <button type="button" onClick={() => setActiveTab("booking")} className={`w-full py-2 px-3 rounded-lg text-left text-[11px] font-bold transition flex items-center gap-2 ${activeTab === "booking" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}><span className="w-4 h-4 rounded-full bg-black/10 flex items-center justify-center text-[9px]">1</span> Purchase Booking</button>
-                <button type="button" onClick={() => setActiveTab("goods")} className={`w-full py-2 px-3 rounded-lg text-left text-[11px] font-bold transition flex items-center gap-2 ${activeTab === "goods" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}><span className="w-4 h-4 rounded-full bg-black/10 flex items-center justify-center text-[9px]">2</span> Goods Entry</button>
-                <button type="button" onClick={() => setActiveTab("others")} className={`w-full py-2 px-3 rounded-lg text-left text-[11px] font-bold transition flex items-center gap-2 ${activeTab === "others" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}><span className="w-4 h-4 rounded-full bg-black/10 flex items-center justify-center text-[9px]">3</span> Others</button>
-                <button type="button" onClick={() => setActiveTab("report")} className={`w-full py-2 px-3 rounded-lg text-left text-[11px] font-bold transition flex items-center gap-2 ${activeTab === "report" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}><span className="w-4 h-4 rounded-full bg-black/10 flex items-center justify-center text-[9px]">4</span> Verification</button>
-                <button type="button" onClick={() => setActiveTab("reports_tab")} className={`w-full py-2 px-3 rounded-lg text-left text-[11px] font-bold transition flex items-center gap-2 ${activeTab === "reports_tab" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}><span className="w-4 h-4 rounded-full bg-black/10 flex items-center justify-center text-[9px]">5</span> Reports</button>
-              </div>
+
               {activeTab === "booking" && (
                 <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4 order-2 w-full mt-4">
                   <div className="border-b border-border pb-2 mb-3">
@@ -2917,7 +3062,7 @@ export function PurchaseOrderWizard() {
                       {purchaseDropdownOpen && (
                         <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden">
                           <div className="max-h-56 overflow-y-auto space-y-0.5">
-                            {dbAccounts.filter(acc => acc.accountCode?.toLowerCase().includes(purchaseSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(purchaseSearch.toLowerCase())).map((acc) => (
+                            {dbAccounts.filter(acc => (!form.countryId || acc.countryId === form.countryId) && (!form.countryBranchId || acc.countryBranchId === form.countryBranchId) && (acc.accountCode?.toLowerCase().includes(purchaseSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(purchaseSearch.toLowerCase()))).map((acc) => (
                               <button
                                 key={acc.accountCode}
                                 type="button"
@@ -2965,7 +3110,7 @@ export function PurchaseOrderWizard() {
                       {salesDropdownOpen && (
                         <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden">
                           <div className="max-h-56 overflow-y-auto space-y-0.5">
-                            {dbAccounts.filter(acc => acc.accountCode?.toLowerCase().includes(salesSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(salesSearch.toLowerCase())).map((acc) => (
+                            {dbAccounts.filter(acc => (!form.countryId || acc.countryId === form.countryId) && (!form.countryBranchId || acc.countryBranchId === form.countryBranchId) && (acc.accountCode?.toLowerCase().includes(salesSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(salesSearch.toLowerCase()))).map((acc) => (
                               <button
                                 key={acc.accountCode}
                                 type="button"
@@ -3128,8 +3273,8 @@ export function PurchaseOrderWizard() {
                                 const v = variations[0];
                                 setValue("size", v.size || "");
                                 setValue("brand", v.brand || "");
-                                if (v.origin_country_id) {
-                                  const c = transitCountryOptions.find(tc => tc.id === v.origin_country_id);
+                                if (chosen.origin_country_id) {
+                                  const c = transitCountryOptions.find(tc => tc.id === chosen.origin_country_id);
                                   if (c) setValue("origin", c.name);
                                 } else {
                                   setValue("origin", "");
@@ -3572,28 +3717,28 @@ export function PurchaseOrderWizard() {
                             {/* Purchase Side */}
                             <div className="border border-border/60 rounded-lg p-2.5 bg-background/50 space-y-1.5">
                               <span className="block text-[8px] font-black uppercase text-primary/85 tracking-wider">
-                                Purchase Account ({form.purchaseAccountNo})
+                                Purchase Currency ({form.purchaseCurrency || form.currencyType || "-"})
                               </span>
                               <div className="grid grid-cols-3 gap-1 text-[9px] leading-tight text-center font-medium">
                                 <div>
                                   <span className="text-muted-foreground block text-[7px] uppercase">Total</span>
                                   <strong className="text-foreground block font-mono">
-                                    {currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}
-                                    {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {currencySymbol(form.purchaseCurrency || form.currencyType)}
+                                    {(reportTotals.grandFinal / Number(form.exchangeRate || 1)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </strong>
                                 </div>
                                 <div>
                                   <span className="text-primary block text-[7px] uppercase font-bold">Advance Paid</span>
                                   <strong className="text-primary block font-mono font-bold">
-                                    {currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}
-                                    {((reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {currencySymbol(form.purchaseCurrency || form.currencyType)}
+                                    {(((reportTotals.grandFinal / Number(form.exchangeRate || 1)) * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </strong>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground block text-[7px] uppercase">Remaining</span>
                                   <strong className="text-foreground block font-mono">
-                                    {currencySymbol(form.purchaseAccountCurrency || form.salesAccountCurrency)}
-                                    {(reportTotals.grandFinal - (reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {currencySymbol(form.purchaseCurrency || form.currencyType)}
+                                    {((reportTotals.grandFinal / Number(form.exchangeRate || 1)) * (1 - (form.advancePercent || 0) / 100)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </strong>
                                 </div>
                               </div>
@@ -3602,7 +3747,7 @@ export function PurchaseOrderWizard() {
                             {/* Sales Side */}
                             <div className="border border-border/60 rounded-lg p-2.5 bg-background/50 space-y-1.5">
                               <span className="block text-[8px] font-black uppercase text-emerald-600 dark:text-emerald-500 tracking-wider">
-                                Sales Account ({form.salesAccountNo})
+                                Final Exchanged Currency ({form.salesAccountCurrency || "PKR"})
                               </span>
                               <div className="grid grid-cols-3 gap-1 text-[9px] leading-tight text-center font-medium">
                                 <div>
@@ -4132,7 +4277,7 @@ export function PurchaseOrderWizard() {
                       Next Step (Verification)
                     </Button>
                     <div className="flex gap-1.5">
-                      <Button type="button" variant="outline" onClick={() => setActiveTab("others")} className="flex-1 font-bold h-7.5 text-[10px] py-1">Back</Button>
+                      <Button type="button" variant="outline" onClick={() => setActiveTab("goods")} className="flex-1 font-bold h-7.5 text-[10px] py-1">Back</Button>
                     </div>
                   </div>
                 </fieldset>
@@ -4176,11 +4321,7 @@ export function PurchaseOrderWizard() {
                     <option value="invoice">Proforma Invoice</option>
                   </select>
                 </div>
-                <div>
-                  <button type="button" onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold uppercase tracking-wider shadow flex items-center gap-2 transition-colors">
-                    <Printer className="h-4 w-4" /> Print Report
-                  </button>
-                </div>
+                {/* Print Report button removed as per user request to avoid duplicate */}
               </div>
 
               <div className="bg-white text-slate-900 w-full max-w-[850px] shadow-2xl border border-slate-200 p-8 sm:p-12 relative print:shadow-none print:border-none print:p-0">
@@ -4229,8 +4370,8 @@ export function PurchaseOrderWizard() {
                   </div>
                 </div>
 
-                {/* 3 Info Blocks */}
-                <div className="grid grid-cols-1 gap-4 mb-6">
+                {/* Info Blocks */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div className="border border-slate-200 rounded p-3">
                     <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
                       <FileText className="h-3.5 w-3.5 text-slate-500" />
@@ -4241,6 +4382,45 @@ export function PurchaseOrderWizard() {
                       <div className="flex justify-between"><span className="text-slate-500">Purchase Date:</span> <span className="font-semibold text-slate-900">{form.purchaseDate}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500">Booking Date:</span> <span className="font-semibold text-slate-900">{form.purchaseDate}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500">Booking User:</span> <span className="font-semibold text-slate-900 uppercase">ADMIN</span></div>
+                    </div>
+                  </div>
+
+                  <div className="border border-slate-200 rounded p-3">
+                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
+                      <User className="h-3.5 w-3.5 text-slate-500" />
+                      <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Purchaser & Supplier (DR)</span>
+                    </div>
+                    <div className="space-y-1.5 text-[9px]">
+                      <div className="flex justify-between"><span className="text-slate-500">Supplier Name:</span> <span className="font-semibold text-slate-900 truncate max-w-[150px]">{form.purchaseAccountName || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Contact / Phone:</span> <span className="font-semibold text-slate-900">{form.purchaseAccountMobile || form.purchaseAccountWhatsapp || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Account No:</span> <span className="font-semibold text-slate-900 font-mono">{form.purchaseAccountNo || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Country/Origin:</span> <span className="font-semibold text-slate-900">{form.origin || "N/A"}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="border border-slate-200 rounded p-3">
+                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
+                      <Building2 className="h-3.5 w-3.5 text-slate-500" />
+                      <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Sales & Customer (CR)</span>
+                    </div>
+                    <div className="space-y-1.5 text-[9px]">
+                      <div className="flex justify-between"><span className="text-slate-500">Customer Name:</span> <span className="font-semibold text-slate-900 truncate max-w-[150px]">{form.salesAccountName || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Contact / Phone:</span> <span className="font-semibold text-slate-900">{form.salesAccountMobile || form.salesAccountWhatsapp || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Account No:</span> <span className="font-semibold text-slate-900 font-mono">{form.salesAccountNo || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Type:</span> <span className="font-semibold text-slate-900">{form.salesAccountKind || "N/A"}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="border border-slate-200 rounded p-3">
+                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
+                      <Ship className="h-3.5 w-3.5 text-slate-500" />
+                      <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Logistics & Loading</span>
+                    </div>
+                    <div className="space-y-1.5 text-[9px]">
+                      <div className="flex justify-between"><span className="text-slate-500">Transport:</span> <span className="font-semibold text-slate-900 uppercase">{form.transportType || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Loading Point:</span> <span className="font-semibold text-slate-900">{form.loadingPort || form.loadingBorder || form.airportName || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Discharge Point:</span> <span className="font-semibold text-slate-900">{form.receivedPort || form.receivedBorder || form.receivedPortName || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Vessel/Containers:</span> <span className="font-semibold text-slate-900 truncate max-w-[150px]">{form.vesselName ? `${form.vesselName} (${form.containerCount}x${form.containerSize})` : "N/A"}</span></div>
                     </div>
                   </div>
                 </div>
@@ -4263,9 +4443,9 @@ export function PurchaseOrderWizard() {
                         <th className="py-2 px-2 text-right">Gross Wt</th>
                         <th className="py-2 px-2 text-right text-emerald-700 font-bold">Net Wt</th>
                         <th className="py-2 px-2 text-right">Rate / KG</th>
-                        <th className="py-2 px-2 text-right">Amount ({form.purchaseCurrency || "USD"})</th>
+                        <th className="py-2 px-2 text-right">Amount ({form.currencyType || "USD"})</th>
                         <th className="py-2 px-2 text-center">Ex. Rate</th>
-                        <th className="py-2 px-2 text-right text-emerald-700 font-bold">Final Amount</th>
+                        <th className="py-2 px-2 text-right text-emerald-700 font-bold">Final ({form.purchaseCurrency})</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -4283,7 +4463,7 @@ export function PurchaseOrderWizard() {
                           <td className="py-2 px-2 text-right font-mono">{g.coursePrice.toFixed(2)}</td>
                           <td className="py-2 px-2 text-right font-mono">{(g.totalAmount || 0).toLocaleString()}</td>
                           <td className="py-2 px-2 text-center font-mono">{g.exchangeRate}</td>
-                          <td className="py-2 px-2 text-right font-mono text-emerald-700 font-bold">{form.currencyType} {(g.finalAmount || 0).toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right font-mono text-emerald-700 font-bold">{(g.finalAmount || 0).toLocaleString()}</td>
                         </tr>
                       ))}
                       {goodsEntries.length === 0 && (
@@ -4302,7 +4482,7 @@ export function PurchaseOrderWizard() {
                         <td className="py-2 px-2"></td>
                         <td className="py-2 px-2 text-right font-mono font-bold text-blue-700">{(reportTotals?.grandPrimaryFinal || 0).toLocaleString()}</td>
                         <td className="py-2 px-2"></td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{form.currencyType} {(reportTotals?.grandFinal || 0).toLocaleString()}</td>
+                        <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{form.purchaseCurrency} {(reportTotals?.grandFinal || 0).toLocaleString()}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -4318,9 +4498,9 @@ export function PurchaseOrderWizard() {
                       <div className="space-y-1.5 text-[9px]">
                         <div className="flex justify-between"><span className="text-slate-500">Payment Term:</span> <span className="font-semibold text-slate-900">{form.paymentType || "Advance Payment"}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Advance Percent / Date:</span> <span className="font-semibold text-slate-900">{form.advancePercent}% / {form.advancePaymentDate}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Advance Amount:</span> <span className="font-semibold text-slate-900">{form.currencyType} {((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100).toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Advance Amount:</span> <span className="font-semibold text-slate-900">{form.purchaseCurrency} {((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100).toLocaleString()}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Remaining Balance / Date:</span> <span className="font-semibold text-slate-900">{100 - (form.advancePercent || 0)}% / {form.paymentDate}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Remaining Amount:</span> <span className="font-semibold text-rose-600">{form.currencyType} {((reportTotals?.grandFinal || 0) - ((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100)).toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Remaining Amount:</span> <span className="font-semibold text-rose-600">{form.purchaseCurrency} {((reportTotals?.grandFinal || 0) - ((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100)).toLocaleString()}</span></div>
                         <div className="flex justify-between items-center"><span className="text-slate-500">Payment Status:</span> <span className="bg-rose-500 text-white text-[8px] px-1.5 py-0.5 rounded font-black uppercase">PENDING</span></div>
                       </div>
                     </div>
@@ -4332,9 +4512,9 @@ export function PurchaseOrderWizard() {
                       <div className="space-y-1.5 text-[9px]">
                         <div className="flex justify-between"><span className="text-slate-500">Journal Entry Number:</span> <span className="font-semibold text-slate-900">Pending Posting</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Debit Account (Purchase):</span> <span className="font-semibold text-slate-900 truncate max-w-[120px]" title={form.purchaseAccountNo}>{form.purchaseAccountNo || "N/A"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Debit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString()} {form.currencyType}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Debit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString()} {form.purchaseCurrency}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Credit Account (Sales):</span> <span className="font-semibold text-slate-900 truncate max-w-[120px]" title={form.salesAccountNo}>{form.salesAccountNo || "N/A"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Credit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString()} {form.currencyType}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Credit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString()} {form.purchaseCurrency}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Total Quantity:</span> <span className="font-semibold text-slate-900">{reportTotals?.totalQty || 0} {goodsEntries[0]?.qtyName || "BOXES"}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Net Weight:</span> <span className="font-semibold text-slate-900">{(reportTotals?.totalNet || 0).toLocaleString()} Kg</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Gross Weight:</span> <span className="font-semibold text-slate-900">{(reportTotals?.totalGross || 0).toLocaleString()} Kg</span></div>
@@ -4348,13 +4528,23 @@ export function PurchaseOrderWizard() {
                       <FileText className="h-3.5 w-3.5 text-slate-500" />
                       <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Remarks / Notes</span>
                     </div>
-                    <div className="space-y-2 text-[9px]">
+                    <div className="space-y-4 text-[9px]">
+                      {reportsList.length > 0 ? reportsList.map((report, idx) => (
+                        <div key={report.id} className="border border-slate-200 rounded p-3 bg-slate-50">
+                          <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
+                            <span className="font-bold text-slate-800 text-[10px]">Note #{idx + 1}: {report.name}</span>
+                            <span className="text-slate-500 font-mono">{new Date(report.createdAt).toLocaleString()}</span>
+                          </div>
+                          <p className="font-semibold text-slate-900 whitespace-pre-wrap">{report.description}</p>
+                        </div>
+                      )) : (
+                        <div>
+                          <span className="text-slate-500 block mb-1">User Remarks (Report):</span>
+                          <p className="font-semibold text-slate-900 whitespace-pre-wrap">{form.orderReportRemarks || "No remarks provided."}</p>
+                        </div>
+                      )}
                       <div>
-                        <span className="text-slate-500 block mb-1">User Remarks (Report):</span>
-                        <p className="font-semibold text-slate-900 whitespace-pre-wrap">{form.orderReportRemarks || "No remarks provided."}</p>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block mb-1">System Notes:</span>
+                        <span className="text-slate-500 block mb-1 border-t border-slate-200 pt-2 mt-2">System Notes:</span>
                         <p className="font-semibold text-slate-900">Goods & accounts verified. Ready to transfer.</p>
                       </div>
                     </div>
@@ -4383,6 +4573,22 @@ export function PurchaseOrderWizard() {
             <div className="absolute right-0 top-0 bottom-0 w-[400px] bg-white border-l border-slate-200 shadow-2xl z-40 flex flex-col animate-in slide-in-from-right duration-300">
               <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur">
                 <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-blue-600" /> Verification Details</h3>
+                <div className="relative group">
+                  <button className="p-1 hover:bg-slate-200 rounded text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 shadow-xl rounded py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 origin-top-right">
+                    <button type="button" onClick={() => setIsNewReportModalOpen(true)} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-[10px] font-bold text-slate-700 flex items-center gap-2 transition-colors">
+                      <FileText className="h-3.5 w-3.5" /> Add Report
+                    </button>
+                    <button type="button" onClick={() => handleSavePurchaseOrder(false)} disabled={savingOrder} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-[10px] font-bold text-emerald-600 flex items-center gap-2 transition-colors disabled:opacity-50">
+                      <Save className="h-3.5 w-3.5" /> Save Report
+                    </button>
+                    <button type="button" onClick={() => handleSavePurchaseOrder(true)} disabled={savingOrder} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-[10px] font-bold text-blue-600 flex items-center gap-2 transition-colors disabled:opacity-50">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Post Transfer
+                    </button>
+                  </div>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
                   
@@ -4397,30 +4603,27 @@ export function PurchaseOrderWizard() {
                     </div>
                   </div>
 
-                  {/* Account Verification */}
+                  {/* Account Verification & Transfer Info */}
                   <div>
-                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Account Verification</h4>
+                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Transfer Details</h4>
                     <div className="space-y-3 text-[9px]">
-                      <div className="bg-emerald-50/50 border border-emerald-100 rounded p-2">
-                        <div className="flex justify-between mb-1"><span className="font-bold text-emerald-800 uppercase text-[8px]">Purchase Account (DR)</span> <span className="text-emerald-600 font-mono text-[8px]">{form.purchaseAccountNo || "N/A"}</span></div>
-                        <div className="font-bold text-slate-900 truncate mb-1.5" title={form.purchaseAccountName}>{form.purchaseAccountName || "N/A"}</div>
-                        <div className="flex justify-between border-t border-emerald-100/50 pt-1.5"><span className="text-slate-500">Amount:</span> <span className="font-bold text-blue-600">{(reportTotals?.grandFinal || 0).toLocaleString()} {form.currencyType}</span></div>
-                      </div>
-                      <div className="bg-blue-50/50 border border-blue-100 rounded p-2">
-                        <div className="flex justify-between mb-1"><span className="font-bold text-blue-800 uppercase text-[8px]">Sales Account (CR)</span> <span className="text-blue-600 font-mono text-[8px]">{form.salesAccountNo || "N/A"}</span></div>
-                        <div className="font-bold text-slate-900 truncate mb-1.5" title={form.salesAccountName}>{form.salesAccountName || "N/A"}</div>
-                        <div className="flex justify-between border-t border-blue-100/50 pt-1.5"><span className="text-slate-500">Amount:</span> <span className="font-bold text-blue-600">{(reportTotals?.grandFinal || 0).toLocaleString()} {form.currencyType}</span></div>
+                      <div className="bg-slate-50 border border-slate-200 rounded p-2">
+                        <div className="flex justify-between mb-1"><span className="font-bold text-slate-800 uppercase text-[8px]">Purchase Account (DR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.purchaseAccountNo || "N/A"}</span></div>
+                        <div className="font-semibold text-slate-900 mb-2 truncate" title={form.purchaseAccountName}>{form.purchaseAccountName || "N/A"}</div>
+                        
+                        <div className="flex justify-between mb-1 border-t border-slate-200 pt-2"><span className="font-bold text-slate-800 uppercase text-[8px]">Sales Account (CR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.salesAccountNo || "N/A"}</span></div>
+                        <div className="font-semibold text-slate-900 mb-2 truncate" title={form.salesAccountName}>{form.salesAccountName || "N/A"}</div>
+                        
+                        <div className="border-t border-slate-200 pt-2 mt-2 space-y-1">
+                          <div className="flex justify-between"><span className="text-slate-500">Transfer Date:</span> <span className="font-bold text-slate-900">{form.purchaseDate}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Transferred To:</span> <span className="font-bold text-emerald-600 uppercase">Purchase Transfer Payment</span></div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Transfer Info */}
+                  {/* Remarks Input */}
                   <div>
-                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Transfer Information</h4>
-                    <div className="space-y-2 text-[9px]">
-                      <div className="flex justify-between"><span className="text-slate-500">Status:</span> <span className="font-black text-emerald-600 uppercase">APPROVED</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Date:</span> <span className="font-semibold text-slate-900">{form.purchaseDate}</span></div>
-                      <div>
                         <span className="text-slate-500 block mb-1">Remarks (Report):</span>
                         <textarea 
                           value={form.orderReportRemarks} 
@@ -4429,8 +4632,6 @@ export function PurchaseOrderWizard() {
                           placeholder="Type remarks..."
                         />
                       </div>
-                    </div>
-                  </div>
                   
                   {/* Saved Reports */}
                   {reportsList.length > 0 && (
@@ -4452,24 +4653,6 @@ export function PurchaseOrderWizard() {
                       </div>
                     </div>
                   )}
-
-                  {/* Actions */}
-                  <div>
-                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Actions</h4>
-                    <div className="mb-3">
-                      <button type="button" onClick={() => setIsNewReportModalOpen(true)} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded p-2.5 text-[10px] font-bold shadow-md transition-colors">
-                        <FileText className="h-3.5 w-3.5" /> + Add Report
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      <button type="button" onClick={() => handleSavePurchaseOrder(false)} disabled={savingOrder} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded p-2.5 text-[10px] font-bold shadow-md transition-colors disabled:opacity-50">
-                        <Save className="h-3.5 w-3.5" /> Save Report
-                      </button>
-                      <button type="button" onClick={() => handleSavePurchaseOrder(true)} disabled={savingOrder} className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded p-2.5 text-[10px] font-bold shadow-md transition-colors disabled:opacity-50">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Post Transfer
-                      </button>
-                    </div>
-                  </div>
 
                 </div>
               </div>

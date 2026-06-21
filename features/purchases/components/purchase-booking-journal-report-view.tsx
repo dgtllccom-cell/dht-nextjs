@@ -29,6 +29,8 @@ import {
   Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { createPortal } from "react-dom";
+import { formatNumber } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
@@ -885,6 +887,11 @@ export function PurchaseBookingJournalReportView({
   const [activeTab, setActiveTab] = useState<DashboardTab>("purchase");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [transferring, setTransferring] = useState(false);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setActionsSlot(document.getElementById("erp-page-actions-slot"));
+  }, []);
 
   const handleTransfer = async () => {
     if (!selected) return;
@@ -1238,99 +1245,183 @@ export function PurchaseBookingJournalReportView({
             <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">Purchase Booking Register</h1>
             <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">Wholesaler / Import Export / Container Trading</p>
             </div>
+            {!actionsSlot && (
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Fallback rendering of controls when portal is not available */}
+                <select
+                  value={filters.draftStatus}
+                  onChange={(event) => setFilters((previous) => ({ ...previous, draftStatus: event.target.value }))}
+                  className="h-9 min-w-[140px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350"
+                  aria-label="Draft status"
+                >
+                  <option value="">Draft Dropdown</option>
+                  <option value="open">Open</option>
+                  <option value="partial">Partial Confirmed</option>
+                  <option value="fully">Fully Confirmed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+
+                <div className="relative min-w-[200px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
+                  <input
+                    value={searchText}
+                    onChange={(event) => setSearchText(event.target.value)}
+                    placeholder="Search booking, supplier, branch..."
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setFiltersOpen((open) => !open)}
+                  className="h-9 rounded-xl border-slate-200 font-bold text-xs"
+                >
+                  <Filter className="mr-1.5 h-3.5 w-3.5" />
+                  Filter
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSearchText("");
+                    setFilters((previous) => ({
+                      ...previous,
+                      supplier: "",
+                      branch: "",
+                      country: "",
+                      status: "",
+                      currency: "",
+                      bookingNo: "",
+                      containerNo: "",
+                      blNo: "",
+                      confirmationStatus: "",
+                      financialSupplier: "",
+                      financialCurrency: "",
+                      draftStatus: ""
+                    }));
+                    void loadReport();
+                  }}
+                  className="h-9 rounded-xl border-slate-200 font-bold text-xs"
+                >
+                  <RefreshCcw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
+                  Reset & Refresh
+                </Button>
+
+                <ReportActions rows={registerRows} />
+
+                <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+                  <CalendarDays className="h-4 w-4 text-slate-400" />
+                  <span>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (onNewBooking) {
+                      onNewBooking();
+                    } else {
+                      router.push("/dashboard/purchase/new-purchase-booking-order");
+                    }
+                  }}
+                  className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
+                >
+                  <Plus className="h-4 w-4" /> New Booking
+                </Button>
+              </div>
+            )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Draft Dropdown */}
-            <select
-              value={filters.draftStatus}
-              onChange={(event) => setFilters((previous) => ({ ...previous, draftStatus: event.target.value }))}
-              className="h-9 min-w-[140px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350"
-              aria-label="Draft status"
-            >
-              <option value="">Draft Dropdown</option>
-              <option value="open">Open</option>
-              <option value="partial">Partial Confirmed</option>
-              <option value="fully">Fully Confirmed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+          {actionsSlot && createPortal(
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={filters.draftStatus}
+                onChange={(event) => setFilters((previous) => ({ ...previous, draftStatus: event.target.value }))}
+                className="h-9 min-w-[140px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350"
+                aria-label="Draft status"
+              >
+                <option value="">Draft Dropdown</option>
+                <option value="open">Open</option>
+                <option value="partial">Partial Confirmed</option>
+                <option value="fully">Fully Confirmed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
 
-            {/* Search Input */}
-            <div className="relative min-w-[200px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
-              <input
-                value={searchText}
-                onChange={(event) => setSearchText(event.target.value)}
-                placeholder="Search booking, supplier, branch..."
-                className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
-              />
-            </div>
+              <div className="relative min-w-[200px]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
+                <input
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  placeholder="Search booking, supplier, branch..."
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </div>
 
-            {/* Filter Toggle */}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setFiltersOpen((open) => !open)}
-              className="h-9 rounded-xl border-slate-200 font-bold text-xs"
-            >
-              <Filter className="mr-1.5 h-3.5 w-3.5" />
-              Filter
-            </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setFiltersOpen((open) => !open)}
+                className="h-9 rounded-xl border-slate-200 font-bold text-xs"
+              >
+                <Filter className="mr-1.5 h-3.5 w-3.5" />
+                Filter
+              </Button>
 
-            {/* Combined Reset & Refresh Button */}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSearchText("");
-                setFilters((previous) => ({
-                  ...previous,
-                  supplier: "",
-                  branch: "",
-                  country: "",
-                  status: "",
-                  currency: "",
-                  bookingNo: "",
-                  containerNo: "",
-                  blNo: "",
-                  confirmationStatus: "",
-                  financialSupplier: "",
-                  financialCurrency: "",
-                  draftStatus: ""
-                }));
-                void loadReport();
-              }}
-              className="h-9 rounded-xl border-slate-200 font-bold text-xs"
-            >
-              <RefreshCcw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
-              Reset & Refresh
-            </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSearchText("");
+                  setFilters((previous) => ({
+                    ...previous,
+                    supplier: "",
+                    branch: "",
+                    country: "",
+                    status: "",
+                    currency: "",
+                    bookingNo: "",
+                    containerNo: "",
+                    blNo: "",
+                    confirmationStatus: "",
+                    financialSupplier: "",
+                    financialCurrency: "",
+                    draftStatus: ""
+                  }));
+                  void loadReport();
+                }}
+                className="h-9 rounded-xl border-slate-200 font-bold text-xs"
+              >
+                <RefreshCcw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
+                Reset & Refresh
+              </Button>
 
-            {/* Three-dots menu (now contains export) */}
-            <ReportActions rows={registerRows} />
+              <ReportActions rows={registerRows} />
 
-            {/* Calendar Date/Time Indicator */}
-            <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-              <CalendarDays className="h-4 w-4 text-slate-400" />
-              <span>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-            </div>
+              <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+                <CalendarDays className="h-4 w-4 text-slate-400" />
+                <span>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+              </div>
 
-            {/* CTA Button */}
-            <Button
-              type="button"
-              onClick={() => {
-                if (onNewBooking) {
-                  onNewBooking();
-                } else {
-                  router.push("/dashboard/purchase/new-purchase-booking-order");
-                }
-              }}
-              className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
-            >
-              <Plus className="h-4 w-4" /> New Booking
-            </Button>
-          </div>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (onNewBooking) {
+                    onNewBooking();
+                  } else {
+                    router.push("/dashboard/purchase/new-purchase-booking-order");
+                  }
+                }}
+                className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
+              >
+                <Plus className="h-4 w-4" /> New Booking
+              </Button>
+            </div>,
+            actionsSlot
+          )}
         </div>
 
         {/* Session & Summary Info */}

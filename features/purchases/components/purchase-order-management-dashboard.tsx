@@ -833,17 +833,6 @@ export function PurchaseOrderManagementDashboard() {
   const [activeTab, setActiveTab] = useState<LifecycleTab>("Dashboard Overview");
   const [session, setSession] = useState<any>(null);
 
-  const lockedCountryName = session?.scopes?.countryNames?.[0] || "";
-  const lockedBranchName = session?.scopes?.branchNames?.[0] || "";
-
-  const localCurrencyLabel = useMemo(() => {
-    const c = (lockedCountryName || "").toUpperCase();
-    if (c.includes("UNITED ARAB") || c === "UAE") return "AED";
-    if (c.includes("INDIA") || c === "IN") return "INR";
-    if (c.includes("AFGHANISTAN") || c === "AF") return "AFN";
-    if (c.includes("PAKISTAN") || c === "PK") return "PKR";
-    return "PKR";
-  }, [lockedCountryName]);
   const [filters, setFilters] = useState({
     country: "all",
     branch: "all",
@@ -885,16 +874,27 @@ export function PurchaseOrderManagementDashboard() {
   const allowedBranchId = session?.scopes?.cityBranchIds?.[0] || session?.scopes?.countryBranchIds?.[0] || null;
 
   const lockedCountryName = useMemo(() => {
+    if (session?.scopes?.countryNames?.[0]) return session.scopes.countryNames[0];
     if (isSuperAdmin || !allowedCountryId) return null;
     const match = reports.find((r: any) => r.workflow?.countryId === allowedCountryId);
     return match?.countryName || null;
-  }, [reports, allowedCountryId, isSuperAdmin]);
+  }, [reports, allowedCountryId, isSuperAdmin, session]);
+
+  const localCurrencyLabel = useMemo(() => {
+    const c = (lockedCountryName || "").toUpperCase();
+    if (c.includes("UNITED ARAB") || c === "UAE") return "AED";
+    if (c.includes("INDIA") || c === "IN") return "INR";
+    if (c.includes("AFGHANISTAN") || c === "AF") return "AFN";
+    if (c.includes("PAKISTAN") || c === "PK") return "PKR";
+    return "PKR";
+  }, [lockedCountryName]);
 
   const lockedBranchName = useMemo(() => {
+    if (session?.scopes?.branchNames?.[0]) return session.scopes.branchNames[0];
     if (isSuperAdmin || isCountryAdmin || !allowedBranchId) return null;
     const match = reports.find((r: any) => r.workflow?.cityBranchId === allowedBranchId || r.workflow?.countryBranchId === allowedBranchId);
     return match?.branchName || null;
-  }, [reports, allowedBranchId, isSuperAdmin, isCountryAdmin]);
+  }, [reports, allowedBranchId, isSuperAdmin, isCountryAdmin, session]);
 
   useEffect(() => { if (lockedCountryName) setFilters((f) => ({ ...f, country: lockedCountryName })); }, [lockedCountryName]);
   useEffect(() => { if (lockedBranchName) setFilters((f) => ({ ...f, branch: lockedBranchName })); }, [lockedBranchName]);
@@ -965,10 +965,11 @@ export function PurchaseOrderManagementDashboard() {
         throw new Error(transferPayload?.error?.message || transferPayload?.error || "Roznamcha/Ledger Transfer failed.");
       }
 
-      setIsDrawerOpen(false);
+      // setIsDrawerOpen(false);
+      alert("Purchase transfer payment successful. It will not be transferred again.");
       await loadReports();
       // Redirect to Purchase Payment screen directly after successful transfer
-      window.location.href = `/dashboard/journal/purchase-order-payment/advance?po_id=${itemToTransfer.id}`;
+      // window.location.href = `/dashboard/journal/purchase-order-payment/advance?po_id=${itemToTransfer.id}`;
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error transferring booking.");
     } finally {
@@ -1204,14 +1205,7 @@ export function PurchaseOrderManagementDashboard() {
         <span>17 Jun 2026, 08:54 PM</span>
       </div>
 
-      {/* CTA Button */}
-      <Button
-        type="button"
-        onClick={() => router.push("/dashboard/purchase/new-purchase-booking-order")}
-        className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
-      >
-        <Plus className="h-4 w-4" /> New Booking
-      </Button>
+      {/* CTA Button Removed as per request */}
     </div>
   );
 
@@ -1228,7 +1222,7 @@ export function PurchaseOrderManagementDashboard() {
       )}
 
       {/* Unified Executive & Operations Summary Box */}
-      <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase flex flex-col gap-3">
+      <div className="border border-slate-200/60 rounded-2xl bg-white/80 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/60 p-5 shadow-sm text-xs font-semibold text-slate-500 uppercase flex flex-col gap-4 transition-all hover:shadow-md">
         
         {/* Row 1: Session Info */}
         <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-2.5">
@@ -1314,13 +1308,13 @@ export function PurchaseOrderManagementDashboard() {
       </div>
 
       {/* REPORT-3: SEARCH & TRANSACTION REPORT */}
-      <section className="bg-white border border-slate-250 dark:border-slate-800 dark:bg-slate-950/80 p-4 rounded-md shadow-none space-y-4">
-        <div className="flex flex-col items-center justify-center text-center w-full py-2 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-xs font-black tracking-widest text-[#0f2942] dark:text-white uppercase flex items-center gap-2 justify-center">
-            <SlidersHorizontal className="h-4 w-4 text-blue-700" />
-            Report-3: Search & Transaction Report
+      <section className="bg-white border border-slate-200 dark:border-slate-800 dark:bg-slate-950 p-6 rounded-2xl shadow-sm space-y-6">
+        <div className="flex flex-col items-center justify-center text-center w-full py-3 border-b border-slate-100 dark:border-slate-800/60">
+          <h2 className="text-sm font-black tracking-widest text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 justify-center">
+            <SlidersHorizontal className="h-4 w-4 text-blue-600 dark:text-blue-500" />
+            Transaction Log & Search Report
           </h2>
-          <p className="text-[10px] text-slate-400 mt-1">Transaction Registry & Log Details</p>
+          <p className="text-[10px] text-slate-400 mt-1.5 font-medium tracking-wide">Enterprise Registry & Financial Ledger Details</p>
         </div>
 
         {/* FILTER PANEL */}
@@ -1365,24 +1359,24 @@ export function PurchaseOrderManagementDashboard() {
                 {/* Group header row */}
                 <tr>
                   {[
-                    { label: "General Information", span: 11, cls: "bg-[#0f2942] text-white" },
-                    { label: "Product Information", span: 7, cls: "bg-emerald-800 text-emerald-100" },
-                    { label: "Financial Information", span: 7, cls: "bg-blue-800 text-blue-100" },
-                    { label: "Route & Loading", span: 7, cls: "bg-indigo-700 text-indigo-100" },
-                    { label: "Status", span: 1, cls: "bg-slate-700 text-slate-200" },
-                    { label: "Actions", span: 1, cls: "bg-slate-600 text-slate-200" },
+                    { label: "General Information", span: 11, cls: "bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-t-2 border-t-slate-400" },
+                    { label: "Product Information", span: 7, cls: "bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-t-2 border-t-emerald-500" },
+                    { label: "Financial Information", span: 7, cls: "bg-blue-50/50 dark:bg-blue-950/20 text-blue-800 dark:text-blue-400 border-t-2 border-t-blue-500" },
+                    { label: "Route & Loading", span: 7, cls: "bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-800 dark:text-indigo-400 border-t-2 border-t-indigo-500" },
+                    { label: "Status", span: 1, cls: "bg-amber-50/50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-t-2 border-t-amber-500" },
+                    { label: "Actions", span: 1, cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border-t-2 border-t-slate-300" },
                   ].map((group) => (
                     <th
                       key={group.label}
                       colSpan={group.span}
-                      className={`${group.cls} px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-center border-r border-white/20 last:border-r-0`}
+                      className={`${group.cls} px-3 py-2 text-[10px] font-extrabold uppercase tracking-widest text-center border-r border-slate-200 dark:border-slate-800 last:border-r-0`}
                     >
                       {group.label}
                     </th>
                   ))}
                 </tr>
                 {/* Column headers */}
-                <tr className="bg-[#0f2942] text-[10px] font-bold uppercase tracking-wider text-white">
+                <tr className="bg-white dark:bg-slate-950 text-[9px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b-2 border-slate-200 dark:border-slate-800">
                   {[
                     "SR.", "SUPER S/N", "CTY S/N", "BR. S/N",
                     "PURCHASE CODE", "SALES CODE", "INVOICE NO.", "DATE",
@@ -1395,7 +1389,7 @@ export function PurchaseOrderManagementDashboard() {
                     "TRANSFER THE BILL",
                     "ACTIONS"
                   ].map((header, i) => (
-                    <th key={i} className="px-2.5 py-2.5 border-b border-slate-800 whitespace-nowrap text-center">
+                    <th key={i} className="px-3 py-3 border-r border-slate-100 dark:border-slate-800/50 last:border-r-0 whitespace-nowrap text-center align-middle">
                       {header}
                     </th>
                   ))}
@@ -1777,7 +1771,8 @@ export function PurchaseOrderManagementDashboard() {
               return sum + finalAmountVal;
             }, 0);
 
-            const isUAEAccount = String(selected.purchaseAccountNumber || selected.form_data?.form?.purchaseAccountNo || "").toUpperCase().includes("UAE") || String(selected.salesAccountNumber || selected.form_data?.form?.salesAccountNo || "").toUpperCase().includes("UAE");
+            const isUAECountry = String(selected.countryName || "").toUpperCase().includes("UNITED ARAB") || String(selected.countryName || "").toUpperCase().includes("UAE");
+            const isUAEAccount = String(selected.purchaseAccountNumber || selected.form_data?.form?.purchaseAccountNo || "").toUpperCase().includes("UAE") || String(selected.salesAccountNumber || selected.form_data?.form?.salesAccountNo || "").toUpperCase().includes("UAE") || isUAECountry;
             const inferredCurrency = (Number(exRate) > 3 && Number(exRate) < 5) || isUAEAccount ? "AED" : "PKR";
             const displayCurrency = selected.form_data?.form?.baseCurrency || inferredCurrency;
             const displayCurrencySymbol = displayCurrency === "AED" ? "AED" : "Rs";
@@ -2196,11 +2191,11 @@ export function PurchaseOrderManagementDashboard() {
 
                   {/* Document Remarks / Narration full-width block */}
                   {selected.form_data?.form?.showRemarksOnA4 !== false && (
-                    <div className="border border-slate-200 rounded overflow-hidden mt-2.5">
-                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 text-[8px] font-black uppercase text-blue-900 flex items-center gap-1">
+                    <div className="border border-slate-200 rounded overflow-hidden mt-1.5">
+                      <div className="bg-slate-50 border-b border-slate-200 px-2 py-0.5 text-[7px] font-black uppercase text-blue-900 flex items-center gap-1">
                         <span>📝</span> Remarks / Narration
                       </div>
-                      <div className="p-2 bg-white text-[8px] font-semibold text-slate-800 italic leading-normal min-h-[30px] whitespace-pre-wrap break-words">
+                      <div className="p-1.5 bg-white text-[7.5px] font-semibold text-slate-800 italic leading-normal min-h-[20px] max-h-[35px] overflow-hidden whitespace-pre-wrap break-words">
                         {remarksText}
                       </div>
                     </div>
