@@ -121,6 +121,8 @@ function normalizeOrder(row: any) {
     workflow,
     form_data: row.form_data ?? {},
     advance_paid: Number(row.advance_paid || 0),
+    remaining_paid: Number(row.remaining_paid || 0),
+    credit_amount: Number(row.credit_amount || 0),
     remaining_due: Number(row.remaining_due || 0),
     branchName: form.branchName ?? row.country_branches?.name ?? row.city_branches?.name ?? "-",
     countryName: form.branchCountry ?? row.countries?.name ?? "-",
@@ -161,7 +163,7 @@ export async function GET(request: NextRequest) {
     let requestQuery = supabase
       .from("purchase_orders")
       .select(
-        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, payment_status, ledger_posting_status, form_data, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), advance_paid, remaining_due"
+        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, payment_status, ledger_posting_status, form_data, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), advance_paid, remaining_paid, credit_amount, remaining_due"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });

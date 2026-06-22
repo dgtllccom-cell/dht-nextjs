@@ -202,7 +202,7 @@ export const trialBalanceQuerySchema = scopeSchema.extend({
 });
 
 export const purchaseOrderStatusSchema = z.enum(["pending", "partial", "completed", "cancelled"]);
-export const purchaseOrderPaymentKindSchema = z.enum(["advance", "remaining", "credit"]);
+export const purchaseOrderPaymentKindSchema = z.enum(["advance", "remaining", "credit", "booking"]);
 
 const currencyCodeSchema = z
   .string()

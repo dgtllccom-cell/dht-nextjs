@@ -1156,14 +1156,10 @@ export function PurchaseBookingJournalReportView({
   const totals = useMemo(() => {
     const totalAmount = registerRows.reduce((sum, report) => sum + Number(report.totalPurchaseAmount || 0), 0);
     const totalPaid = financialRows.reduce((sum, report) => {
-      const status = report.paymentStatus.toLowerCase();
-      if (status.includes("full")) return sum + Number(report.totalPurchaseAmount || 0);
-      if (status.includes("advance")) return sum + Number(report.totalPurchaseAmount || 0) * 0.32;
-      if (status.includes("partial")) return sum + Number(report.totalPurchaseAmount || 0) * 0.5;
-      return sum;
+      return sum + Number((report as any).advance_paid || 0) + Number((report as any).remaining_paid || 0) + Number((report as any).credit_amount || 0);
     }, 0);
     const totalPosted = registerRows.filter(report => {
-      return report.status === "Posted" || (report as any).ledgerPostingStatus === "Posted";
+      return report.status === "Posted" || (report as any).ledgerPostingStatus === "Posted" || (report as any).ledger_posting_status === "Posted" || (report as any).ledger_posting_status === "posted";
     }).length;
     return {
       totalBookings: registerRows.length,
@@ -1191,13 +1187,7 @@ export function PurchaseBookingJournalReportView({
     registerRows.forEach((report) => {
       const key = `${report.countryName}::${report.branchName}`;
       const previous = rows.get(key) ?? { branch: report.branchName || "-", country: report.countryName || "-", amount: 0, containers: 0, outstanding: 0, bookings: 0 };
-      const paid = report.paymentStatus.toLowerCase().includes("full")
-        ? report.totalPurchaseAmount
-        : report.paymentStatus.toLowerCase().includes("advance")
-          ? report.totalPurchaseAmount * 0.32
-          : report.paymentStatus.toLowerCase().includes("partial")
-            ? report.totalPurchaseAmount * 0.5
-            : 0;
+      const paid = Number((report as any).advance_paid || 0) + Number((report as any).remaining_paid || 0) + Number((report as any).credit_amount || 0);
       previous.amount += Number(report.totalPurchaseAmount || 0);
       previous.containers += Number(report.containerCount || 0);
       previous.outstanding += Math.max(0, Number(report.totalPurchaseAmount || 0) - paid);

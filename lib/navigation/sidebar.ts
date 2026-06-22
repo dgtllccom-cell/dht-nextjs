@@ -596,30 +596,9 @@ export const sidebarTree: SidebarNode[] = [
         iconKey: "settings",
         children: [
           {
-            key: "mgmt-location-parent",
+            key: "mgmt-location-workspace",
             labelKey: "nav.location_form",
-            children: [
-              {
-                key: "mgmt-location-country",
-                labelKey: "nav.location_country",
-                href: "/dashboard/settings/location?tab=country" as Route
-              },
-              {
-                key: "mgmt-location-state",
-                labelKey: "nav.location_state",
-                href: "/dashboard/settings/location?tab=state" as Route
-              },
-              {
-                key: "mgmt-location-city",
-                labelKey: "nav.location_city",
-                href: "/dashboard/settings/location?tab=city" as Route
-              },
-              {
-                key: "mgmt-location-tehsil",
-                labelKey: "nav.location_tehsil",
-                href: "/dashboard/settings/location?tab=tehsil" as Route
-              }
-            ]
+            href: "/dashboard/settings/locations" as any,
           },
           {
             key: "mgmt-company",

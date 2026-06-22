@@ -945,7 +945,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     setPaymentError("");
     setPaymentSuccess("");
     try {
-      const isPostPaymentApi = activeMode === "advance" || activeMode === "remaining";
+      const isPostPaymentApi = activeMode === "advance" || activeMode === "remaining" || activeMode === "credit";
       
       let auditTrail = "";
       if (showCalcPanel && calcFinal !== null) {
@@ -2130,7 +2130,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     disabled={processingPayment || !amount || !canSave}
                     className="h-10 px-6 font-bold text-xs uppercase shadow-md transition bg-indigo-600 hover:bg-indigo-700 text-white"
                   >
-                    {processingPayment ? "Processing..." : `Post ${activeMode === "advance" ? "Advance" : "Remaining"} Payment`}
+                    {processingPayment ? "Processing..." : `Post ${activeMode === "advance" ? "Advance" : activeMode === "credit" ? "Credit" : "Remaining"} Payment`}
                   </Button>
                 </div>
 

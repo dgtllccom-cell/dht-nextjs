@@ -129,7 +129,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       {
         p_actor_id:           session.userId,
         p_purchase_order_id:  (order as any).id,
-        p_kind:               "credit",
+        p_kind:               "booking",
         p_entry_date:         entryDate,
         p_amount:             totalPurchaseAmount,
         p_currency_code:      currency,
@@ -341,7 +341,7 @@ export async function revertOrderBookingTransfer(orderId: string, supabase: any,
     .from("purchase_order_payments")
     .select("id, roznamcha_entry_id, entry_date")
     .eq("purchase_order_id", orderId)
-    .eq("kind", "credit")
+    .in("kind", ["booking", "credit"])
     .eq("status", "posted")
     .maybeSingle();
 

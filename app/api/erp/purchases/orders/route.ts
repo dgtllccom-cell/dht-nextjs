@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
       const { error: transferError } = await supabase.rpc("post_purchase_booking_transfer", {
         p_actor_id: session.userId,
         p_purchase_order_id: orderId,
-        p_kind: "credit",
+        p_kind: "booking",
         p_entry_date: entryDate,
         p_amount: orderTotal,
         p_currency_code: body.currencyCode || "USD",

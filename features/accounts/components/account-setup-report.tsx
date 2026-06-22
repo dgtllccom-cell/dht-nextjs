@@ -656,10 +656,10 @@ function AsrStyles() {
         gap: 12px;
         flex-wrap: wrap;
         background: var(--asr-card);
-        border: 1px solid var(--asr-line);
-        border-radius: 10px;
-        padding: 10px 14px;
-        box-shadow: 0 4px 16px rgba(15,23,42,.06);
+        border: 1.5px solid var(--asr-line);
+        border-radius: 12px;
+        padding: 12px 16px;
+        box-shadow: 0 4px 16px rgba(15,23,42,0.04);
       }
       .asr-header-icon {
         width: 30px; height: 30px;
@@ -819,27 +819,30 @@ function AsrStyles() {
       @media (max-width: 640px) { .asr-cards-row { grid-template-columns: repeat(2, 1fr); } }
       .asr-card {
         background: var(--asr-card);
-        border: 1px solid var(--asr-line);
-        border-top-width: 3px;
-        border-radius: 8px;
-        padding: 8px 10px;
-        box-shadow: 0 2px 8px rgba(15,23,42,.04);
-        transition: box-shadow .15s;
+        border: 1.5px solid var(--asr-line);
+        border-top-width: 4px;
+        border-radius: 12px;
+        padding: 12px 14px;
+        box-shadow: 0 4px 12px rgba(15,23,42,0.03);
+        transition: all 0.2s ease-in-out;
       }
-      .asr-card:hover { box-shadow: 0 8px 20px rgba(15,23,42,.08); }
+      .asr-card:hover {
+        transform: translateY(-1.5px);
+        box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+      }
       .asr-card-label {
-        font-size: 9px; font-weight: 900;
-        text-transform: uppercase; letter-spacing: .06em;
+        font-size: 9px; font-weight: 800;
+        text-transform: uppercase; letter-spacing: 0.08em;
         margin-bottom: 4px;
       }
       .asr-card-value {
-        font-size: 18px; font-weight: 900;
+        font-size: 22px; font-weight: 900;
         color: var(--asr-title); line-height: 1;
-        letter-spacing: -.03em;
+        letter-spacing: -0.03em;
       }
       .asr-card-icon {
-        width: 26px; height: 26px;
-        border-radius: 50%;
+        width: 32px; height: 32px;
+        border-radius: 8px;
         display: grid; place-items: center;
         flex-shrink: 0;
       }
@@ -870,38 +873,43 @@ function AsrStyles() {
       /* Report identity strip */
       .asr-report-strip {
         display: grid;
-        grid-template-columns: repeat(6, minmax(120px, 1fr));
+        grid-template-columns: repeat(6, minmax(130px, 1fr));
         gap: 0;
         background: var(--asr-card);
-        border: 1px solid var(--asr-line);
-        border-radius: 8px;
+        border: 1.5px solid var(--asr-line);
+        border-radius: 12px;
         overflow: hidden;
-        box-shadow: 0 2px 8px rgba(15,23,42,.04);
+        box-shadow: 0 4px 16px rgba(15,23,42,0.03);
       }
-      @media (max-width: 1100px) { .asr-report-strip { grid-template-columns: repeat(3, minmax(120px, 1fr)); } }
-      @media (max-width: 640px) { .asr-report-strip { grid-template-columns: repeat(2, minmax(120px, 1fr)); } }
+      @media (max-width: 1280px) { .asr-report-strip { grid-template-columns: repeat(4, minmax(120px, 1fr)); } }
+      @media (max-width: 768px) { .asr-report-strip { grid-template-columns: repeat(3, minmax(120px, 1fr)); } }
+      @media (max-width: 480px) { .asr-report-strip { grid-template-columns: repeat(2, minmax(100px, 1fr)); } }
       .asr-report-cell {
-        min-height: 38px;
-        padding: 7px 10px;
+        min-height: 48px;
+        padding: 10px 14px;
         border-right: 1px solid var(--asr-line);
         border-bottom: 1px solid var(--asr-line);
         display: flex;
         flex-direction: column;
         justify-content: center;
-        gap: 2px;
+        gap: 4px;
+        transition: background-color 0.2s ease;
+      }
+      .asr-report-cell:hover {
+        background-color: var(--asr-hover);
       }
       .asr-report-label {
         font-size: 8px;
         line-height: 1;
-        font-weight: 900;
+        font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: .07em;
+        letter-spacing: 0.08em;
         color: var(--asr-muted);
       }
       .asr-report-value {
-        font-size: 10px;
-        line-height: 1.15;
-        font-weight: 900;
+        font-size: 11px;
+        line-height: 1.25;
+        font-weight: 700;
         color: var(--asr-title);
         white-space: nowrap;
         overflow: hidden;

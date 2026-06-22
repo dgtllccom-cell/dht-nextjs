@@ -10,14 +10,15 @@ import {
   FileText,
   FileSpreadsheet,
   Mail,
-  MessageCircle
+  MessageCircle,
+  Loader2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { listCountries, type LocationCountry } from "@/features/locations/location-api";
-import { apiPost } from "@/lib/api/client";
+import { apiPost, apiPatch } from "@/lib/api/client";
 import { CustomerPicker } from "@/features/customers/components/customer-picker";
 import { CompanyPicker } from "@/features/companies/components/company-picker";
 import { BankPicker } from "@/features/banks/components/bank-picker";
@@ -164,7 +165,7 @@ function selectedCityBranchName(rows: CityBranchRow[], id: string) {
   return row ? `${row.city_name} - ${row.name} (${row.code})` : "-";
 }
 
-export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }) {
+export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: SupportedLanguage; initialAccountId?: string }) {
   const router = useRouter();
 
   const lang = useMemo(() => {
@@ -220,6 +221,92 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [lastCreated, setLastCreated] = useState<AccountCreateResponse | null>(null);
+  const [loadingAccount, setLoadingAccount] = useState(false);
+
+  // Load account details for editing if initialAccountId is provided
+  useEffect(() => {
+    if (!initialAccountId) return;
+    let cancelled = false;
+
+    async function loadAccountDetails() {
+      setLoadingAccount(true);
+      setMessage("");
+      try {
+        const res = await fetch(`/api/erp/accounting/accounts/${initialAccountId}`).then((r) => r.json());
+        if (cancelled) return;
+        if (res && res.ok && res.data) {
+          const acc = res.data.account;
+          if (acc) {
+            setCountry(acc.country_id || "");
+            const bt = acc.scope === "main_branch" ? "Main" : acc.scope === "city_branch" ? "City" : "";
+            setBranchType(bt);
+            setBranch(acc.scope === "main_branch" ? acc.country_branch_id || "" : acc.scope === "city_branch" ? acc.city_branch_id || "" : "");
+            
+            // Determine accountTitle and linked master records
+            if (acc.customer_id) {
+              setAccountTitle("Customer");
+              setLinkedCustomerId(acc.customer_id);
+              fetch(`/api/erp/customers/${acc.customer_id}`)
+                .then((r) => r.json())
+                .then((json) => {
+                  const name = json?.customer?.customer_name ?? json?.data?.customer_name ?? "";
+                  if (!cancelled) setLinkedCustomerName(name);
+                })
+                .catch(() => null);
+            } else if (acc.company_id) {
+              setAccountTitle("Company");
+              setLinkedCompanyId(acc.company_id);
+              fetch(`/api/erp/companies/${acc.company_id}`)
+                .then((r) => r.json())
+                .then((json) => {
+                  const name = json?.company?.name ?? json?.company?.legal_name ?? "";
+                  if (!cancelled) setLinkedCompanyName(name);
+                })
+                .catch(() => null);
+            } else if (acc.bank_id) {
+              setAccountTitle("Bank");
+              setLinkedBankId(acc.bank_id);
+              fetch(`/api/erp/companies/${acc.bank_id}`)
+                .then((r) => r.json())
+                .then((json) => {
+                  const name = json?.company?.name ?? json?.company?.legal_name ?? "";
+                  if (!cancelled) setLinkedBankName(name);
+                })
+                .catch(() => null);
+            } else {
+              setAccountTitle("Personal");
+            }
+
+            // Determine category
+            if (acc.is_control_account) {
+              setCategory("Bank");
+            } else if (acc.kind === "expense") {
+              setCategory("Expenses");
+            } else if (acc.kind === "income") {
+              setCategory("P/S (Purchase/Sales)");
+            } else {
+              setCategory("Personal");
+            }
+
+            setSubType(acc.is_control_account ? "Control Account" : "Normal Account");
+            setAccountCode(acc.account_number || acc.code || "");
+            setManualReferenceNumber(acc.manual_reference_number || "");
+            setAccountName(acc.name || "");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load account details:", err);
+        setMessage("Failed to load account details.");
+      } finally {
+        if (!cancelled) setLoadingAccount(false);
+      }
+    }
+
+    loadAccountDetails();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialAccountId]);
 
   // Master record links — IDs come from Master Form pickers
   const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null);
@@ -416,48 +503,77 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
     const scope = branchType === "Main" ? "main_branch" : "city_branch";
     setSaving(true); setMessage(""); setLastCreated(null);
     try {
-      const response = await apiPost<AccountCreateResponse>("/api/erp/accounting/accounts", {
-        scope,
-        countryId: country,
-        countryBranchId:
-          branchType === "Main"
-            ? branch
-            : cityBranches.find((item) => item.id === branch)?.country_branch_id ?? mainBranches[0]?.id ?? null,
-        cityBranchId: branchType === "City" ? branch : null,
-        parentId: null,
-        customerId: linkedCustomerId,
-        companyId: linkedCompanyId,
-        bankId: linkedBankId,
-        code: "AUTO",
-        manualReferenceNumber: manualReferenceNumber.trim() || null,
-        name: accountName.trim(),
-        kind: category === "Sales" || category === "Revenue" ? "income" : category === "Expenses" ? "expense" : "asset",
-        currency: branchInfo.currency || selectedCountry?.currency_code || "USD",
-        openingBalance: 0,
-        isControlAccount: accountTitle === "Bank"
-      });
-      setLastCreated(response);
-      setJournalCounter((current) => current + 1);
-      setSavedEntries((current) => [
-        {
-          id: response.accountId,
-          journalCode: issuedJournal,
-          accountCode: response.accountNumber,
-          manualReferenceNumber: response.manualReferenceNumber ?? null,
-          customerNumber: response.customerNumber,
-          accountName,
-          branchName: branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch),
-          branchCode: response.branchCode,
-          savedAt: new Date().toLocaleTimeString()
-        },
-        ...current
-      ]);
-      setAccountCode(response.accountNumber);
-      setMessage(`Saved account ${response.accountNumber}.`);
-      void fetchReport();
-      setTimeout(() => {
-        router.push(`/dashboard/accounts?accountId=${response.accountId}&created=1`);
-      }, 1500);
+      if (initialAccountId) {
+        // Edit mode!
+        await apiPatch<any>(`/api/erp/accounting/accounts/${initialAccountId}`, {
+          scope,
+          countryId: country,
+          countryBranchId:
+            branchType === "Main"
+              ? branch
+              : cityBranches.find((item) => item.id === branch)?.country_branch_id ?? mainBranches[0]?.id ?? null,
+          cityBranchId: branchType === "City" ? branch : null,
+          parentId: null,
+          customerId: linkedCustomerId,
+          companyId: linkedCompanyId,
+          bankId: linkedBankId,
+          code: accountCode,
+          manualReferenceNumber: manualReferenceNumber.trim() || null,
+          name: accountName.trim(),
+          kind: category === "Sales" || category === "Revenue" ? "income" : category === "Expenses" ? "expense" : "asset",
+          currency: branchInfo.currency || selectedCountry?.currency_code || "USD",
+          isControlAccount: accountTitle === "Bank"
+        });
+        setMessage(`Updated account details successfully.`);
+        void fetchReport();
+        setTimeout(() => {
+          router.push(`/dashboard/accounts?accountId=${initialAccountId}`);
+        }, 1500);
+      } else {
+        // Create mode!
+        const response = await apiPost<AccountCreateResponse>("/api/erp/accounting/accounts", {
+          scope,
+          countryId: country,
+          countryBranchId:
+            branchType === "Main"
+              ? branch
+              : cityBranches.find((item) => item.id === branch)?.country_branch_id ?? mainBranches[0]?.id ?? null,
+          cityBranchId: branchType === "City" ? branch : null,
+          parentId: null,
+          customerId: linkedCustomerId,
+          companyId: linkedCompanyId,
+          bankId: linkedBankId,
+          code: "AUTO",
+          manualReferenceNumber: manualReferenceNumber.trim() || null,
+          name: accountName.trim(),
+          kind: category === "Sales" || category === "Revenue" ? "income" : category === "Expenses" ? "expense" : "asset",
+          currency: branchInfo.currency || selectedCountry?.currency_code || "USD",
+          openingBalance: 0,
+          isControlAccount: accountTitle === "Bank"
+        });
+        setLastCreated(response);
+        setJournalCounter((current) => current + 1);
+        setSavedEntries((current) => [
+          {
+            id: response.accountId,
+            journalCode: issuedJournal,
+            accountCode: response.accountNumber,
+            manualReferenceNumber: response.manualReferenceNumber ?? null,
+            customerNumber: response.customerNumber,
+            accountName,
+            branchName: branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch),
+            branchCode: response.branchCode,
+            savedAt: new Date().toLocaleTimeString()
+          },
+          ...current
+        ]);
+        setAccountCode(response.accountNumber);
+        setMessage(`Saved account ${response.accountNumber}.`);
+        void fetchReport();
+        setTimeout(() => {
+          router.push(`/dashboard/accounts?accountId=${response.accountId}&created=1`);
+        }, 1500);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Account save failed.");
     } finally {
@@ -483,7 +599,7 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
         companyDetail,
         bankDetail,
         selectedCountryName: selectedCountry?.name,
-        selectedCountryCode: selectedCountry?.iso2 || selectedCountry?.iso3,
+        selectedCountryCode: (selectedCountry?.iso2 || selectedCountry?.iso3 || undefined),
         selectedBranchName: branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch),
         selectedBranchCode: branchInfo?.code,
         createdBy: "Super Admin"
@@ -497,7 +613,7 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
       <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{getLabel("newAccountReport", lang)}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{initialAccountId ? "Edit Account Setup" : getLabel("newAccountReport", lang)}</h1>
             <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200">
               {getLabel("draft", lang)}
             </span>
@@ -534,8 +650,6 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
               onClick={() => {
                 if (s.id === 1 || (s.id > 1 && country && branchType && branch)) {
                   setCurrentStep(s.id as any);
-                  setMasterSearch("");
-                  setMasterResults([]);
                 }
               }}
               className={`flex items-center gap-2 border rounded-lg p-2.5 text-left transition-all ${
@@ -568,6 +682,13 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Side: Step View */}
         <div className="lg:col-span-4 space-y-6">
+          {loadingAccount ? (
+            <div className="rounded-xl border border-slate-100 bg-white p-10 shadow-sm flex flex-col items-center justify-center space-y-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm font-semibold text-slate-500">Loading account details...</p>
+            </div>
+          ) : (
+            <>
           {/* Step 1: Account Info */}
           {currentStep === 1 && (
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
@@ -812,7 +933,6 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
                     .catch(() => null);
                 }}
                 placeholder="Search existing banks..."
-                createButtonPlacement="both"
               />
 
               {linkedBankId && (
@@ -914,10 +1034,12 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
               <div className="flex justify-between pt-4 border-t">
                 <Button variant="outline" onClick={() => setCurrentStep(5)}>Back</Button>
                 <Button type="button" onClick={saveEntry} disabled={!readyToSave || saving} className="bg-primary text-white">
-                  {saving ? "Saving..." : "Create & Save Account"}
+                  {saving ? "Saving..." : initialAccountId ? "Update & Save Account" : "Create & Save Account"}
                 </Button>
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
 
@@ -936,7 +1058,7 @@ export function NewAccountSetup({ lang: propLang }: { lang?: SupportedLanguage }
             companyDetail={companyDetail}
             bankDetail={bankDetail}
             selectedCountryName={selectedCountry?.name}
-            selectedCountryCode={selectedCountry?.iso2 || selectedCountry?.iso3}
+            selectedCountryCode={selectedCountry?.iso2 || selectedCountry?.iso3 || undefined}
             selectedBranchName={branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch)}
             selectedBranchCode={branchInfo?.code}
             onBack={() => router.push("/dashboard/accounts")}

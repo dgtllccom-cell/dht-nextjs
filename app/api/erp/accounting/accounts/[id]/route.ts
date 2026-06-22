@@ -23,7 +23,10 @@ const updateSchema = scopeSchema.extend({
   currency: z.string().trim().length(3).transform((value) => value.toUpperCase()).optional(),
   openingBalance: z.coerce.number().finite().optional(),
   status: z.enum(["active", "archived"]).optional(),
-  isControlAccount: z.coerce.boolean().optional()
+  isControlAccount: z.coerce.boolean().optional(),
+  customerId: optionalUuidSchema,
+  companyId: optionalUuidSchema,
+  bankId: optionalUuidSchema
 });
 
 type ApiSupabaseClient = Awaited<ReturnType<typeof createApiSupabaseClient>>;
@@ -32,7 +35,7 @@ async function loadAccount(supabase: ApiSupabaseClient, id: string) {
   const { data, error } = await supabase
     .from("enterprise_accounts")
     .select(
-      "id, scope, country_id, country_branch_id, city_branch_id, parent_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at, deleted_at"
+      "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, bank_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at, deleted_at"
     )
     .eq("id", id)
     .maybeSingle();
@@ -46,6 +49,9 @@ async function loadAccount(supabase: ApiSupabaseClient, id: string) {
         country_branch_id: string | null;
         city_branch_id: string | null;
         parent_id: string | null;
+        customer_id?: string | null;
+        company_id?: string | null;
+        bank_id?: string | null;
         code: string;
         account_number?: string | null;
         customer_number?: string | null;
@@ -163,6 +169,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     }
     if (body.status !== undefined) updatePayload.status = body.status;
     if (body.isControlAccount !== undefined) updatePayload.is_control_account = body.isControlAccount;
+    if (body.customerId !== undefined) updatePayload.customer_id = body.customerId;
+    if (body.companyId !== undefined) updatePayload.company_id = body.companyId;
+    if (body.bankId !== undefined) updatePayload.bank_id = body.bankId;
     if (nextScope === "super_admin") {
       updatePayload.country_id = null;
       updatePayload.country_branch_id = null;
@@ -186,7 +195,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       .update(updatePayload)
       .eq("id", id)
       .select(
-        "id, scope, country_id, country_branch_id, city_branch_id, parent_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at, deleted_at"
+        "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, bank_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at, deleted_at"
       )
       .single();
 

@@ -166,7 +166,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       const { error: transferError } = await supabase.rpc("post_purchase_booking_transfer", {
         p_actor_id: session.userId,
         p_purchase_order_id: orderId,
-        p_kind: "credit",
+        p_kind: "booking",
         p_entry_date: entryDate,
         p_amount: Number(orderTotal),
         p_currency_code: currencyCode || "USD",

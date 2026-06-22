@@ -34,7 +34,10 @@ import {
   Globe2,
   BarChart3,
   Edit3,
-  Settings
+  Settings,
+  ListChecks,
+  Truck,
+  MessageSquare
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -177,6 +180,8 @@ const DEFAULT_FORM = {
   customerName: "",
   salesStatus: "Draft",
   remarks: "",
+  paymentReport: "",
+  loadingReport: "",
   orderReportRemarks: "",
   purchaseReportRemarks: "",
   purchaseInvoiceRemarks: "",
@@ -431,6 +436,7 @@ export function PurchaseOrderWizard() {
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
   const [verifyDropdownOpen, setVerifyDropdownOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [transferConfirmModal, setTransferConfirmModal] = useState(false);
   const [showTransferScreen, setShowTransferScreen] = useState(false);
   const [isVerificationSidebarOpen, setIsVerificationSidebarOpen] = useState(false);
   const [previewType, setPreviewType] = useState("booking_report"); // "booking_report" | "contract" | "invoice"
@@ -563,6 +569,7 @@ export function PurchaseOrderWizard() {
   const [dbReceivedPorts, setDbReceivedPorts] = useState([]);
   const [mainBranches, setMainBranches] = useState([]);
   const [cityBranches, setCityBranches] = useState([]);
+  const [scopeConfirmed, setScopeConfirmed] = useState(false);
   const [dbAccounts, setDbAccounts] = useState(MOCK_ACCOUNTS);
 
   const [supplierDetail, setSupplierDetail] = useState(null);
@@ -616,6 +623,386 @@ export function PurchaseOrderWizard() {
   const [newGoodForm, setNewGoodForm] = useState({ goodsName: "", chsCode: "", size: "", brand: "", originCountryId: "" });
   const [newGoodLoading, setNewGoodLoading] = useState(false);
   const [newGoodError, setNewGoodError] = useState("");
+
+  const renderGlobalInfoCards = () => {
+    return (
+      <div className="w-full mb-4 animate-in fade-in duration-300">
+        <div className="bg-card border border-border shadow-md rounded-lg p-3 relative">
+          {/* Horizontal Cards row */}
+          <div className="z-10 bg-card pb-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+              
+              {/* Card 1: Branch Login Details */}
+              <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
+                <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
+                  <span className="p-1 rounded-md bg-primary/10 text-primary dark:bg-primary/20">
+                    <Building2 className="h-3.5 w-3.5" />
+                  </span>
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Branch Login Details</h4>
+                </div>
+                <div className="space-y-1.5 text-[10px]">
+                  <div className="space-y-0.5 border-b border-border/40 pb-1.5 mb-1.5">
+                    <span className="text-muted-foreground block text-[8px] uppercase font-bold">Branch Name</span>
+                    <span className="font-black text-primary block truncate text-xs" title={form.branchName}>{form.branchName || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Branch Code:</span> <span className="font-semibold text-foreground font-mono">{form.branchCode || "N/A"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">User Admin:</span> <span className="font-black text-emerald-600 dark:text-emerald-450 uppercase">{form.userName}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">User ID:</span> <span className="font-semibold text-foreground font-mono text-[9px]">{form.userId || "N/A"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Login Time:</span> <span className="font-semibold text-foreground">14:35:02</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">IP Address:</span> <span className="font-semibold text-foreground font-mono text-[9px]">192.168.1.1</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Location:</span> <span className="font-semibold text-foreground truncate" title="Sargodha, PK">Sargodha, PK</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Country:</span> <span className="font-semibold text-foreground truncate" title={form.branchCountry}>{form.branchCountry || "N/A"}</span></div>
+                </div>
+              </div>
+
+              {/* Card 2: Bill Details */}
+              <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
+                <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
+                  <span className="p-1 rounded-md bg-primary/10 text-primary dark:bg-primary/20">
+                    <FileText className="h-3.5 w-3.5" />
+                  </span>
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Bill Details</h4>
+                </div>
+                <div className="space-y-1.5 text-[10px]">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Booking Date:</span> <span className="font-semibold text-foreground">{form.purchaseDate}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Fiscal Year:</span> <span className="font-semibold">2025-26</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Status:</span> <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-1.5 py-0.2 text-[8px] font-bold text-yellow-600 dark:text-yellow-450 uppercase">{form.salesStatus}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">GPBO Serial:</span> <span className="font-bold text-foreground truncate font-mono" title={form.purchaseOrderNo}>{form.purchaseOrderNo}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">BPBO Serial:</span> <span className="font-bold text-foreground truncate font-mono" title={form.billNo}>{form.billNo}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Contract No:</span> <span className="font-semibold text-foreground truncate font-mono" title={form.purchaseContractNo}>{form.purchaseContractNo}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Loading Mode:</span> <span className="font-semibold text-foreground truncate" title={form.shippingMode}>{form.shippingMode || "N/A"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Origin Country:</span> <span className="font-semibold text-foreground truncate" title={form.origin || form.branchCountry}>{form.origin || form.branchCountry || "N/A"}</span></div>
+                </div>
+              </div>
+
+              {/* Card 3: Purchase Account Details */}
+              <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
+                <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
+                  <span className="p-1 rounded-md bg-primary/10 text-primary dark:bg-primary/20">
+                    <ArrowDownLeft className="h-3.5 w-3.5" />
+                  </span>
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Purchase Account Details</h4>
+                </div>
+                <div className="space-y-1.5 text-[10px]">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-bold text-foreground truncate block w-full text-right font-mono" title={form.purchaseAccountNo}>{form.purchaseAccountNo}</span></div>
+                  <div className="space-y-0.5 pt-1">
+                    <span className="text-muted-foreground block text-[9px]">Account Name:</span>
+                    <span className="font-semibold text-foreground block truncate text-xs text-primary" title={form.purchaseAccountName}>{form.purchaseAccountName}</span>
+                  </div>
+                  <div className="flex justify-between pt-1"><span className="text-muted-foreground">Branch:</span> <span className="font-semibold text-foreground truncate" title={form.purchaseAccountBranch}>{form.purchaseAccountBranch}</span></div>
+                  <div className="flex justify-between pt-0.5"><span className="text-muted-foreground">Currency:</span> <span className="font-bold text-foreground">{form.purchaseAccountCurrency}</span></div>
+                  <div className="flex justify-between items-center pt-0.5 border-t border-border/20 mt-1 relative" ref={purchaseCompanyDropdownRef}>
+                    <span className="text-muted-foreground font-semibold">Company:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-foreground truncate max-w-[100px] text-[8.5px] text-right font-mono" title={form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}>
+                        {form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPurchaseCompanySelectOpen(prev => !prev)}
+                        className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
+                        title="Select Company"
+                      >
+                        <Pin className={`h-2.5 w-2.5 ${purchaseCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
+                      </button>
+                    </div>
+
+                    {purchaseCompanySelectOpen && (
+                      <div className="absolute right-0 top-6 w-48 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
+                        <div className="px-2 py-0.5 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
+                          Select Company
+                        </div>
+                        <div className="max-h-32 overflow-y-auto space-y-0.5 scrollbar-thin">
+                          {dbCompanies.length === 0 ? (
+                            <div className="px-2 py-2 text-center text-muted-foreground text-[8px] italic">
+                              No companies found.
+                            </div>
+                          ) : (
+                            dbCompanies.map((c) => {
+                              const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setValue("purchaseCompanyId", c.id);
+                                    setValue("purchaseCompanyName", c.name);
+                                    setValue("purchaseCompanyCode", cCode);
+                                    setPurchaseCompanySelectOpen(false);
+                                  }}
+                                  className="w-full text-left px-2 py-0.5 rounded hover:bg-muted text-[8.5px] text-foreground font-semibold truncate block"
+                                  title={c.name}
+                                >
+                                  {c.name} ({cCode})
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                        <div className="border-t border-border/40 pt-1 mt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPurchaseCompanySelectOpen(false);
+                              setCreateCompanyType("purchase");
+                              setCreateCompanyForm({ name: "", legalName: "", baseCurrency: "USD" });
+                              setCreateCompanyError("");
+                              setCreateCompanyModalOpen(true);
+                            }}
+                            className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold text-primary hover:bg-primary/5 transition text-left"
+                          >
+                            <span className="text-xs">+</span>
+                            <span>New Company</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {form.purchaseAccountName && (
+                    <div className="mt-2 pt-2 border-t border-border/40 space-y-2 text-[9px] font-mono text-muted-foreground">
+                      {/* Category & Control Type */}
+                      <div className="grid grid-cols-2 gap-1 pb-1.5 border-b border-border/20">
+                        <div>
+                          <span className="text-[7.5px] text-muted-foreground block uppercase">Kind</span>
+                          <span className="font-bold text-foreground uppercase">{form.purchaseAccountKind || "N/A"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[7.5px] text-muted-foreground block uppercase">Type</span>
+                          <span className="font-bold text-foreground truncate block">
+                            {form.purchaseAccountIsControl ? "Control" : "Sub-Acct"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Serials Sub-Grid */}
+                      <div className="bg-muted/30 p-1.5 rounded-lg border border-border/30 space-y-1">
+                        <span className="text-[7.5px] font-black text-primary block uppercase tracking-wider">Serials & Ref</span>
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                          <div>
+                            <span className="text-[7px] text-muted-foreground block">Acct S/N</span>
+                            <span className="font-semibold text-foreground/90">{form.purchaseAccountSerialNumber || "-"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7px] text-muted-foreground block">Country S/N</span>
+                            <span className="font-semibold text-foreground/90">{form.purchaseAccountCountrySerialNumber || "-"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7px] text-muted-foreground block">Branch S/N</span>
+                            <span className="font-semibold text-foreground/90">{form.purchaseAccountBranchSerialNumber || "-"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7px] text-muted-foreground block">Manual Ref</span>
+                            <span className="font-semibold text-foreground/90">{form.purchaseAccountManualReferenceNumber || "-"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Balances */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <span className="text-[7.5px] text-muted-foreground block uppercase">Opening Bal</span>
+                          <span className="font-bold text-foreground">
+                            {currencySymbol(form.purchaseAccountCurrency)} {formatNumber(form.purchaseAccountOpeningBalance)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[7.5px] text-muted-foreground block uppercase">Current Bal</span>
+                          <span className={`font-bold ${form.purchaseAccountCurrentBalance >= 0 ? "text-emerald-600 dark:text-emerald-450" : "text-rose-600 dark:text-rose-450"}`}>
+                            {currencySymbol(form.purchaseAccountCurrency)} {formatNumber(form.purchaseAccountCurrentBalance)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Contact Info */}
+                      {(form.purchaseAccountMobile || form.purchaseAccountWhatsapp) && (
+                        <div className="border-t border-border/20 pt-1.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                          {form.purchaseAccountMobile && (
+                            <div>
+                              <span className="text-[7.5px] text-muted-foreground mr-0.5 font-bold">MOB:</span>
+                              <span className="text-foreground font-semibold">{form.purchaseAccountMobile}</span>
+                            </div>
+                          )}
+                          {form.purchaseAccountWhatsapp && (
+                            <div>
+                              <span className="text-[7.5px] text-emerald-600 dark:text-emerald-450 mr-0.5 font-bold">WA:</span>
+                              <span className="text-foreground font-semibold">{form.purchaseAccountWhatsapp}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 4: Sales Account Details */}
+              <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
+                <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
+                  <span className="p-1 rounded-md bg-primary/10 text-primary dark:bg-primary/20">
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </span>
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Sales Account (CR)</h4>
+                </div>
+                <div className="space-y-1.5 text-[10px]">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-bold text-foreground truncate block w-full text-right font-mono" title={form.salesAccountNo}>{form.salesAccountNo}</span></div>
+                  <div className="space-y-0.5 pt-1">
+                    <span className="text-muted-foreground block text-[9px]">Account Name:</span>
+                    <span className="font-semibold text-foreground block truncate text-xs text-primary" title={form.salesAccountName}>{form.salesAccountName}</span>
+                  </div>
+                  <div className="flex justify-between pt-1"><span className="text-muted-foreground">Branch:</span> <span className="font-semibold text-foreground truncate" title={form.salesAccountBranch}>{form.salesAccountBranch}</span></div>
+                  <div className="flex justify-between pt-0.5"><span className="text-muted-foreground">Currency:</span> <span className="font-bold text-foreground">{form.salesAccountCurrency}</span></div>
+                  <div className="flex justify-between items-center pt-0.5 border-t border-border/20 mt-1 relative" ref={salesCompanyDropdownRef}>
+                    <span className="text-muted-foreground font-semibold">Company:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-foreground truncate max-w-[100px] text-[8.5px] text-right font-mono" title={form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}>
+                        {form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSalesCompanySelectOpen(prev => !prev)}
+                        className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
+                        title="Select Company"
+                      >
+                        <Pin className={`h-2.5 w-2.5 ${salesCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
+                      </button>
+                    </div>
+
+                    {salesCompanySelectOpen && (
+                      <div className="absolute right-0 top-6 w-48 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
+                        <div className="px-2 py-0.5 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
+                          Select Company
+                        </div>
+                        <div className="max-h-32 overflow-y-auto space-y-0.5 scrollbar-thin">
+                          {dbCompanies.length === 0 ? (
+                            <div className="px-2 py-2 text-center text-muted-foreground text-[8px] italic">
+                              No companies found.
+                            </div>
+                          ) : (
+                            dbCompanies.map((c) => {
+                              const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setValue("salesCompanyId", c.id);
+                                    setValue("salesCompanyName", c.name);
+                                    setValue("salesCompanyCode", cCode);
+                                    setSalesCompanySelectOpen(false);
+                                  }}
+                                  className="w-full text-left px-2 py-0.5 rounded hover:bg-muted text-[8.5px] text-foreground font-semibold truncate block"
+                                  title={c.name}
+                                >
+                                  {c.name} ({cCode})
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                        <div className="border-t border-border/40 pt-1 mt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSalesCompanySelectOpen(false);
+                              setCreateCompanyType("sales");
+                              setCreateCompanyForm({ name: "", legalName: "", baseCurrency: "USD" });
+                              setCreateCompanyError("");
+                              setCreateCompanyModalOpen(true);
+                            }}
+                            className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold text-primary hover:bg-primary/5 transition text-left"
+                          >
+                            <span className="text-xs">+</span>
+                            <span>New Company</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {form.salesAccountName && (
+                    <div className="mt-2 pt-2 border-t border-border/40 space-y-2 text-[9px] font-mono text-muted-foreground">
+                      {/* Category & Control Type */}
+                      <div className="grid grid-cols-2 gap-1 pb-1.5 border-b border-border/20">
+                        <div>
+                          <span className="text-[7.5px] text-muted-foreground block uppercase">Kind</span>
+                          <span className="font-bold text-foreground uppercase">{form.salesAccountKind || "N/A"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[7.5px] text-muted-foreground block uppercase">Type</span>
+                          <span className="font-bold text-foreground truncate block">
+                            {form.salesAccountIsControl ? "Control" : "Sub-Acct"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Serials Sub-Grid */}
+                      <div className="bg-muted/30 p-1.5 rounded-lg border border-border/30 space-y-1">
+                        <span className="text-[7.5px] font-black text-primary block uppercase tracking-wider">Serials & Ref</span>
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                          <div>
+                            <span className="text-[7px] text-muted-foreground block">Acct S/N</span>
+                            <span className="font-semibold text-foreground/90">{form.salesAccountSerialNumber || "-"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7px] text-muted-foreground block">Country S/N</span>
+                            <span className="font-semibold text-foreground/90">{form.salesAccountCountrySerialNumber || "-"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7px] text-muted-foreground block">Branch S/N</span>
+                            <span className="font-semibold text-foreground/90">{form.salesAccountBranchSerialNumber || "-"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[7px] text-muted-foreground block">Manual Ref</span>
+                            <span className="font-semibold text-foreground/90">{form.salesAccountManualReferenceNumber || "-"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Balances */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <span className="text-[7.5px] text-muted-foreground block uppercase">Opening Bal</span>
+                          <span className="font-bold text-foreground">
+                            {currencySymbol(form.salesAccountCurrency)} {formatNumber(form.salesAccountOpeningBalance)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[7.5px] text-muted-foreground block uppercase">Current Bal</span>
+                          <span className={`font-bold ${form.salesAccountCurrentBalance >= 0 ? "text-emerald-600 dark:text-emerald-450" : "text-rose-600 dark:text-rose-450"}`}>
+                            {currencySymbol(form.salesAccountCurrency)} {formatNumber(form.salesAccountCurrentBalance)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Contact Info */}
+                      {(form.salesAccountMobile || form.salesAccountWhatsapp) && (
+                        <div className="border-t border-border/20 pt-1.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                          {form.salesAccountMobile && (
+                            <div>
+                              <span className="text-[7.5px] text-muted-foreground mr-0.5 font-bold">MOB:</span>
+                              <span className="text-foreground font-semibold">{form.salesAccountMobile}</span>
+                            </div>
+                          )}
+                          {form.salesAccountWhatsapp && (
+                            <div>
+                              <span className="text-[7.5px] text-emerald-600 dark:text-emerald-450 mr-0.5 font-bold">WA:</span>
+                              <span className="text-foreground font-semibold">{form.salesAccountWhatsapp}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Fetch session & countries on load
   useEffect(() => {
@@ -957,6 +1344,7 @@ export function PurchaseOrderWizard() {
             purchaseOrderNo: poNumber,
             purchaseContractNo: contractNumber,
           }));
+          setScopeConfirmed(true);
 
           // Sync search display labels from the loaded account names
           if (loadedForm.purchaseAccountName || loadedForm.purchaseAccountNo) {
@@ -971,11 +1359,11 @@ export function PurchaseOrderWizard() {
           }
 
           // Check and set transferred/posted status
-          const orderIsTransferred = orderData.ledger_posting_status === "posted";
+          const orderIsTransferred = poData.ledger_posting_status === "posted";
           setIsTransferred(orderIsTransferred);
           setTransferredData(orderIsTransferred ? {
-            transferDate: orderData.created_at,
-            audit: (orderData.form_data && orderData.form_data.transferAudit) ? orderData.form_data.transferAudit : null
+            transferDate: poData.created_at,
+            audit: (poData.form_data && poData.form_data.transferAudit) ? poData.form_data.transferAudit : null
           } : null);
 
           // Render the editing wizard directly at Step 1 (booking) for editing
@@ -1532,6 +1920,7 @@ export function PurchaseOrderWizard() {
       allotName: row.allotName
     }));
     setGoodsEntries((prev) => prev.filter((_, idx) => idx !== index));
+    setActiveTab("goods");
     setSaveMessage("Item moved to form for editing.");
   };
 
@@ -2203,8 +2592,8 @@ export function PurchaseOrderWizard() {
           <button type="button" onClick={() => setActiveTab("booking")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "booking" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>1 Booking</button>
           <button type="button" onClick={() => setActiveTab("goods")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "goods" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>2 Goods</button>
           <button type="button" onClick={() => setActiveTab("others")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "others" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>3 Others</button>
-          <button type="button" onClick={() => setActiveTab("report")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "report" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>4 Verify</button>
-          <button type="button" onClick={() => setActiveTab("reports_tab")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "reports_tab" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>5 Reports</button>
+          <button type="button" onClick={() => setActiveTab("reports_tab")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "reports_tab" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>4 Reports</button>
+          <button type="button" onClick={() => setActiveTab("report")} className={`py-1 px-1.5 rounded-sm text-[9px] font-bold transition flex items-center gap-1 ${activeTab === "report" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>5 Verify</button>
         </div>
         <div className="flex items-center gap-2 bg-muted/50 rounded-md p-1 border border-border/50 mr-1">
           <span className="relative flex h-2 w-2 ml-1">
@@ -2459,7 +2848,7 @@ export function PurchaseOrderWizard() {
 
   return (
     <div className="space-y-2 text-foreground bg-background mt-[-10px]">
-      {isSuperAdmin && (!form.countryId || !form.countryBranchId) && (
+      {isSuperAdmin && (!form.countryId || !form.countryBranchId || !scopeConfirmed) && (
         <SimpleModal
           isOpen={true}
           onClose={() => {}} // Cannot close without selecting
@@ -2468,7 +2857,7 @@ export function PurchaseOrderWizard() {
         >
           <div className="space-y-4 p-2">
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Please select the Country and Branch you want to work in for Purchase Orders.
+              Please select the Country, Branch, and City Branch you want to work in for Purchase Orders.
             </p>
             <div className="space-y-3">
               <div>
@@ -2481,6 +2870,7 @@ export function PurchaseOrderWizard() {
                       ...p, 
                       countryId: e.target.value, 
                       countryBranchId: "",
+                      cityBranchId: "",
                       currencyType: country ? country.currency_code : p.currencyType,
                       purchaseCurrency: country ? country.currency_code : p.purchaseCurrency
                     }));
@@ -2497,7 +2887,7 @@ export function PurchaseOrderWizard() {
                 <label className="text-xs font-black">Branch</label>
                 <select
                   value={form.countryBranchId}
-                  onChange={(e) => setForm(p => ({ ...p, countryBranchId: e.target.value }))}
+                  onChange={(e) => setForm(p => ({ ...p, countryBranchId: e.target.value, cityBranchId: "" }))}
                   disabled={!form.countryId}
                   className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
                 >
@@ -2507,6 +2897,30 @@ export function PurchaseOrderWizard() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="text-xs font-black">City Branch</label>
+                <select
+                  value={form.cityBranchId || ""}
+                  onChange={(e) => setForm(p => ({ ...p, cityBranchId: e.target.value }))}
+                  disabled={!form.countryBranchId}
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                >
+                  <option value="">Select City Branch...</option>
+                  {cityBranches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.city_name || b.name} ({b.code || b.branch_code})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div className="pt-4 flex justify-end">
+              <Button 
+                onClick={() => setScopeConfirmed(true)}
+                disabled={!form.countryId || !form.countryBranchId}
+                className="bg-primary text-primary-foreground font-bold h-8 text-xs px-6"
+              >
+                Confirm Scope
+              </Button>
             </div>
           </div>
         </SimpleModal>
@@ -2550,8 +2964,24 @@ export function PurchaseOrderWizard() {
 
           {activeTab === "report" && isMounted && document.getElementById("erp-page-actions-slot") && createPortal(
             <>
-              {/* BACK TO EDITING removed as per user request */}
-              <button type="button" onClick={() => handleSavePurchaseOrder(true)} disabled={savingOrder} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold shadow-md transition-colors flex items-center gap-1.5 disabled:opacity-50">
+              {/* SAVE BOOKING */}
+              <button 
+                type="button" 
+                onClick={() => handleSavePurchaseOrder(false)} 
+                disabled={savingOrder || isTransferred} 
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded text-[11px] font-bold shadow-md transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Save className="h-3.5 w-3.5"/> SAVE BOOKING
+              </button>
+
+              {/* TRANSFER TO PAYMENT */}
+              <button 
+                type="button" 
+                onClick={() => setTransferConfirmModal(true)} 
+                disabled={savingOrder || !savedOrderId || isTransferred} 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold shadow-md transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                title={!savedOrderId ? "Please save the booking first before transferring to payment." : ""}
+              >
                 <CheckCircle2 className="h-3.5 w-3.5"/> TRANSFER TO PAYMENT
               </button>
             </>,
@@ -2559,388 +2989,182 @@ export function PurchaseOrderWizard() {
           )}
 
           {activeTab !== "report" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start w-full">
-            <section className="lg:col-span-9 space-y-4 order-2 mt-4">
+            activeTab === "reports_tab" ? (
+              <div className="w-full space-y-4 mt-4 animate-in fade-in duration-300">
+                {/* Global Info Cards at the top */}
+                {renderGlobalInfoCards()}
 
-                  {/* GLOBAL INFO CARDS (Always visible at top) */}
-                  <div className="w-full mb-4 animate-in fade-in duration-300">
-                    <div className="bg-card border border-border shadow-md rounded-lg p-3 relative">
-                      {/* Horizontal Cards row */}
-                      <div className="z-10 bg-card pb-1">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
-                          
-                          {/* Card 1: Branch Login Details */}
-                          <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
-                            <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
-                              <span className="p-1 rounded-md bg-primary/10 text-primary dark:bg-primary/20">
-                                <Building2 className="h-3.5 w-3.5" />
-                              </span>
-                              <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Branch Login Details</h4>
-                            </div>
-                            <div className="space-y-1.5 text-[10px]">
-                              <div className="space-y-0.5 border-b border-border/40 pb-1.5 mb-1.5">
-                                <span className="text-muted-foreground block text-[8px] uppercase font-bold">Branch Name</span>
-                                <span className="font-black text-primary block truncate text-xs" title={form.branchName}>{form.branchName || "N/A"}</span>
-                              </div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Branch Code:</span> <span className="font-semibold text-foreground font-mono">{form.branchCode || "N/A"}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">User Admin:</span> <span className="font-black text-emerald-600 dark:text-emerald-450 uppercase">{form.userName}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">User ID:</span> <span className="font-semibold text-foreground font-mono text-[9px]">{form.userId || "N/A"}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Login Time:</span> <span className="font-semibold text-foreground">14:35:02</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">IP Address:</span> <span className="font-semibold text-foreground font-mono text-[9px]">192.168.1.1</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Location:</span> <span className="font-semibold text-foreground truncate" title="Sargodha, PK">Sargodha, PK</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Country:</span> <span className="font-semibold text-foreground truncate" title={form.branchCountry}>{form.branchCountry || "N/A"}</span></div>
-                            </div>
-                          </div>
+                {/* Reports below the cards */}
+                <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4 w-full">
+                  {/* Goods Table Read-Only View */}
+                  <div className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm mb-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2 mb-2 flex items-center gap-2">
+                      <ListChecks className="h-3.5 w-3.5 text-blue-600" /> Goods Overview
+                    </h3>
+                    <div className="overflow-x-auto custom-scrollbar pb-2">
+                      <table className="w-full text-[9px] border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider">
+                            <th className="px-2 py-1.5 text-left font-bold">Goods Name</th>
+                            <th className="px-2 py-1.5 text-center font-bold">HS Code</th>
+                            <th className="px-2 py-1.5 text-center font-bold">Origin</th>
+                            <th className="px-2 py-1.5 text-right font-bold">Qty</th>
+                            <th className="px-2 py-1.5 text-center font-bold">Unit</th>
+                            <th className="px-2 py-1.5 text-right font-bold">Amount ({form.currencyType || "USD"})</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {goodsEntries.length === 0 ? (
+                            <tr><td colSpan={6} className="px-2 py-4 text-center text-slate-400 italic">No goods added yet.</td></tr>
+                          ) : (
+                            goodsEntries.map((g, i) => (
+                              <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                                <td className="px-2 py-1.5 font-bold text-slate-800">{g.goodsName} {g.brand ? `(${g.brand})` : ""}</td>
+                                <td className="px-2 py-1.5 text-center text-slate-600">{g.hsCode}</td>
+                                <td className="px-2 py-1.5 text-center text-slate-600">{g.origin}</td>
+                                <td className="px-2 py-1.5 text-right font-mono font-bold text-slate-700">{g.qtyNo.toLocaleString()}</td>
+                                <td className="px-2 py-1.5 text-center text-slate-600">{g.qtyName}</td>
+                                <td className="px-2 py-1.5 text-right font-mono font-bold text-emerald-700">{g.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
 
-                          {/* Card 2: Bill Details */}
-                          <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
-                            <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
-                              <span className="p-1 rounded-md bg-primary/10 text-primary dark:bg-primary/20">
-                                <FileText className="h-3.5 w-3.5" />
-                              </span>
-                              <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Bill Details</h4>
-                            </div>
-                            <div className="space-y-1.5 text-[10px]">
-                              <div className="flex justify-between"><span className="text-muted-foreground">Booking Date:</span> <span className="font-semibold text-foreground">{form.purchaseDate}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Fiscal Year:</span> <span className="font-semibold">2025-26</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Status:</span> <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-1.5 py-0.2 text-[8px] font-bold text-yellow-600 dark:text-yellow-450 uppercase">{form.salesStatus}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">GPBO Serial:</span> <span className="font-bold text-foreground truncate font-mono" title={form.purchaseOrderNo}>{form.purchaseOrderNo}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">BPBO Serial:</span> <span className="font-bold text-foreground truncate font-mono" title={form.billNo}>{form.billNo}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Contract No:</span> <span className="font-semibold text-foreground truncate font-mono" title={form.purchaseContractNo}>{form.purchaseContractNo}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Loading Mode:</span> <span className="font-semibold text-foreground truncate" title={form.shippingMode}>{form.shippingMode || "N/A"}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Origin Country:</span> <span className="font-semibold text-foreground truncate" title={form.origin || form.branchCountry}>{form.origin || form.branchCountry || "N/A"}</span></div>
-                            </div>
-                          </div>
-
-                          {/* Card 3: Purchase Account Details */}
-                          <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
-                            <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
-                              <span className="p-1 rounded-md bg-primary/10 text-primary dark:bg-primary/20">
-                                <ArrowDownLeft className="h-3.5 w-3.5" />
-                              </span>
-                              <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Purchase Account Details</h4>
-                            </div>
-                            <div className="space-y-1.5 text-[10px]">
-                              <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-bold text-foreground truncate block w-full text-right font-mono" title={form.purchaseAccountNo}>{form.purchaseAccountNo}</span></div>
-                              <div className="space-y-0.5 pt-1">
-                                <span className="text-muted-foreground block text-[9px]">Account Name:</span>
-                                <span className="font-semibold text-foreground block truncate text-xs text-primary" title={form.purchaseAccountName}>{form.purchaseAccountName}</span>
-                              </div>
-                              <div className="flex justify-between pt-1"><span className="text-muted-foreground">Branch:</span> <span className="font-semibold text-foreground truncate" title={form.purchaseAccountBranch}>{form.purchaseAccountBranch}</span></div>
-                              <div className="flex justify-between pt-0.5"><span className="text-muted-foreground">Currency:</span> <span className="font-bold text-foreground">{form.purchaseAccountCurrency}</span></div>
-                              <div className="flex justify-between items-center pt-0.5 border-t border-border/20 mt-1 relative" ref={purchaseCompanyDropdownRef}>
-                                <span className="text-muted-foreground font-semibold">Company:</span>
-                                <div className="flex items-center gap-1">
-                                  <span className="font-bold text-foreground truncate max-w-[100px] text-[8.5px] text-right font-mono" title={form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}>
-                                    {form.purchaseCompanyName ? `${form.purchaseCompanyName} (${form.purchaseCompanyCode || "COM-N/A"})` : "None"}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setPurchaseCompanySelectOpen(prev => !prev)}
-                                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
-                                    title="Select Company"
-                                  >
-                                    <Pin className={`h-2.5 w-2.5 ${purchaseCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
-                                  </button>
-                                </div>
-
-                                {purchaseCompanySelectOpen && (
-                                  <div className="absolute right-0 top-6 w-48 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
-                                    <div className="px-2 py-0.5 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
-                                      Select Company
-                                    </div>
-                                    <div className="max-h-32 overflow-y-auto space-y-0.5 scrollbar-thin">
-                                      {dbCompanies.length === 0 ? (
-                                        <div className="px-2 py-2 text-center text-muted-foreground text-[8px] italic">
-                                          No companies found.
-                                        </div>
-                                      ) : (
-                                        dbCompanies.map((c) => {
-                                          const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
-                                          return (
-                                            <button
-                                              key={c.id}
-                                              type="button"
-                                              onClick={() => {
-                                                setValue("purchaseCompanyId", c.id);
-                                                setValue("purchaseCompanyName", c.name);
-                                                setValue("purchaseCompanyCode", cCode);
-                                                setPurchaseCompanySelectOpen(false);
-                                              }}
-                                              className="w-full text-left px-2 py-0.5 rounded hover:bg-muted text-[8.5px] text-foreground font-semibold truncate block"
-                                              title={c.name}
-                                            >
-                                              {c.name} ({cCode})
-                                            </button>
-                                          );
-                                        })
-                                      )}
-                                    </div>
-                                    <div className="border-t border-border/40 pt-1 mt-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setPurchaseCompanySelectOpen(false);
-                                          setCreateCompanyType("purchase");
-                                          setCreateCompanyForm({ name: "", legalName: "", baseCurrency: "USD" });
-                                          setCreateCompanyError("");
-                                          setCreateCompanyModalOpen(true);
-                                        }}
-                                        className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold text-primary hover:bg-primary/5 transition text-left"
-                                      >
-                                        <span className="text-xs">+</span>
-                                        <span>New Company</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              {form.purchaseAccountName && (
-                                <div className="mt-2 pt-2 border-t border-border/40 space-y-2 text-[9px] font-mono text-muted-foreground">
-                                  {/* Category & Control Type */}
-                                  <div className="grid grid-cols-2 gap-1 pb-1.5 border-b border-border/20">
-                                    <div>
-                                      <span className="text-[7.5px] text-muted-foreground block uppercase">Kind</span>
-                                      <span className="font-bold text-foreground uppercase">{form.purchaseAccountKind || "N/A"}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-[7.5px] text-muted-foreground block uppercase">Type</span>
-                                      <span className="font-bold text-foreground truncate block">
-                                        {form.purchaseAccountIsControl ? "Control" : "Sub-Acct"}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Serials Sub-Grid */}
-                                  <div className="bg-muted/30 p-1.5 rounded-lg border border-border/30 space-y-1">
-                                    <span className="text-[7.5px] font-black text-primary block uppercase tracking-wider">Serials & Ref</span>
-                                    <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                                      <div>
-                                        <span className="text-[7px] text-muted-foreground block">Acct S/N</span>
-                                        <span className="font-semibold text-foreground/90">{form.purchaseAccountSerialNumber || "-"}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-[7px] text-muted-foreground block">Country S/N</span>
-                                        <span className="font-semibold text-foreground/90">{form.purchaseAccountCountrySerialNumber || "-"}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-[7px] text-muted-foreground block">Branch S/N</span>
-                                        <span className="font-semibold text-foreground/90">{form.purchaseAccountBranchSerialNumber || "-"}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-[7px] text-muted-foreground block">Manual Ref</span>
-                                        <span className="font-semibold text-foreground/90">{form.purchaseAccountManualReferenceNumber || "-"}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Balances */}
-                                  <div className="grid grid-cols-2 gap-2 pt-1">
-                                    <div>
-                                      <span className="text-[7.5px] text-muted-foreground block uppercase">Opening Bal</span>
-                                      <span className="font-bold text-foreground">
-                                        {currencySymbol(form.purchaseAccountCurrency)} {formatNumber(form.purchaseAccountOpeningBalance)}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-[7.5px] text-muted-foreground block uppercase">Current Bal</span>
-                                      <span className={`font-bold ${form.purchaseAccountCurrentBalance >= 0 ? "text-emerald-600 dark:text-emerald-450" : "text-rose-600 dark:text-rose-450"}`}>
-                                        {currencySymbol(form.purchaseAccountCurrency)} {formatNumber(form.purchaseAccountCurrentBalance)}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Contact Info */}
-                                  {(form.purchaseAccountMobile || form.purchaseAccountWhatsapp) && (
-                                    <div className="border-t border-border/20 pt-1.5 flex flex-wrap gap-x-2 gap-y-0.5">
-                                      {form.purchaseAccountMobile && (
-                                        <div>
-                                          <span className="text-[7.5px] text-muted-foreground mr-0.5 font-bold">MOB:</span>
-                                          <span className="text-foreground font-semibold">{form.purchaseAccountMobile}</span>
-                                        </div>
-                                      )}
-                                      {form.purchaseAccountWhatsapp && (
-                                        <div>
-                                          <span className="text-[7.5px] text-emerald-600 dark:text-emerald-450 mr-0.5 font-bold">WA:</span>
-                                          <span className="text-foreground font-semibold">{form.purchaseAccountWhatsapp}</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Card 4: Sales Account Details */}
-                          <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
-                            <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
-                              <span className="p-1 rounded-md bg-primary/10 text-primary dark:bg-primary/20">
-                                <ArrowUpRight className="h-3.5 w-3.5" />
-                              </span>
-                              <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Sales Account (CR)</h4>
-                            </div>
-                            <div className="space-y-1.5 text-[10px]">
-                              <div className="flex justify-between"><span className="text-muted-foreground">Account Code:</span> <span className="font-bold text-foreground truncate block w-full text-right font-mono" title={form.salesAccountNo}>{form.salesAccountNo}</span></div>
-                              <div className="space-y-0.5 pt-1">
-                                <span className="text-muted-foreground block text-[9px]">Account Name:</span>
-                                <span className="font-semibold text-foreground block truncate text-xs text-primary" title={form.salesAccountName}>{form.salesAccountName}</span>
-                              </div>
-                              <div className="flex justify-between pt-1"><span className="text-muted-foreground">Branch:</span> <span className="font-semibold text-foreground truncate" title={form.salesAccountBranch}>{form.salesAccountBranch}</span></div>
-                              <div className="flex justify-between pt-0.5"><span className="text-muted-foreground">Currency:</span> <span className="font-bold text-foreground">{form.salesAccountCurrency}</span></div>
-                              <div className="flex justify-between items-center pt-0.5 border-t border-border/20 mt-1 relative" ref={salesCompanyDropdownRef}>
-                                <span className="text-muted-foreground font-semibold">Company:</span>
-                                <div className="flex items-center gap-1">
-                                  <span className="font-bold text-foreground truncate max-w-[100px] text-[8.5px] text-right font-mono" title={form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}>
-                                    {form.salesCompanyName ? `${form.salesCompanyName} (${form.salesCompanyCode || "COM-N/A"})` : "None"}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setSalesCompanySelectOpen(prev => !prev)}
-                                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors shrink-0"
-                                    title="Select Company"
-                                  >
-                                    <Pin className={`h-2.5 w-2.5 ${salesCompanySelectOpen ? "text-primary fill-primary/25" : ""}`} />
-                                  </button>
-                                </div>
-
-                                {salesCompanySelectOpen && (
-                                  <div className="absolute right-0 top-6 w-48 rounded-xl bg-card border border-border shadow-2xl z-[60] p-1.5 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
-                                    <div className="px-2 py-0.5 text-[8px] font-black uppercase text-primary tracking-wider border-b border-border/40 mb-1">
-                                      Select Company
-                                    </div>
-                                    <div className="max-h-32 overflow-y-auto space-y-0.5 scrollbar-thin">
-                                      {dbCompanies.length === 0 ? (
-                                        <div className="px-2 py-2 text-center text-muted-foreground text-[8px] italic">
-                                          No companies found.
-                                        </div>
-                                      ) : (
-                                        dbCompanies.map((c) => {
-                                          const cCode = "COM-" + c.name.slice(0, 3).toUpperCase();
-                                          return (
-                                            <button
-                                              key={c.id}
-                                              type="button"
-                                              onClick={() => {
-                                                setValue("salesCompanyId", c.id);
-                                                setValue("salesCompanyName", c.name);
-                                                setValue("salesCompanyCode", cCode);
-                                                setSalesCompanySelectOpen(false);
-                                              }}
-                                              className="w-full text-left px-2 py-0.5 rounded hover:bg-muted text-[8.5px] text-foreground font-semibold truncate block"
-                                              title={c.name}
-                                            >
-                                              {c.name} ({cCode})
-                                            </button>
-                                          );
-                                        })
-                                      )}
-                                    </div>
-                                    <div className="border-t border-border/40 pt-1 mt-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSalesCompanySelectOpen(false);
-                                          setCreateCompanyType("sales");
-                                          setCreateCompanyForm({ name: "", legalName: "", baseCurrency: "USD" });
-                                          setCreateCompanyError("");
-                                          setCreateCompanyModalOpen(true);
-                                        }}
-                                        className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold text-primary hover:bg-primary/5 transition text-left"
-                                      >
-                                        <span className="text-xs">+</span>
-                                        <span>New Company</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              {form.salesAccountName && (
-                                <div className="mt-2 pt-2 border-t border-border/40 space-y-2 text-[9px] font-mono text-muted-foreground">
-                                  {/* Category & Control Type */}
-                                  <div className="grid grid-cols-2 gap-1 pb-1.5 border-b border-border/20">
-                                    <div>
-                                      <span className="text-[7.5px] text-muted-foreground block uppercase">Kind</span>
-                                      <span className="font-bold text-foreground uppercase">{form.salesAccountKind || "N/A"}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-[7.5px] text-muted-foreground block uppercase">Type</span>
-                                      <span className="font-bold text-foreground truncate block">
-                                        {form.salesAccountIsControl ? "Control" : "Sub-Acct"}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Serials Sub-Grid */}
-                                  <div className="bg-muted/30 p-1.5 rounded-lg border border-border/30 space-y-1">
-                                    <span className="text-[7.5px] font-black text-primary block uppercase tracking-wider">Serials & Ref</span>
-                                    <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                                      <div>
-                                        <span className="text-[7px] text-muted-foreground block">Acct S/N</span>
-                                        <span className="font-semibold text-foreground/90">{form.salesAccountSerialNumber || "-"}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-[7px] text-muted-foreground block">Country S/N</span>
-                                        <span className="font-semibold text-foreground/90">{form.salesAccountCountrySerialNumber || "-"}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-[7px] text-muted-foreground block">Branch S/N</span>
-                                        <span className="font-semibold text-foreground/90">{form.salesAccountBranchSerialNumber || "-"}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-[7px] text-muted-foreground block">Manual Ref</span>
-                                        <span className="font-semibold text-foreground/90">{form.salesAccountManualReferenceNumber || "-"}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Balances */}
-                                  <div className="grid grid-cols-2 gap-2 pt-1">
-                                    <div>
-                                      <span className="text-[7.5px] text-muted-foreground block uppercase">Opening Bal</span>
-                                      <span className="font-bold text-foreground">
-                                        {currencySymbol(form.salesAccountCurrency)} {formatNumber(form.salesAccountOpeningBalance)}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-[7.5px] text-muted-foreground block uppercase">Current Bal</span>
-                                      <span className={`font-bold ${form.salesAccountCurrentBalance >= 0 ? "text-emerald-600 dark:text-emerald-450" : "text-rose-600 dark:text-rose-450"}`}>
-                                        {currencySymbol(form.salesAccountCurrency)} {formatNumber(form.salesAccountCurrentBalance)}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Contact Info */}
-                                  {(form.salesAccountMobile || form.salesAccountWhatsapp) && (
-                                    <div className="border-t border-border/20 pt-1.5 flex flex-wrap gap-x-2 gap-y-0.5">
-                                      {form.salesAccountMobile && (
-                                        <div>
-                                          <span className="text-[7.5px] text-muted-foreground mr-0.5 font-bold">MOB:</span>
-                                          <span className="text-foreground font-semibold">{form.salesAccountMobile}</span>
-                                        </div>
-                                      )}
-                                      {form.salesAccountWhatsapp && (
-                                        <div>
-                                          <span className="text-[7.5px] text-emerald-600 dark:text-emerald-450 mr-0.5 font-bold">WA:</span>
-                                          <span className="text-foreground font-semibold">{form.salesAccountWhatsapp}</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                        </div>
+                  {/* Payment Details & Report */}
+                  <div className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm mb-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2 mb-2 flex items-center gap-2">
+                      <CreditCard className="h-3.5 w-3.5 text-blue-600" /> Report 1: Payment Details
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[9px] space-y-1">
+                        <div className="flex justify-between"><span className="text-slate-500">Payment Term:</span> <span className="font-bold text-slate-800">{form.paymentType || "N/A"}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Advance (%):</span> <span className="font-bold text-slate-800">{form.advancePercent || 0}% / {form.advancePaymentDate}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Remaining (%):</span> <span className="font-bold text-slate-800">{100 - (form.advancePercent || 0)}% / {form.paymentDate}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Grand Total:</span> <span className="font-bold text-emerald-700">{form.currencyType || "USD"} {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-slate-700 mb-1">Payment Report / Notes</label>
+                        <textarea
+                          rows={3}
+                          value={form.paymentReport || ""}
+                          onChange={(e) => setValue("paymentReport", e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-slate-900 outline-none focus:border-blue-500 resize-none text-[9px]"
+                          placeholder="Write notes regarding payment terms, conditions, or guarantees..."
+                        />
                       </div>
                     </div>
                   </div>
 
+                  {/* Loading Details & Report */}
+                  <div className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm mb-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2 mb-2 flex items-center gap-2">
+                      <Truck className="h-3.5 w-3.5 text-blue-600" /> Report 2: Loading & Transit Details
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[9px] space-y-1">
+                        <div className="flex justify-between"><span className="text-slate-500">Shipping Mode:</span> <span className="font-bold text-slate-800">{form.shippingMode || "N/A"}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Loading From:</span> <span className="font-bold text-slate-800">{form.loadingPort || form.loadingBorder || form.airportName || "N/A"} ({form.origin || "N/A"})</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Destination:</span> <span className="font-bold text-slate-800">{form.receivedPort || form.receivedBorder || form.receivedPortName || "N/A"} ({form.receivedCountry || "N/A"})</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Loading Date:</span> <span className="font-bold text-slate-800">{form.loadingDate || "N/A"}</span></div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-slate-700 mb-1">Loading Report / Notes</label>
+                        <textarea
+                          rows={3}
+                          value={form.loadingReport || ""}
+                          onChange={(e) => setValue("loadingReport", e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-slate-900 outline-none focus:border-blue-500 resize-none text-[9px]"
+                          placeholder="Write notes regarding loading, transit, agents, or customs..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Booking Remarks & Narration */}
+                  <div className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm mb-4">
+                    <div className="border-b border-slate-100 pb-2 mb-2">
+                      <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                        <MessageSquare className="h-3.5 w-3.5 text-blue-600" /> Booking Remarks & Narration
+                      </h3>
+                    </div>
+                    <div>
+                      <textarea
+                        rows={3}
+                        value={form.remarks || ""}
+                        onChange={(e) => setValue("remarks", e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-slate-900 outline-none focus:border-blue-500 resize-none text-[10px]"
+                        placeholder="Write general transaction remarks and narration (Visible on Dashboard)..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Dynamic Reports */}
+                  <div className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm">
+                    <div className="border-b border-slate-100 pb-2 mb-3 flex items-center justify-between">
+                      <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5 text-blue-600" /> Dynamic Reports & Notes
+                      </h3>
+                      <Button
+                        type="button"
+                        onClick={() => setIsNewReportModalOpen(true)}
+                        className="h-6 text-[9px] font-bold uppercase bg-emerald-600 hover:bg-emerald-700 text-white px-2 rounded shadow-sm"
+                      >
+                        + Add New Report
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {reportsList.length === 0 ? (
+                        <div className="text-center py-6 text-muted-foreground text-[10px] italic bg-muted/30 rounded border border-border/50">
+                          No reports or notes added yet. Click "+ Add New Report" to create one.
+                        </div>
+                      ) : (
+                        reportsList.map((report) => (
+                          <div key={report.id} className="bg-card border border-border rounded-lg p-3 shadow-sm">
+                            <div className="flex justify-between items-start mb-2 border-b border-border/40 pb-2">
+                              <div>
+                                <h4 className="text-[11px] font-bold text-foreground">{report.name}</h4>
+                                {report.description && <p className="text-[9px] text-muted-foreground mt-0.5">{report.description}</p>}
+                              </div>
+                              <div className="flex gap-2 items-center">
+                                <span className="text-[8px] font-mono text-muted-foreground">{new Date(report.createdAt).toLocaleString()}</span>
+                                <button type="button" onClick={() => handleDeleteReport(report.id)} className="text-red-500 hover:text-red-700 p-1" title="Delete Report"><Trash2 className="h-3 w-3"/></button>
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-foreground whitespace-pre-wrap">
+                              {report.notes}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="pt-3 border-t border-border flex flex-col gap-1.5 mt-4">
+                    <Button
+                      type="button"
+                      onClick={() => setActiveTab("report")}
+                      className="w-full font-bold h-7.5 text-[10px] py-1 shadow uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Next Step (Verify & Print)
+                    </Button>
+                    <div className="flex gap-1.5">
+                      <Button type="button" variant="outline" onClick={() => setActiveTab("others")} className="flex-1 font-bold h-7.5 text-[10px] py-1">Back</Button>
+                    </div>
+                  </div>
+                </fieldset>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start w-full">
+                <section className="lg:col-span-9 space-y-4 order-2 mt-4">
+                  {/* GLOBAL INFO CARDS (Always visible at top) */}
+                  {renderGlobalInfoCards()}
+
                   {/* GOODS LIST TABLE */}
-                  {activeTab === "goods" && (
+                  {(activeTab === "goods" || activeTab === "others") && (
                   <div className="mt-4">
                     <div className="overflow-x-auto rounded-lg border border-border bg-background shadow-sm">
                       <table className="w-full text-[9px] text-foreground border-collapse text-left whitespace-nowrap">
@@ -2985,31 +3209,31 @@ export function PurchaseOrderWizard() {
                                 <td className="px-3 py-2 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
                                   {row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td className="px-3 py-2 text-center relative group">
-                                  <button className="p-1 hover:bg-slate-200 rounded text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </button>
-                                  <div className="absolute right-0 top-full mt-1 w-28 bg-white border border-slate-200 shadow-xl rounded py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[60] origin-top-right">
+                                <td className="px-3 py-2 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
                                     <button
                                       type="button"
                                       onClick={() => handleViewGoodsEntry(index)}
-                                      className="w-full text-left px-3 py-2 hover:bg-slate-100 text-[10px] font-bold text-slate-700 flex items-center gap-2 transition-colors"
+                                      className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[9px] font-bold transition-colors"
+                                      title="View"
                                     >
-                                      <Eye className="h-3.5 w-3.5" /> View
+                                      <Eye className="h-3 w-3" /> View
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => handleEditGoodsEntry(index)}
-                                      className="w-full text-left px-3 py-2 hover:bg-slate-100 text-[10px] font-bold text-blue-600 flex items-center gap-2 transition-colors"
+                                      className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-[9px] font-bold transition-colors shadow-sm border border-blue-200"
+                                      title="Edit"
                                     >
-                                      <Edit3 className="h-3.5 w-3.5" /> Edit
+                                      <Edit3 className="h-3 w-3" /> Edit
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => setGoodsEntries(prev => prev.filter((_, idx) => idx !== index))}
-                                      className="w-full text-left px-3 py-2 hover:bg-red-50 text-[10px] font-bold text-red-600 flex items-center gap-2 transition-colors"
+                                      className="flex items-center gap-1 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded text-[9px] font-bold transition-colors shadow-sm border border-red-100"
+                                      title="Delete"
                                     >
-                                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                                      <Trash2 className="h-3 w-3" /> Delete
                                     </button>
                                   </div>
                                 </td>
@@ -4187,25 +4411,15 @@ export function PurchaseOrderWizard() {
                       )}
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] text-muted-foreground mb-1">Remarks Narration</label>
-                      <textarea
-                        rows={3}
-                        value={form.remarks || ""}
-                        onChange={(e) => setValue("remarks", e.target.value)}
-                        className="w-full bg-background border border-input rounded px-3 py-1.5 text-foreground outline-none focus:border-primary resize-none text-[10px]"
-                        placeholder="Add transaction remarks..."
-                      />
-                    </div>
                   </div>
 
                   <div className="pt-3 border-t border-border flex flex-col gap-1.5">
                     <Button
                       type="button"
-                      onClick={() => setActiveTab("report")}
+                      onClick={() => setActiveTab("reports_tab")}
                       className="w-full font-bold h-7.5 text-[10px] py-1 shadow uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      Next Step (Report)
+                      Next Step (Reports)
                     </Button>
                     <div className="flex gap-1.5">
                       <Button
@@ -4227,61 +4441,7 @@ export function PurchaseOrderWizard() {
                     </div>
                   </div>
                 </fieldset>
-              )}
-
-              {activeTab === "reports_tab" && (
-                <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4 order-2 w-full mt-4">
-                  <div className="border-b border-border pb-2 mb-3 flex items-center justify-between">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-foreground">Dynamic Reports & Notes</h3>
-                    <Button
-                      type="button"
-                      onClick={() => setIsNewReportModalOpen(true)}
-                      className="h-6 text-[9px] font-bold uppercase bg-emerald-600 hover:bg-emerald-700 text-white px-2 rounded shadow-sm"
-                    >
-                      + Add New Report
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {reportsList.length === 0 ? (
-                      <div className="text-center py-6 text-muted-foreground text-[10px] italic bg-muted/30 rounded border border-border/50">
-                        No reports or notes added yet. Click "+ Add New Report" to create one.
-                      </div>
-                    ) : (
-                      reportsList.map((report) => (
-                        <div key={report.id} className="bg-card border border-border rounded-lg p-3 shadow-sm">
-                          <div className="flex justify-between items-start mb-2 border-b border-border/40 pb-2">
-                            <div>
-                              <h4 className="text-[11px] font-bold text-foreground">{report.name}</h4>
-                              {report.description && <p className="text-[9px] text-muted-foreground mt-0.5">{report.description}</p>}
-                            </div>
-                            <div className="flex gap-2 items-center">
-                              <span className="text-[8px] font-mono text-muted-foreground">{new Date(report.createdAt).toLocaleString()}</span>
-                              <button type="button" onClick={() => handleDeleteReport(report.id)} className="text-red-500 hover:text-red-700 p-1" title="Delete Report"><Trash2 className="h-3 w-3"/></button>
-                            </div>
-                          </div>
-                          <div className="text-[10px] text-foreground whitespace-pre-wrap">
-                            {report.notes}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  
-                  <div className="pt-3 border-t border-border flex flex-col gap-1.5 mt-4">
-                    <Button
-                      type="button"
-                      onClick={() => setActiveTab("report")}
-                      className="w-full font-bold h-7.5 text-[10px] py-1 shadow uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Next Step (Verification)
-                    </Button>
-                    <div className="flex gap-1.5">
-                      <Button type="button" variant="outline" onClick={() => setActiveTab("goods")} className="flex-1 font-bold h-7.5 text-[10px] py-1">Back</Button>
-                    </div>
-                  </div>
-                </fieldset>
-              )}
+              )}              {/* activeTab === "reports_tab" removed from inside main column */}
           {/* Feedback messages */}
           {saveMessage && (
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 p-3 font-bold flex gap-2 items-center text-[10px]">
@@ -4297,6 +4457,7 @@ export function PurchaseOrderWizard() {
           )}
             </main>
           </div>
+            )
           )}
 
         {activeTab === "report" && (
@@ -4529,18 +4690,22 @@ export function PurchaseOrderWizard() {
                       <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Remarks / Notes</span>
                     </div>
                     <div className="space-y-4 text-[9px]">
-                      {reportsList.length > 0 ? reportsList.map((report, idx) => (
-                        <div key={report.id} className="border border-slate-200 rounded p-3 bg-slate-50">
-                          <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
-                            <span className="font-bold text-slate-800 text-[10px]">Note #{idx + 1}: {report.name}</span>
-                            <span className="text-slate-500 font-mono">{new Date(report.createdAt).toLocaleString()}</span>
-                          </div>
-                          <p className="font-semibold text-slate-900 whitespace-pre-wrap">{report.description}</p>
-                        </div>
-                      )) : (
-                        <div>
-                          <span className="text-slate-500 block mb-1">User Remarks (Report):</span>
-                          <p className="font-semibold text-slate-900 whitespace-pre-wrap">{form.orderReportRemarks || "No remarks provided."}</p>
+                      <div>
+                        <span className="text-slate-500 block mb-1">User Remarks (Report):</span>
+                        <p className="font-semibold text-slate-900 whitespace-pre-wrap">{form.orderReportRemarks || "No remarks provided."}</p>
+                      </div>
+                      {reportsList.length > 0 && (
+                        <div className="space-y-3 pt-2 border-t border-dashed border-slate-200">
+                          <span className="text-slate-500 block mb-1 font-bold">Verification Notes / Saved Reports:</span>
+                          {reportsList.map((report, idx) => (
+                            <div key={report.id} className="border border-slate-200 rounded p-3 bg-slate-50">
+                              <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
+                                <span className="font-bold text-slate-800 text-[10px]">Note #{idx + 1}: {report.name}</span>
+                                <span className="text-slate-500 font-mono">{new Date(report.createdAt).toLocaleString()}</span>
+                              </div>
+                              <p className="font-semibold text-slate-900 whitespace-pre-wrap">{report.description}</p>
+                            </div>
+                          ))}
                         </div>
                       )}
                       <div>
@@ -4570,7 +4735,7 @@ export function PurchaseOrderWizard() {
               </div>
             
             {/* VERIFICATION DETAILS SIDEBAR */}
-            <div className="absolute right-0 top-0 bottom-0 w-[400px] bg-white border-l border-slate-200 shadow-2xl z-40 flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="absolute right-0 top-0 bottom-0 w-[450px] bg-white border-l border-slate-200 shadow-2xl z-40 flex flex-col animate-in slide-in-from-right duration-300">
               <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur">
                 <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-blue-600" /> Verification Details</h3>
                 <div className="relative group">
@@ -4584,54 +4749,85 @@ export function PurchaseOrderWizard() {
                     <button type="button" onClick={() => handleSavePurchaseOrder(false)} disabled={savingOrder} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-[10px] font-bold text-emerald-600 flex items-center gap-2 transition-colors disabled:opacity-50">
                       <Save className="h-3.5 w-3.5" /> Save Report
                     </button>
-                    <button type="button" onClick={() => handleSavePurchaseOrder(true)} disabled={savingOrder} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-[10px] font-bold text-blue-600 flex items-center gap-2 transition-colors disabled:opacity-50">
+                    <button type="button" onClick={() => setTransferConfirmModal(true)} disabled={savingOrder} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-[10px] font-bold text-blue-600 flex items-center gap-2 transition-colors disabled:opacity-50">
                       <CheckCircle2 className="h-3.5 w-3.5" /> Post Transfer
                     </button>
                   </div>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                  
-                  {/* User Info */}
-                  <div>
-                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">User Information</h4>
-                    <div className="space-y-1.5 text-[9px]">
-                      <div className="flex justify-between"><span className="text-slate-500">User ID:</span> <span className="font-semibold text-slate-900">{form.userId || "USR-1001"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">User Name:</span> <span className="font-semibold text-slate-900 uppercase">{form.userName || "ADMIN"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Team Name:</span> <span className="font-semibold text-slate-900">Logistics</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Team Code:</span> <span className="font-semibold text-slate-900">TR-LOG</span></div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-5">
+
+                  {/* Transfer / Journal Status Block */}
+                  {isTransferred ? (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2 border-b border-emerald-100 pb-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Transfer Completed</h4>
+                      </div>
+                      <p className="text-[9px] text-emerald-700 font-semibold mb-3 leading-relaxed">
+                        This bill has been automatically transferred and posted to the business journal (Roznamcha). All associated ledger accounts have been updated.
+                      </p>
+                      
+                      <div className="space-y-1.5 text-[9px] font-mono bg-white/60 p-2 rounded border border-emerald-100/50">
+                        <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">General Serial No:</span> <span className="font-bold text-emerald-900">{form.generalSerialNumber || `GSN-${new Date().getFullYear()}-0001`}</span></div>
+                        <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Roznamcha (Journal) No:</span> <span className="font-bold text-emerald-900">{form.journalNumber || `JRN-${new Date().getFullYear()}-8821`}</span></div>
+                        <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Branch Roznamcha No:</span> <span className="font-bold text-emerald-900">{form.branchJournalNumber || `BR-JRN-402`}</span></div>
+                        <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Cash Entry Serial:</span> <span className="font-bold text-emerald-900">{form.cashEntrySerial || `CE-9921`}</span></div>
+                        <div className="flex justify-between border-t border-emerald-100/50 pt-1 mt-1"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Business Entry Ref:</span> <span className="font-bold text-emerald-900 uppercase">{form.businessEntryRef || `BUS-ENT-PURCHASE`}</span></div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle2 className="h-4 w-4 text-amber-600" />
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-800">Pending Transfer</h4>
+                      </div>
+                      <p className="text-[9px] text-amber-700 font-semibold mt-1">
+                        This booking is pending verification. Once transferred, the journal (Roznamcha) and serial details will automatically appear here.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Account Verification & Transfer Info */}
                   <div>
-                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Transfer Details</h4>
+                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Ledger Routing Details</h4>
                     <div className="space-y-3 text-[9px]">
-                      <div className="bg-slate-50 border border-slate-200 rounded p-2">
-                        <div className="flex justify-between mb-1"><span className="font-bold text-slate-800 uppercase text-[8px]">Purchase Account (DR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.purchaseAccountNo || "N/A"}</span></div>
-                        <div className="font-semibold text-slate-900 mb-2 truncate" title={form.purchaseAccountName}>{form.purchaseAccountName || "N/A"}</div>
+                      <div className="bg-slate-50 border border-slate-200 rounded p-3">
+                        <div className="flex justify-between items-center mb-1"><span className="font-bold text-rose-700 uppercase text-[8px] bg-rose-100 px-1.5 py-0.5 rounded">Purchase Account (DR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.purchaseAccountNo || "N/A"}</span></div>
+                        <div className="font-bold text-slate-900 mb-3 truncate text-[10px]" title={form.purchaseAccountName}>{form.purchaseAccountName || "N/A"}</div>
                         
-                        <div className="flex justify-between mb-1 border-t border-slate-200 pt-2"><span className="font-bold text-slate-800 uppercase text-[8px]">Sales Account (CR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.salesAccountNo || "N/A"}</span></div>
-                        <div className="font-semibold text-slate-900 mb-2 truncate" title={form.salesAccountName}>{form.salesAccountName || "N/A"}</div>
+                        <div className="flex justify-between items-center mb-1 border-t border-slate-200 pt-3"><span className="font-bold text-emerald-700 uppercase text-[8px] bg-emerald-100 px-1.5 py-0.5 rounded">Sales Account (CR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.salesAccountNo || "N/A"}</span></div>
+                        <div className="font-bold text-slate-900 mb-2 truncate text-[10px]" title={form.salesAccountName}>{form.salesAccountName || "N/A"}</div>
                         
-                        <div className="border-t border-slate-200 pt-2 mt-2 space-y-1">
-                          <div className="flex justify-between"><span className="text-slate-500">Transfer Date:</span> <span className="font-bold text-slate-900">{form.purchaseDate}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-500">Transferred To:</span> <span className="font-bold text-emerald-600 uppercase">Purchase Transfer Payment</span></div>
+                        <div className="border-t border-slate-200 pt-3 mt-3 space-y-1.5">
+                          <div className="flex justify-between items-center"><span className="text-slate-500 font-bold uppercase text-[8px]">Transfer Date:</span> <span className="font-bold text-slate-900 font-mono">{form.purchaseDate}</span></div>
+                          <div className="flex justify-between items-center"><span className="text-slate-500 font-bold uppercase text-[8px]">Transferred To:</span> <span className="font-black text-blue-600 uppercase">Purchase Accounts</span></div>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                  
+                  {/* User Info */}
+                  <div>
+                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">User & Session Information</h4>
+                    <div className="bg-slate-50 border border-slate-200 rounded p-3 space-y-2 text-[9px]">
+                      <div className="flex justify-between"><span className="text-slate-500 font-bold uppercase text-[8px]">User ID:</span> <span className="font-semibold text-slate-900 font-mono">{form.userId || "USR-1001"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500 font-bold uppercase text-[8px]">User Name:</span> <span className="font-bold text-slate-900 uppercase">{form.userName || "ADMIN"}</span></div>
+                      <div className="flex justify-between border-t border-slate-200 pt-1.5 mt-0.5"><span className="text-slate-500 font-bold uppercase text-[8px]">Team Name:</span> <span className="font-semibold text-slate-900">Logistics & Operations</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500 font-bold uppercase text-[8px]">Team Code:</span> <span className="font-semibold text-slate-900 font-mono">TR-LOG</span></div>
                     </div>
                   </div>
 
                   {/* Remarks Input */}
                   <div>
-                        <span className="text-slate-500 block mb-1">Remarks (Report):</span>
-                        <textarea 
-                          value={form.orderReportRemarks} 
-                          onChange={(e) => handleTextChange("orderReportRemarks", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-900 outline-none focus:border-blue-500 resize-none h-16 text-[9px]"
-                          placeholder="Type remarks..."
-                        />
-                      </div>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 block border-b border-slate-100 pb-1">Remarks (Report)</span>
+                    <textarea 
+                      value={form.orderReportRemarks} 
+                      onChange={(e) => handleTextChange("orderReportRemarks", e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-900 outline-none focus:border-blue-500 resize-none h-20 text-[9px] font-semibold"
+                      placeholder="Type verification or audit remarks here..."
+                    />
+                  </div>
                   
                   {/* Saved Reports */}
                   {reportsList.length > 0 && (
@@ -4646,7 +4842,7 @@ export function PurchaseOrderWizard() {
                                 <Trash2 className="h-3 w-3" />
                               </button>
                             </div>
-                            {report.description && <p className="text-slate-600 mb-1">{report.description}</p>}
+                            {report.description && <p className="text-slate-600 mb-1 font-semibold">{report.description}</p>}
                             <p className="text-slate-500 font-mono text-[8px]">{new Date(report.createdAt).toLocaleString()}</p>
                           </div>
                         ))}
@@ -4672,8 +4868,169 @@ export function PurchaseOrderWizard() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-8 bg-slate-100/50 flex justify-center custom-scrollbar">
-              <div className="w-[210mm] min-h-[297mm] bg-white shadow-xl border border-slate-200 p-8 transform scale-[0.9] origin-top">
-                <div className="text-center font-bold text-slate-400 mt-20">Preview functionality not fully implemented.</div>
+              <div className="w-[210mm] min-h-[297mm] bg-white shadow-xl border border-slate-200 p-8 transform scale-[0.9] origin-top print:scale-100 print:shadow-none print:m-0 print:border-none print:p-0">
+                
+                {/* Header */}
+                <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
+                  <h1 className="text-2xl font-black uppercase text-slate-900 tracking-widest">Purchase Booking Order</h1>
+                  <div className="flex justify-between items-end mt-4 text-xs font-bold text-slate-700">
+                    <div className="text-left">
+                      <p>Booking Date: {form.purchaseDate}</p>
+                      <p>Branch: {form.branchName} ({form.branchCode})</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-slate-900">PO No: {form.purchaseOrderNo}</p>
+                      <p>Contract No: {form.purchaseContractNo || "N/A"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Account Info */}
+                <div className="grid grid-cols-2 gap-4 mb-6 text-[10px]">
+                  <div className="border border-slate-300 p-3 rounded">
+                    <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800">Purchase Account (DR)</h3>
+                    <div className="grid grid-cols-[80px_1fr] gap-1">
+                      <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.purchaseAccountNo || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.purchaseAccountName || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.purchaseCompanyName || "N/A"}</span>
+                    </div>
+                  </div>
+                  <div className="border border-slate-300 p-3 rounded">
+                    <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800">Sales Account (CR)</h3>
+                    <div className="grid grid-cols-[80px_1fr] gap-1">
+                      <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.salesAccountNo || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.salesAccountName || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.salesCompanyName || "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Goods Table */}
+                <div className="mb-6">
+                  <h3 className="font-black text-xs border-b-2 border-slate-400 pb-1 mb-2 uppercase text-slate-800">Goods Details</h3>
+                  <table className="w-full text-[9px] border-collapse border border-slate-300">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-300">
+                        <th className="border-r border-slate-300 p-1.5 text-left">#</th>
+                        <th className="border-r border-slate-300 p-1.5 text-left">Goods Name</th>
+                        <th className="border-r border-slate-300 p-1.5 text-center">HS Code</th>
+                        <th className="border-r border-slate-300 p-1.5 text-center">Origin</th>
+                        <th className="border-r border-slate-300 p-1.5 text-right">Qty</th>
+                        <th className="border-r border-slate-300 p-1.5 text-center">Unit</th>
+                        <th className="border-r border-slate-300 p-1.5 text-right">Price</th>
+                        <th className="border-r border-slate-300 p-1.5 text-center">Ex. Rate</th>
+                        <th className="p-1.5 text-right">Amount ({form.currencyType || "USD"})</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {goodsEntries.length === 0 ? (
+                        <tr><td colSpan={9} className="p-3 text-center italic text-slate-500">No goods entries.</td></tr>
+                      ) : (
+                        goodsEntries.map((g, i) => (
+                          <tr key={i} className="border-b border-slate-200">
+                            <td className="border-r border-slate-200 p-1.5 text-center">{i + 1}</td>
+                            <td className="border-r border-slate-200 p-1.5 font-bold">{g.goodsName} {g.brand ? `(${g.brand})` : ""}</td>
+                            <td className="border-r border-slate-200 p-1.5 text-center">{g.hsCode}</td>
+                            <td className="border-r border-slate-200 p-1.5 text-center">{g.origin}</td>
+                            <td className="border-r border-slate-200 p-1.5 text-right font-bold">{g.qtyNo.toLocaleString()}</td>
+                            <td className="border-r border-slate-200 p-1.5 text-center">{g.qtyName}</td>
+                            <td className="border-r border-slate-200 p-1.5 text-right">{g.coursePrice}</td>
+                            <td className="border-r border-slate-200 p-1.5 text-center">{g.exchangeRate}</td>
+                            <td className="p-1.5 text-right font-bold">{g.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-50 border-t-2 border-slate-400 font-bold">
+                        <td colSpan={4} className="p-1.5 text-right">Total:</td>
+                        <td className="border-r border-slate-200 p-1.5 text-right">{reportTotals.totalQty.toLocaleString()}</td>
+                        <td colSpan={3} className="border-r border-slate-200 p-1.5 text-right text-[8px] text-slate-500 uppercase">Grand Total:</td>
+                        <td className="p-1.5 text-right">{form.currencyType || "USD"} {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Loading Details */}
+                <div className="mb-4 border border-slate-300 rounded p-3 text-[10px]">
+                  <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800">Loading & Transit Report</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-[100px_1fr] gap-1">
+                      <span className="text-slate-500 font-semibold">Shipping Mode:</span><span className="font-bold">{form.shippingMode || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Origin Country:</span><span className="font-bold">{form.origin || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Loading Port/Border:</span><span className="font-bold">{form.loadingPort || form.loadingBorder || form.airportName || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Loading Date:</span><span className="font-bold">{form.loadingDate || "N/A"}</span>
+                    </div>
+                    <div className="grid grid-cols-[100px_1fr] gap-1">
+                      <span className="text-slate-500 font-semibold">Transit Country:</span><span className="font-bold">{form.transitCountry || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Destination Country:</span><span className="font-bold">{form.receivedCountry || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Received Port/Border:</span><span className="font-bold">{form.receivedPort || form.receivedBorder || form.receivedPortName || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Received Date:</span><span className="font-bold">{form.receivedDate || "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Condition */}
+                <div className="mb-4 border border-slate-300 rounded p-3 text-[10px]">
+                  <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800">Payment Conditions Report</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-[120px_1fr] gap-1">
+                      <span className="text-slate-500 font-semibold">Payment Term:</span><span className="font-bold">{form.paymentType || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Advance (%):</span><span className="font-bold">{form.advancePercent || 0}%</span>
+                      <span className="text-slate-500 font-semibold">Advance Payment Date:</span><span className="font-bold">{form.advancePaymentDate || "N/A"}</span>
+                    </div>
+                    <div className="grid grid-cols-[120px_1fr] gap-1">
+                      <span className="text-slate-500 font-semibold">Invoice Terms:</span><span className="font-bold">{form.invoicePayment || "N/A"}</span>
+                      <span className="text-slate-500 font-semibold">Remaining (%):</span><span className="font-bold">{100 - (form.advancePercent || 0)}%</span>
+                      <span className="text-slate-500 font-semibold">Final Payment Date:</span><span className="font-bold">{form.paymentDate || "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Remarks & Narration */}
+                {form.remarks && (
+                  <div className="mb-4 border border-slate-300 rounded p-3 text-[10px]">
+                    <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800">Remarks & Narration</h3>
+                    <p className="whitespace-pre-wrap font-medium text-slate-800">{form.remarks}</p>
+                  </div>
+                )}
+
+                {/* User Remarks (Report) */}
+                {form.orderReportRemarks && (
+                  <div className="mb-4 border border-slate-300 rounded p-3 text-[10px]">
+                    <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800">User Remarks (Report)</h3>
+                    <p className="whitespace-pre-wrap font-medium text-slate-800">{form.orderReportRemarks}</p>
+                  </div>
+                )}
+
+                {/* Dynamic Reports */}
+                {reportsList.length > 0 && (
+                  <div className="mb-4 border border-slate-300 rounded p-3 text-[10px]">
+                    <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800">Dynamic Reports & Notes</h3>
+                    <div className="space-y-3">
+                      {reportsList.map((r, i) => (
+                        <div key={r.id}>
+                          <h4 className="font-bold text-slate-900 underline underline-offset-2 mb-1">{r.name}</h4>
+                          <p className="whitespace-pre-wrap text-slate-800">{r.notes || r.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Signatures */}
+                <div className="mt-16 grid grid-cols-3 gap-8 text-center text-[10px] font-bold">
+                  <div>
+                    <div className="border-t border-slate-400 pt-1">Prepared By</div>
+                  </div>
+                  <div>
+                    <div className="border-t border-slate-400 pt-1">Checked By</div>
+                  </div>
+                  <div>
+                    <div className="border-t border-slate-400 pt-1">Authorized Signatory</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -5202,6 +5559,101 @@ export function PurchaseOrderWizard() {
         </div>
       )}
         </>
+      )}
+
+      {/* ── TRANSFER CONFIRMATION MODAL ──────────────────────────────────────── */}
+      {transferConfirmModal && (
+        <div className="fixed inset-0 z-[150] grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-lg animate-in zoom-in-95 duration-200">
+            <div className="bg-blue-900 text-white p-4 flex items-center justify-between border-b border-blue-800">
+              <h2 className="font-black tracking-wider uppercase text-sm flex items-center gap-2">
+                <FileSignature className="h-4 w-4 text-blue-300" /> Business Ledger Posting
+              </h2>
+              <button type="button" onClick={() => setTransferConfirmModal(false)} className="text-blue-300 hover:text-white transition">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-5 text-xs text-slate-800 bg-slate-50/50">
+              <div className="flex items-start gap-3 bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100">
+                <CheckSquare className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
+                <p className="font-semibold leading-relaxed">
+                  You are about to transfer this purchase order to the Business Cash Entry Ledger. Please verify the automated Double-Entry accounting mapping below:
+                </p>
+              </div>
+              
+              <div className="grid gap-3">
+                {/* DR Box */}
+                <div className="border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm relative">
+                  <div className="absolute top-0 right-0 bg-red-100 text-red-700 font-black px-2 py-1 text-[9px] rounded-bl border-b border-l border-red-200 uppercase">
+                    DR (Debit)
+                  </div>
+                  <div className="p-3">
+                    <span className="text-slate-500 font-bold block mb-1 uppercase text-[9px] tracking-wider">Purchase Account</span>
+                    <div className="flex justify-between items-end border-b border-slate-100 pb-2 mb-2 mt-2">
+                      <div className="font-black text-sm text-slate-900">{form.purchaseAccountName || "N/A"}</div>
+                      <div className="font-mono text-slate-500">{form.purchaseAccountNo || "N/A"}</div>
+                    </div>
+                    <div className="flex justify-between items-center text-red-700">
+                      <span className="font-semibold text-slate-600">Debit Amount:</span>
+                      <span className="font-black text-sm">
+                        {form.currencyType || "USD"} {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CR Box */}
+                <div className="border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm relative">
+                  <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-700 font-black px-2 py-1 text-[9px] rounded-bl border-b border-l border-emerald-200 uppercase">
+                    CR (Credit)
+                  </div>
+                  <div className="p-3">
+                    <span className="text-slate-500 font-bold block mb-1 uppercase text-[9px] tracking-wider">Sales Account</span>
+                    <div className="flex justify-between items-end border-b border-slate-100 pb-2 mb-2 mt-2">
+                      <div className="font-black text-sm text-slate-900">{form.salesAccountName || "N/A"}</div>
+                      <div className="font-mono text-slate-500">{form.salesAccountNo || "N/A"}</div>
+                    </div>
+                    <div className="flex justify-between items-center text-emerald-700">
+                      <span className="font-semibold text-slate-600">Credit Amount:</span>
+                      <span className="font-black text-sm">
+                        {form.currencyType || "USD"} {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border border-slate-200 rounded p-2.5 bg-white shadow-sm flex justify-between items-center">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Invoice No</span>
+                  <div className="font-black font-mono text-slate-900">{form.purchaseOrderNo}</div>
+                </div>
+                <div className="border border-slate-200 rounded p-2.5 bg-white shadow-sm flex justify-between items-center">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Base Entry No</span>
+                  <div className="font-black font-mono text-slate-900">{savedOrderNo || "Pending..."}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-slate-100 border-t border-slate-200 p-4 flex justify-end gap-3 rounded-b-xl">
+              <Button type="button" variant="outline" className="font-bold border-slate-300 text-slate-600" onClick={() => setTransferConfirmModal(false)}>
+                Cancel
+              </Button>
+              <Button 
+                type="button"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 shadow-md transition-all uppercase tracking-wider" 
+                disabled={savingOrder}
+                onClick={() => {
+                  setTransferConfirmModal(false);
+                  handleTransfer();
+                }}
+              >
+                {savingOrder ? "Processing..." : "Confirm & Transfer"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
