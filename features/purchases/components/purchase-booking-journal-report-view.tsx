@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createPortal } from "react-dom";
-import { formatNumber } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
@@ -274,11 +273,11 @@ const sampleReports: PurchaseReport[] = [
 ];
 
 function formatMoney(value: unknown) {
-  return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function formatNumber(value: unknown) {
-  return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 function formatDate(value: string | null | undefined) {
@@ -1493,7 +1492,7 @@ export function PurchaseBookingJournalReportView({
               { label: "Product Information", span: 7, cls: "bg-emerald-50 text-emerald-800 border-b-2 border-emerald-300" },
               { label: "Financial Information", span: isSuperAdmin ? 10 : 9, cls: "bg-blue-50 text-blue-800 border-b-2 border-blue-300" },
               { label: "Route & Loading", span: 7, cls: "bg-indigo-50 text-indigo-800 border-b-2 border-indigo-300" },
-              { label: "Status", span: 3, cls: "bg-amber-50 text-amber-800 border-b-2 border-amber-300" },
+              { label: "Status", span: 4, cls: "bg-amber-50 text-amber-800 border-b-2 border-amber-300" },
               { label: "Actions", span: 1, cls: "bg-rose-50 text-rose-800 border-b-2 border-rose-300" },
             ]}
             headers={[
@@ -1727,7 +1726,7 @@ export function PurchaseBookingJournalReportView({
                     {purchaseAmt > 0 ? `${formatMoney(purchaseAmt)}` : "-"}
                   </Td>
                   <Td right className={`font-mono ${getRowColor()} text-[10px]`}>
-                    {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
+                    {exchangeRate > 0 ? exchangeRate.toLocaleString("en-US") : "-"}
                   </Td>
                   <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{localCurrency}</Td>
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
@@ -1778,6 +1777,9 @@ export function PurchaseBookingJournalReportView({
                           setSelectedId(report.id);
                           setIsDrawerOpen(true);
                         }}
+                        isSuperAdmin={isSuperAdmin}
+                        isCountryAdmin={isCountryAdmin}
+                        isBranchAdmin={isBranchAdmin}
                       />
                     </div>
                   </Td>
@@ -2024,7 +2026,7 @@ export function PurchaseBookingJournalReportView({
                             <span className="font-black uppercase tracking-wider text-emerald-700">Transferred By:</span> {selected.form_data.form.transferAudit.userName}
                           </div>
                           <div className="flex items-center gap-1 mb-0.5">
-                            <span className="font-black uppercase tracking-wider text-emerald-700">Date/Time:</span> {new Date(selected.form_data.form.transferAudit.transferDate).toLocaleString()}
+                            <span className="font-black uppercase tracking-wider text-emerald-700">Date/Time:</span> {new Date(selected.form_data.form.transferAudit.transferDate).toLocaleString("en-US")}
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="font-black uppercase tracking-wider text-emerald-700">Transfer ID:</span> <span className="font-mono font-bold text-emerald-900">{selected.form_data.form.transferAudit.transferId}</span>

@@ -2080,7 +2080,9 @@ export function PurchaseOrderWizard() {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch (err) {
-      setSaveMessage(err instanceof Error ? err.message : "Error saving order.");
+      const msg = err instanceof Error ? err.message : "Error saving order.";
+      setSaveMessage(msg);
+      alert(msg); // Ensure the user actually sees the error!
     } finally {
       setSavingOrder(false);
     }
@@ -2112,7 +2114,9 @@ export function PurchaseOrderWizard() {
       // Navigate to the Purchase Transfer Payment / Journal Report page, pre-selecting this order
       router.push(`/dashboard/purchase/purchase-booking-journal-report?purchaseOrderNo=${encodeURIComponent(nextOrderNo)}`);
     } catch (err) {
-      setSaveMessage(err instanceof Error ? err.message : "Error saving order.");
+      const msg = err instanceof Error ? err.message : "Error saving order.";
+      setSaveMessage(msg);
+      alert(msg);
     } finally {
       setSavingOrder(false);
     }
@@ -4638,12 +4642,12 @@ export function PurchaseOrderWizard() {
                           <td className="py-2 px-2 text-center">{g.origin}</td>
                           <td className="py-2 px-2 text-right font-mono">{g.qtyNo} {g.qtyName}</td>
                           <td className="py-2 px-2 text-right font-mono">{g.qtyKgs} KG</td>
-                          <td className="py-2 px-2 text-right font-mono">{g.grossWeight.toLocaleString()} KG</td>
-                          <td className="py-2 px-2 text-right font-mono text-emerald-700 font-bold">{g.netWeight.toLocaleString()} KG</td>
+                          <td className="py-2 px-2 text-right font-mono">{(g.grossWeight || 0).toLocaleString("en-US")} KG</td>
+                          <td className="py-2 px-2 text-right font-mono text-emerald-700 font-bold">{(g.netWeight || 0).toLocaleString("en-US")} KG</td>
                           <td className="py-2 px-2 text-right font-mono">{g.coursePrice.toFixed(2)}</td>
-                          <td className="py-2 px-2 text-right font-mono">{(g.totalAmount || 0).toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right font-mono">{(g.totalAmount || 0).toLocaleString("en-US")}</td>
                           <td className="py-2 px-2 text-center font-mono">{g.exchangeRate}</td>
-                          <td className="py-2 px-2 text-right font-mono text-emerald-700 font-bold">{(g.finalAmount || 0).toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right font-mono text-emerald-700 font-bold">{(g.finalAmount || 0).toLocaleString("en-US")}</td>
                         </tr>
                       ))}
                       {goodsEntries.length === 0 && (
@@ -4657,12 +4661,12 @@ export function PurchaseOrderWizard() {
                         <td colSpan={5} className="py-2 px-2 text-right text-slate-500 font-bold uppercase">Totals:</td>
                         <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">{reportTotals.totalQty} {goodsEntries[0]?.qtyName || "BOXES"}</td>
                         <td className="py-2 px-2"></td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">{reportTotals.totalGross.toLocaleString()} KG</td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{reportTotals.totalNet.toLocaleString()} KG</td>
+                        <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">{(reportTotals?.totalGross || 0).toLocaleString("en-US")} KG</td>
+                        <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{(reportTotals?.totalNet || 0).toLocaleString("en-US")} KG</td>
                         <td className="py-2 px-2"></td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-blue-700">{(reportTotals?.grandPrimaryFinal || 0).toLocaleString()}</td>
+                        <td className="py-2 px-2 text-right font-mono font-bold text-blue-700">{(reportTotals?.grandPrimaryFinal || 0).toLocaleString("en-US")}</td>
                         <td className="py-2 px-2"></td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{form.purchaseCurrency} {(reportTotals?.grandFinal || 0).toLocaleString()}</td>
+                        <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{form.purchaseCurrency} {(reportTotals?.grandFinal || 0).toLocaleString("en-US")}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -4678,9 +4682,9 @@ export function PurchaseOrderWizard() {
                       <div className="space-y-1.5 text-[9px]">
                         <div className="flex justify-between"><span className="text-slate-500">Payment Term:</span> <span className="font-semibold text-slate-900">{form.paymentType || "Advance Payment"}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Advance Percent / Date:</span> <span className="font-semibold text-slate-900">{form.advancePercent}% / {form.advancePaymentDate}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Advance Amount:</span> <span className="font-semibold text-slate-900">{form.purchaseCurrency} {((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100).toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Advance Amount:</span> <span className="font-semibold text-slate-900">{form.purchaseCurrency} {((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100).toLocaleString("en-US")}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Remaining Balance / Date:</span> <span className="font-semibold text-slate-900">{100 - (form.advancePercent || 0)}% / {form.paymentDate}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Remaining Amount:</span> <span className="font-semibold text-rose-600">{form.purchaseCurrency} {((reportTotals?.grandFinal || 0) - ((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100)).toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Remaining Amount:</span> <span className="font-semibold text-rose-600">{form.purchaseCurrency} {((reportTotals?.grandFinal || 0) - ((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100)).toLocaleString("en-US")}</span></div>
                         <div className="flex justify-between items-center"><span className="text-slate-500">Payment Status:</span> <span className="bg-rose-500 text-white text-[8px] px-1.5 py-0.5 rounded font-black uppercase">PENDING</span></div>
                       </div>
                     </div>
@@ -4692,12 +4696,12 @@ export function PurchaseOrderWizard() {
                       <div className="space-y-1.5 text-[9px]">
                         <div className="flex justify-between"><span className="text-slate-500">Journal Entry Number:</span> <span className="font-semibold text-slate-900">Pending Posting</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Debit Account (Purchase):</span> <span className="font-semibold text-slate-900 truncate max-w-[120px]" title={form.purchaseAccountNo}>{form.purchaseAccountNo || "N/A"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Debit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString()} {form.purchaseCurrency}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Debit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString("en-US")} {form.purchaseCurrency}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Credit Account (Sales):</span> <span className="font-semibold text-slate-900 truncate max-w-[120px]" title={form.salesAccountNo}>{form.salesAccountNo || "N/A"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Credit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString()} {form.purchaseCurrency}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Credit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString("en-US")} {form.purchaseCurrency}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Total Quantity:</span> <span className="font-semibold text-slate-900">{reportTotals?.totalQty || 0} {goodsEntries[0]?.qtyName || "BOXES"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Net Weight:</span> <span className="font-semibold text-slate-900">{(reportTotals?.totalNet || 0).toLocaleString()} Kg</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Gross Weight:</span> <span className="font-semibold text-slate-900">{(reportTotals?.totalGross || 0).toLocaleString()} Kg</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Net Weight:</span> <span className="font-semibold text-slate-900">{(reportTotals?.totalNet || 0).toLocaleString("en-US")} Kg</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Gross Weight:</span> <span className="font-semibold text-slate-900">{(reportTotals?.totalGross || 0).toLocaleString("en-US")} Kg</span></div>
                       </div>
                     </div>
                   </div>
@@ -4720,7 +4724,7 @@ export function PurchaseOrderWizard() {
                             <div key={report.id} className="border border-slate-200 rounded p-3 bg-slate-50">
                               <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
                                 <span className="font-bold text-slate-800 text-[10px]">Note #{idx + 1}: {report.name}</span>
-                                <span className="text-slate-500 font-mono">{new Date(report.createdAt).toLocaleString()}</span>
+                                <span className="text-slate-500 font-mono">{formatShortDate(report.createdAt)}</span>
                               </div>
                               <p className="font-semibold text-slate-900 whitespace-pre-wrap">{report.description}</p>
                             </div>
@@ -4862,7 +4866,7 @@ export function PurchaseOrderWizard() {
                               </button>
                             </div>
                             {report.description && <p className="text-slate-600 mb-1 font-semibold">{report.description}</p>}
-                            <p className="text-slate-500 font-mono text-[8px]">{new Date(report.createdAt).toLocaleString()}</p>
+                            <p className="text-slate-500 font-mono text-[8px]">{formatShortDate(report.createdAt)}</p>
                           </div>
                         ))}
                       </div>
