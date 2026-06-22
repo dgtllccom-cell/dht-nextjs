@@ -475,6 +475,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   }, [branch, branchType, cityBranches, mainBranches, selectedCountry]);
 
   const branchCode = branchInfo?.code ?? "";
+  const isEditMode = Boolean(initialAccountId);
   const accountPreview = lastCreated?.accountNumber || accountCode || (branchCode ? "AUTO" : "");
   const readyToSave = Boolean(country && branchType && branch && accountTitle && subType && category && accountName);
   const saved = message.startsWith("Saved");
@@ -482,8 +483,11 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   useEffect(() => {
     if (!branchCode || branchCode === lastBranchCode) return;
     setLastBranchCode(branchCode);
-    setAccountCode("");
-  }, [branchCode, lastBranchCode]);
+    // In edit mode, do NOT reset the loaded account code when branch info resolves
+    if (!initialAccountId) {
+      setAccountCode("");
+    }
+  }, [branchCode, lastBranchCode, initialAccountId]);
 
   function handleCountryChange(value: string) {
     setCountry(value); setBranchType(""); setBranch(""); setLastBranchCode(""); setAccountCode(""); setLastCreated(null); setMessage("");
@@ -517,7 +521,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           customerId: linkedCustomerId,
           companyId: linkedCompanyId,
           bankId: linkedBankId,
-          code: accountCode,
+          code: accountCode || undefined,  // omit code if empty so PATCH doesn't fail min(2) validation
           manualReferenceNumber: manualReferenceNumber.trim() || null,
           name: accountName.trim(),
           kind: category === "Sales" || category === "Revenue" ? "income" : category === "Expenses" ? "expense" : "asset",

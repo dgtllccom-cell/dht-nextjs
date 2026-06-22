@@ -126,9 +126,47 @@ export async function handleApiError(error: unknown) {
 
   if (error instanceof ZodError) {
     code = "VALIDATION_ERROR";
-    message = "Request validation failed";
+    const issues = error.errors.map(err => {
+      const path = err.path.join(".");
+      
+      // Map path names to friendly names
+      let fieldName = path;
+      if (path === "currencyType" || path === "currency") fieldName = "Currency Type";
+      else if (path === "finalAmount" || path === "amount") fieldName = "Final Amount";
+      else if (path === "accountCode" || path === "code") fieldName = "Account Code";
+      else if (path === "exchangeRate") fieldName = "Exchange Rate";
+      else if (path === "roznamchaNo" || path === "journalNo" || path === "voucherNo") fieldName = "Roznamcha Number";
+      else if (path === "scope" || path === "ledgerScope") fieldName = "Account Scope";
+      else {
+        // Fallback friendly formatting: split camelCase and capitalize
+        fieldName = path
+          .replace(/([A-Z])/g, " $1")
+          .replace(/_/g, " ")
+          .replace(/^\w/, (c) => c.toUpperCase())
+          .trim();
+      }
+
+      const errMsg = err.message.toLowerCase();
+      if (errMsg === "required" || errMsg.includes("required") || (err.code === "invalid_type" && err.received === "undefined")) {
+        return `${fieldName} is required`;
+      } else if (err.code === "too_small" && "minimum" in err) {
+        return `${fieldName} is too short (minimum ${(err as any).minimum} characters)`;
+      } else if (err.code === "too_big" && "maximum" in err) {
+        return `${fieldName} is too long (maximum ${(err as any).maximum} characters)`;
+      } else if (errMsg.includes("invalid") || errMsg.includes("must contain")) {
+        return `${fieldName} format is invalid: ${err.message}`;
+      } else if (errMsg.includes("scope")) {
+        return `${fieldName} mismatch`;
+      }
+      
+      return `${fieldName}: ${err.message}`;
+    });
+    message = `Request validation failed: ${issues.join("; ")}`;
     status = 422;
     details = error.flatten();
+
+    // Log the complete Zod validation failure details to the server console
+    console.error("Zod Validation Failure Payload:", JSON.stringify(error.errors, null, 2));
   } else if (error instanceof ErpAuthError) {
     code = "AUTH_REQUIRED";
     message = error.message;
@@ -145,6 +183,11 @@ export async function handleApiError(error: unknown) {
     code = "ROZNAMCHA_VALIDATION_ERROR";
     message = error.message;
     status = 422;
+  }
+
+  // Normalize scope and ledger mismatches to user-friendly messages
+  if (message.includes("financial scope") || message.includes("Ledger belongs to a different")) {
+    message = "Account Scope mismatch";
   }
 
   const { isSuperAdmin } = await logApiErrorForSuperAdmin(code, message, details);

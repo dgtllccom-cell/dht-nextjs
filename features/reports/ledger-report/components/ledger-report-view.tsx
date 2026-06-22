@@ -487,11 +487,22 @@ export function LedgerReportView({
     }
   }
 
-  // Auto-load when ledger changes (keeps UX fast, still allows Apply/Reset in filters panel).
   useEffect(() => {
     if (!ledgerId) return;
     applyReport().catch(() => null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const handleSaved = () => {
+      if (ledgerId) {
+        applyReport().catch(() => null);
+      }
+    };
+
+    window.addEventListener("erp:posting-saved", handleSaved);
+    window.addEventListener("erp:posting-deleted", handleSaved);
+    return () => {
+      window.removeEventListener("erp:posting-saved", handleSaved);
+      window.removeEventListener("erp:posting-deleted", handleSaved);
+    };
   }, [ledgerId]);
 
   const balanceTone = displayTotals?.balance

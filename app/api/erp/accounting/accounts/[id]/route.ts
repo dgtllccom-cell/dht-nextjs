@@ -16,7 +16,10 @@ function isUuid(value: string | null | undefined) {
 const updateSchema = scopeSchema.extend({
   scope: ledgerScopeSchema.optional(),
   parentId: optionalUuidSchema,
-  code: z.string().trim().min(2).max(50).optional(),
+  code: z.preprocess(
+    (val) => (val === "" || val === undefined || val === null || (typeof val === "string" && val.trim().toUpperCase() === "AUTO") ? undefined : val),
+    z.string().trim().min(2).max(50).optional()
+  ),
   manualReferenceNumber: z.string().trim().min(1).max(120).optional().nullable(),
   name: z.string().trim().min(2).max(200).optional(),
   kind: z.enum(["asset", "liability", "equity", "income", "expense"]).optional(),

@@ -1252,27 +1252,35 @@ export function PurchaseOrderWizard() {
     return dbReceivedPorts.filter(p => p.transport_type === "air" && (!form.receivedCountry || !p.country?.name || p.country?.name === form.receivedCountry));
   }, [dbReceivedPorts, form.receivedCountry]);
 
-  const selectedDbGood = useMemo(() => dbGoods.find(g => g.goods_name === form.goodsName || g.goodsName === form.goodsName), [dbGoods, form.goodsName]);
+  const selectedDbGood = useMemo(() => {
+    if (!form.goodsName) return undefined;
+    const searchName = form.goodsName.trim().toUpperCase();
+    return dbGoods.find(g => 
+      (g.goods_name || g.goodsName || "").trim().toUpperCase() === searchName
+    );
+  }, [dbGoods, form.goodsName]);
+
   const availableSizes = useMemo(() => {
     const variations = selectedDbGood?.variations || selectedDbGood?.goods_variations || [];
     let filtered = variations;
     if (form.origin) {
       const originCountry = transitCountryOptions.find(c => c.name === form.origin);
       const originCountryId = originCountry?.id || null;
-      if (selectedDbGood?.origin_country_id !== originCountryId) {
+      if (selectedDbGood?.origin_country_id && selectedDbGood.origin_country_id !== originCountryId) {
         filtered = []; // If good origin mismatch, no sizes
       }
     }
     const sizes = [...new Set(filtered.map(v => (v.size || "").trim().toUpperCase()).filter(Boolean))];
     return sizes;
   }, [selectedDbGood, form.origin, transitCountryOptions]);
+
   const availableBrands = useMemo(() => {
     const variations = selectedDbGood?.variations || selectedDbGood?.goods_variations || [];
     let filtered = variations;
     if (form.origin) {
       const originCountry = transitCountryOptions.find(c => c.name === form.origin);
       const originCountryId = originCountry?.id || null;
-      if (selectedDbGood?.origin_country_id !== originCountryId) {
+      if (selectedDbGood?.origin_country_id && selectedDbGood.origin_country_id !== originCountryId) {
         filtered = [];
       }
     }
@@ -1801,8 +1809,10 @@ export function PurchaseOrderWizard() {
     }
   };
   const handleAddGoodsEntry = async () => {
-    // Check if the variation exists in dbGoods and auto-register if missing
-    const selectedGood = dbGoods.find(g => (g.goods_name || g.goodsName) === form.goodsName);
+    const searchName = form.goodsName?.trim().toUpperCase() || "";
+    const selectedGood = dbGoods.find(g => 
+      (g.goods_name || g.goodsName || "").trim().toUpperCase() === searchName
+    );
     if (selectedGood) {
       const originCountry = transitCountryOptions.find(c => c.name === form.origin);
       const originCountryId = originCountry?.id || null;
@@ -2493,12 +2503,21 @@ export function PurchaseOrderWizard() {
       setSavingOrder(true);
       setSaveMessage(`Creating new Good "${searchName}" in master...`);
       try {
+        let baseCode = searchName.substring(0, 10).trim();
+        let finalCode = baseCode;
+        let suffix = 1;
+        while (dbGoods.some(g => (g.chs_code || g.chsCode || "").trim().toUpperCase() === finalCode.toUpperCase())) {
+          const suffixStr = `-${suffix}`;
+          finalCode = `${baseCode.substring(0, 10 - suffixStr.length)}${suffixStr}`;
+          suffix++;
+        }
+
         const createRes = await fetch("/api/erp/goods", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             goodsName: searchName,
-            chsCode: searchName.substring(0, 10), // Required fallback
+            chsCode: finalCode,
             originalLanguage: "en",
             initialVariation: {
               size: size.trim().toUpperCase(),

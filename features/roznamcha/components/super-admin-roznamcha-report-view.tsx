@@ -669,7 +669,17 @@ export function SuperAdminRoznamchaReportView({
 
   useEffect(() => {
     void loadReport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const handleSaved = () => {
+      void loadReport();
+    };
+
+    window.addEventListener("erp:posting-saved", handleSaved);
+    window.addEventListener("erp:posting-deleted", handleSaved);
+    return () => {
+      window.removeEventListener("erp:posting-saved", handleSaved);
+      window.removeEventListener("erp:posting-deleted", handleSaved);
+    };
   }, []);
 
   const scopedRows = useMemo(() => {

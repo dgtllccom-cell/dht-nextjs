@@ -613,9 +613,6 @@ export async function POST(request: NextRequest) {
     } catch (fsErr) {
       console.error("Failed to write error to file:", fsErr);
     }
-    return new Response(JSON.stringify({ ok: false, error: error?.message || "Validation Error" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" }
-    });
+    return handleApiError(error);
   }
 }

@@ -71,7 +71,7 @@ const ledgerPostingLineCoreSchema = z.object({
   accountId: uuidSchema.optional().nullable(),
   enterpriseAccountId: uuidSchema.optional().nullable(),
   ledgerId: uuidSchema.optional().nullable(),
-  description: z.string().max(1000).optional(),
+  description: z.string().max(5000).optional(),
   debit: moneySchema,
   credit: moneySchema,
   currency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
@@ -135,7 +135,7 @@ export const roznamchaPostingSchema = scopeSchema
     voucherNo: z.string().min(1).max(120),
     paymentMethodId: optionalUuidSchema,
     referenceNo: z.string().max(120).optional(),
-    narration: z.string().max(1000).optional(),
+    narration: z.string().max(5000).optional(),
     lines: z.array(roznamchaLineSchema).min(1),
     paymentDetails: z.record(z.string(), z.unknown()).optional().nullable()
   })

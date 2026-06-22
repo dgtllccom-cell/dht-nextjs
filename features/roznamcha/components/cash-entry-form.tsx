@@ -450,11 +450,16 @@ export function CashEntryForm({
     branchCurrency;
 
   const allowedCurrencies = useMemo(() => {
-    const list = [branchCurrency]
+    const list = [
+      branchCurrency,
+      targetAccountCurrency,
+      // Support multi-currency operations across the ERP
+      "USD", "AED", "PKR", "AFN", "INR", "IRR"
+    ]
       .map((v) => (v ?? "").toString().trim().toUpperCase())
       .filter(Boolean);
     return new Set(list);
-  }, [branchCurrency]);
+  }, [branchCurrency, targetAccountCurrency]);
 
   const normalizedCurrency = currency.trim().toUpperCase();
   const isLocalCurrency = normalizedCurrency === targetAccountCurrency.toUpperCase();

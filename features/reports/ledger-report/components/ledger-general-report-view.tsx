@@ -394,7 +394,17 @@ export function LedgerReportView({
 
   useEffect(() => {
     void loadReport(initialLedgerId ?? ledgerId, accountSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const handleSaved = () => {
+      void loadReport(initialLedgerId ?? ledgerId, accountSearch);
+    };
+
+    window.addEventListener("erp:posting-saved", handleSaved);
+    window.addEventListener("erp:posting-deleted", handleSaved);
+    return () => {
+      window.removeEventListener("erp:posting-saved", handleSaved);
+      window.removeEventListener("erp:posting-deleted", handleSaved);
+    };
   }, []);
 
   const displayRows = useMemo(() => {

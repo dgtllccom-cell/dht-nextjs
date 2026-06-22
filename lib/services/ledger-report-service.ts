@@ -136,15 +136,19 @@ async function loadTranslations(input: {
 function applySessionScopeFilter(query: any, session: ErpSession) {
   if (session.isSuperAdmin) return query;
 
-  // Strictest scope first.
-  if (session.cityBranchIds.length) {
-    return query.in("city_branch_id", session.cityBranchIds);
+  const conditions: string[] = [];
+  if (session.cityBranchIds && session.cityBranchIds.length > 0) {
+    conditions.push(`city_branch_id.in.(${session.cityBranchIds.join(",")})`);
   }
-  if (session.countryBranchIds.length) {
-    return query.in("country_branch_id", session.countryBranchIds);
+  if (session.countryBranchIds && session.countryBranchIds.length > 0) {
+    conditions.push(`country_branch_id.in.(${session.countryBranchIds.join(",")})`);
   }
-  if (session.countryIds.length) {
-    return query.in("country_id", session.countryIds);
+  if (session.countryIds && session.countryIds.length > 0) {
+    conditions.push(`country_id.in.(${session.countryIds.join(",")})`);
+  }
+
+  if (conditions.length > 0) {
+    return query.or(conditions.join(","));
   }
 
   // No known scope => nothing.

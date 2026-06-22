@@ -293,7 +293,17 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
 
   useEffect(() => {
     void loadReport(fromDate, toDate, search);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const handleSaved = () => {
+      void loadReport(fromDate, toDate, search);
+    };
+
+    window.addEventListener("erp:posting-saved", handleSaved);
+    window.addEventListener("erp:posting-deleted", handleSaved);
+    return () => {
+      window.removeEventListener("erp:posting-saved", handleSaved);
+      window.removeEventListener("erp:posting-deleted", handleSaved);
+    };
   }, [scope, fromDate, toDate]);
 
   const options = useMemo(() => ({

@@ -32,10 +32,22 @@ export async function GET(request: NextRequest) {
     let ledgersQ = admin.from("ledgers").select("id, country_id, country_branch_id, city_branch_id").in("id", ids).is("deleted_at", null);
 
     if (!session.isSuperAdmin) {
-      if (session.cityBranchIds.length) ledgersQ = ledgersQ.in("city_branch_id", session.cityBranchIds);
-      else if (session.countryBranchIds.length) ledgersQ = ledgersQ.in("country_branch_id", session.countryBranchIds);
-      else if (session.countryIds.length) ledgersQ = ledgersQ.in("country_id", session.countryIds);
-      else ledgersQ = ledgersQ.eq("id", "00000000-0000-0000-0000-000000000000");
+      const conditions: string[] = [];
+      if (session.cityBranchIds && session.cityBranchIds.length > 0) {
+        conditions.push(`city_branch_id.in.(${session.cityBranchIds.join(",")})`);
+      }
+      if (session.countryBranchIds && session.countryBranchIds.length > 0) {
+        conditions.push(`country_branch_id.in.(${session.countryBranchIds.join(",")})`);
+      }
+      if (session.countryIds && session.countryIds.length > 0) {
+        conditions.push(`country_id.in.(${session.countryIds.join(",")})`);
+      }
+
+      if (conditions.length > 0) {
+        ledgersQ = ledgersQ.or(conditions.join(","));
+      } else {
+        ledgersQ = ledgersQ.eq("id", "00000000-0000-0000-0000-000000000000");
+      }
     }
 
     const { data: ledgers, error: ledgersErr } = await ledgersQ;

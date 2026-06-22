@@ -54,6 +54,7 @@ const countryAdminPermissions = [
   "journal_entries:post",
   "roznamcha:create",
   "roznamcha:read",
+  "roznamcha:post",
   "transactions:create",
   "transactions:read",
   "purchases:create",

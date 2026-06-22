@@ -138,38 +138,46 @@ export function RoznamchaReportView({
   const [selectedLines, setSelectedLines] = useState<RoznamchaLineRow[]>([]);
   const [selectedTotals, setSelectedTotals] = useState<{ lines: number; debit: number; credit: number } | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const info = await fetchSessionInfo();
-        if (!cancelled) setSessionInfo(info);
+  async function loadData() {
+    setLoading(true);
+    try {
+      const info = await fetchSessionInfo();
+      setSessionInfo(info);
 
-        // Default filters (country/branch) for non-super roles to avoid "empty" screens.
-        if (!info.scopes.isSuperAdmin) {
-          const nextCountry = info.scopes.countryIds[0] ?? "";
-          const nextBranch = info.scopes.cityBranchIds[0] ?? info.scopes.countryBranchIds[0] ?? "";
-          if (!cancelled) {
-            if (nextCountry) setCountryId(nextCountry);
-            if (nextBranch) setBranchId(nextBranch);
-          }
-        }
-
-        const res = await listRoznamchaEntries({
-          countryId: info.scopes.isSuperAdmin ? null : info.scopes.countryIds[0] ?? null,
-          countryBranchId: info.scopes.isSuperAdmin ? null : info.scopes.countryBranchIds[0] ?? null,
-          cityBranchId: info.scopes.isSuperAdmin ? null : info.scopes.cityBranchIds[0] ?? null
-        });
-
-        if (!cancelled) setEntries(res.entries ?? []);
-      } finally {
-        if (!cancelled) setLoading(false);
+      // Default filters (country/branch) for non-super roles to avoid "empty" screens.
+      if (!info.scopes.isSuperAdmin) {
+        const nextCountry = info.scopes.countryIds[0] ?? "";
+        const nextBranch = info.scopes.cityBranchIds[0] ?? info.scopes.countryBranchIds[0] ?? "";
+        if (nextCountry) setCountryId(nextCountry);
+        if (nextBranch) setBranchId(nextBranch);
       }
-    })().catch(() => setLoading(false));
 
+      const res = await listRoznamchaEntries({
+        countryId: info.scopes.isSuperAdmin ? null : info.scopes.countryIds[0] ?? null,
+        countryBranchId: info.scopes.isSuperAdmin ? null : info.scopes.countryBranchIds[0] ?? null,
+        cityBranchId: info.scopes.isSuperAdmin ? null : info.scopes.cityBranchIds[0] ?? null
+      });
+
+      setEntries(res.entries ?? []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadData();
+
+    const handleSaved = () => {
+      void loadData();
+    };
+
+    window.addEventListener("erp:posting-saved", handleSaved);
+    window.addEventListener("erp:posting-deleted", handleSaved);
     return () => {
-      cancelled = true;
+      window.removeEventListener("erp:posting-saved", handleSaved);
+      window.removeEventListener("erp:posting-deleted", handleSaved);
     };
   }, []);
 

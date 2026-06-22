@@ -254,14 +254,20 @@ export async function GET(request: NextRequest) {
       .is("deleted_at", null)
       .order("code", { ascending: true });
 
-    // Enforce account security boundaries based on user scope
     if (!session.isSuperAdmin) {
-      if (session.cityBranchIds.length > 0) {
-        query = query.in("city_branch_id", session.cityBranchIds);
-      } else if (session.countryBranchIds.length > 0) {
-        query = query.in("country_branch_id", session.countryBranchIds);
-      } else if (session.countryIds.length > 0) {
-        query = query.in("country_id", session.countryIds);
+      const conditions: string[] = [];
+      if (session.cityBranchIds && session.cityBranchIds.length > 0) {
+        conditions.push(`city_branch_id.in.(${session.cityBranchIds.join(",")})`);
+      }
+      if (session.countryBranchIds && session.countryBranchIds.length > 0) {
+        conditions.push(`country_branch_id.in.(${session.countryBranchIds.join(",")})`);
+      }
+      if (session.countryIds && session.countryIds.length > 0) {
+        conditions.push(`country_id.in.(${session.countryIds.join(",")})`);
+      }
+
+      if (conditions.length > 0) {
+        query = query.or(conditions.join(","));
       } else {
         query = query.eq("id", "00000000-0000-0000-0000-000000000000");
       }

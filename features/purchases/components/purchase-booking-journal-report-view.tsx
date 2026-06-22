@@ -1060,11 +1060,21 @@ export function PurchaseBookingJournalReportView({
       setSearchText(purchaseOrderNo);
       setFilters(nextFilters);
       void loadReport(nextFilters);
-      return;
+    } else {
+      void loadReport(filters);
     }
-    void loadReport(filters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    const handleSaved = () => {
+      void loadReport(filters);
+    };
+
+    window.addEventListener("erp:posting-saved", handleSaved);
+    window.addEventListener("erp:posting-deleted", handleSaved);
+    return () => {
+      window.removeEventListener("erp:posting-saved", handleSaved);
+      window.removeEventListener("erp:posting-deleted", handleSaved);
+    };
+  }, [filters]);
 
   useEffect(() => {
     if (!refreshKey) return;
