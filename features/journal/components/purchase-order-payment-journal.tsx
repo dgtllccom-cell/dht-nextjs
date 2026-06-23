@@ -29,6 +29,12 @@ import { useRouter } from "next/navigation";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import { SimpleModal } from "@/components/ui/simple-modal";
 import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { openPurchaseA4ReportWindow, type PurchaseReportData } from "@/lib/reports/open-purchase-a4-report-window";
@@ -1239,27 +1245,25 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         <div style={{ minHeight: 320, overflowX: "auto", overflowY: "visible" }}>
           <table style={{ width: "100%", minWidth: "1200px", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 12, color: "#1e293b" }}>
             <colgroup>
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "8%" }} />
               <col style={{ width: "9%" }} />
-              <col style={{ width: "7%" }} />
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "9%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "12%" }} />
               <col style={{ width: "8%" }} />
               <col style={{ width: "11%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "7%" }} />
-              <col style={{ width: "7%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "6%" }} />
+              <col style={{ width: "5%" }} />
             </colgroup>
             <thead>
               <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 2 }}>
                 {[
-                  { label: "PO Number", className: "text-left" },
-                  { label: "Bill No", className: "text-left" },
-                  { label: "Date", className: "text-left" },
-                  { label: "Branch", className: "text-left" },
-                  { label: "Supplier", className: "text-left" },
-                  { label: "Goods", className: "text-left" },
+                  { label: "Order ID", className: "text-left" },
+                  { label: "Bill & Date", className: "text-left" },
+                  { label: "Branch & Country", className: "text-left" },
+                  { label: "Supplier & Accounts", className: "text-left" },
+                  { label: "Goods Details", className: "text-left" },
                   { label: "Weights", className: "text-right" },
                   { label: "Total Price", className: "text-right" },
                   { label: activeMode === "advance" ? "Advance Details" : activeMode === "remaining" ? "Remaining Details" : "Credit Details", className: "text-right" },
@@ -1290,7 +1294,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                 const billNo = form.billNo || "-";
                 const dateStr = date(form.purchaseDate || row.created_at);
-                const countrySerial = form.branchCode || "-";
+                
+                const superSerialNo = row.superAdminSerialNo || form.superAdminSerialNo || "-";
+                const countrySerialNo = row.countrySerialNo || form.countrySerialNo || "-";
+                const branchSerialNo = row.branchSerialNo || form.branchSerialNo || row.audit?.branchCode || form.branchCode || "-";
+                
+                const branchName = row.branchName || form.branchName || "-";
+                const countryName = form.destinationCountry || row.countryName || form.countryName || "-";
 
                 const goodsName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || form.goodsName || "-";
                 const grossWeight = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
@@ -1362,37 +1372,45 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "#f0f9ff"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}
                     >
-                      {/* PO Number */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800">
-                        <span className={cn("font-mono font-bold text-xs bg-blue-50/50 hover:bg-blue-100/70 transition px-2.5 py-1 rounded-lg dark:bg-blue-950/20", getRowColor())}>
-                          {row.purchase_order_no}
-                        </span>
+                      {/* Order ID Serials */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+                        <div className="flex flex-col gap-0.5 font-mono text-[9px] font-bold">
+                          <span className="text-slate-600 dark:text-slate-400">S: {superSerialNo}</span>
+                          <span className="text-blue-600 dark:text-blue-400">C: {countrySerialNo}</span>
+                          <span className="text-emerald-600 dark:text-emerald-400">B: {branchSerialNo}</span>
+                        </div>
                       </td>
-                      {/* Bill No */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 font-mono text-xs", getRowColor())}>
-                        {billNo}
+                      {/* Bill & Date */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-[11px] text-slate-800 dark:text-slate-200">{billNo}</span>
+                          <span className="text-[9px] text-slate-500 mt-0.5 font-medium">{dateStr}</span>
+                        </div>
                       </td>
-                      {/* PO Date */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-xs", getRowColor())}>
-                        {dateStr}
-                      </td>
-                      {/* Branch */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-xs font-mono", getRowColor())}>
-                        {countrySerial}
+                      {/* Branch & Country */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 uppercase">{branchName}</span>
+                          <span className="text-[9px] text-slate-500 mt-0.5 font-medium">{countryName}</span>
+                        </div>
                       </td>
                       {/* Supplier & Accounts */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="font-bold text-xs leading-normal truncate text-slate-900 dark:text-slate-100" title={form.supplierName || form.salesAccountName || "N/A"}>
+                        <div className="font-bold text-[11px] leading-normal truncate text-slate-900 dark:text-slate-100" title={form.supplierName || form.salesAccountName || "N/A"}>
                           {form.supplierName || form.salesAccountName || "N/A"}
                         </div>
                         <div className="mt-1 space-y-0.5">
-                          <div className="text-[9px] font-semibold text-slate-500 flex items-center gap-1" title={form.purchaseAccountName || "N/A"}><span className="text-blue-500 font-bold">P:</span> <span className="truncate max-w-[120px]">{form.purchaseAccountName || "N/A"}</span></div>
-                          <div className="text-[9px] font-semibold text-slate-500 flex items-center gap-1" title={form.salesAccountName || form.supplierName || "N/A"}><span className="text-emerald-500 font-bold">S:</span> <span className="truncate max-w-[120px]">{form.salesAccountName || form.supplierName || "N/A"}</span></div>
+                          <div className="text-[9px] font-semibold text-slate-500 flex items-center gap-1" title={form.purchaseAccountName || "N/A"}><span className="text-blue-500 font-bold">P:</span> <span className="truncate max-w-[140px]">{form.purchaseAccountName || "N/A"} {form.purchaseAccountNumber ? `(${form.purchaseAccountNumber})` : ""}</span></div>
+                          <div className="text-[9px] font-semibold text-slate-500 flex items-center gap-1" title={form.salesAccountName || form.supplierName || "N/A"}><span className="text-emerald-500 font-bold">S:</span> <span className="truncate max-w-[140px]">{form.salesAccountName || form.supplierName || "N/A"} {form.salesAccountNumber ? `(${form.salesAccountNumber})` : ""}</span></div>
                         </div>
                       </td>
-                      {/* Goods */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-xs leading-normal truncate", getRowColor())} title={goodsName}>
-                        {goodsName}
+                      {/* Goods Details */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+                        <div className="flex flex-col gap-0.5 text-[9px]">
+                          <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 truncate max-w-[120px]" title={goodsName}>{goodsName}</span>
+                          <span className="text-slate-500">Size: <span className="font-medium text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.size || "").filter(Boolean).join(", ") || "-"}</span></span>
+                          <span className="text-slate-500">Brand: <span className="font-medium text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.brand || "").filter(Boolean).join(", ") || "-"}</span></span>
+                        </div>
                       </td>
                       {/* Weights & Qty */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
@@ -1476,36 +1494,27 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       </td>
                       {/* Action */}
                       <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => setViewingRow(row)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
-                            title="View Detailed Bill"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenA4PDF(row, true)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
-                            title="Print Full A4 Bill/Invoice"
-                          >
-                            <Printer className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] }));
-                            }}
-                            className={cn(
-                              "inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm font-bold text-xs",
-                              isExpanded
-                                ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-950/20 dark:text-blue-400"
-                                : "text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
-                            )}
-                            title="Toggle Payment History"
-                          >
-                            {isExpanded ? "➖" : "➕"}
-                          </button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => setViewingRow(row)}>
+                              <Eye className="mr-2 h-4 w-4 text-slate-500" />
+                              <span className="font-semibold text-xs">View Detailed Bill</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenA4PDF(row, true)}>
+                              <Printer className="mr-2 h-4 w-4 text-slate-500" />
+                              <span className="font-semibold text-xs">Print A4 Invoice</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] }))}>
+                              {isExpanded ? <XCircle className="mr-2 h-4 w-4 text-slate-500" /> : <Plus className="mr-2 h-4 w-4 text-slate-500" />}
+                              <span className="font-semibold text-xs">{isExpanded ? "Hide Payment History" : "Show Payment History"}</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                     {isExpanded && (
