@@ -881,13 +881,13 @@ export function PurchaseOrderManagementDashboard() {
   }, [reports, allowedCountryId, isSuperAdmin, session]);
 
   const localCurrencyLabel = useMemo(() => {
-    const c = (lockedCountryName || "").toUpperCase();
+    const c = (lockedCountryName || session?.countryName || "PAKISTAN").toUpperCase();
     if (c.includes("UNITED ARAB") || c === "UAE") return "AED";
     if (c.includes("INDIA") || c === "IN") return "INR";
     if (c.includes("AFGHANISTAN") || c === "AF") return "AFN";
     if (c.includes("PAKISTAN") || c === "PK") return "PKR";
     return "PKR";
-  }, [lockedCountryName]);
+  }, [lockedCountryName, session]);
 
   const lockedBranchName = useMemo(() => {
     if (session?.scopes?.branchNames?.[0]) return session.scopes.branchNames[0];
@@ -1229,7 +1229,7 @@ export function PurchaseOrderManagementDashboard() {
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <div className="flex items-center gap-2">
               <span className="text-slate-400">Branch Name:</span> 
-              <span className="text-slate-800 dark:text-slate-200 font-bold">{lockedBranchName || "QUETTA MAIN BRANCH"}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{lockedBranchName && lockedBranchName !== "QUETTA MAIN BRANCH" && lockedBranchName !== "Quetta" ? lockedBranchName : (session?.branchName && session.branchName !== "QUETTA MAIN BRANCH" && session.branchName !== "Quetta" ? session.branchName : (session?.countryName ? session.countryName + " MAIN BRANCH" : "UNITED ARAB EMIRATES MAIN BRANCH"))}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-slate-400">User Name:</span> 
@@ -1432,7 +1432,11 @@ export function PurchaseOrderManagementDashboard() {
                   const invoicePercent = row.form_data?.form?.advancePercent || row.form_data?.form?.invoicePercent;
                   const payCondition = row.form_data?.form?.paymentType || row.form_data?.form?.paymentCondition || row.paymentStatus || "-";
                   const rowCurrency = row.currency || "USD";
-                  const localCur = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0] || localCurrencyLabel;
+                  let localCur = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0];
+                  // If secondaryCurrency wasn't set or incorrectly set to the primary currency, fallback to localCurrencyLabel
+                  if (!localCur || localCur === rowCurrency) {
+                    localCur = localCurrencyLabel;
+                  }
 
                   // Route
                   const routeRaw = row.form_data?.form?.shippingMode || row.form_data?.form?.shippingType || row.form_data?.form?.shipmentType || "";

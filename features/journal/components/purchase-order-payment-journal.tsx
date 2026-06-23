@@ -1154,11 +1154,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <div className="flex items-center gap-2">
               <span className="text-slate-400">Branch Name:</span> 
-              <span className="text-slate-800 dark:text-slate-200 font-bold">{session?.branchName || "QUETTA MAIN BRANCH"}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{session?.branchName && session.branchName !== "QUETTA MAIN BRANCH" && session.branchName !== "Quetta" ? session.branchName : (session?.countryName ? session.countryName + " MAIN BRANCH" : "UNITED ARAB EMIRATES MAIN BRANCH")}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-slate-400">User Name:</span> 
-              <span className="text-slate-800 dark:text-slate-200 font-bold">{session?.name || session?.username || session?.user?.fullName || "SUPER ADMIN"}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{session?.name || session?.username || session?.user?.fullName || "SUPER ADMIN"}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-slate-400">Date:</span> 
@@ -1172,11 +1172,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </div>
 
         {/* Row 2: Executive Summary (Financials) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 pt-0.5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-1">
           {cards.map((card, i) => (
-            <div key={card.label} className="flex flex-col">
-              <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">{card.label}</span>
-              <span className={cn("font-black text-sm", 
+            <div key={card.label} className="flex flex-col bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl shadow-sm">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">{card.label}</span>
+              <span className={cn("font-black text-lg", 
                 i === 0 ? "text-slate-800 dark:text-slate-200" :
                 i === 1 ? "text-blue-700 dark:text-blue-400" :
                 i === 2 ? "text-emerald-600 dark:text-emerald-450" :
@@ -1380,39 +1380,70 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-xs font-mono", getRowColor())}>
                         {countrySerial}
                       </td>
-                      {/* Supplier */}
+                      {/* Supplier & Accounts */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="font-semibold text-xs leading-normal truncate" title={form.salesAccountName || "N/A"}>
-                          {form.salesAccountName || "N/A"}
+                        <div className="font-bold text-xs leading-normal truncate text-slate-900 dark:text-slate-100" title={form.supplierName || form.salesAccountName || "N/A"}>
+                          {form.supplierName || form.salesAccountName || "N/A"}
+                        </div>
+                        <div className="mt-1 space-y-0.5">
+                          <div className="text-[9px] font-semibold text-slate-500 flex items-center gap-1" title={form.purchaseAccountName || "N/A"}><span className="text-blue-500 font-bold">P:</span> <span className="truncate max-w-[120px]">{form.purchaseAccountName || "N/A"}</span></div>
+                          <div className="text-[9px] font-semibold text-slate-500 flex items-center gap-1" title={form.salesAccountName || form.supplierName || "N/A"}><span className="text-emerald-500 font-bold">S:</span> <span className="truncate max-w-[120px]">{form.salesAccountName || form.supplierName || "N/A"}</span></div>
                         </div>
                       </td>
                       {/* Goods */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-xs leading-normal truncate", getRowColor())} title={goodsName}>
                         {goodsName}
                       </td>
-                      {/* Weights */}
+                      {/* Weights & Qty */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
-                        <div className="font-mono text-[11px]">G: {grossWeight.toLocaleString()}</div>
-                        <div className="text-[9px] opacity-70 font-mono mt-0.5">N: {netWeight.toLocaleString()}</div>
+                        <div className="font-mono font-bold text-[11px] text-slate-800 dark:text-slate-200">Qty: {goods.length ? goods.reduce((s:number,g:any)=>s+Number(g.qtyNo||0),0).toLocaleString() : Number(form.quantity||0).toLocaleString()} {goods[0]?.qtyName || form.unit || ""}</div>
+                        <div className="font-mono text-[10px] text-slate-500 mt-0.5">G: {grossWeight.toLocaleString()}</div>
+                        <div className="font-mono text-[10px] text-slate-500 mt-0.5">N: {netWeight.toLocaleString()}</div>
                       </td>
                       {/* Total Price */}
                       <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right">
-                        {renderDualCurrency(totalAmountBC, totalAmountPKR, row.currency_code ?? "USD", getRowColor())}
+                        <div className={cn("font-mono font-bold text-xs", getRowColor())}>
+                          {money(totalAmountBC, row.currency_code ?? "USD")}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono mt-0.5 font-bold flex flex-col">
+                          <span className="text-[8px] uppercase tracking-wider text-slate-400">Final Amount</span>
+                          <span className="text-emerald-600 dark:text-emerald-450">{money(totalAmountPKR, baseCurrency)}</span>
+                        </div>
                       </td>
                       {/* Advance / Remaining Details */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
                         {activeMode === "advance" ? (
-                          <>
-                            <div className="font-mono text-[11px]" title="Required Advance">
-                              Req: {money(requiredAdvanceBC, row.currency_code ?? "")}
+                          <div className="flex flex-col items-end gap-1 font-mono">
+                            <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-black text-[9px] mb-0.5 inline-block">
+                              ADV: {advancePercent}%
                             </div>
-                            <div className="text-[9px] text-emerald-600 font-mono mt-0.5 font-semibold" title="Paid Advance">
-                              Paid: {money(paidAdvanceBC, row.currency_code ?? "")}
+                            <div className="flex flex-col text-right w-full">
+                              <div className="flex justify-between w-full text-[9px] font-bold">
+                                <span className="text-slate-500 text-[8px] uppercase mr-2">Req:</span>
+                                <div>
+                                  <span className="text-slate-800 dark:text-slate-200">{money(requiredAdvanceBC, row.currency_code ?? "")}</span>
+                                  <br/>
+                                  <span className="text-emerald-600">{money(requiredAdvance, baseCurrency)}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between w-full text-[9px] font-bold mt-1">
+                                <span className="text-slate-500 text-[8px] uppercase mr-2">Paid:</span>
+                                <div>
+                                  <span className="text-slate-800 dark:text-slate-200">{money(paidAdvanceBC, row.currency_code ?? "")}</span>
+                                  <br/>
+                                  <span className="text-emerald-600">{money(paidAdvance, baseCurrency)}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between w-full text-[9px] font-bold mt-1">
+                                <span className="text-slate-500 text-[8px] uppercase mr-2">Rem:</span>
+                                <div>
+                                  <span className="text-rose-600">{money(remainingAdvanceBC, row.currency_code ?? "")}</span>
+                                  <br/>
+                                  <span className="text-rose-500">{money(remainingAdvance, baseCurrency)}</span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-[9px] text-rose-600 font-mono mt-0.5 font-bold" title="Remaining Advance">
-                              Rem: {money(remainingAdvanceBC, row.currency_code ?? "")}
-                            </div>
-                          </>
+                          </div>
                         ) : activeMode === "remaining" ? (
                           <>
                             <div className="font-mono text-[11px]" title="Required Remaining">
