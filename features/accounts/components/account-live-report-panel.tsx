@@ -239,7 +239,7 @@ export function AccountLiveReportPanel({
           
           <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-xl lg:ml-8 text-left">
             <div>
-              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Account Code</div>
+              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Account Code (Auto)</div>
               <div className="text-xs font-bold mt-1 text-slate-700">{accountCode || "AST-001"}</div>
             </div>
             <div>

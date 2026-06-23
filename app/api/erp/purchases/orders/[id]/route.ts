@@ -71,20 +71,23 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     });
 
     const patch: Record<string, unknown> = {};
+    if (body.countryId !== undefined) patch.country_id = body.countryId ?? null;
+    if (body.countryBranchId !== undefined) patch.country_branch_id = body.countryBranchId ?? null;
+    if (body.cityBranchId !== undefined) patch.city_branch_id = body.cityBranchId ?? null;
     if (body.supplierCompanyId !== undefined) patch.supplier_company_id = body.supplierCompanyId ?? null;
     if (body.purchaseContractNo !== undefined) patch.purchase_contract_no = body.purchaseContractNo?.trim() || null;
     if (body.currencyCode !== undefined) patch.currency_code = body.currencyCode;
     if (body.exchangeRate !== undefined) patch.exchange_rate = body.exchangeRate;
     if (body.orderTotal !== undefined) patch.order_total = body.orderTotal;
-    if (body.totalGoodsOriginal !== undefined) patch.total_goods_original = body.totalGoodsOriginal;
-    if (body.totalGoodsLocal !== undefined) patch.total_goods_local = body.totalGoodsLocal;
-    if (body.totalGoodsUsd !== undefined) patch.total_goods_usd = body.totalGoodsUsd;
-    if (body.totalExpensesOriginal !== undefined) patch.total_expenses_original = body.totalExpensesOriginal;
-    if (body.totalExpensesLocal !== undefined) patch.total_expenses_local = body.totalExpensesLocal;
-    if (body.totalExpensesUsd !== undefined) patch.total_expenses_usd = body.totalExpensesUsd;
-    if (body.landedCostOriginal !== undefined) patch.landed_cost_original = body.landedCostOriginal;
-    if (body.landedCostLocal !== undefined) patch.landed_cost_local = body.landedCostLocal;
-    if (body.landedCostUsd !== undefined) patch.landed_cost_usd = body.landedCostUsd;
+    // if (body.totalGoodsOriginal !== undefined) patch.total_goods_original = body.totalGoodsOriginal;
+    // if (body.totalGoodsLocal !== undefined) patch.total_goods_local = body.totalGoodsLocal;
+    // if (body.totalGoodsUsd !== undefined) patch.total_goods_usd = body.totalGoodsUsd;
+    // if (body.totalExpensesOriginal !== undefined) patch.total_expenses_original = body.totalExpensesOriginal;
+    // if (body.totalExpensesLocal !== undefined) patch.total_expenses_local = body.totalExpensesLocal;
+    // if (body.totalExpensesUsd !== undefined) patch.total_expenses_usd = body.totalExpensesUsd;
+    // if (body.landedCostOriginal !== undefined) patch.landed_cost_original = body.landedCostOriginal;
+    // if (body.landedCostLocal !== undefined) patch.landed_cost_local = body.landedCostLocal;
+    // if (body.landedCostUsd !== undefined) patch.landed_cost_usd = body.landedCostUsd;
     if (body.formData !== undefined) patch.form_data = body.formData ?? null;
     if (body.ledgerPostingStatus !== undefined) {
       const s = String(body.ledgerPostingStatus).toLowerCase();
@@ -202,12 +205,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           unit_weight: it.unitWeight || 0,
           gross_weight: it.grossWeight || 0,
           net_weight: it.netWeight || 0,
-          rate_original: it.rateOriginal || 0,
-          rate_local: it.rateLocal || 0,
-          rate_usd: it.rateUsd || 0,
-          total_original: it.totalOriginal || 0,
-          total_local: it.totalLocal || 0,
-          total_usd: it.totalUsd || 0
+          // rate_original: it.rateOriginal || 0,
+          // rate_local: it.rateLocal || 0,
+          // rate_usd: it.rateUsd || 0,
+          // total_original: it.totalOriginal || 0,
+          // total_local: it.totalLocal || 0,
+          // total_usd: it.totalUsd || 0
         }));
         await requireSupabaseData(supabase.from("purchase_order_items").insert(itemsPayload));
       }
@@ -221,11 +224,11 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           expense_type: ex.expenseType,
           ledger_id: ex.ledgerId || null,
           description: ex.description || null,
-          expense_currency: ex.expenseCurrency || "USD",
+          // expense_currency: ex.expenseCurrency || "USD",
           exchange_rate: ex.exchangeRate || 1,
-          amount_original: ex.amountOriginal || 0,
-          amount_local: ex.amountLocal || 0,
-          amount_usd: ex.amountUsd || 0
+          // amount_original: ex.amountOriginal || 0,
+          // amount_local: ex.amountLocal || 0,
+          // amount_usd: ex.amountUsd || 0
         }));
         await requireSupabaseData(supabase.from("purchase_order_expenses").insert(expPayload));
       }
@@ -647,7 +650,7 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     );
 
     // Explicitly require super_admin or country_admin for deletion
-    if (!session.scopes?.isSuperAdmin && !session.roles?.includes("super_admin") && !session.roles?.includes("country_admin")) {
+    if (!session.isSuperAdmin && !session.roles?.includes("super_admin") && !session.roles?.includes("country_admin")) {
       throw new Error("Unauthorized: Only Super Admin or Country Admin can delete purchase bookings.");
     }
 

@@ -10,6 +10,7 @@ import {
   KeyRound,
   LogIn,
   Minimize2, 
+  MoreHorizontal,
   PencilLine,
   Printer, 
   Search, 
@@ -315,49 +316,35 @@ function BranchUsersPanel({
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-            <table className="min-w-[1500px] w-full border-collapse text-[9px]">
+            <table className="w-full border-collapse text-[9px]">
               <thead>
                 <tr className="border-b bg-slate-50 text-center font-black uppercase tracking-wide text-slate-500">
-                  <th className="border-r p-2 text-left">User Name</th>
-                  <th className="border-r p-2">Login ID</th>
-                  <th className="border-r p-2">Temp Password</th>
-                  <th className="border-r p-2">Mobile</th>
-                  <th className="border-r p-2">Email</th>
-                  <th className="border-r p-2">Role</th>
-                  <th className="border-r p-2">Main User</th>
+                  <th className="border-r p-2">SR.</th>
                   <th className="border-r p-2">Country</th>
                   <th className="border-r p-2">City</th>
                   <th className="border-r p-2">Branch</th>
-                  <th className="border-r p-2">Branch Code</th>
-                  <th className="border-r p-2">Department</th>
-                  <th className="border-r p-2">Permissions</th>
+                  <th className="border-r p-2 text-left">User Name</th>
+                  <th className="border-r p-2">Login ID</th>
+                  <th className="border-r p-2">Temp Password</th>
+                  <th className="border-r p-2">Email</th>
+                  <th className="border-r p-2">Role</th>
                   <th className="border-r p-2">Status</th>
-                  <th className="border-r p-2">Created</th>
                   <th className="p-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {users.map((user, index) => (
                   <tr key={user.id} className="border-b text-center text-slate-700 hover:bg-indigo-50/30">
-                    <td className="border-r p-2 text-left font-bold text-slate-900">{user.name || "-"}</td>
-                    <td className="border-r p-2 font-mono font-black text-indigo-700">{user.username || "-"}</td>
-                    <td className="border-r p-2 font-mono">{user.temporaryPassword || "-"}</td>
-                    <td className="border-r p-2">{user.mobile || "-"}</td>
-                    <td className="border-r p-2">{user.email || "-"}</td>
-                    <td className="border-r p-2">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-black text-slate-700">{user.role || "-"}</span>
-                    </td>
-                    <td className="border-r p-2 font-bold">{user.mainUser ? "Yes" : "No"}</td>
+                    <td className="border-r p-2 font-bold">{index + 1}</td>
                     <td className="border-r p-2">{user.countryName || "-"}</td>
                     <td className="border-r p-2">{user.cityName || "-"}</td>
                     <td className="border-r p-2">{user.branchName || "-"}</td>
-                    <td className="border-r p-2 font-mono font-bold">{user.branchCode || "-"}</td>
-                    <td className="border-r p-2">{user.department || "-"}</td>
-                    <td className="border-r p-2 text-left">
-                      <div className="max-w-[220px] truncate" title={(user.permissions || []).join(", ")}>
-                        {user.permissions?.length ? user.permissions.slice(0, 4).join(", ") : "-"}
-                        {user.permissions?.length > 4 ? `, +${user.permissions.length - 4} more` : ""}
-                      </div>
+                    <td className="border-r p-2 text-left font-bold text-slate-900">{user.name || "-"}</td>
+                    <td className="border-r p-2 font-mono font-black text-indigo-700">{user.username || "-"}</td>
+                    <td className="border-r p-2 font-mono">{user.temporaryPassword || "-"}</td>
+                    <td className="border-r p-2">{user.email || "-"}</td>
+                    <td className="border-r p-2">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-black text-slate-700">{user.role || "-"}</span>
                     </td>
                     <td className="border-r p-2">
                       <span
@@ -369,24 +356,30 @@ function BranchUsersPanel({
                         {user.status}
                       </span>
                     </td>
-                    <td className="border-r p-2">{formatDateTime(user.createdDate)}</td>
-                    <td className="p-2">
-                      <div className="flex flex-wrap justify-center gap-1">
-                        <button type="button" title="View Profile" aria-label="View Profile" onClick={() => openUserProfile(user.id)} className="rounded border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50">
-                          <Eye className="h-3 w-3" />
+                    <td className="p-2 relative text-center">
+                      <div className="inline-block relative text-left">
+                        <button
+                          type="button"
+                          className="action-dropdown-trigger flex h-6 w-6 items-center justify-center rounded-md hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 mx-auto"
+                          onClick={(e) => {
+                            const btn = e.currentTarget;
+                            const panel = btn.nextElementSibling as HTMLElement;
+                            if (panel) panel.classList.toggle("hidden");
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4 text-slate-600" />
                         </button>
-                        <button type="button" title="Edit User" aria-label="Edit User" onClick={() => openUserEdit(user.id)} className="rounded border border-indigo-200 bg-white p-1 text-indigo-600 hover:bg-indigo-50">
-                          <PencilLine className="h-3 w-3" />
-                        </button>
-                        <button type="button" title="Reset Password" aria-label="Reset Password" onClick={() => alert(`Reset Password: ${user.username}`)} className="rounded border border-amber-200 bg-white p-1 text-amber-600 hover:bg-amber-50">
-                          <KeyRound className="h-3 w-3" />
-                        </button>
-                        <button type="button" title="Disable User" aria-label="Disable User" onClick={() => alert(`Disable User: ${user.username}`)} className="rounded border border-rose-200 bg-white p-1 text-rose-600 hover:bg-rose-50">
-                          <Ban className="h-3 w-3" />
-                        </button>
-                        <button type="button" title="View Permissions" aria-label="View Permissions" onClick={() => alert((user.permissions || []).join("\n") || "No explicit permissions found.")} className="rounded border border-emerald-200 bg-white p-1 text-emerald-600 hover:bg-emerald-50">
-                          <Shield className="h-3 w-3" />
-                        </button>
+                        <div className="action-dropdown-content hidden absolute right-0 z-50 mt-1 w-32 rounded-md bg-white p-1 shadow-lg ring-1 ring-black ring-opacity-5">
+                          <button onClick={() => openUserEdit(user.id)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[10px] font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700">
+                            <PencilLine className="h-3 w-3" /> Edit
+                          </button>
+                          <button onClick={() => alert(`Block User: ${user.username}`)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[10px] font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-700">
+                            <Ban className="h-3 w-3" /> Block
+                          </button>
+                          <button onClick={() => openUserProfile(user.id)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[10px] font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700">
+                            <Eye className="h-3 w-3" /> Open
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>

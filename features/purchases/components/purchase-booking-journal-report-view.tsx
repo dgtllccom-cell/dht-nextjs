@@ -926,9 +926,9 @@ export function PurchaseBookingJournalReportView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           formData: updatedFormData,
-          orderTotal: selected.totalPurchaseAmount || (selected as any).order_total || 0,
-          currencyCode: selected.currency || "USD",
-          exchangeRate: Number(selected.exchange_rate || 1),
+          orderTotal: Number(String(selected.totalPurchaseAmount || (selected as any).order_total || 0).replace(/,/g, '')),
+          currencyCode: String(selected.currency || "USD").substring(0, 3).toUpperCase(),
+          exchangeRate: Number(String(selected.exchange_rate || 1).replace(/,/g, '')),
           purchaseContractNo: selected.purchaseContractNo || selected.purchaseBookingOrderNumber,
           paymentStatus: "partial",
           ledgerPostingStatus: "Posted"
@@ -1488,12 +1488,12 @@ export function PurchaseBookingJournalReportView({
           <div className="p-4 space-y-3">
           <DarkTable
             tableGroups={[
-              { label: "General Information", span: 11, cls: "bg-slate-100 text-slate-800 border-b-2 border-slate-300" },
-              { label: "Product Information", span: 7, cls: "bg-emerald-50 text-emerald-800 border-b-2 border-emerald-300" },
-              { label: "Financial Information", span: isSuperAdmin ? 10 : 9, cls: "bg-blue-50 text-blue-800 border-b-2 border-blue-300" },
-              { label: "Route & Loading", span: 7, cls: "bg-indigo-50 text-indigo-800 border-b-2 border-indigo-300" },
-              { label: "Status", span: 4, cls: "bg-amber-50 text-amber-800 border-b-2 border-amber-300" },
-              { label: "Actions", span: 1, cls: "bg-rose-50 text-rose-800 border-b-2 border-rose-300" },
+              { label: "General Information", span: 10, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
+              { label: "Product Information", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
+              { label: "Financial Information", span: isSuperAdmin ? 10 : 9, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
+              { label: "Route & Loading", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
+              { label: "Status", span: 4, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
+              { label: "Actions", span: 1, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
             ]}
             headers={[
               // ── General Information ──────────────────────────────────────
@@ -1501,12 +1501,11 @@ export function PurchaseBookingJournalReportView({
               "SUPER S/N",
               "CTY S/N",
               "BR. S/N",
-              "PURCHASE CODE",
-              "SALES CODE",
-              "INVOICE NO.",
-              "DATE",
-              "BRANCH NAME",
+              "PURCHASE ACC.",
+              "SALES ACC.",
               "COUNTRY",
+              "CITY BRANCH",
+              "DATE",
               "USER",
               // ── Product Information ──────────────────────────────────────
               "GOODS NAME",
@@ -1564,6 +1563,10 @@ export function PurchaseBookingJournalReportView({
                 || report.audit?.branchCode
                 || (report.branchName ? `${report.branchName.substring(0,3).toUpperCase()}-${codeSuffix}` : "-");
               const salesCode = report.form_data?.form?.salesOrderNo || "-";
+              const purchaseAccCode = report.purchaseAccountNumber || report.form_data?.form?.purchaseAccountNo || report.purchaseAccountCode || "-";
+              const salesAccCode = report.salesAccountNumber || report.form_data?.form?.salesAccountNo || report.salesAccountCode || "-";
+              const purchaseAccount = report.purchaseAccountName || report.form_data?.form?.purchaseAccountName || "-";
+              const salesAccount = report.salesAccountName || report.form_data?.form?.salesAccountName || "-";
               const invoiceNo = report.form_data?.form?.billNo
                 || report.form_data?.form?.invoiceNo
                 || report.form_data?.form?.purchaseContractNo
@@ -1699,12 +1702,17 @@ export function PurchaseBookingJournalReportView({
                   <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{superSerialNo}</Td>
                   <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{countrySerialNo}</Td>
                   <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{branchSerialNo}</Td>
-                  <Td className={`font-mono font-bold ${getRowColor()} text-[10px] whitespace-nowrap`}>{purchaseCode}</Td>
-                  <Td className={`font-mono ${getRowColor()} text-[10px] whitespace-nowrap`}>{salesCode}</Td>
-                  <Td className={`font-mono font-bold ${getRowColor()} text-[10px] whitespace-nowrap`}>{invoiceNo}</Td>
-                  <Td className={`font-semibold ${getRowColor()} whitespace-nowrap text-[10px]`}>{dateStr}</Td>
-                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`}>{branchName}</Td>
+                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`} title={`${purchaseAccCode} - ${purchaseAccount}`}>
+                    <span className="font-mono text-blue-600 dark:text-blue-400 font-bold mr-1">{purchaseAccCode}</span>
+                    {purchaseAccount.length > 20 ? purchaseAccount.slice(0, 20) + '...' : purchaseAccount}
+                  </Td>
+                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`} title={`${salesAccCode} - ${salesAccount}`}>
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold mr-1">{salesAccCode}</span>
+                    {salesAccount.length > 20 ? salesAccount.slice(0, 20) + '...' : salesAccount}
+                  </Td>
                   <Td className={`${getRowColor()} text-[10px]`}>{countryName}</Td>
+                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`}>{branchName}</Td>
+                  <Td className={`font-semibold ${getRowColor()} whitespace-nowrap text-[10px]`}>{dateStr}</Td>
                   <Td className={`font-semibold ${getRowColor()} text-[10px]`}>{userName}</Td>
                   {/* ── Product Information ─────────────────────── */}
                   <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`}>{goodsName}</Td>

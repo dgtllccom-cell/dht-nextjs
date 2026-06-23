@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
     let q = supabase
       .from("purchase_orders")
       .select(
-        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, payment_status, ledger_posting_status, form_data, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, main_branch_transaction_serial, city_branch_transaction_serial, created_at, updated_at"
+        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, payment_status, ledger_posting_status, form_data, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, created_at, updated_at"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -217,21 +217,21 @@ export async function POST(request: NextRequest) {
       purchase_contract_no: body.purchaseContractNo?.trim() || null,
       supplier_company_id: body.supplierCompanyId ?? null,
       
-      purchase_currency: body.currencyCode || "USD",
-      payment_currency: body.paymentCurrencyCode || "USD",
+      // purchase_currency: body.currencyCode || "USD",
+      // payment_currency: body.paymentCurrencyCode || "USD",
       currency_code: body.currencyCode, // Legacy column support
       exchange_rate: body.exchangeRate,
       order_total: body.orderTotal,
       
-      total_goods_original: body.totalGoodsOriginal,
-      total_goods_local: body.totalGoodsLocal,
-      total_goods_usd: body.totalGoodsUsd,
-      total_expenses_original: body.totalExpensesOriginal,
-      total_expenses_local: body.totalExpensesLocal,
-      total_expenses_usd: body.totalExpensesUsd,
-      landed_cost_original: body.landedCostOriginal,
-      landed_cost_local: body.landedCostLocal,
-      landed_cost_usd: body.landedCostUsd,
+      // total_goods_original: body.totalGoodsOriginal,
+      // total_goods_local: body.totalGoodsLocal,
+      // total_goods_usd: body.totalGoodsUsd,
+      // total_expenses_original: body.totalExpensesOriginal,
+      // total_expenses_local: body.totalExpensesLocal,
+      // total_expenses_usd: body.totalExpensesUsd,
+      // landed_cost_original: body.landedCostOriginal,
+      // landed_cost_local: body.landedCostLocal,
+      // landed_cost_usd: body.landedCostUsd,
 
       form_data: body.formData ?? null,
       payment_status: paymentStatus,
@@ -241,8 +241,8 @@ export async function POST(request: NextRequest) {
       super_admin_serial_number: superAdminSerialNumber,
       country_transaction_serial_number: countryTransactionSerialNumber,
       branch_transaction_serial_number: branchTransactionSerialNumber,
-      main_branch_transaction_serial: mainBranchTransactionSerialNumber,
-      city_branch_transaction_serial: cityBranchTransactionSerialNumber
+      // main_branch_transaction_serial: mainBranchTransactionSerialNumber,
+      // city_branch_transaction_serial: cityBranchTransactionSerialNumber
     };
 
     let inserted;
@@ -270,12 +270,12 @@ export async function POST(request: NextRequest) {
         unit_weight: it.unitWeight || 0,
         gross_weight: it.grossWeight || 0,
         net_weight: it.netWeight || 0,
-        rate_original: it.rateOriginal || 0,
-        rate_local: it.rateLocal || 0,
-        rate_usd: it.rateUsd || 0,
-        total_original: it.totalOriginal || 0,
-        total_local: it.totalLocal || 0,
-        total_usd: it.totalUsd || 0
+        // rate_original: it.rateOriginal || 0,
+        // rate_local: it.rateLocal || 0,
+        // rate_usd: it.rateUsd || 0,
+        // total_original: it.totalOriginal || 0,
+        // total_local: it.totalLocal || 0,
+        // total_usd: it.totalUsd || 0
       }));
       try {
         await requireSupabaseData(supabase.from("purchase_order_items").insert(itemsPayload));
@@ -290,11 +290,11 @@ export async function POST(request: NextRequest) {
         expense_type: ex.expenseType,
         ledger_id: ex.ledgerId || null,
         description: ex.description || null,
-        expense_currency: ex.expenseCurrency || "USD",
+        // expense_currency: ex.expenseCurrency || "USD",
         exchange_rate: ex.exchangeRate || 1,
-        amount_original: ex.amountOriginal || 0,
-        amount_local: ex.amountLocal || 0,
-        amount_usd: ex.amountUsd || 0
+        // amount_original: ex.amountOriginal || 0,
+        // amount_local: ex.amountLocal || 0,
+        // amount_usd: ex.amountUsd || 0
       }));
       try {
         await requireSupabaseData(supabase.from("purchase_order_expenses").insert(expPayload));

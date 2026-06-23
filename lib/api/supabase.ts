@@ -22,6 +22,7 @@ type LooseQueryBuilder = {
     };
   } & QueryResult;
   update(values: unknown): LooseMutationFilter;
+  delete(): LooseMutationFilter;
   eq(column: string, value: string | boolean | number): LooseQueryBuilder;
   in(column: string, values: Array<string | number | boolean>): LooseQueryBuilder;
   is(column: string, value: null): LooseQueryBuilder;

@@ -145,7 +145,7 @@ const subTypes: Record<AccountTitle, string[]> = {
   Personal: []
 };
 
-const categories = ["P/S (Purchase/Sales)", "Bank", "Expenses", "Clearing Agent", "Personal"];
+const categories = ["P/S", "B/C", "B/P", "EX", "S"];
 
 function nextNumber(current: number) {
   return String(current + 1).padStart(3, "0");
@@ -279,13 +279,13 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
 
             // Determine category
             if (acc.is_control_account) {
-              setCategory("Bank");
+              setCategory("B/C");
             } else if (acc.kind === "expense") {
-              setCategory("Expenses");
+              setCategory("EX");
             } else if (acc.kind === "income") {
-              setCategory("P/S (Purchase/Sales)");
+              setCategory("P/S");
             } else {
-              setCategory("Personal");
+              setCategory("S");
             }
 
             setSubType(acc.is_control_account ? "Control Account" : "Normal Account");
@@ -524,7 +524,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           code: accountCode || undefined,  // omit code if empty so PATCH doesn't fail min(2) validation
           manualReferenceNumber: manualReferenceNumber.trim() || null,
           name: accountName.trim(),
-          kind: category === "Sales" || category === "Revenue" ? "income" : category === "Expenses" ? "expense" : "asset",
+          kind: category === "P/S" ? "income" : category === "EX" ? "expense" : "asset",
           currency: branchInfo.currency || selectedCountry?.currency_code || "USD",
           isControlAccount: accountTitle === "Bank"
         });
@@ -550,7 +550,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           code: "AUTO",
           manualReferenceNumber: manualReferenceNumber.trim() || null,
           name: accountName.trim(),
-          kind: category === "Sales" || category === "Revenue" ? "income" : category === "Expenses" ? "expense" : "asset",
+          kind: category === "P/S" ? "income" : category === "EX" ? "expense" : "asset",
           currency: branchInfo.currency || selectedCountry?.currency_code || "USD",
           openingBalance: 0,
           isControlAccount: accountTitle === "Bank"
