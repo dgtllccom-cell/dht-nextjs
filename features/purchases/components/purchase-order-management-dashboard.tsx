@@ -881,13 +881,17 @@ export function PurchaseOrderManagementDashboard() {
   }, [reports, allowedCountryId, isSuperAdmin, session]);
 
   const localCurrencyLabel = useMemo(() => {
-    const c = (lockedCountryName || session?.countryName || "PAKISTAN").toUpperCase();
+    let countryForCurrency = lockedCountryName || session?.countryName || "PAKISTAN";
+    if (filters.country && filters.country !== "all") {
+      countryForCurrency = filters.country;
+    }
+    const c = countryForCurrency.toUpperCase();
     if (c.includes("UNITED ARAB") || c === "UAE") return "AED";
     if (c.includes("INDIA") || c === "IN") return "INR";
     if (c.includes("AFGHANISTAN") || c === "AF") return "AFN";
     if (c.includes("PAKISTAN") || c === "PK") return "PKR";
     return "PKR";
-  }, [lockedCountryName, session]);
+  }, [lockedCountryName, session, filters.country]);
 
   const lockedBranchName = useMemo(() => {
     if (session?.scopes?.branchNames?.[0]) return session.scopes.branchNames[0];
@@ -2346,12 +2350,11 @@ export function PurchaseOrderManagementDashboard() {
                   {/* Actions Footer */}
                   <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col gap-2 sticky bottom-0">
                     <Button 
-                      className={`w-full font-bold uppercase tracking-wider text-[11px] h-12 shadow-md transition-all ${(selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted") ? "bg-slate-200 text-slate-500 cursor-not-allowed hover:bg-slate-200 shadow-none" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
-                      disabled={selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted"}
+                      className={`w-full font-bold uppercase tracking-wider text-[11px] h-12 shadow-md transition-all bg-emerald-600 hover:bg-emerald-700 text-white`}
                       onClick={() => handleTransfer(selected)}
                     >
                       {transferring ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Landmark className="h-4 w-4 mr-2" />}
-                      {(selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted") ? "Already Transferred" : "Transfer Roznamcha Payment"}
+                      {(selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted") ? "Refresh Roznamcha Payment" : "Transfer Roznamcha Payment"}
                     </Button>
                   </div>
 

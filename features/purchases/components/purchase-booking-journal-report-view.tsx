@@ -931,7 +931,7 @@ export function PurchaseBookingJournalReportView({
           exchangeRate: Number(String(selected.exchange_rate || 1).replace(/,/g, '')),
           purchaseContractNo: selected.purchaseContractNo || selected.purchaseBookingOrderNumber,
           paymentStatus: "partial",
-          ledgerPostingStatus: "Posted"
+          ledgerPostingStatus: "Pending" // Only mark as pending so it can be transferred from Payment screen
         })
       });
 
@@ -940,21 +940,9 @@ export function PurchaseBookingJournalReportView({
         throw new Error(payload?.error?.message || payload?.error || "Transfer failed.");
       }
 
-      // Also hit the transfer API to post to Roznamcha and Ledger
-      const transferResponse = await fetch(`/api/erp/purchases/orders/${selected.id}/transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({})
-      });
-
-      const transferPayload = await transferResponse.json().catch(() => ({}));
-      if (!transferResponse.ok || !transferPayload.ok) {
-        throw new Error(transferPayload?.error?.message || transferPayload?.error || "Roznamcha/Ledger Transfer failed.");
-      }
-
       setIsDrawerOpen(false);
-      alert(`Booking ${selected.purchaseBookingOrderNumber} has been successfully transferred to Journal / Ledger posting! Redirecting to advance payment...`);
-      setMessage(`Transferred ${selected.purchaseBookingOrderNumber} to Journal / Payment and ledger posting.`);
+      alert(`Booking ${selected.purchaseBookingOrderNumber} has been successfully sent to Purchase Transfer Payment!`);
+      setMessage(`Sent ${selected.purchaseBookingOrderNumber} to Purchase Transfer Payment screen.`);
       // Navigate to Cash Payment page with this order pre-selected
       router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(selected.purchaseBookingOrderNumber)}`);
     } catch (err) {

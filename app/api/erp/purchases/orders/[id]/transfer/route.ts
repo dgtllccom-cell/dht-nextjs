@@ -67,14 +67,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       cityBranchId:    (order as any).city_branch_id    ?? null
     };
 
-    // Safely parse the amount, removing any formatted commas
     const rawTotal = String((order as any).order_total || totals.grandFinal || "0").replace(/,/g, "");
     let totalPurchaseAmount = Number(rawTotal);
-    
-    if (isDualCurrency && exchangeRate > 0) {
-      totalPurchaseAmount = totalPurchaseAmount * exchangeRate;
-    }
-    
+
     if (isNaN(totalPurchaseAmount) || totalPurchaseAmount <= 0) {
       throw new Error("Purchase order total must be a valid number greater than zero to post ledger entries.");
     }

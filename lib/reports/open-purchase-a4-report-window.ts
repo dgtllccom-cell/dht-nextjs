@@ -694,7 +694,7 @@ export function openPurchaseA4ReportWindow(input: {
                 <td style="font-weight: bold; color: #2563eb;">DEBIT (DR)</td>
                 <td style="font-family: monospace; font-weight: bold;">${escapeHtml(b.purchaseAccountNumber || "AE-AC-0001")}</td>
                 <td>
-                  <strong>${escapeHtml(b.purchaseAccountName || "Dubai Purchase Account")}</strong>
+                  <strong>${escapeHtml(b.purchaseAccountName || "Dubai Purchase Account")} (DR)</strong>
                   <span style="font-size: 6.5px; color: #64748b; display: block;">${escapeHtml(b.branchName || "Kabul Main Branch")}</span>
                 </td>
                 <td style="text-align: right; font-family: monospace; font-weight: bold; color: #2563eb;">${formatMoney(totalAmountUsd)}</td>
@@ -705,7 +705,7 @@ export function openPurchaseA4ReportWindow(input: {
                 <td style="font-weight: bold; color: #059669;">CREDIT (CR)</td>
                 <td style="font-family: monospace; font-weight: bold;">${escapeHtml(b.salesAccountNumber || "SA-2001")}</td>
                 <td>
-                  <strong>${escapeHtml(b.salesAccountName || "Damaan Sales Account")}</strong>
+                  <strong>${escapeHtml(b.salesAccountName || "Damaan Sales Account")} (CR)</strong>
                   <span style="font-size: 6.5px; color: #64748b; display: block;">${escapeHtml(b.branchName || "Kabul Main Branch")}</span>
                 </td>
                 <td style="text-align: right; color: #94a3b8;">-</td>
