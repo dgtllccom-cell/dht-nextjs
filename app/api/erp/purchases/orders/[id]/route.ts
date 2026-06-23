@@ -6,7 +6,7 @@ import { requireErpSession } from "@/lib/auth/session";
 import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { createApiSupabaseClient, requireSupabaseData, writeAuditLog } from "@/lib/api/supabase";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { revertOrderBookingTransfer } from "./transfer/route";
+import { revertOrderBookingTransfer, revertAllOrderPayments } from "./transfer/route";
 import { revalidatePath } from "next/cache";
 
 const paramsSchema = z.object({
@@ -662,11 +662,33 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
       cityBranchId: (row as any)?.city_branch_id ?? null
     });
 
-    // If it was posted to ledger, we must revert the journal entries first
+    // If there are any posted payments or ledger entries, we must revert ALL of them before deleting
     if ((row as any).ledger_posting_status === "posted" || (row as any).payment_status !== "pending") {
       const adminSupabase = createSupabaseAdminClient() as any;
-      await revertOrderBookingTransfer(params.id, supabase, adminSupabase);
+      await revertAllOrderPayments(params.id, supabase, adminSupabase);
     }
+
+    // Soft delete ALL remaining purchase order payments associated with this PO
+    await requireSupabaseData(
+      supabase
+        .from("purchase_order_payments")
+        .update({ 
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("purchase_order_id", params.id)
+    );
+
+    // Soft delete associated loading records
+    await requireSupabaseData(
+      supabase
+        .from("purchase_loading_records")
+        .update({ 
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("purchase_order_id", params.id)
+    );
 
     // Soft delete the purchase order
     const deleted = await requireSupabaseData(
