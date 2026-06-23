@@ -29,12 +29,6 @@ import { useRouter } from "next/navigation";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import { SimpleModal } from "@/components/ui/simple-modal";
 import { Label } from "@/components/ui/label";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { openPurchaseA4ReportWindow, type PurchaseReportData } from "@/lib/reports/open-purchase-a4-report-window";
@@ -426,7 +420,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [savedBanks, setSavedBanks] = useState<SavedBankItem[]>([]);
   const [savedMethods, setSavedMethods] = useState<string[]>([]);
   const [addOptionOpen, setAddOptionOpen] = useState(false);
-  const [addOptionType, setAddOptionType] = useState<"bank" | "method">("bank");
+  const [activeTab, setActiveTab] = useState<"remaining" | "advance" | "history">("advance");
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [addOptionValue, setAddOptionValue] = useState("");
   const [addOptionAddress, setAddOptionAddress] = useState("");
 
@@ -1494,27 +1489,32 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       </td>
                       {/* Action */}
                       <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuItem onClick={() => setViewingRow(row)}>
-                              <Eye className="mr-2 h-4 w-4 text-slate-500" />
-                              <span className="font-semibold text-xs">View Detailed Bill</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenA4PDF(row, true)}>
-                              <Printer className="mr-2 h-4 w-4 text-slate-500" />
-                              <span className="font-semibold text-xs">Print A4 Invoice</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] }))}>
-                              {isExpanded ? <XCircle className="mr-2 h-4 w-4 text-slate-500" /> : <Plus className="mr-2 h-4 w-4 text-slate-500" />}
-                              <span className="font-semibold text-xs">{isExpanded ? "Hide Payment History" : "Show Payment History"}</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            onClick={() => setOpenDropdownId(openDropdownId === row.id ? null : row.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-400 focus:outline-none"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                          {openDropdownId === row.id && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)} />
+                              <div className="absolute right-0 top-full mt-1 w-48 rounded-md bg-white dark:bg-slate-900 shadow-lg ring-1 ring-black ring-opacity-5 z-50 overflow-hidden border border-slate-200 dark:border-slate-800 font-semibold">
+                                <div className="py-1">
+                                  <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setViewingRow(row); setOpenDropdownId(null); }}>
+                                    <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> View Detailed Bill
+                                  </button>
+                                  <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, true); setOpenDropdownId(null); }}>
+                                    <Printer className="mr-2.5 h-4 w-4 text-slate-500" /> Print A4 Invoice
+                                  </button>
+                                  <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] })); setOpenDropdownId(null); }}>
+                                    {isExpanded ? <XCircle className="mr-2.5 h-4 w-4 text-slate-500" /> : <Plus className="mr-2.5 h-4 w-4 text-slate-500" />} {isExpanded ? "Hide Payment History" : "Show Payment History"}
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {isExpanded && (
