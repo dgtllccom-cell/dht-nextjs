@@ -38,6 +38,7 @@ type SessionInfo = {
     fullName?: string | null;
   };
   roles?: string[];
+  scopes?: any;
 };
 
 function todayIso() {
@@ -172,6 +173,8 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
+
+  const isSuperAdmin = useMemo(() => session ? (session.scopes?.isSuperAdmin || session.roles?.includes("super_admin")) : true, [session]);
 
   const openingBalance = useMemo(() => {
     const first = lines[0];
@@ -311,29 +314,32 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
     let runningUsd = 0;
     const creditNormal = account?.normalBalance === "credit";
     const countryColHeader = `${account ? getCountryCode(account.countryName) : "CO"}/Serial`;
+    
+    const headers = [
+      "Date",
+      "SA/Serial",
+      countryColHeader,
+      "BR/Serial",
+      "Branch Code",
+      "User Name",
+      "No.",
+      "Details",
+      "Dr.",
+      "Cr.",
+      "Total"
+    ];
+
+    if (isSuperAdmin) {
+      headers.push("Ex. Rate", "Dr. (USD)", "Cr. (USD)", "Total (USD)");
+    }
+
     exportCsv("new-ledger-statement.csv", [
-      [
-        "Date",
-        "SA/Serial",
-        countryColHeader,
-        "BR/Serial",
-        "Branch Code",
-        "User Name",
-        "No.",
-        "Details",
-        "Dr.",
-        "Cr.",
-        "Total",
-        "Ex. Rate",
-        "Dr. (USD)",
-        "Cr. (USD)",
-        "Total (USD)"
-      ],
+      headers,
       ...lines.map((line, index) => {
         const usdDebit = line.debit > 0 ? line.usdAmount : 0;
         const usdCredit = line.credit > 0 ? line.usdAmount : 0;
         runningUsd += creditNormal ? usdCredit - usdDebit : usdDebit - usdCredit;
-        return [
+        const rowData = [
           line.entryDate,
           line.superAdminSerialNo || "-",
           line.countrySerialNo || "-",
@@ -344,12 +350,12 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
           line.description || "-",
           fmtNumber(line.debit),
           fmtNumber(line.credit),
-          fmtNumber(line.runningBalance),
-          fmtNumber(line.usdRate),
-          fmtNumber(usdDebit),
-          fmtNumber(usdCredit),
-          fmtNumber(runningUsd)
+          fmtNumber(line.runningBalance)
         ];
+        if (isSuperAdmin) {
+          rowData.push(fmtNumber(line.usdRate), fmtNumber(usdDebit), fmtNumber(usdCredit), fmtNumber(runningUsd));
+        }
+        return rowData;
       })
     ]);
   }
@@ -554,7 +560,7 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
               <InfoRow label="Cr" value={fmtNumber(totals.credit || account?.creditTotal)} success />
               <InfoRow label="Opening" value={fmtNumber(openingBalance)} />
               <InfoRow label="Balance" value={fmtNumber(totals.balance || account?.currentBalance)} strong />
-              <InfoRow label="1 USD" value="Rate stored per posting" />
+              {isSuperAdmin && <InfoRow label="1 USD" value="Rate stored per posting" />}
             </InfoPanel>
 
             <InfoPanel title="Session / Login Details" accent="violet">
@@ -575,7 +581,11 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
             <table className="w-full min-w-[1120px] text-xs">
               <thead className="bg-slate-900 text-white dark:bg-slate-800">
                 <tr>
-                  {["Date", "SA/Serial", `${account ? getCountryCode(account.countryName) : "CO"}/Serial`, "BR/Serial", "Branch Code", "User Name", "No.", "Details", "Dr.", "Cr.", "Total", "Ex. Rate", "Dr. (USD)", "Cr. (USD)", "Total (USD)"].map((head) => (
+                  {[
+                    "Date", "SA/Serial", `${account ? getCountryCode(account.countryName) : "CO"}/Serial`, "BR/Serial", 
+                    "Branch Code", "User Name", "No.", "Details", "Dr.", "Cr.", "Total",
+                    ...(isSuperAdmin ? ["Ex. Rate", "Dr. (USD)", "Cr. (USD)", "Total (USD)"] : [])
+                  ].map((head) => (
                     <th key={head} className="border-b border-slate-700 px-4 py-3 text-left font-semibold uppercase tracking-wide">
                       {head}
                     </th>
@@ -585,7 +595,7 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={15} className="px-4 py-10 text-center text-muted-foreground">
+                    <td colSpan={isSuperAdmin ? 15 : 11} className="px-4 py-10 text-center text-muted-foreground">
                       Loading ledger data...
                     </td>
                   </tr>
@@ -612,16 +622,20 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
                         <td className="px-4 py-3 text-right font-semibold text-cyan-600 dark:text-cyan-300">{fmtNumber(line.debit)}</td>
                         <td className="px-4 py-3 text-right text-rose-500">{fmtNumber(line.credit)}</td>
                         <td className="px-4 py-3 text-right font-semibold text-emerald-600">{fmtNumber(line.runningBalance)}</td>
-                        <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-300">{fmtNumber(line.usdRate)}</td>
-                        <td className="px-4 py-3 text-right">{fmtNumber(usdDebit)}</td>
-                        <td className="px-4 py-3 text-right">{fmtNumber(usdCredit)}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-emerald-600">{fmtNumber(line.runningBalanceUsd)}</td>
+                        {isSuperAdmin && (
+                          <>
+                            <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-300">{fmtNumber(line.usdRate)}</td>
+                            <td className="px-4 py-3 text-right">{fmtNumber(usdDebit)}</td>
+                            <td className="px-4 py-3 text-right">{fmtNumber(usdCredit)}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-emerald-600">{fmtNumber(line.runningBalanceUsd)}</td>
+                          </>
+                        )}
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={15} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={isSuperAdmin ? 15 : 11} className="px-4 py-12 text-center text-muted-foreground">
                       {account ? "No posted ledger entries found for this account." : "Search an account to load the full ledger statement."}
                     </td>
                   </tr>
