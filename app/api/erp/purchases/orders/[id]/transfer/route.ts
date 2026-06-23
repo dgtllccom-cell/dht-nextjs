@@ -53,8 +53,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const totals = formData.totals || {};
 
     // Declare currency/exchangeRate BEFORE using them (fixes TDZ bug)
-    const currency = String((order as any).currency_code || "USD").toUpperCase();
-    const exchangeRate = Number((order as any).exchange_rate || 1);
+    const ledgerCurrency = String(form.purchaseCurrency || form.purchaseAccountCurrency || (order as any).currency_code || "USD").toUpperCase();
+    const orderCurrency = String((order as any).currency_code || "USD").toUpperCase();
+    const isDualCurrency = ledgerCurrency !== orderCurrency;
+    
+    const exchangeRate = Number(form.exchangeRate || (order as any).exchange_rate || 1);
     const entryDate = (form.purchaseDate || new Date().toISOString().slice(0, 10)) as string;
 
     // Scope context for ledger lookup
@@ -66,7 +69,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     // Safely parse the amount, removing any formatted commas
     const rawTotal = String((order as any).order_total || totals.grandFinal || "0").replace(/,/g, "");
-    const totalPurchaseAmount = Number(rawTotal);
+    let totalPurchaseAmount = Number(rawTotal);
+    
+    if (isDualCurrency && exchangeRate > 0) {
+      totalPurchaseAmount = totalPurchaseAmount * exchangeRate;
+    }
     
     if (isNaN(totalPurchaseAmount) || totalPurchaseAmount <= 0) {
       throw new Error("Purchase order total must be a valid number greater than zero to post ledger entries.");
@@ -132,7 +139,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         p_kind:               "booking",
         p_entry_date:         entryDate,
         p_amount:             totalPurchaseAmount,
-        p_currency_code:      currency,
+        p_currency_code:      ledgerCurrency,
         p_exchange_rate:      exchangeRate,
         p_debit_ledger_id:    purchaseLedgerId,
         p_credit_ledger_id:   salesLedgerId,
@@ -336,96 +343,99 @@ async function getLedgerIdByCode(
 }
 
 export async function revertOrderBookingTransfer(orderId: string, supabase: any, adminSupabase: any) {
-  // Find the existing purchase order payment of kind 'credit' (the transfer record)
-  const { data: existingPayment } = await supabase
+  // Find ALL existing purchase order payments of kind 'booking' or 'credit' (the transfer records)
+  const { data: existingPayments } = await supabase
     .from("purchase_order_payments")
     .select("id, roznamcha_entry_id, entry_date")
     .eq("purchase_order_id", orderId)
     .in("kind", ["booking", "credit"])
-    .eq("status", "posted")
-    .maybeSingle();
+    .eq("status", "posted");
 
-  if (!existingPayment?.roznamcha_entry_id) {
+  if (!existingPayments || existingPayments.length === 0) {
     return;
   }
 
-  // Retrieve roznamcha lines to revert the ledger totals
-  const { data: lines } = await supabase
-    .from("roznamcha_lines")
-    .select("ledger_id, enterprise_account_id, debit, credit")
-    .eq("roznamcha_entry_id", existingPayment.roznamcha_entry_id);
+  for (const existingPayment of existingPayments) {
+    if (!existingPayment.roznamcha_entry_id) continue;
 
-  if (lines && lines.length > 0) {
-    for (const line of lines) {
-      // Revert ledgers totals
-      const { data: ledger } = await adminSupabase
-        .from("ledgers")
-        .select("debit_total, credit_total, current_balance")
-        .eq("id", line.ledger_id)
-        .maybeSingle();
-      if (ledger) {
-        await adminSupabase
+    // Retrieve roznamcha lines to revert the ledger totals
+    const { data: lines } = await supabase
+      .from("roznamcha_lines")
+      .select("ledger_id, enterprise_account_id, debit, credit")
+      .eq("roznamcha_entry_id", existingPayment.roznamcha_entry_id);
+
+    if (lines && lines.length > 0) {
+      for (const line of lines) {
+        // Revert ledgers totals
+        const { data: ledger } = await adminSupabase
           .from("ledgers")
-          .update({
-            debit_total: Number(ledger.debit_total || 0) - Number(line.debit || 0),
-            credit_total: Number(ledger.credit_total || 0) - Number(line.credit || 0),
-            current_balance: Number(ledger.current_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", line.ledger_id);
-      }
-
-      // Revert enterprise_accounts totals
-      if (line.enterprise_account_id) {
-        const { data: entAcc } = await adminSupabase
-          .from("enterprise_accounts")
-          .select("current_balance")
-          .eq("id", line.enterprise_account_id)
+          .select("debit_total, credit_total, current_balance")
+          .eq("id", line.ledger_id)
           .maybeSingle();
-        if (entAcc) {
+        if (ledger) {
           await adminSupabase
-            .from("enterprise_accounts")
+            .from("ledgers")
             .update({
-              current_balance: Number(entAcc.current_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
+              debit_total: Number(ledger.debit_total || 0) - Number(line.debit || 0),
+              credit_total: Number(ledger.credit_total || 0) - Number(line.credit || 0),
+              current_balance: Number(ledger.current_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
               updated_at: new Date().toISOString()
             })
-            .eq("id", line.enterprise_account_id);
+            .eq("id", line.ledger_id);
+        }
+
+        // Revert enterprise_accounts totals
+        if (line.enterprise_account_id) {
+          const { data: entAcc } = await adminSupabase
+            .from("enterprise_accounts")
+            .select("current_balance")
+            .eq("id", line.enterprise_account_id)
+            .maybeSingle();
+          if (entAcc) {
+            await adminSupabase
+              .from("enterprise_accounts")
+              .update({
+                current_balance: Number(entAcc.current_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", line.enterprise_account_id);
+          }
+        }
+
+        // Revert ledger_balances records
+        const { data: balRecord } = await adminSupabase
+          .from("ledger_balances")
+          .select("debit_total, credit_total, closing_balance")
+          .eq("ledger_id", line.ledger_id)
+          .eq("balance_date", existingPayment.entry_date)
+          .maybeSingle();
+        if (balRecord) {
+          await adminSupabase
+            .from("ledger_balances")
+            .update({
+              debit_total: Number(balRecord.debit_total || 0) - Number(line.debit || 0),
+              credit_total: Number(balRecord.credit_total || 0) - Number(line.credit || 0),
+              closing_balance: Number(balRecord.closing_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
+              updated_at: new Date().toISOString()
+            })
+            .eq("ledger_id", line.ledger_id)
+            .eq("balance_date", existingPayment.entry_date);
         }
       }
-
-      // Revert ledger_balances records
-      const { data: balRecord } = await adminSupabase
-        .from("ledger_balances")
-        .select("debit_total, credit_total, closing_balance")
-        .eq("ledger_id", line.ledger_id)
-        .eq("balance_date", existingPayment.entry_date)
-        .maybeSingle();
-      if (balRecord) {
-        await adminSupabase
-          .from("ledger_balances")
-          .update({
-            debit_total: Number(balRecord.debit_total || 0) - Number(line.debit || 0),
-            credit_total: Number(balRecord.credit_total || 0) - Number(line.credit || 0),
-            closing_balance: Number(balRecord.closing_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
-            updated_at: new Date().toISOString()
-          })
-          .eq("ledger_id", line.ledger_id)
-          .eq("balance_date", existingPayment.entry_date);
-      }
     }
+
+    // Delete the existing payment row
+    await adminSupabase
+      .from("purchase_order_payments")
+      .delete()
+      .eq("id", existingPayment.id);
+
+    // Delete the roznamcha_entries row (cascades to roznamcha_lines)
+    await adminSupabase
+      .from("roznamcha_entries")
+      .delete()
+      .eq("id", existingPayment.roznamcha_entry_id);
   }
-
-  // Delete the existing payment row
-  await adminSupabase
-    .from("purchase_order_payments")
-    .delete()
-    .eq("id", existingPayment.id);
-
-  // Delete the roznamcha_entries row (cascades to roznamcha_lines)
-  await adminSupabase
-    .from("roznamcha_entries")
-    .delete()
-    .eq("id", existingPayment.roznamcha_entry_id);
 }
 
 export async function revertAllOrderPayments(orderId: string, supabase: any, adminSupabase: any) {

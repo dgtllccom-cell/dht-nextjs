@@ -643,6 +643,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }, [selectedForm, selectedSourceLedger, supplierLedger]);
 
   const baseCurrency = useMemo(() => {
+    // 1. Prioritize explicitly selected local/ledger currency from the form
+    if (selectedForm) {
+      const ledgerCurrency = selectedForm.purchaseCurrency || selectedForm.purchaseAccountCurrency;
+      if (ledgerCurrency && ledgerCurrency !== "USD") {
+        return ledgerCurrency.toUpperCase();
+      }
+    }
+
     // Auto-detect from user name or roles
     const userName = (session?.user?.fullName || "").toUpperCase();
     if (userName.includes("EMIRATES") || userName.includes("DUBAI") || userName.includes("AE")) return "AED";

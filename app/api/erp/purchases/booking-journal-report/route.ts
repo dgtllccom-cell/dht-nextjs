@@ -170,7 +170,14 @@ export async function GET(request: NextRequest) {
 
     if (query.purchaseOrderNo) requestQuery = requestQuery.ilike("purchase_order_no", `%${query.purchaseOrderNo.replace(/[%_]/g, "")}%`);
     if (query.dateFrom) requestQuery = requestQuery.gte("created_at", `${query.dateFrom}T00:00:00.000Z`);
-    if (query.dateTo) requestQuery = requestQuery.lte("created_at", `${query.dateTo}T23:59:59.999Z`);
+    if (query.dateTo) {
+      // Add a 24 hour buffer to the toDate to account for potential timezone differences
+      // between the client generating the date and the Supabase database's local time.
+      const toDateObj = new Date(query.dateTo);
+      toDateObj.setDate(toDateObj.getDate() + 2); // 2 day buffer to be absolutely safe
+      const bufferedDateStr = toDateObj.toISOString().slice(0, 10);
+      requestQuery = requestQuery.lte("created_at", `${bufferedDateStr}T23:59:59.999Z`);
+    }
 
     if (query.countryId) requestQuery = requestQuery.eq("country_id", query.countryId);
     else if (!session.isSuperAdmin) requestQuery = requestQuery.in("country_id", session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]);

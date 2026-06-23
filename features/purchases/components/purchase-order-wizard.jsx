@@ -1099,7 +1099,8 @@ export function PurchaseOrderWizard() {
             branchSerialNumber: acc.branch_serial_number || "",
             manualReferenceNumber: acc.manual_reference_number || "",
             countryId: acc.country_id || null,
-            countryBranchId: acc.country_branch_id || null
+            countryBranchId: acc.country_branch_id || null,
+            cityBranchId: acc.city_branch_id || null
           }));
           setDbAccounts(mapped);
         }
@@ -1344,6 +1345,9 @@ export function PurchaseOrderWizard() {
 
           const poNumber = poData.purchase_order_no || poData.purchaseBookingOrderNumber || loadedForm.purchaseOrderNo || poNo || "";
           const contractNumber = poData.purchase_contract_no || poData.purchaseContractNo || loadedForm.purchaseContractNo || "";
+
+          setSavedOrderId(poData.id || orderId || "");
+          setSavedOrderNo(poNumber);
 
           setForm((prev) => ({
             ...prev,
@@ -2391,11 +2395,26 @@ export function PurchaseOrderWizard() {
       const reloadRes = await fetch("/api/erp/accounting/accounts?limit=500").then(r => r.json()).catch(() => ({}));
       if (reloadRes?.data?.accounts) {
         const mapped = reloadRes.data.accounts.map(acc => ({
-          accountCode: acc.code || acc.account_number,
-          accountName: acc.name,
-          cityBranchName: acc.branch_code || "",
-          ledgerCurrency: acc.currency || "USD",
-          customerId: acc.customer_id || acc.customerId || null
+            accountCode: acc.code || acc.account_number,
+            accountName: acc.name,
+            cityBranchName: acc.branch_code || "",
+            ledgerCurrency: acc.currency || "USD",
+            customerId: acc.customer_id || acc.customerId || null,
+            companyId: acc.company_id || null,
+            mobile: acc.customers?.mobile || "",
+            whatsapp: acc.customers?.whatsapp || "",
+            kind: acc.kind || "",
+            isControlAccount: acc.is_control_account || false,
+            currentBalance: acc.current_balance || 0,
+            openingBalance: acc.opening_balance || 0,
+            status: acc.status || "active",
+            accountSerialNumber: acc.account_serial_number || "",
+            countrySerialNumber: acc.country_serial_number || "",
+            branchSerialNumber: acc.branch_serial_number || "",
+            manualReferenceNumber: acc.manual_reference_number || "",
+            countryId: acc.country_id || null,
+            countryBranchId: acc.country_branch_id || null,
+            cityBranchId: acc.city_branch_id || null
         }));
         setDbAccounts(mapped);
 
@@ -3309,7 +3328,7 @@ export function PurchaseOrderWizard() {
                       {purchaseDropdownOpen && (
                         <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden">
                           <div className="max-h-56 overflow-y-auto space-y-0.5">
-                            {dbAccounts.filter(acc => (!form.countryId || acc.countryId === form.countryId) && (!form.countryBranchId || acc.countryBranchId === form.countryBranchId) && (acc.accountCode?.toLowerCase().includes(purchaseSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(purchaseSearch.toLowerCase()))).map((acc) => (
+                            {dbAccounts.filter(acc => (!form.countryId || acc.countryId === form.countryId) && (!form.countryBranchId || acc.countryBranchId === form.countryBranchId) && (!form.cityBranchId || acc.cityBranchId === form.cityBranchId) && (acc.accountCode?.toLowerCase().includes(purchaseSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(purchaseSearch.toLowerCase()))).map((acc) => (
                               <button
                                 key={acc.accountCode}
                                 type="button"
@@ -3357,7 +3376,7 @@ export function PurchaseOrderWizard() {
                       {salesDropdownOpen && (
                         <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden">
                           <div className="max-h-56 overflow-y-auto space-y-0.5">
-                            {dbAccounts.filter(acc => (!form.countryId || acc.countryId === form.countryId) && (!form.countryBranchId || acc.countryBranchId === form.countryBranchId) && (acc.accountCode?.toLowerCase().includes(salesSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(salesSearch.toLowerCase()))).map((acc) => (
+                            {dbAccounts.filter(acc => (!form.countryId || acc.countryId === form.countryId) && (!form.countryBranchId || acc.countryBranchId === form.countryBranchId) && (!form.cityBranchId || acc.cityBranchId === form.cityBranchId) && (acc.accountCode?.toLowerCase().includes(salesSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(salesSearch.toLowerCase()))).map((acc) => (
                               <button
                                 key={acc.accountCode}
                                 type="button"
@@ -4578,7 +4597,8 @@ export function PurchaseOrderWizard() {
                       <div className="flex justify-between"><span className="text-slate-500">Supplier Name:</span> <span className="font-semibold text-slate-900 truncate max-w-[150px]">{form.purchaseAccountName || "N/A"}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500">Contact / Phone:</span> <span className="font-semibold text-slate-900">{form.purchaseAccountMobile || form.purchaseAccountWhatsapp || "N/A"}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500">Account No:</span> <span className="font-semibold text-slate-900 font-mono">{form.purchaseAccountNo || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Country/Origin:</span> <span className="font-semibold text-slate-900">{form.origin || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span> <span className="font-semibold text-slate-900">{form.purchaseAccountBranch || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Country:</span> <span className="font-semibold text-slate-900">{form.origin || "N/A"}</span></div>
                     </div>
                   </div>
 
@@ -4591,7 +4611,8 @@ export function PurchaseOrderWizard() {
                       <div className="flex justify-between"><span className="text-slate-500">Customer Name:</span> <span className="font-semibold text-slate-900 truncate max-w-[150px]">{form.salesAccountName || "N/A"}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500">Contact / Phone:</span> <span className="font-semibold text-slate-900">{form.salesAccountMobile || form.salesAccountWhatsapp || "N/A"}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500">Account No:</span> <span className="font-semibold text-slate-900 font-mono">{form.salesAccountNo || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Type:</span> <span className="font-semibold text-slate-900">{form.salesAccountKind || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span> <span className="font-semibold text-slate-900">{form.salesAccountBranch || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Country:</span> <span className="font-semibold text-slate-900">{form.branchCountry || "N/A"}</span></div>
                     </div>
                   </div>
 
@@ -4817,10 +4838,26 @@ export function PurchaseOrderWizard() {
                     <div className="space-y-3 text-[9px]">
                       <div className="bg-slate-50 border border-slate-200 rounded p-3">
                         <div className="flex justify-between items-center mb-1"><span className="font-bold text-rose-700 uppercase text-[8px] bg-rose-100 px-1.5 py-0.5 rounded">Purchase Account (DR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.purchaseAccountNo || "N/A"}</span></div>
-                        <div className="font-bold text-slate-900 mb-3 truncate text-[10px]" title={form.purchaseAccountName}>{form.purchaseAccountName || "N/A"}</div>
+                        <div className="font-bold text-slate-900 mb-1 truncate text-[10px]" title={form.purchaseAccountName}>{form.purchaseAccountName || "N/A"}</div>
+                        <div className="flex justify-between items-center text-[8px] text-slate-500 mb-0.5">
+                          <span>Branch: <strong className="text-slate-700">{form.purchaseAccountBranch || "-"}</strong></span>
+                          <span>Country: <strong className="text-slate-700">{form.origin || "-"}</strong></span>
+                        </div>
+                        <div className="flex justify-between items-center text-[8px] text-slate-500 mb-3">
+                          <span>Currency: <strong className="text-slate-700">{form.purchaseCurrency || form.purchaseAccountCurrency || "-"}</strong></span>
+                          <span>Contact: <strong className="text-slate-700">{form.purchaseAccountMobile || form.purchaseAccountWhatsapp || "-"}</strong></span>
+                        </div>
                         
                         <div className="flex justify-between items-center mb-1 border-t border-slate-200 pt-3"><span className="font-bold text-emerald-700 uppercase text-[8px] bg-emerald-100 px-1.5 py-0.5 rounded">Sales Account (CR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.salesAccountNo || "N/A"}</span></div>
-                        <div className="font-bold text-slate-900 mb-2 truncate text-[10px]" title={form.salesAccountName}>{form.salesAccountName || "N/A"}</div>
+                        <div className="font-bold text-slate-900 mb-1 truncate text-[10px]" title={form.salesAccountName}>{form.salesAccountName || "N/A"}</div>
+                        <div className="flex justify-between items-center text-[8px] text-slate-500 mb-0.5">
+                          <span>Branch: <strong className="text-slate-700">{form.salesAccountBranch || "-"}</strong></span>
+                          <span>Country: <strong className="text-slate-700">{form.branchCountry || "-"}</strong></span>
+                        </div>
+                        <div className="flex justify-between items-center text-[8px] text-slate-500 mb-2">
+                          <span>Currency: <strong className="text-slate-700">{form.salesAccountCurrency || "-"}</strong></span>
+                          <span>Contact: <strong className="text-slate-700">{form.salesAccountMobile || form.salesAccountWhatsapp || "-"}</strong></span>
+                        </div>
                         
                         <div className="border-t border-slate-200 pt-3 mt-3 space-y-1.5">
                           <div className="flex justify-between items-center"><span className="text-slate-500 font-bold uppercase text-[8px]">Transfer Date:</span> <span className="font-bold text-slate-900 font-mono">{form.purchaseDate}</span></div>
@@ -5601,7 +5638,7 @@ export function PurchaseOrderWizard() {
               <div className="flex items-start gap-3 bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100">
                 <CheckSquare className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
                 <p className="font-semibold leading-relaxed">
-                  You are about to transfer this purchase order to the Business Cash Entry Ledger. Please verify the automated Double-Entry accounting mapping below:
+                  You are about to transfer this purchase order to the Purchase Booking Roznamcha (Business Journal). Please verify the automated Double-Entry accounting mapping below:
                 </p>
               </div>
               
@@ -5617,10 +5654,17 @@ export function PurchaseOrderWizard() {
                       <div className="font-black text-sm text-slate-900">{form.purchaseAccountName || "N/A"}</div>
                       <div className="font-mono text-slate-500">{form.purchaseAccountNo || "N/A"}</div>
                     </div>
-                    <div className="flex justify-between items-center text-red-700">
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3 text-[9px]">
+                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span> <span className="font-bold">{form.purchaseAccountBranch || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Country:</span> <span className="font-bold">{form.origin || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Global Serial:</span> <span className="font-bold font-mono">{form.purchaseAccountSerialNumber || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Country Serial:</span> <span className="font-bold font-mono">{form.purchaseAccountCountrySerialNumber || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Branch Serial:</span> <span className="font-bold font-mono">{form.purchaseAccountBranchSerialNumber || "N/A"}</span></div>
+                    </div>
+                    <div className="flex justify-between items-center text-red-700 pt-2 border-t border-slate-100">
                       <span className="font-semibold text-slate-600">Debit Amount:</span>
                       <span className="font-black text-sm">
-                        {form.currencyType || "USD"} {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {form.purchaseCurrency || form.purchaseAccountCurrency || "USD"} {((form.currencyType !== (form.purchaseCurrency || form.purchaseAccountCurrency || "USD")) ? (reportTotals.grandFinal * Number(form.exchangeRate || 1)) : reportTotals.grandFinal).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>
@@ -5637,10 +5681,17 @@ export function PurchaseOrderWizard() {
                       <div className="font-black text-sm text-slate-900">{form.salesAccountName || "N/A"}</div>
                       <div className="font-mono text-slate-500">{form.salesAccountNo || "N/A"}</div>
                     </div>
-                    <div className="flex justify-between items-center text-emerald-700">
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3 text-[9px]">
+                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span> <span className="font-bold">{form.salesAccountBranch || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Country:</span> <span className="font-bold">{form.branchCountry || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Global Serial:</span> <span className="font-bold font-mono">{form.salesAccountSerialNumber || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Country Serial:</span> <span className="font-bold font-mono">{form.salesAccountCountrySerialNumber || "N/A"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Branch Serial:</span> <span className="font-bold font-mono">{form.salesAccountBranchSerialNumber || "N/A"}</span></div>
+                    </div>
+                    <div className="flex justify-between items-center text-emerald-700 pt-2 border-t border-slate-100">
                       <span className="font-semibold text-slate-600">Credit Amount:</span>
                       <span className="font-black text-sm">
-                        {form.currencyType || "USD"} {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {form.purchaseCurrency || form.purchaseAccountCurrency || "USD"} {((form.currencyType !== (form.purchaseCurrency || form.purchaseAccountCurrency || "USD")) ? (reportTotals.grandFinal * Number(form.exchangeRate || 1)) : reportTotals.grandFinal).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>

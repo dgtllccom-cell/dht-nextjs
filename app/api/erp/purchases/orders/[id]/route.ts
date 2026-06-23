@@ -55,7 +55,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       supabase
         .from("purchase_orders")
         .select(
-          "id, country_id, country_branch_id, city_branch_id, supplier_company_id, currency_code, exchange_rate, order_total, form_data"
+          "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, currency_code, exchange_rate, order_total, form_data, created_at, ledger_posting_status"
         )
         .eq("id", params.id)
         .is("deleted_at", null)

@@ -696,11 +696,11 @@ export function RoznamchaReportView({
               <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border dark:bg-slate-900/30 dark:border-slate-800">
                 <div>
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Debit Total</span>
-                  <div className="text-sm font-extrabold text-rose-600 mt-0.5">${fmtNumber(selectedTotals.debit)}</div>
+                  <div className="text-sm font-extrabold text-rose-600 mt-0.5">{selectedLines[0]?.currency || ""} {fmtNumber(selectedTotals.debit)}</div>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Credit Total</span>
-                  <div className="text-sm font-extrabold text-emerald-600 mt-0.5">${fmtNumber(selectedTotals.credit)}</div>
+                  <div className="text-sm font-extrabold text-emerald-600 mt-0.5">{selectedLines[0]?.currency || ""} {fmtNumber(selectedTotals.credit)}</div>
                 </div>
               </div>
             )}
