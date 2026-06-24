@@ -159,7 +159,7 @@ export class LedgerReportService {
   async listLedgers(input: {
     session: ErpSession;
     reportScope: LedgerReportScope;
-    ledgerId?: string | null;
+    ledgerId?: string | string[] | null;
     countryId?: string | null;
     countryBranchId?: string | null;
     cityBranchId?: string | null;
@@ -181,7 +181,13 @@ export class LedgerReportService {
 
     q = applySessionScopeFilter(q, input.session);
 
-    if (input.ledgerId) q = q.eq("id", input.ledgerId);
+    if (input.ledgerId) {
+      if (Array.isArray(input.ledgerId)) {
+        q = q.in("id", input.ledgerId);
+      } else {
+        q = q.eq("id", input.ledgerId);
+      }
+    }
     if (input.countryId) q = q.eq("country_id", input.countryId);
     if (input.countryBranchId) q = q.eq("country_branch_id", input.countryBranchId);
     if (input.cityBranchId) q = q.eq("city_branch_id", input.cityBranchId);
@@ -454,7 +460,7 @@ export class LedgerReportService {
 
   async getLedgerStatement(input: {
     session: ErpSession;
-    ledgerId: string;
+    ledgerId: string | string[];
     fromDate: string;
     toDate: string;
     limit?: number;
@@ -463,11 +469,14 @@ export class LedgerReportService {
     const supabase = createSupabaseAdminClient() as any;
     const limit = Math.max(1, Math.min(input.limit ?? 2000, 5000));
 
+    const ledgerIds = Array.isArray(input.ledgerId) ? input.ledgerId : [input.ledgerId];
+    if (ledgerIds.length === 0) return { header: null, lines: [] };
+
     // Ensure ledger is accessible (session-scoped).
     const headerRows = await this.listLedgers({
       session: input.session,
       reportScope: "super_admin",
-      ledgerId: input.ledgerId,
+      ledgerId: ledgerIds,
       limit: 1,
       language: input.language ?? null
     });
@@ -480,7 +489,7 @@ export class LedgerReportService {
         .select(
           "id, batch_id, description, debit, credit, currency, usd_rate, usd_amount, created_at, ledger_posting_batches!inner(entry_date, reference_no, created_by, city_branch_id, country_branch_id)"
         )
-        .eq("ledger_id", input.ledgerId)
+        .in("ledger_id", ledgerIds)
         .gte("ledger_posting_batches.entry_date", input.fromDate)
         .lte("ledger_posting_batches.entry_date", input.toDate)
         .order("created_at", { ascending: true })
@@ -490,7 +499,7 @@ export class LedgerReportService {
         .select(
           "id, roznamcha_entry_id, description, debit, credit, currency, usd_rate, usd_amount, roznamcha_entries!inner(entry_date, voucher_no, created_by, created_at, city_branch_id, country_branch_id, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number)"
         )
-        .eq("ledger_id", input.ledgerId)
+        .in("ledger_id", ledgerIds)
         .gte("roznamcha_entries.entry_date", input.fromDate)
         .lte("roznamcha_entries.entry_date", input.toDate)
         .is("roznamcha_entries.deleted_at", null)

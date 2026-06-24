@@ -15,7 +15,7 @@ const querySchema = z.object({
   countryId: uuidSchema.optional(),
   countryBranchId: uuidSchema.optional(),
   cityBranchId: uuidSchema.optional(),
-  ledgerId: uuidSchema.optional(),
+  ledgerId: z.string().min(1).optional(),
   fromDate: z.string().trim().min(8).optional(),
   toDate: z.string().trim().min(8).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(250)
@@ -74,10 +74,12 @@ export async function GET(request: NextRequest) {
     const toDate = query.toDate ?? todayIso();
     const admin = createSupabaseAdminClient() as any;
 
+    const ledgerIdsParam = query.ledgerId ? query.ledgerId.split(",") : null;
+
     const rawLedgers = await ledgerReportService.listLedgers({
       session,
       reportScope: query.reportScope,
-      ledgerId: query.ledgerId ?? null,
+      ledgerId: ledgerIdsParam,
       countryId: query.countryId ?? null,
       countryBranchId: query.countryBranchId ?? null,
       cityBranchId: query.cityBranchId ?? null,
@@ -254,7 +256,46 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const summary = rowsWithTotals.reduce(
+    const groupedMap = new Map<string, typeof rowsWithTotals[0] & { ledgerIds: string[] }>();
+    
+    for (const r of rowsWithTotals) {
+      const key = r.rawAccountCode || r.accountCode || r.ledgerCode || r.ledgerId;
+      
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, { ...r, ledgerIds: [r.ledgerId] });
+      } else {
+        const existing = groupedMap.get(key)!;
+        existing.ledgerIds.push(r.ledgerId);
+        existing.entries += r.entries;
+        existing.debit += r.debit;
+        existing.credit += r.credit;
+        existing.balance += r.balance;
+        
+        if (r.lastActivityAt && (!existing.lastActivityAt || r.lastActivityAt > existing.lastActivityAt)) {
+          existing.lastActivityAt = r.lastActivityAt;
+          existing.lastReferenceNo = r.lastReferenceNo;
+          existing.lastSource = r.lastSource;
+          existing.lastDescription = r.lastDescription;
+          existing.lastEntryDate = r.lastEntryDate;
+        }
+        
+        if (existing.branch !== r.branch) {
+          existing.branch = "Multiple Branches";
+          existing.cityBranchId = null;
+          existing.countryBranchId = null;
+          existing.countryName = r.countryName === existing.countryName ? r.countryName : "Multiple Countries";
+          existing.cityBranchName = null;
+          existing.countryBranchName = null;
+        }
+      }
+    }
+    
+    const finalRows = Array.from(groupedMap.values()).map(r => {
+       const { ledgerIds, ...rest } = r;
+       return { ...rest, ledgerId: ledgerIds.join(",") };
+    });
+
+    const summary = finalRows.reduce(
       (acc, row) => {
         acc.totalLedgers += 1;
         if (row.status === "active") acc.activeLedgers += 1;
@@ -268,13 +309,13 @@ export async function GET(request: NextRequest) {
       { totalLedgers: 0, activeLedgers: 0, inactiveLedgers: 0, entries: 0, debit: 0, credit: 0, balance: 0 }
     );
 
-    const selectedLedger = query.ledgerId ? rowsWithTotals.find((row) => row.ledgerId === query.ledgerId) ?? null : null;
+    const selectedLedger = query.ledgerId ? finalRows.find((row) => row.ledgerId === query.ledgerId) ?? null : null;
 
     const statement =
       query.ledgerId && selectedLedger
         ? await ledgerReportService.getLedgerStatement({
             session,
-            ledgerId: query.ledgerId,
+            ledgerId: query.ledgerId.split(","),
             fromDate,
             toDate,
             limit: 5000,
@@ -296,7 +337,7 @@ export async function GET(request: NextRequest) {
         toDate
       },
       summary,
-      rows: rowsWithTotals,
+      rows: finalRows,
       selectedLedger,
       statement
     });

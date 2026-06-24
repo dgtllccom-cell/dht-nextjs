@@ -8,7 +8,7 @@ import { ledgerReportService } from "@/lib/services/ledger-report-service";
 import { getRequestLanguage } from "@/lib/i18n/server";
 
 const querySchema = ledgerStatementQuerySchema.extend({
-  ledgerId: uuidSchema,
+  ledgerId: z.string().min(1),
   limit: z.coerce.number().int().min(1).max(5000).default(2000)
 });
 
@@ -28,9 +28,11 @@ export async function GET(request: NextRequest) {
       action: "read"
     });
 
+    const ledgerIds = query.ledgerId.split(",");
+
     const { header, lines } = await ledgerReportService.getLedgerStatement({
       session,
-      ledgerId: query.ledgerId,
+      ledgerId: ledgerIds,
       fromDate: query.fromDate,
       toDate: query.toDate,
       limit: query.limit,
