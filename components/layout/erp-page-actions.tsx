@@ -131,11 +131,11 @@ export function ErpPageActions() {
           variant="outline"
           size="sm"
           onClick={goBack}
-          className="h-8 gap-1.5 rounded-lg px-2.5 text-[11px] font-bold"
+          className="h-7 gap-1 rounded-lg px-2 text-[10px] font-bold"
           aria-label="Back to previous page"
           title="Back"
         >
-          <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+          <ArrowLeft className="h-3 w-3" aria-hidden />
           Back
         </Button>
         <div id="erp-page-title-slot" className="min-w-0 empty:hidden" />
@@ -154,11 +154,11 @@ export function ErpPageActions() {
             variant="outline"
             size="sm"
             onClick={() => setOpen((current) => !current)}
-            className="h-8 gap-1.5 rounded-lg px-2.5 text-[11px] font-bold"
+            className="h-7 gap-1.5 rounded-lg px-2 text-[10px] font-bold"
             aria-label="Open page actions menu"
             title="Page actions"
           >
-            <MoreVertical className="h-4 w-4" aria-hidden />
+            <MoreVertical className="h-3.5 w-3.5" aria-hidden />
             Actions
           </Button>
 
@@ -201,11 +201,11 @@ export function ErpPageActions() {
           variant="outline"
           size="icon"
           onClick={closePage}
-          className="h-8 w-8 rounded-lg text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/30"
+          className="h-7 w-7 rounded-lg text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/30"
           aria-label="Close current page"
           title="Close"
         >
-          <X className="h-4 w-4" aria-hidden />
+          <X className="h-3.5 w-3.5" aria-hidden />
         </Button>
       </div>
     </section>

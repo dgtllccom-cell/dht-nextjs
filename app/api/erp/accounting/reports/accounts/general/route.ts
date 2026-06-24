@@ -25,6 +25,9 @@ type EnterpriseAccountRow = {
   country_branch_id: string | null;
   city_branch_id: string | null;
   parent_id: string | null;
+  customer_id: string | null;
+  company_id: string | null;
+  bank_id: string | null;
   code: string;
   account_number: string | null;
   customer_number: string | null;
@@ -164,9 +167,31 @@ export async function GET(request: NextRequest) {
     const effectiveQuery = { ...query };
 
     if (!session.isSuperAdmin) {
-      if (!effectiveQuery.countryId && session.countryIds[0]) effectiveQuery.countryId = session.countryIds[0];
-      if (!effectiveQuery.countryBranchId && session.countryBranchIds[0]) effectiveQuery.countryBranchId = session.countryBranchIds[0];
-      if (!effectiveQuery.cityBranchId && session.cityBranchIds[0]) effectiveQuery.cityBranchId = session.cityBranchIds[0];
+      const isCountryScope = session.roles.includes("country_admin") || session.roles.includes("country_user");
+      const isMainBranchScope = session.roles.includes("main_branch_admin");
+
+      if (isCountryScope) {
+        if (!effectiveQuery.countryId && session.countryIds[0]) {
+          effectiveQuery.countryId = session.countryIds[0];
+        }
+      } else if (isMainBranchScope) {
+        if (!effectiveQuery.countryId && session.countryIds[0]) {
+          effectiveQuery.countryId = session.countryIds[0];
+        }
+        if (!effectiveQuery.countryBranchId && session.countryBranchIds[0]) {
+          effectiveQuery.countryBranchId = session.countryBranchIds[0];
+        }
+      } else {
+        if (!effectiveQuery.countryId && session.countryIds[0]) {
+          effectiveQuery.countryId = session.countryIds[0];
+        }
+        if (!effectiveQuery.countryBranchId && session.countryBranchIds[0]) {
+          effectiveQuery.countryBranchId = session.countryBranchIds[0];
+        }
+        if (!effectiveQuery.cityBranchId && session.cityBranchIds[0]) {
+          effectiveQuery.cityBranchId = session.cityBranchIds[0];
+        }
+      }
     }
 
     authorizeApiScope(session, {
@@ -188,7 +213,7 @@ export async function GET(request: NextRequest) {
         let q = supabase
           .from("enterprise_accounts")
           .select(
-            "id, scope, country_id, country_branch_id, city_branch_id, parent_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at"
+            "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, bank_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at"
           )
           .is("deleted_at", null)
           .order("created_at", { ascending: false });
@@ -270,23 +295,26 @@ export async function GET(request: NextRequest) {
     const postingBatches = (postingBatchRes.data ?? []) as PostingBatchRow[];
     const rozEntries = (roznamchaEntryRes.data ?? []) as RoznamchaEntryRow[];
 
-    const [countryIds, countryBranchIds, cityBranchIds] = [
+    const [countryIds, countryBranchIds, cityBranchIds, customerIds] = [
       [...new Set(accountRows.map((row) => row.country_id).filter((value): value is string => Boolean(value)))],
       [...new Set(accountRows.map((row) => row.country_branch_id).filter((value): value is string => Boolean(value)))],
-      [...new Set(accountRows.map((row) => row.city_branch_id).filter((value): value is string => Boolean(value)))]
+      [...new Set(accountRows.map((row) => row.city_branch_id).filter((value): value is string => Boolean(value)))],
+      [...new Set(accountRows.map((row) => row.customer_id).filter((value): value is string => Boolean(value)))]
     ];
 
-    const [countriesRes, countryBranchesRes, cityBranchesRes, companyRes] = await Promise.all([
+    const [countriesRes, countryBranchesRes, cityBranchesRes, companyRes, customersRes] = await Promise.all([
       countryIds.length ? supabase.from("countries").select("id, name, iso2, currency_code").in("id", countryIds) : Promise.resolve({ data: [], error: null }),
       countryBranchIds.length ? supabase.from("country_branches").select("id, country_id, name, code, local_currency, status").in("id", countryBranchIds) : Promise.resolve({ data: [], error: null }),
       cityBranchIds.length ? supabase.from("city_branches").select("id, country_id, country_branch_id, city_name, name, code, local_currency, status").in("id", cityBranchIds) : Promise.resolve({ data: [], error: null }),
-      profileRes.data?.default_company_id ? supabase.from("companies").select("id, name, legal_name, base_currency, created_at, updated_at").eq("id", profileRes.data.default_company_id).maybeSingle() : Promise.resolve({ data: null, error: null })
+      profileRes.data?.default_company_id ? supabase.from("companies").select("id, name, legal_name, base_currency, created_at, updated_at").eq("id", profileRes.data.default_company_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      customerIds.length ? supabase.from("customers").select("id, customer_name").in("id", customerIds) : Promise.resolve({ data: [], error: null })
     ]);
 
     if (countriesRes.error) throw new Error(countriesRes.error.message);
     if (countryBranchesRes.error) throw new Error(countryBranchesRes.error.message);
     if (cityBranchesRes.error) throw new Error(cityBranchesRes.error.message);
     if (companyRes.error) throw new Error(companyRes.error.message);
+    if (customersRes.error) throw new Error(customersRes.error.message);
 
     const countries = (countriesRes.data ?? []) as Array<{ id: string; name: string; iso2: string | null; currency_code: string }>;
     const countryBranches = (countryBranchesRes.data ?? []) as Array<{
@@ -307,6 +335,7 @@ export async function GET(request: NextRequest) {
       local_currency: string;
       status: string;
     }>;
+    const customers = (customersRes.data ?? []) as Array<{ id: string; customer_name: string }>;
     const company = companyRes.data as { id: string; name: string; legal_name: string | null; base_currency: string } | null;
     const profile = profileRes.data as { id: string; full_name: string | null; default_company_id: string | null } | null;
 
@@ -314,6 +343,7 @@ export async function GET(request: NextRequest) {
     const countryBranchLookup = new Map(countryBranches.map((row) => [row.id, row] as const));
     const cityBranchLookup = new Map(cityBranches.map((row) => [row.id, row] as const));
     const ledgerLookup = new Map(ledgers.map((row) => [row.enterprise_account_id ?? row.id, row] as const));
+    const customerLookup = new Map(customers.map((row) => [row.id, row.customer_name] as const));
 
     const postingByAccount = new Map<string, PostingLineRow[]>();
     for (const line of postingLines) {
@@ -431,7 +461,11 @@ export async function GET(request: NextRequest) {
         accountId: account.id,
         accountCode: account.account_number || account.code,
         rawAccountCode: account.code,
+        customerId: account.customer_id,
+        customerName: account.customer_id ? customerLookup.get(account.customer_id) ?? "-" : "-",
         customerNumber: account.customer_number || `CUST-${account.code}`,
+        companyId: account.company_id,
+        bankId: account.bank_id,
         accountSerialNumber: Number(account.account_serial_number ?? 0),
         countrySerialNumber: account.country_serial_number ?? "-",
         branchSerialNumber: account.branch_serial_number ?? "-",
