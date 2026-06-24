@@ -332,7 +332,7 @@ export function CashEntryForm({
   const fetchRecentEntries = async () => {
     try {
       setLoadingEntries(true);
-      const params = new URLSearchParams({ limit: "10" });
+      const params = new URLSearchParams({ limit: "50" });
       if (countryId) params.set("countryId", countryId);
       if (countryBranchId) params.set("countryBranchId", countryBranchId);
       if (cityBranchId) params.set("cityBranchId", cityBranchId);
@@ -2194,11 +2194,11 @@ export function CashEntryForm({
                       )}
 
                       {paymentType === "bank" && (
-                        <div className="space-y-3">
+                        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
                           <div className="space-y-1.5">
-                            <Label className="text-xs font-black">Bank Name</Label>
+                            <Label className="text-[10px] font-black uppercase text-slate-500">Bank Name</Label>
                             <select
-                              className="h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                              className="h-8 w-full rounded-md border border-input bg-background px-2 text-[11px] font-semibold outline-none"
                               value={typeDetails.bankName || ""}
                               onChange={(e) => {
                                 const val = e.target.value;
@@ -2210,9 +2210,11 @@ export function CashEntryForm({
                               }}
                             >
                               <option value="">Select Bank</option>
-                              {["HBL", "MCB", "UBL", "Meezan", "Bank Alfalah"].map((bank) => (
-                                <option key={bank} value={bank}>{bank}</option>
-                              ))}
+                              {selectedCountry?.iso2 === "AE" && ["Dubai Islamic Bank", "Emirates NBD", "ADCB", "Mashreq Bank", "FAB"].map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+                              {selectedCountry?.iso2 === "PK" && ["HBL", "MCB", "UBL", "Meezan", "Bank Alfalah"].map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+                              {selectedCountry?.iso2 === "IN" && ["State Bank of India", "HDFC", "ICICI", "Axis Bank"].map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+                              {selectedCountry?.iso2 === "AF" && ["Da Afghanistan Bank", "Azizi Bank", "Kabul Bank", "AIB"].map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+                              {(!selectedCountry?.iso2 || !["AE", "PK", "IN", "AF"].includes(selectedCountry.iso2)) && ["Central Bank", "Commercial Bank", "National Bank"].map((bank) => <option key={bank} value={bank}>{bank}</option>)}
                               {savedBanks.map((bank, index) => (
                                 <option key={`${bank.name}-${index}`} value={bank.name}>{bank.name}</option>
                               ))}
@@ -2221,9 +2223,9 @@ export function CashEntryForm({
                           </div>
 
                           <div className="space-y-1.5">
-                            <Label className="text-xs font-black">Payment Method</Label>
+                            <Label className="text-[10px] font-black uppercase text-slate-500">Method</Label>
                             <select
-                              className="h-10 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                              className="h-8 w-full rounded-md border border-input bg-background px-2 text-[11px] font-semibold outline-none"
                               value={typeDetails.method || ""}
                               onChange={(e) => {
                                 const val = e.target.value;
@@ -2245,29 +2247,20 @@ export function CashEntryForm({
                             </select>
                           </div>
 
-                          <div className="grid gap-3 grid-cols-2">
-                            <FieldBlock label="Reference No.">
-                              <Input
-                                className="h-10 text-xs font-semibold w-full"
-                                value={typeDetails.refNo || ""}
-                                onChange={(e) => setTypeDetails((prev) => ({ ...prev, refNo: e.target.value }))}
-                                placeholder="Cheque/Mobile transaction number"
-                              />
-                            </FieldBlock>
-                            <FieldBlock label="Payment Date" required>
-                              <Input
-                                className="h-10 text-xs font-semibold w-full"
-                                type="date"
-                                required
-                                value={typeDetails.payDate || entryDate}
-                                onChange={(e) => setTypeDetails((prev) => ({ ...prev, payDate: e.target.value }))}
-                              />
-                            </FieldBlock>
+                          <div className="space-y-1.5">
+                            <Label className="text-[10px] font-black uppercase text-slate-500">Ref. No.</Label>
+                            <Input
+                              className="h-8 text-[11px] font-semibold w-full"
+                              value={typeDetails.refNo || ""}
+                              onChange={(e) => setTypeDetails((prev) => ({ ...prev, refNo: e.target.value }))}
+                              placeholder="Trx number"
+                            />
                           </div>
 
-                          <FieldBlock label="Attachment Upload">
+                          <div className="space-y-1.5">
+                            <Label className="text-[10px] font-black uppercase text-slate-500">Upload</Label>
                             <Input
-                              className="h-9 text-xs"
+                              className="h-8 text-[11px]"
                               type="file"
                               onChange={(e) => {
                                 const file = e.target.files?.[0] ?? null;
@@ -2275,7 +2268,7 @@ export function CashEntryForm({
                                 setTypeDetails((p) => ({ ...p, bankAttachmentName: file?.name || "" }));
                               }}
                             />
-                          </FieldBlock>
+                          </div>
                         </div>
                       )}
 
@@ -2421,6 +2414,7 @@ export function CashEntryForm({
                             if (newId) {
                               resetPaymentDraft();
                               setMessage("Accepted successfully.");
+                              setShowPaymentWorkReport(false);
                             }
                           }}
                           className="h-10 px-8 rounded-lg font-bold bg-blue-600 hover:bg-blue-700 text-white gap-2 text-xs"
@@ -2576,17 +2570,30 @@ export function CashEntryForm({
             <h3 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
               📋 Recent Cash Entries
             </h3>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 text-[10px] font-bold"
-              onClick={fetchRecentEntries}
-              disabled={loadingEntries}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", loadingEntries ? "animate-spin" : "")} />
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              {!showPaymentWorkReport && (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="h-7 px-3 text-[10px] font-black bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => setShowPaymentWorkReport(true)}
+                >
+                  + New Entry
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-[10px] font-bold"
+                onClick={fetchRecentEntries}
+                disabled={loadingEntries}
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5 mr-1", loadingEntries ? "animate-spin" : "")} />
+                Refresh
+              </Button>
+            </div>
           </div>
           <CardContent className="p-0">
             <div className="overflow-x-auto">

@@ -304,7 +304,7 @@ export async function GET(request: NextRequest) {
     const finalRows = Array.from(groupedMap.values()).map(r => {
        const { ledgerIds, ...rest } = r;
        return { ...rest, ledgerId: ledgerIds.join(",") };
-    });
+    }).filter(r => r.entries > 0 || r.openingBalance !== 0 || r.debit !== 0 || r.credit !== 0 || r.balance !== 0);
 
     const summary = finalRows.reduce(
       (acc, row) => {
