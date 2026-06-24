@@ -30,6 +30,7 @@ type GeneralReportRow = LedgerLookupRow & {
   debit: number;
   credit: number;
   balance: number;
+  openingBalance?: number;
   balanceDate: string | null;
   lastActivityAt: string | null;
   lastReferenceNo: string | null;
@@ -482,6 +483,7 @@ export function LedgerReportView({
         "Account No",
         "Account Name",
         "Entries",
+        "Opening Bal",
         "Credit",
         "Debit",
         "Created Date",
@@ -495,6 +497,7 @@ export function LedgerReportView({
         row.accountCode || row.ledgerCode || "-",
         row.accountName || row.ledgerName || "-",
         String(row.entries ?? 0),
+        fmtNumber(row.openingBalance ?? 0),
         fmtNumber(row.credit ?? 0),
         fmtNumber(row.debit ?? 0),
         formatDateString(row.createdAt),
@@ -844,7 +847,7 @@ export function LedgerReportView({
             <table className="w-full min-w-[1300px] border-separate border-spacing-0 text-xs">
               <thead className="sticky top-0 z-10 bg-slate-900 text-white dark:bg-slate-800">
                 <tr className="whitespace-nowrap">
-                  {["S.No", "Country", "Branch", "Account No", "Account Name", "Entries", "Credit", "Debit", "Created Date", "Last Entry Date", "Balance", "Actions"].map((head) => (
+                  {["S.No", "Country", "Branch", "Account No", "Account Name", "Entries", "Opening Bal", "Credit", "Debit", "Created Date", "Last Entry Date", "Balance", "Actions"].map((head) => (
                     <th key={head} className="border-b border-slate-700 px-3 py-2 text-left font-semibold">
                       {head}
                     </th>
@@ -884,6 +887,7 @@ export function LedgerReportView({
                         <td className="px-3 py-2 font-mono">{row.accountCode || row.ledgerCode}</td>
                         <td className="px-3 py-2 font-medium text-slate-950 dark:text-slate-100">{row.accountName || row.ledgerName}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{row.entries}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-600 dark:text-slate-400">{fmtNumber(row.openingBalance ?? 0)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-emerald-600">{fmtNumber(row.credit)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-rose-600">{fmtNumber(row.debit)}</td>
                         <td className="px-3 py-2">{formatDateString(row.createdAt)}</td>

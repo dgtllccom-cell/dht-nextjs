@@ -239,6 +239,15 @@ export async function GET(request: NextRequest) {
       const totals = agg.get(row.ledgerId) ?? { entries: 0, debit: 0, credit: 0, lastActivityAt: null, lastReferenceNo: null, lastSource: null, lastDescription: null, lastEntryDate: null };
       const balance = balanceMap.get(row.ledgerId);
       const branch = row.cityBranchName || row.countryBranchName || row.countryName || "-";
+      
+      const currentBal = balance?.balance ?? (row.normalBalance === "credit" ? totals.credit - totals.debit : totals.debit - totals.credit);
+      let opBal = currentBal;
+      if (row.normalBalance === "credit") {
+         opBal = currentBal - totals.credit + totals.debit;
+      } else {
+         opBal = currentBal - totals.debit + totals.credit;
+      }
+
       return {
         ...row,
         branch,
@@ -246,7 +255,8 @@ export async function GET(request: NextRequest) {
         entries: totals.entries,
         debit: totals.debit,
         credit: totals.credit,
-        balance: balance?.balance ?? totals.debit - totals.credit,
+        balance: currentBal,
+        openingBalance: opBal,
         balanceDate: balance?.balanceDate ?? null,
         lastActivityAt: totals.lastActivityAt,
         lastReferenceNo: totals.lastReferenceNo,
@@ -270,6 +280,7 @@ export async function GET(request: NextRequest) {
         existing.debit += r.debit;
         existing.credit += r.credit;
         existing.balance += r.balance;
+        existing.openingBalance += r.openingBalance;
         
         if (r.lastActivityAt && (!existing.lastActivityAt || r.lastActivityAt > existing.lastActivityAt)) {
           existing.lastActivityAt = r.lastActivityAt;
