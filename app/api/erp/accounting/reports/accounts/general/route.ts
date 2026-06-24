@@ -508,7 +508,7 @@ export async function GET(request: NextRequest) {
         companyOwner: profile?.full_name ?? "-",
         recentActivityLabel: latestAudit?.action ?? latestMovement?.referenceNo ?? null,
         recentActivityAt: latestActivityAt,
-        recentMovements: allMovements.slice(0, 3).map((row) => ({
+        recentMovements: allMovements.map((row) => ({
           source: row.source,
           referenceNo: row.referenceNo,
           entryDate: row.entryDate,
