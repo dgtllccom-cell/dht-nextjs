@@ -103,9 +103,6 @@ export async function getLedgerStatement(params: {
   }
   qp.set("fromDate", params.fromDate);
   qp.set("toDate", params.toDate);
-
-    toDate: params.toDate
-  });
   if (params.limit) qp.set("limit", String(params.limit));
 
   return apiGet<{
