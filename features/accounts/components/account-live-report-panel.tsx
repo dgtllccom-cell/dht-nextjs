@@ -182,7 +182,21 @@ export function AccountLiveReportPanel({
     { label: "Browser / Platform", value: "Chrome / Windows" }
   ];
 
+  // 1. Account Information fields
+  const accountFields = [
+    { label: "Account Name", value: accountName || "-" },
+    { label: "Account Code", value: accountCode || "-" },
+    { label: "Account Title", value: accountTitle || "-" },
+    { label: "Sub Type", value: subType || "-" },
+    { label: "Category", value: category || "-" },
+    { label: "Currency", value: currency || "-" },
+    { label: "Manual Ref", value: manualReferenceNumber || "-" },
+    { label: "Country", value: selectedCountryName || "-" },
+    { label: "Branch", value: selectedBranchName || "-" },
+  ];
+
   const sections = [
+    { id: 1, title: "ACCOUNT INFORMATION", icon: FileText, fields: accountFields },
     { id: 2, title: "CUSTOMER INFORMATION", icon: UserRound, fields: customerFields },
     { id: 3, title: "COMPANY DETAILS", icon: Building2, fields: companyFields },
     { id: 4, title: "BANK DETAILS", icon: Landmark, fields: bankFields },
@@ -192,49 +206,12 @@ export function AccountLiveReportPanel({
 
   return (
     <Card className="border-slate-200 shadow-md bg-white overflow-hidden w-full">
-      {/* ── Action Toolbar ──────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between border-b border-slate-100 bg-slate-50/50 px-5 py-3 gap-3">
-        <div>
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Dashboard &gt; Accounts &gt; Live Report &gt; Account Profile</span>
-          <h2 className="text-sm font-bold text-slate-800 mt-1">Account Profile Report</h2>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {onBack && (
-            <Button variant="outline" size="sm" onClick={onBack} className="h-8 text-[11px] font-bold gap-1 border-slate-200 text-slate-700">
-              <ArrowLeft className="h-3.5 w-3.5" /> Back
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={onPrint} className="h-8 text-[11px] font-bold gap-1 border-slate-200 text-slate-700">
-            <Printer className="h-3.5 w-3.5" /> Print
-          </Button>
-          <Button variant="outline" size="sm" onClick={onPdf} className="h-8 text-[11px] font-bold gap-1 border-slate-200 text-slate-700">
-            <FileText className="h-3.5 w-3.5 text-rose-500" /> PDF
-          </Button>
-          <Button variant="outline" size="sm" onClick={onExcel} className="h-8 text-[11px] font-bold gap-1 border-slate-200 text-slate-700">
-            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Excel
-          </Button>
-          <Button variant="outline" size="sm" onClick={onEmail} className="h-8 text-[11px] font-bold gap-1 border-slate-200 text-slate-700">
-            <Mail className="h-3.5 w-3.5 text-blue-500" /> Email
-          </Button>
-          <Button variant="default" size="sm" onClick={onWhatsApp} className="h-8 text-[11px] font-extrabold gap-1 bg-emerald-600 text-white hover:bg-emerald-700 border-0">
-            <MessageCircle className="h-3.5 w-3.5 fill-current" /> WhatsApp
-          </Button>
-        </div>
-      </div>
-
-      {/* ── ACCOUNT REPORT PREVIEW Section (mockup styled) ──────────────── */}
-      <div className="border-b border-slate-100 bg-slate-50/20 px-5 py-2.5 flex items-center gap-2">
-        <FileText className="h-4 w-4 text-slate-500" />
-        <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Account Report Preview</span>
-      </div>
-
       {/* ── Light-theme Preview Header (mockup styled) ─────────────────── */}
       <div className="bg-white text-slate-800 p-6 border-b border-slate-150">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="space-y-1">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-none">{accountName || "ASMATKHAN"}</h1>
-            <p className="text-xs text-slate-500 font-semibold mt-1">Account Account</p>
+            <p className="text-xs text-slate-500 font-semibold mt-1">{accountTitle || "Account Title"}</p>
           </div>
           
           <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-xl lg:ml-8 text-left">
@@ -258,7 +235,7 @@ export function AccountLiveReportPanel({
 
           <div className="flex items-center">
             <span className="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
-              Active
+              {status || "Active"}
             </span>
           </div>
         </div>
@@ -286,9 +263,35 @@ export function AccountLiveReportPanel({
 
       {/* ── Detail Cards Grid (mockup styled layout) ───────────────────── */}
       <CardContent className="p-6 bg-slate-50/20 space-y-6">
-        {/* Row 1: CUSTOMER, COMPANY, BANK Details (3 columns) */}
+        {/* Row 1: ACCOUNT, CUSTOMER Details (2 columns) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {sections.filter(s => s.id >= 1 && s.id <= 2).map((sect) => {
+            const Icon = sect.icon;
+            return (
+              <div key={sect.id} className="bg-white rounded-lg border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
+                <div className="border-b border-slate-100 px-4 py-2.5 bg-white flex items-center gap-2">
+                  <Icon className="h-4 w-4 text-blue-500" />
+                  <h3 className="text-[10px] font-bold text-slate-800 tracking-wider uppercase">{sect.id}. {sect.title}</h3>
+                </div>
+
+                <div className="p-4 flex-1 space-y-2">
+                  {sect.fields.map((f, i) => (
+                    <div key={i} className="grid grid-cols-[130px_1fr] gap-3 text-xs border-b border-slate-100/50 pb-1.5 last:border-0 last:pb-0">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{f.label}</span>
+                      <span className="font-bold text-slate-700 truncate">
+                        {f.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Row 2: COMPANY, BANK, WAREHOUSE Details (3 columns) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {sections.filter(s => s.id >= 2 && s.id <= 4).map((sect) => {
+          {sections.filter(s => s.id >= 3 && s.id <= 5).map((sect) => {
             const Icon = sect.icon;
             return (
               <div key={sect.id} className="bg-white rounded-lg border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
@@ -312,45 +315,20 @@ export function AccountLiveReportPanel({
           })}
         </div>
 
-        {/* Row 2: WAREHOUSE, AUDIT Details (2 columns - 7/12 and 5/12 span) */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-          {/* Warehouse (7/12 span) */}
-          {sections.filter(s => s.id === 5).map((sect) => {
-            const Icon = sect.icon;
-            return (
-              <div key={sect.id} className="md:col-span-7 bg-white rounded-lg border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
-                <div className="border-b border-slate-100 px-4 py-2.5 bg-white flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-blue-500" />
-                  <h3 className="text-[10px] font-bold text-slate-800 tracking-wider uppercase">{sect.id}. {sect.title}</h3>
-                </div>
-
-                <div className="p-4 flex-1 space-y-2">
-                  {sect.fields.map((f, i) => (
-                    <div key={i} className="grid grid-cols-[130px_1fr] gap-3 text-xs border-b border-slate-100/50 pb-1.5 last:border-0 last:pb-0">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{f.label}</span>
-                      <span className="font-bold text-slate-700 truncate">
-                        {f.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Audit Information (5/12 span) */}
+        {/* Row 3: AUDIT Information */}
+        <div className="grid grid-cols-1 gap-5">
           {sections.filter(s => s.id === 6).map((sect) => {
             const Icon = sect.icon;
             return (
-              <div key={sect.id} className="md:col-span-5 bg-white rounded-lg border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
+              <div key={sect.id} className="bg-white rounded-lg border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
                 <div className="border-b border-slate-100 px-4 py-2.5 bg-white flex items-center gap-2">
                   <Icon className="h-4 w-4 text-blue-500" />
                   <h3 className="text-[10px] font-bold text-slate-800 tracking-wider uppercase">{sect.id}. {sect.title}</h3>
                 </div>
 
-                <div className="p-4 flex-1 space-y-2">
+                <div className="p-4 flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
                   {sect.fields.map((f, i) => (
-                    <div key={i} className="grid grid-cols-[130px_1fr] gap-3 text-xs border-b border-slate-100/50 pb-1.5 last:border-0 last:pb-0">
+                    <div key={i} className="grid grid-cols-[130px_1fr] gap-3 text-xs border-b border-slate-100/50 pb-1.5">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{f.label}</span>
                       <span className="font-bold text-slate-700 truncate">
                         {f.value}

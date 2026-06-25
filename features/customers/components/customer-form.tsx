@@ -52,6 +52,9 @@ export function CustomerForm({
   // DB customers local cache to read details if editing
   const [savedCompanies, setSavedCompanies] = useState<CustomerRow[]>([]);
 
+  // Wizard Step
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+
   // Form states
   const [customerType, setCustomerType] = useState("Male");
   const [firstName, setFirstName] = useState("");
@@ -435,12 +438,47 @@ export function CustomerForm({
         </span>
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-semibold text-slate-500 mb-2">
+        {[
+          { id: 1, label: "1. Personal Info" },
+          { id: 2, label: "2. Location" },
+          { id: 3, label: "3. Contacts & Docs" },
+          { id: 4, label: "4. Review & Save" },
+        ].map((s) => {
+          const active = currentStep === s.id;
+          const completed = currentStep > s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setCurrentStep(s.id as any)}
+              className={`flex items-center gap-2 border rounded-lg p-2.5 text-left transition-all ${
+                active
+                  ? "border-teal-500 bg-teal-50/50 text-teal-700 font-bold shadow-sm"
+                  : completed
+                  ? "border-emerald-200 bg-emerald-50/50 text-emerald-700 font-bold"
+                  : "border-slate-100 bg-slate-50/50 text-slate-400"
+              }`}
+            >
+              <div
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+                  active ? "bg-teal-500 text-white" : completed ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
+                }`}
+              >
+                {completed ? <CheckCircle2 className="h-4 w-4" /> : s.id}
+              </div>
+              <span className="truncate">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Left Form Panels */}
         <div className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Personal Info */}
-            <Card className="rounded-xl border shadow-sm bg-white overflow-hidden">
+          {currentStep === 1 && (
+            <Card className="rounded-xl border shadow-sm bg-white overflow-hidden md:col-span-2">
               <div className="border-b px-5 py-4 bg-slate-50 flex items-center gap-2">
                 <User className="h-4.5 w-4.5 text-teal-600" />
                 <h2 className="font-semibold text-slate-800 text-sm">{getLabel("personalInfo", lang)}</h2>
@@ -497,9 +535,10 @@ export function CustomerForm({
                 )}
               </CardContent>
             </Card>
+          )}
 
-            {/* Location Info */}
-            <Card className="rounded-xl border shadow-sm bg-white overflow-hidden">
+          {currentStep === 2 && (
+            <Card className="rounded-xl border shadow-sm bg-white overflow-hidden md:col-span-2">
               <div className="border-b px-5 py-4 bg-slate-50 flex items-center gap-2">
                 <MapPin className="h-4.5 w-4.5 text-teal-600" />
                 <h2 className="font-semibold text-slate-800 text-sm">{getLabel("locationInfo", lang)}</h2>
@@ -525,47 +564,11 @@ export function CustomerForm({
                 </div>
               </CardContent>
             </Card>
-
-            {/* Customer Account Details Card */}
-            <Card className="rounded-xl border shadow-sm bg-white overflow-hidden">
-              <div className="border-b px-5 py-4 bg-slate-50 flex items-center gap-2">
-                <FileText className="h-4.5 w-4.5 text-teal-600" />
-                <h2 className="font-semibold text-slate-800 text-sm">Customer Account Details</h2>
-              </div>
-              <CardContent className="p-5 space-y-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Account Name</Label>
-                  <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="Account Display Name" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
-                </div>
-                <div className="grid gap-3 grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-700">Account Number</Label>
-                    <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="e.g. 100-200-301" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-700">Manual Reference</Label>
-                    <Input value={manualReference} onChange={(e) => setManualReference(e.target.value)} placeholder="Manual Reference No." className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
-                  </div>
-                </div>
-                <div className="grid gap-3 grid-cols-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-700">Branch Name</Label>
-                    <Input value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="e.g. Lahore Branch" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-700">Branch Code</Label>
-                    <Input value={branchCode} onChange={(e) => setBranchCode(e.target.value)} placeholder="e.g. LHR" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-700">City Branch</Label>
-                    <Input value={cityBranch} onChange={(e) => setCityBranch(e.target.value)} placeholder="City Branch Location" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          )}
 
 
-            {/* Contact Info (Dynamic) */}
+          {currentStep === 3 && (
+            <div className="space-y-6 md:col-span-2">
             <Card className="rounded-xl border shadow-sm bg-white overflow-hidden">
               <div className="border-b px-5 py-3.5 bg-slate-50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -791,9 +794,11 @@ export function CustomerForm({
                 })}
               </CardContent>
             </Card>
+            </div>
+          )}
 
-            {/* Additional Info with Status */}
-            <Card className="rounded-xl border shadow-sm bg-white overflow-hidden">
+          {currentStep === 4 && (
+            <Card className="rounded-xl border shadow-sm bg-white overflow-hidden md:col-span-2">
               <div className="border-b px-5 py-4 bg-slate-50 flex items-center gap-2">
                 <Info className="h-4.5 w-4.5 text-teal-600" />
                 <h2 className="font-semibold text-slate-800 text-sm">{getLabel("additionalInfo", lang)}</h2>
@@ -822,31 +827,41 @@ export function CustomerForm({
                 </div>
               </CardContent>
             </Card>
+          )}
           </div>
 
           {/* Form Actions */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-            <p className="text-xs text-muted-foreground max-w-sm">
-              Confirm all required fields are filled. Submitting will save the customer profile and open their visual profile report.
-            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCurrentStep((Math.max(1, currentStep - 1)) as any)}
+              disabled={currentStep === 1}
+              className="border-slate-200 text-slate-700 font-medium h-10 px-4"
+            >
+              Back
+            </Button>
+            
             <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push("/dashboard/settings/customers" as Route)}
-                className="border-slate-200 text-slate-700 font-medium h-10 px-4"
-              >
-                {getLabel("reset", lang)}
-              </Button>
-              <Button
-                type="button"
-                onClick={submitForm}
-                disabled={!ready || saving}
-                className="rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium shadow-sm h-10 px-5 gap-2"
-              >
-                <Save className="h-4 w-4" />
-                {saving ? "Saving..." : getLabel("saveCustomer", lang)}
-              </Button>
+              {currentStep < 4 ? (
+                <Button
+                  type="button"
+                  onClick={() => setCurrentStep((Math.min(4, currentStep + 1)) as any)}
+                  className="rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium shadow-sm h-10 px-8 gap-2"
+                >
+                  Next
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={submitForm}
+                  disabled={!ready || saving}
+                  className="rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium shadow-sm h-10 px-5 gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  {saving ? "Saving..." : getLabel("saveCustomer", lang)}
+                </Button>
+              )}
             </div>
           </div>
 

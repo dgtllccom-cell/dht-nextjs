@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ReportExportToolbar } from "@/components/ui/report-export-toolbar";
 import { apiGet } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
@@ -393,6 +394,17 @@ export function AccountProfileView({
             />
           </div>
 
+          <ReportExportToolbar 
+            onExportExcel={() => exportSingleAccountExcel(selectedRow)}
+            onPrint={() => window.print()}
+            onExportPdf={() => {
+              const t = document.title;
+              document.title = `Account_Profile_${selectedRow.accountCode}`;
+              window.print();
+              document.title = t;
+            }}
+          />
+
           {/* Consolidated Actions Dropdown */}
           <div className="relative" ref={actionRef}>
             <Button
@@ -406,37 +418,6 @@ export function AccountProfileView({
             </Button>
             {actionMenuOpen && (
               <div className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-lg border bg-background shadow-lg text-[11px] leading-tight">
-                <div className="border-b bg-muted/20 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-muted-foreground">Export & Documents</div>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted text-left text-slate-700 dark:text-slate-350"
-                  onClick={() => { setActionMenuOpen(false); window.print(); }}
-                >
-                  <Printer className="h-3.5 w-3.5 text-slate-500" />
-                  <span>Print Report</span>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted text-left text-slate-700 dark:text-slate-355"
-                  onClick={() => {
-                    setActionMenuOpen(false);
-                    const t = document.title;
-                    document.title = `Account_Profile_${selectedRow.accountCode}`;
-                    window.print();
-                    document.title = t;
-                  }}
-                >
-                  <DownloadActionIcon className="h-3.5 w-3.5 text-red-650" />
-                  <span>Export PDF</span>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted text-left text-slate-700 dark:text-slate-355"
-                  onClick={() => { setActionMenuOpen(false); exportSingleAccountExcel(selectedRow); }}
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-650" />
-                  <span>Export Excel</span>
-                </button>
 
                 <div className="border-b border-t bg-muted/20 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-muted-foreground">Statements</div>
                 <button

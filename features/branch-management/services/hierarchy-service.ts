@@ -9,6 +9,20 @@ import { v4 as uuidv4 } from 'uuid';
  */
 export class HierarchyService {
   /**
+   * Determines the logical division of a branch based on its name or configuration.
+   * This allows running the Clearing Agent/Shipping Line division alongside Trading
+   * on the same architecture without duplicate ERP installations.
+   */
+  static getBranchDivision(branchName: string | null | undefined): "clearing" | "trading" {
+    if (!branchName) return "trading";
+    const lower = branchName.toLowerCase();
+    if (lower.includes("clearing") || lower.includes("shipping") || lower.includes("logistics")) {
+      return "clearing";
+    }
+    return "trading";
+  }
+
+  /**
    * Helper to create a new user profile and assign a role/scope.
    */
   private static async createAdminProfile(

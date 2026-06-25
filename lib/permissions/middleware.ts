@@ -37,7 +37,11 @@ export function canAccessCountryBranch(session: ErpSession, countryBranchId?: st
 }
 
 export function canAccessCityBranch(session: ErpSession, cityBranchId?: string | null) {
-  if (!cityBranchId) return session.isSuperAdmin || session.countryBranchIds.length > 0 || session.cityBranchIds.length > 0;
+  if (!cityBranchId) {
+    // To query without a specific city branch (cross-branch query), you must be Super Admin or have country-level access.
+    // A mere city branch admin cannot query across all branches.
+    return session.isSuperAdmin || session.countryIds.length > 0 || session.countryBranchIds.length > 0;
+  }
   return session.isSuperAdmin || session.cityBranchIds.includes(cityBranchId);
 }
 

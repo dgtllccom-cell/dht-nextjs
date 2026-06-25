@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BookOpen,
   CheckCircle2,
@@ -225,6 +226,11 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   const [saving, setSaving] = useState(false);
   const [lastCreated, setLastCreated] = useState<AccountCreateResponse | null>(null);
   const [loadingAccount, setLoadingAccount] = useState(false);
+  const [actionsPortal, setActionsPortal] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setActionsPortal(document.getElementById("erp-page-actions-slot"));
+  }, []);
 
   // Load account details for editing if initialAccountId is provided
   useEffect(() => {
@@ -632,14 +638,18 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
             {getLabel("headerSubtitle", lang)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/accounts/setup-report")} className="h-9">
-            <ClipboardList className="mr-1.5 h-4 w-4 text-slate-500" /> {getLabel("liveReport", lang)}
-          </Button>
-          <Button variant="default" size="sm" onClick={() => router.push("/dashboard/accounts")} className="h-9 bg-primary text-white">
-            <BookOpen className="mr-1.5 h-4 w-4" /> {getLabel("accountSummary", lang)}
-          </Button>
-        </div>
+        
+        {actionsPortal && createPortal(
+          <>
+            <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/accounts/setup-report")} className="h-7 gap-1.5 rounded-lg px-2 text-[10px] font-bold">
+              <ClipboardList className="h-3.5 w-3.5 text-slate-500" /> {getLabel("liveReport", lang)}
+            </Button>
+            <Button variant="default" size="sm" onClick={() => router.push("/dashboard/accounts")} className="h-7 gap-1.5 rounded-lg px-2 text-[10px] font-bold">
+              <BookOpen className="h-3.5 w-3.5" /> {getLabel("accountSummary", lang)}
+            </Button>
+          </>,
+          actionsPortal
+        )}
       </div>
 
       {/* ── Steps Indicator Bar ────────────────────────────────────────── */}
