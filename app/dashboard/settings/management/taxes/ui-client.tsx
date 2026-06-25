@@ -16,25 +16,7 @@ export type TaxCodeRow = {
   countryName: string;
 };
 
-const SAVED_TAXES_KEY = "erp_saved_taxes_v1";
-
-export function readTaxes(): TaxCodeRow[] {
-  try {
-    const raw = localStorage.getItem(SAVED_TAXES_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-function writeTaxes(taxes: TaxCodeRow[]) {
-  try {
-    localStorage.setItem(SAVED_TAXES_KEY, JSON.stringify(taxes));
-  } catch {
-    // ignore
-  }
-}
+import { apiGet, apiPost, apiDelete } from "@/lib/api/client";
 
 export default function TaxesManagementClient({ session }: { session: any }) {
   const [taxes, setTaxes] = useState<TaxCodeRow[]>([]);
@@ -47,36 +29,48 @@ export default function TaxesManagementClient({ session }: { session: any }) {
     countryName: ""
   });
 
+  const fetchTaxes = async () => {
+    try {
+      const data = await apiGet("/api/erp/master-data/taxes");
+      setTaxes(data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
-    setTaxes(readTaxes());
+    fetchTaxes();
     listCountries().then(res => setCountries(res)).catch(() => null);
   }, []);
 
-  const handleAddTax = () => {
+  const handleAddTax = async () => {
     if (!form.taxName || !form.taxPct || !form.countryName) {
       alert("All fields are required");
       return;
     }
     
-    const newTax: TaxCodeRow = {
-      id: Math.random().toString(36).slice(2, 9),
-      taxName: form.taxName,
-      taxPct: Number(form.taxPct),
-      countryName: form.countryName,
-    };
-    
-    const updated = [...taxes, newTax];
-    setTaxes(updated);
-    writeTaxes(updated);
-    setIsModalOpen(false);
-    setForm({ taxName: "", taxPct: "", countryName: "" });
+    try {
+      await apiPost("/api/erp/master-data/taxes", {
+        taxName: form.taxName,
+        taxPct: form.taxPct,
+        countryName: form.countryName
+      });
+      await fetchTaxes();
+      setIsModalOpen(false);
+      setForm({ taxName: "", taxPct: "", countryName: "" });
+    } catch (err: any) {
+      alert(err.message || "Failed to add tax");
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("Delete this tax code?")) return;
-    const updated = taxes.filter(t => t.id !== id);
-    setTaxes(updated);
-    writeTaxes(updated);
+    try {
+      await apiDelete(`/api/erp/master-data/taxes/${id}`);
+      await fetchTaxes();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete");
+    }
   };
 
   return (
@@ -131,7 +125,8 @@ export default function TaxesManagementClient({ session }: { session: any }) {
         </CardContent>
       </Card>
 
-      <SimpleModal open={isModalOpen} onOpenChange={setIsModalOpen} title="Add New Tax Code">
+      {isModalOpen && (
+      <SimpleModal onClose={() => setIsModalOpen(false)} title="Add New Tax Code">
         <div className="space-y-4 pt-4">
           <div className="space-y-1.5">
             <Label className="text-xs text-slate-500 font-bold">Country</Label>
@@ -162,6 +157,7 @@ export default function TaxesManagementClient({ session }: { session: any }) {
           </div>
         </div>
       </SimpleModal>
+      )}
     </div>
   );
 }

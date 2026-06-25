@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Lock, Unlock, Plus, Trash2, Save, FileText, LayoutDashboard, Settings2, Calculator, BadgePercent, Building2, User } from "lucide-react";
 import { SupportedLanguage } from "@/lib/i18n/languages";
+import { SimpleModal } from "@/components/ui/simple-modal";
+import { apiGet, apiPost } from "@/lib/api/client";
 
 type TaxCodeRow = {
   id: string;
@@ -41,6 +43,7 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
   const [viewMode, setViewMode] = useState<"list" | "form">("list");
   // Header State
   const [headerLocked, setHeaderLocked] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState("UAE");
   const [billSerial, setBillSerial] = useState("");
   const [branch, setBranch] = useState("DB");
   const [billDate, setBillDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -67,12 +70,43 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
   const [grandAmount, setGrandAmount] = useState(0);
 
   const [taxes, setTaxes] = useState<TaxCodeRow[]>([]);
-  useEffect(() => {
+  const [newTaxOpen, setNewTaxOpen] = useState(false);
+  const [newTaxForm, setNewTaxForm] = useState({ taxName: "", taxPct: "", countryName: "" });
+
+  const fetchTaxes = async () => {
     try {
-      const raw = localStorage.getItem("erp_saved_taxes_v1");
-      if (raw) setTaxes(JSON.parse(raw));
-    } catch {}
+      const data = await apiGet("/api/erp/master-data/taxes");
+      setTaxes(data || []);
+    } catch (err) {
+      console.error("Failed to fetch taxes", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchTaxes();
   }, []);
+
+  const saveNewTax = async () => {
+    if (!newTaxForm.taxName || !newTaxForm.taxPct || !newTaxForm.countryName) {
+      alert("Please fill all tax fields");
+      return;
+    }
+    
+    try {
+      const data = await apiPost("/api/erp/master-data/taxes", {
+        taxName: newTaxForm.taxName,
+        taxPct: newTaxForm.taxPct,
+        countryName: newTaxForm.countryName
+      });
+      
+      await fetchTaxes();
+      setTaxPct(data.taxPct);
+      setNewTaxOpen(false);
+      setNewTaxForm({ taxName: "", taxPct: "", countryName: "" });
+    } catch (err: any) {
+      alert(err.message || "Failed to save tax code");
+    }
+  };
 
   // Rows Data
   const [rows, setRows] = useState<RowEntry[]>([]);
@@ -285,10 +319,15 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
               <CardContent className="p-3 space-y-2.5">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-500 font-medium">Country</span>
-                  <select className="border border-slate-200 rounded p-1 w-[130px] text-slate-700 bg-white" disabled={headerLocked}>
-                    <option>UAE</option>
-                    <option>Pakistan</option>
-                    <option>Afghanistan</option>
+                  <select 
+                    className="border border-slate-200 rounded p-1 w-[130px] text-slate-700 bg-white" 
+                    value={selectedCountry}
+                    onChange={(e) => setSelectedCountry(e.target.value)}
+                    disabled={headerLocked}
+                  >
+                    <option value="UAE">UAE</option>
+                    <option value="Pakistan">Pakistan</option>
+                    <option value="Afghanistan">Afghanistan</option>
                   </select>
                 </div>
                 <div className="flex justify-between items-center text-xs">
@@ -496,16 +535,31 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
               <>
                 <div className="w-48 space-y-1 animate-in fade-in zoom-in duration-200">
                   <Label className="text-xs text-amber-600 font-bold">Tax Code</Label>
-                  <select 
-                    value={taxPct} 
-                    onChange={e => setTaxPct(e.target.value ? Number(e.target.value) : "")} 
-                    className="flex h-10 w-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 font-semibold cursor-pointer"
-                  >
-                    <option value="">Select Tax...</option>
-                    {taxes.map(t => (
-                      <option key={t.id} value={t.taxPct}>{t.countryName} - {t.taxName} ({t.taxPct}%)</option>
-                    ))}
-                  </select>
+                  <div className="flex flex-col gap-1">
+                    <select 
+                      value={taxPct ? String(taxPct) : ""}
+                      onChange={e => {
+                        const selectedVal = e.target.value;
+                        if (selectedVal === "NEW_TAX_CODE") {
+                          setNewTaxOpen(true);
+                          return;
+                        }
+                        if (!selectedVal) {
+                          setTaxPct("");
+                          return;
+                        }
+                        // since value is taxPct for now to match UI state without refactoring everything
+                        setTaxPct(Number(selectedVal));
+                      }}
+                      className="flex h-9 w-full rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900 font-semibold cursor-pointer"
+                    >
+                      <option value="">Select...</option>
+                      {taxes.filter(t => selectedCountry === "UAE" ? t.countryName === "United Arab Emirates" : t.countryName === selectedCountry).map(t => (
+                        <option key={t.id} value={t.taxPct}>{t.taxName} ({t.taxPct}%)</option>
+                      ))}
+                      <option value="NEW_TAX_CODE" className="font-bold text-primary">+ Add New Tax</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="w-28 space-y-1 animate-in fade-in zoom-in duration-200">
                   <Label className="text-xs text-slate-500">Tax Amt</Label>
@@ -611,6 +665,40 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
       </Card>
       </>
       )}
+      
+      {/* New Tax Modal */}
+      {newTaxOpen && (
+      <SimpleModal onClose={() => setNewTaxOpen(false)} title="Add New Tax Code">
+        <div className="space-y-4 pt-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-500 font-bold">Country</Label>
+            <select 
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+              value={newTaxForm.countryName}
+              onChange={e => setNewTaxForm({...newTaxForm, countryName: e.target.value})}
+            >
+              <option value="">Select Country...</option>
+              <option value="United Arab Emirates">United Arab Emirates</option>
+              <option value="Pakistan">Pakistan</option>
+              <option value="Afghanistan">Afghanistan</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-500 font-bold">Tax Name</Label>
+            <Input placeholder="e.g. VAT, GST" value={newTaxForm.taxName} onChange={e => setNewTaxForm({...newTaxForm, taxName: e.target.value})} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-500 font-bold">Percentage (%)</Label>
+            <Input type="number" step="0.01" placeholder="e.g. 5.0" value={newTaxForm.taxPct} onChange={e => setNewTaxForm({...newTaxForm, taxPct: e.target.value})} />
+          </div>
+          <div className="pt-4 flex justify-end gap-2 border-t mt-6">
+            <Button variant="outline" onClick={() => setNewTaxOpen(false)}>Cancel</Button>
+            <Button onClick={saveNewTax} className="font-bold">Save Tax Code</Button>
+          </div>
+        </div>
+      </SimpleModal>
+      )}
+
     </div>
   );
 }
