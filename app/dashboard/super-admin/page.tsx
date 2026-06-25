@@ -45,6 +45,18 @@ type CountryBranchNode = {
   }>;
 };
 
+type CountryFinancialSummary = {
+  id: string;
+  name: string;
+  currency: string;
+  totalPurchases: number;
+  totalSales: number;
+  totalDebit: number;
+  totalCredit: number;
+  totalLedgerBalance: number;
+  totalBranches: number;
+};
+
 type SuperAdminDashboardData = {
   counts: CountMap;
   purchaseTotal: number;
@@ -54,6 +66,7 @@ type SuperAdminDashboardData = {
   ledgerBalance: number;
   recentRoznamcha: RecentEntry[];
   countryBranches: CountryBranchNode[];
+  countrySummaries: CountryFinancialSummary[];
   databaseReady: boolean;
   error: string | null;
 };
@@ -94,9 +107,9 @@ async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
       countRows(supabase, "purchase_orders"),
       countRows(supabase, "sales_orders"),
       countRows(supabase, "shipping_line_records"),
-      supabase.from("purchase_orders").select("order_total").is("deleted_at", null),
-      supabase.from("sales_orders").select("order_total").is("deleted_at", null),
-      supabase.from("ledger_balances").select("debit_total, credit_total, current_balance"),
+      supabase.from("purchase_orders").select("country_id, order_total").is("deleted_at", null),
+      supabase.from("sales_orders").select("country_id, order_total").is("deleted_at", null),
+      supabase.from("ledgers").select("country_id, debit_total, credit_total, current_balance").is("deleted_at", null),
       supabase
         .from("roznamcha_entries")
         .select(`id, voucher_no, entry_date, type, status, created_at, countries(name), city_branches(name)`)
@@ -113,6 +126,40 @@ async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
     const ledgerDebit = (balanceRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.debit_total || 0), 0);
     const ledgerCredit = (balanceRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.credit_total || 0), 0);
     const ledgerBalance = (balanceRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.current_balance || 0), 0);
+
+    const countrySummaryMap = new Map<string, CountryFinancialSummary>();
+    for (const country of ((countriesList.data ?? []) as any[])) {
+      const mainCount = (mainBranchesList.data ?? []).filter((branch: any) => branch.country_id === country.id).length;
+      const cityCount = (cityBranchesList.data ?? []).filter((branch: any) => branch.country_id === country.id).length;
+      countrySummaryMap.set(country.id, {
+        id: country.id,
+        name: country.name,
+        currency: country.currency_code || "USD",
+        totalPurchases: 0,
+        totalSales: 0,
+        totalDebit: 0,
+        totalCredit: 0,
+        totalLedgerBalance: 0,
+        totalBranches: mainCount + cityCount
+      });
+    }
+    for (const row of ((purchaseRows.data ?? []) as any[])) {
+      const target = row.country_id ? countrySummaryMap.get(row.country_id) : undefined;
+      if (target) target.totalPurchases += Number(row.order_total || 0);
+    }
+    for (const row of ((salesRows.data ?? []) as any[])) {
+      const target = row.country_id ? countrySummaryMap.get(row.country_id) : undefined;
+      if (target) target.totalSales += Number(row.order_total || 0);
+    }
+    for (const row of ((balanceRows.data ?? []) as any[])) {
+      const target = row.country_id ? countrySummaryMap.get(row.country_id) : undefined;
+      if (target) {
+        target.totalDebit += Number(row.debit_total || 0);
+        target.totalCredit += Number(row.credit_total || 0);
+        target.totalLedgerBalance += Number(row.current_balance || 0);
+      }
+    }
+    const countrySummaries = Array.from(countrySummaryMap.values());
 
     const countryBranches: CountryBranchNode[] = (countriesList.data ?? []).map((country: any) => {
       const countryMain = (mainBranchesList.data ?? []).filter((b: any) => b.country_id === country.id);
@@ -157,13 +204,13 @@ async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
         shipping: shippingCount
       },
       purchaseTotal, salesTotal, ledgerDebit, ledgerCredit, ledgerBalance,
-      recentRoznamcha, countryBranches, databaseReady: true, error: null
+      recentRoznamcha, countryBranches, countrySummaries, databaseReady: true, error: null
     };
   } catch (error) {
     return {
       counts: emptyCounts,
       purchaseTotal: 0, salesTotal: 0, ledgerDebit: 0, ledgerCredit: 0, ledgerBalance: 0,
-      recentRoznamcha: [], countryBranches: [], databaseReady: false,
+      recentRoznamcha: [], countryBranches: [], countrySummaries: [], databaseReady: false,
       error: error instanceof Error ? error.message : "Database load failed"
     };
   }
@@ -241,7 +288,7 @@ export default async function SuperAdminDashboardPage() {
 
   return (
     <div className="space-y-7">
-      {/* ── Header ─── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-700">
@@ -272,25 +319,25 @@ export default async function SuperAdminDashboardPage() {
 
       {!data.databaseReady && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-          ⚠️ Database summary could not load: {data.error}
+          Database summary could not load: {data.error}
         </div>
       )}
 
-      {/* ── Colorful Stat Cards ─── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Colorful Stat Cards Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => (
           <ColorStatCard key={card.label} {...card} />
         ))}
       </section>
 
-      {/* ── Financial Summary + Branch Tree ─── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Financial Summary + Branch Tree Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <section className="grid gap-5 xl:grid-cols-3">
         {/* Branch Hierarchy */}
         <div className="xl:col-span-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
           <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/40">
             <div>
               <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Nations & Branch Networks</h2>
-              <p className="text-xs text-slate-500">Country → Main Branch → City Branch topology</p>
+              <p className="text-xs text-slate-500">Country -&gt; Main Branch -&gt; City Branch topology</p>
             </div>
             <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
@@ -328,7 +375,7 @@ export default async function SuperAdminDashboardPage() {
                                 <div className="mt-2 space-y-1 border-l-2 border-dashed border-slate-200 pl-4 dark:border-slate-700">
                                   {mb.cityBranches.map((cb) => (
                                     <div key={cb.id} className="flex items-center justify-between text-[11px]">
-                                      <span className="text-slate-500">{cb.cityName} – {cb.name}</span>
+                                      <span className="text-slate-500">{cb.cityName} - {cb.name}</span>
                                       <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[8px] font-bold dark:bg-slate-800">{cb.code}</span>
                                     </div>
                                   ))}
@@ -357,9 +404,9 @@ export default async function SuperAdminDashboardPage() {
           <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/40">
             <div className="flex items-center gap-2">
               <Landmark className="h-4 w-4 text-indigo-600" />
-              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Global Ledger Standings</h2>
+              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Global Scope Standings</h2>
             </div>
-            <p className="mt-0.5 text-xs text-slate-500">Consolidated financial stats in USD</p>
+            <p className="mt-0.5 text-xs text-slate-500">Per-country totals remain in each country currency</p>
           </div>
           <div className="space-y-2.5 p-5">
             <FinancialRow label="Ledger Debit Total"       value={money(data.ledgerDebit)} />
@@ -371,7 +418,48 @@ export default async function SuperAdminDashboardPage() {
         </div>
       </section>
 
-      {/* ── Recent Postings — Colorful Cards ─── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Recent Postings Ã¢â‚¬â€ Colorful Cards Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/40">
+          <div>
+            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Country Currency Dashboard</h2>
+            <p className="text-xs text-slate-500">Each country is reported in its own local currency. Values are not mixed across countries.</p>
+          </div>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+            {data.countrySummaries.length} countries
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-900 text-[10px] uppercase tracking-wide text-slate-100">
+              <tr>
+                {["Country", "Currency", "Purchases", "Sales", "Debit", "Credit", "Ledger Balance", "Branches"].map((head) => (
+                  <th key={head} className="px-4 py-3 font-semibold">{head}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.countrySummaries.map((country: CountryFinancialSummary) => (
+                <tr key={country.id} className="border-t border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900/30">
+                  <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">{country.name}</td>
+                  <td className="px-4 py-3 font-mono font-bold text-slate-600 dark:text-slate-300">{country.currency}</td>
+                  <td className="px-4 py-3 font-mono text-slate-700 dark:text-slate-300">{money(country.totalPurchases, country.currency)}</td>
+                  <td className="px-4 py-3 font-mono text-slate-700 dark:text-slate-300">{money(country.totalSales, country.currency)}</td>
+                  <td className="px-4 py-3 font-mono text-rose-600 dark:text-rose-300">{money(country.totalDebit, country.currency)}</td>
+                  <td className="px-4 py-3 font-mono text-emerald-600 dark:text-emerald-300">{money(country.totalCredit, country.currency)}</td>
+                  <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-slate-100">{money(country.totalLedgerBalance, country.currency)}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">{country.totalBranches}</td>
+                </tr>
+              ))}
+              {!data.countrySummaries.length && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">No country financial data available.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
       <section>
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -392,7 +480,7 @@ export default async function SuperAdminDashboardPage() {
                 ? new Date(row.entry_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
                 : row.created_at
                   ? new Date(row.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-                  : "—";
+                  : "-";
               return (
                 <div
                   key={row.id}

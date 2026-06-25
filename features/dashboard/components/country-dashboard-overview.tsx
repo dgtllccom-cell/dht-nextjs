@@ -46,6 +46,19 @@ type CityBranchData = {
   status: string;
 };
 
+type BranchFinancialSummary = {
+  id: string;
+  name: string;
+  code: string;
+  type: "main" | "city";
+  currency: string;
+  totalPurchase: number;
+  totalSales: number;
+  totalDebit: number;
+  totalCredit: number;
+  ledgerBalance: number;
+};
+
 type CountryDashboardOverviewProps = {
   data: {
     countryName: string;
@@ -61,6 +74,7 @@ type CountryDashboardOverviewProps = {
     profitLossTotal: number;
     recentRoznamcha: RecentEntry[];
     cityBranches: CityBranchData[];
+    branchSummaries?: BranchFinancialSummary[];
   };
 };
 
@@ -85,57 +99,56 @@ export function CountryDashboardOverview({ data }: CountryDashboardOverviewProps
 
   // Dynamic Pie/Donut Chart data from registered city branches
   const branchesPieData = useMemo(() => {
-    if (!data.cityBranches.length) {
-      return [
-        { name: "Main Branch", value: data.salesTotal * 0.5 },
-        { name: "Cantt Branch", value: data.salesTotal * 0.3 },
-        { name: "City Branch", value: data.salesTotal * 0.2 }
-      ];
-    }
-    // Distribute sales total among branches
-    return data.cityBranches.map((branch, index) => {
-      const share = [0.45, 0.3, 0.15, 0.1][index % 4] || 0.1;
-      return {
+    if (data.branchSummaries?.length) {
+      return data.branchSummaries.map((branch: BranchFinancialSummary) => ({
         name: branch.name,
-        value: Math.round(data.salesTotal * share)
-      };
-    });
-  }, [data.cityBranches, data.salesTotal]);
+        value: Math.max(0, Math.round(branch.totalSales))
+      }));
+    }
+    return data.cityBranches.map((branch: CityBranchData) => ({
+      name: branch.name,
+      value: 0
+    }));
+  }, [data.branchSummaries, data.cityBranches]);
 
   // Dynamic Branch performance list matching the screenshot table
   const branchPerformanceList = useMemo(() => {
-    if (!data.cityBranches.length) {
-      return [
-        { name: "Kochi Main Branch", users: 6, sales: data.salesTotal * 0.45, purchases: data.purchaseTotal * 0.45, stock: data.stockValueTotal * 0.45, profit: data.profitLossTotal * 0.45, status: "Active" },
-        { name: "Kochi Cantt Branch", users: 4, sales: data.salesTotal * 0.3, purchases: data.purchaseTotal * 0.3, stock: data.stockValueTotal * 0.3, profit: data.profitLossTotal * 0.3, status: "Active" },
-        { name: "Kochi City Branch", users: 2, sales: data.salesTotal * 0.15, purchases: data.purchaseTotal * 0.15, stock: data.stockValueTotal * 0.15, profit: data.profitLossTotal * 0.15, status: "Active" }
-      ];
+    if (data.branchSummaries?.length) {
+      return data.branchSummaries.map((branch: BranchFinancialSummary) => ({
+        name: branch.name,
+        code: branch.code,
+        branchCurrency: branch.currency || currency,
+        sales: branch.totalSales,
+        purchases: branch.totalPurchase,
+        debit: branch.totalDebit,
+        credit: branch.totalCredit,
+        balance: branch.ledgerBalance,
+        status: "Active"
+      }));
     }
 
-    return data.cityBranches.map((branch, index) => {
-      const share = [0.45, 0.3, 0.15, 0.1][index % 4] || 0.1;
-      const users = [6, 4, 2, 2][index % 4] || 2;
-      return {
-        name: branch.name,
-        users,
-        sales: Math.round(data.salesTotal * share),
-        purchases: Math.round(data.purchaseTotal * share),
-        stock: Math.round(data.stockValueTotal * share),
-        profit: Math.round(data.profitLossTotal * share),
-        status: branch.status === "active" ? "Active" : "Inactive"
-      };
-    });
-  }, [data.cityBranches, data.salesTotal, data.purchaseTotal, data.stockValueTotal, data.profitLossTotal]);
+    return data.cityBranches.map((branch: CityBranchData) => ({
+      name: branch.name,
+      code: branch.code,
+      branchCurrency: currency,
+      sales: 0,
+      purchases: 0,
+      debit: 0,
+      credit: 0,
+      balance: 0,
+      status: branch.status === "active" ? "Active" : "Inactive"
+    }));
+  }, [data.branchSummaries, data.cityBranches, currency]);
 
   const stats = [
     { label: "Total Branches", value: String(data.branchesCount), icon: <GitBranch className="h-5 w-5 text-blue-600 dark:text-blue-400" />, link: "/dashboard/settings/location" },
     { label: "Total Users", value: String(data.usersCount), icon: <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />, link: "#" },
     { label: "Total Accounts", value: String(data.accountsCount), icon: <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />, link: "#" },
-    { label: "Total Products", value: String(data.productsCount || 1245), icon: <Database className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />, link: "/dashboard/settings/management/goods" },
-    { label: "Total Stock Value", value: moneyFormat(data.stockValueTotal || 15230000, currency), icon: <Banknote className="h-5 w-5 text-teal-600 dark:text-teal-400" />, link: "#" },
-    { label: "Total Purchases", value: moneyFormat(data.purchaseTotal || 8450000, currency), icon: <ShoppingCart className="h-5 w-5 text-rose-600 dark:text-rose-400" />, link: "#" },
-    { label: "Total Sales", value: moneyFormat(data.salesTotal || 12780000, currency), icon: <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />, link: "#" },
-    { label: "Profit / Loss", value: moneyFormat(data.profitLossTotal || 4330000, currency), icon: <Activity className="h-5 w-5 text-fuchsia-600 dark:text-fuchsia-400" />, link: "#", highlight: true }
+    { label: "Total Products", value: String(data.productsCount), icon: <Database className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />, link: "/dashboard/settings/management/goods" },
+    { label: "Total Stock Value", value: moneyFormat(data.stockValueTotal, currency), icon: <Banknote className="h-5 w-5 text-teal-600 dark:text-teal-400" />, link: "#" },
+    { label: "Total Purchases", value: moneyFormat(data.purchaseTotal, currency), icon: <ShoppingCart className="h-5 w-5 text-rose-600 dark:text-rose-400" />, link: "#" },
+    { label: "Total Sales", value: moneyFormat(data.salesTotal, currency), icon: <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />, link: "#" },
+    { label: "Profit / Loss", value: moneyFormat(data.profitLossTotal, currency), icon: <Activity className="h-5 w-5 text-fuchsia-600 dark:text-fuchsia-400" />, link: "#", highlight: true }
   ];
 
   return (
@@ -253,7 +266,7 @@ export function CountryDashboardOverview({ data }: CountryDashboardOverviewProps
                     paddingAngle={3}
                     dataKey="value"
                   >
-                    {branchesPieData.map((entry, index) => (
+                    {branchesPieData.map((entry: { name: string; value: number }, index: number) => (
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                     ))}
                   </Pie>
@@ -272,7 +285,7 @@ export function CountryDashboardOverview({ data }: CountryDashboardOverviewProps
             </div>
             {/* Legend */}
             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 w-full text-[10px] text-slate-650 dark:text-slate-400">
-              {branchesPieData.slice(0, 4).map((entry, index) => (
+              {branchesPieData.slice(0, 4).map((entry: { name: string; value: number }, index: number) => (
                 <div key={entry.name} className="flex items-center gap-1.5 truncate">
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
                   <span className="truncate">{entry.name}</span>
@@ -287,27 +300,29 @@ export function CountryDashboardOverview({ data }: CountryDashboardOverviewProps
       <Card className="border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
         <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
           <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100">Recent Branch Performance</CardTitle>
-          <CardDescription className="text-xs">Summary of staff count, sales bookings, purchases, and profit metrics by branch</CardDescription>
+          <CardDescription className="text-xs">Country-scoped branch totals for purchases, sales, ledgers, debit, and credit</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-900 text-[10px] uppercase font-bold text-slate-100 border-b border-slate-800">
-                  {["Branch Name", "Users", "Sales", "Purchases", "Stock Value", "Profit / Loss", "Status"].map((head) => (
+                  {["Branch Name", "Code", "Currency", "Sales", "Purchases", "Debit", "Credit", "Balance", "Status"].map((head) => (
                     <th key={head} className="px-4 py-3 font-semibold">{head}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {branchPerformanceList.map((branch) => (
+                {branchPerformanceList.map((branch: any) => (
                   <tr key={branch.name} className="border-t border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900/30">
                     <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-slate-100">{branch.name}</td>
-                    <td className="px-4 py-3.5 font-semibold text-slate-600 dark:text-slate-400">{branch.users}</td>
-                    <td className="px-4 py-3.5 font-mono font-bold text-cyan-600 dark:text-cyan-400">{moneyFormat(branch.sales, currency)}</td>
-                    <td className="px-4 py-3.5 font-mono text-slate-650 dark:text-slate-350">{moneyFormat(branch.purchases, currency)}</td>
-                    <td className="px-4 py-3.5 font-mono text-slate-650 dark:text-slate-350">{moneyFormat(branch.stock, currency)}</td>
-                    <td className="px-4 py-3.5 font-mono font-bold text-emerald-600 dark:text-emerald-450">{moneyFormat(branch.profit, currency)}</td>
+                    <td className="px-4 py-3.5 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">{branch.code}</td>
+                    <td className="px-4 py-3.5 font-mono font-bold text-slate-700 dark:text-slate-300">{branch.branchCurrency}</td>
+                    <td className="px-4 py-3.5 font-mono font-bold text-cyan-600 dark:text-cyan-400">{moneyFormat(branch.sales, branch.branchCurrency)}</td>
+                    <td className="px-4 py-3.5 font-mono text-slate-650 dark:text-slate-350">{moneyFormat(branch.purchases, branch.branchCurrency)}</td>
+                    <td className="px-4 py-3.5 font-mono text-rose-600 dark:text-rose-300">{moneyFormat(branch.debit, branch.branchCurrency)}</td>
+                    <td className="px-4 py-3.5 font-mono text-emerald-600 dark:text-emerald-300">{moneyFormat(branch.credit, branch.branchCurrency)}</td>
+                    <td className="px-4 py-3.5 font-mono font-bold text-slate-900 dark:text-slate-100">{moneyFormat(branch.balance, branch.branchCurrency)}</td>
                     <td className="px-4 py-3.5">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
                         branch.status === "Active"

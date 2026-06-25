@@ -42,6 +42,16 @@ function orderNo() {
   return `SO-${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}-${Math.random().toString(16).slice(2, 8).toUpperCase()}`;
 }
 
+async function resolveCountryCurrency(supabase: any, countryId: string | null | undefined, fallback = "USD") {
+  if (!countryId) return fallback;
+  const { data } = await supabase
+    .from("countries")
+    .select("currency_code")
+    .eq("id", countryId)
+    .maybeSingle();
+  return data?.currency_code || fallback;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await requireErpSession();
@@ -64,12 +74,12 @@ export async function GET(request: NextRequest) {
       const term = String(params.get("q")).replace(/[%_]/g, "");
       query = query.or(`sales_order_no.ilike.%${term}%,account_number.ilike.%${term}%,manual_reference_number.ilike.%${term}%,customer_number.ilike.%${term}%,customer_name.ilike.%${term}%`);
     }
-    if (countryId) query = query.eq("country_id", countryId);
-    else if (!session.isSuperAdmin) query = query.in("country_id", session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]);
-    if (countryBranchId) query = query.eq("country_branch_id", countryBranchId);
-    else if (!session.isSuperAdmin && session.countryBranchIds.length) query = query.in("country_branch_id", session.countryBranchIds);
     if (cityBranchId) query = query.eq("city_branch_id", cityBranchId);
     else if (!session.isSuperAdmin && session.cityBranchIds.length) query = query.in("city_branch_id", session.cityBranchIds);
+    else if (countryBranchId) query = query.eq("country_branch_id", countryBranchId);
+    else if (!session.isSuperAdmin && session.countryBranchIds.length) query = query.in("country_branch_id", session.countryBranchIds);
+    else if (countryId) query = query.eq("country_id", countryId);
+    else if (!session.isSuperAdmin) query = query.in("country_id", session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]);
 
     return apiOk({ salesOrders: await requireSupabaseData(query) });
   } catch (error) {
@@ -90,6 +100,9 @@ export async function POST(request: NextRequest) {
       cityBranchId: body.cityBranchId ?? null
     });
 
+    const supabase = await createApiSupabaseClient();
+    const recordCurrencyCode = await resolveCountryCurrency(supabase, body.countryId, body.currencyCode);
+
     const payload = {
       country_id: body.countryId ?? null,
       country_branch_id: body.countryBranchId ?? null,
@@ -109,7 +122,7 @@ export async function POST(request: NextRequest) {
       product_summary: body.productSummary ?? null,
       quantity: body.quantity,
       total_weight: body.totalWeight,
-      currency_code: body.currencyCode,
+      currency_code: recordCurrencyCode,
       exchange_rate: body.exchangeRate,
       order_total: body.orderTotal,
       paid_amount: body.paidAmount,
@@ -123,7 +136,6 @@ export async function POST(request: NextRequest) {
       updated_by: null
     };
 
-    const supabase = await createApiSupabaseClient();
     const row = await requireSupabaseData(supabase.from("sales_orders").insert(payload).select("id, sales_order_no").single());
 
     await writeAuditLog({

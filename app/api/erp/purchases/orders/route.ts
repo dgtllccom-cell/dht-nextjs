@@ -31,6 +31,16 @@ async function nextTransactionSerial(admin: any, scopeType: string, scopeKey: st
   return data;
 }
 
+async function resolveCountryCurrency(admin: any, countryId: string | null | undefined, fallback = "USD") {
+  if (!countryId) return fallback;
+  const { data } = await admin
+    .from("countries")
+    .select("currency_code")
+    .eq("id", countryId)
+    .maybeSingle();
+  return data?.currency_code || fallback;
+}
+
 async function resolveEffectiveScope(input: {
   session: Awaited<ReturnType<typeof requireErpSession>>;
   requested: { countryId?: string | null; countryBranchId?: string | null; cityBranchId?: string | null };
@@ -118,23 +128,19 @@ export async function GET(request: NextRequest) {
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
-    // Enforce scope isolation (same pattern as Roznamcha listing).
-    if (query.countryId) {
-      q = q.eq("country_id", query.countryId);
-    } else if (!session.isSuperAdmin) {
-      q = q.in("country_id", session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]);
-    }
-
-    if (query.countryBranchId) {
-      q = q.eq("country_branch_id", query.countryBranchId);
-    } else if (!session.isSuperAdmin && session.countryBranchIds.length) {
-      q = q.in("country_branch_id", session.countryBranchIds);
-    }
-
+    // Enforce strict scope isolation: city branch first, then main branch, then country.
     if (query.cityBranchId) {
       q = q.eq("city_branch_id", query.cityBranchId);
     } else if (!session.isSuperAdmin && session.cityBranchIds.length) {
       q = q.in("city_branch_id", session.cityBranchIds);
+    } else if (query.countryBranchId) {
+      q = q.eq("country_branch_id", query.countryBranchId);
+    } else if (!session.isSuperAdmin && session.countryBranchIds.length) {
+      q = q.in("country_branch_id", session.countryBranchIds);
+    } else if (query.countryId) {
+      q = q.eq("country_id", query.countryId);
+    } else if (!session.isSuperAdmin) {
+      q = q.in("country_id", session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]);
     }
 
     const rows = await requireSupabaseData(q.limit(query.limit));
@@ -173,6 +179,7 @@ export async function POST(request: NextRequest) {
     const ledgerPostingStatus = lps === "posted" ? "posted" : lps === "cancelled" ? "cancelled" : "draft";
 
     const admin = createSupabaseAdminClient() as any;
+    const recordCurrencyCode = await resolveCountryCurrency(admin, effective.countryId, body.currencyCode || "USD");
 
     const superAdminSerialNumber = await nextTransactionSerial(admin, "global", "global", "SA");
 
@@ -219,7 +226,7 @@ export async function POST(request: NextRequest) {
       
       // purchase_currency: body.currencyCode || "USD",
       // payment_currency: body.paymentCurrencyCode || "USD",
-      currency_code: body.currencyCode, // Legacy column support
+      currency_code: recordCurrencyCode, // Country currency is the source of truth
       exchange_rate: body.exchangeRate,
       order_total: body.orderTotal,
       
@@ -323,7 +330,7 @@ export async function POST(request: NextRequest) {
         p_kind: "booking",
         p_entry_date: entryDate,
         p_amount: orderTotal,
-        p_currency_code: body.currencyCode || "USD",
+        p_currency_code: recordCurrencyCode,
         p_exchange_rate: Number(body.exchangeRate || 1),
         p_debit_ledger_id: debitLedgerId,
         p_credit_ledger_id: creditLedgerId,

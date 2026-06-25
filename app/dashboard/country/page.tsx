@@ -29,6 +29,19 @@ type CityBranchData = {
   status: string;
 };
 
+type BranchFinancialSummary = {
+  id: string;
+  name: string;
+  code: string;
+  type: "main" | "city";
+  currency: string;
+  totalPurchase: number;
+  totalSales: number;
+  totalDebit: number;
+  totalCredit: number;
+  ledgerBalance: number;
+};
+
 type CountryDashboardData = {
   countryName: string;
   currency: string;
@@ -71,13 +84,13 @@ async function loadCountryData(countryId: string): Promise<CountryDashboardData>
       productsListRes
     ] = await Promise.all([
       supabase.from("countries").select("name, currency_code").eq("id", countryId).maybeSingle(),
-      supabase.from("country_branches").select("id, name, code").eq("country_id", countryId).is("deleted_at", null),
-      supabase.from("city_branches").select("id, name, code, city_name, status").eq("country_id", countryId).is("deleted_at", null),
+      supabase.from("country_branches").select("id, name, code, local_currency").eq("country_id", countryId).is("deleted_at", null),
+      supabase.from("city_branches").select("id, country_branch_id, name, code, city_name, status, local_currency").eq("country_id", countryId).is("deleted_at", null),
       supabase.from("user_role_assignments").select("user_id", { count: "exact", head: true }).eq("country_id", countryId).eq("is_active", true).is("deleted_at", null),
       supabase.from("enterprise_accounts").select("id", { count: "exact", head: true }).eq("country_id", countryId).is("deleted_at", null),
-      supabase.from("ledgers").select("id, debit_total, credit_total, current_balance").eq("country_id", countryId).is("deleted_at", null),
-      supabase.from("purchase_orders").select("order_total").eq("country_id", countryId).is("deleted_at", null),
-      supabase.from("sales_orders").select("order_total").eq("country_id", countryId).is("deleted_at", null),
+      supabase.from("ledgers").select("id, country_branch_id, city_branch_id, debit_total, credit_total, current_balance").eq("country_id", countryId).is("deleted_at", null),
+      supabase.from("purchase_orders").select("order_total, country_branch_id, city_branch_id").eq("country_id", countryId).is("deleted_at", null),
+      supabase.from("sales_orders").select("order_total, country_branch_id, city_branch_id").eq("country_id", countryId).is("deleted_at", null),
       supabase
         .from("roznamcha_entries")
         .select(`
@@ -112,6 +125,61 @@ async function loadCountryData(countryId: string): Promise<CountryDashboardData>
       cityName: cb.city_name,
       status: cb.status
     }));
+
+    const branchSummaryMap = new Map<string, BranchFinancialSummary>();
+    for (const branch of (mainBranchesRes.data ?? [])) {
+      branchSummaryMap.set(`main:${branch.id}`, {
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+        type: "main",
+        currency: branch.local_currency || currency,
+        totalPurchase: 0,
+        totalSales: 0,
+        totalDebit: 0,
+        totalCredit: 0,
+        ledgerBalance: 0
+      });
+    }
+    for (const branch of (cityBranchesRes.data ?? [])) {
+      branchSummaryMap.set(`city:${branch.id}`, {
+        id: branch.id,
+        name: branch.name || branch.city_name,
+        code: branch.code,
+        type: "city",
+        currency: branch.local_currency || currency,
+        totalPurchase: 0,
+        totalSales: 0,
+        totalDebit: 0,
+        totalCredit: 0,
+        ledgerBalance: 0
+      });
+    }
+
+    const getBranchSummary = (row: any) => {
+      if (row.city_branch_id) return branchSummaryMap.get(`city:${row.city_branch_id}`);
+      if (row.country_branch_id) return branchSummaryMap.get(`main:${row.country_branch_id}`);
+      return undefined;
+    };
+
+    for (const row of (purchaseRows.data ?? [])) {
+      const target = getBranchSummary(row);
+      if (target) target.totalPurchase += Number(row.order_total || 0);
+    }
+    for (const row of (salesRows.data ?? [])) {
+      const target = getBranchSummary(row);
+      if (target) target.totalSales += Number(row.order_total || 0);
+    }
+    for (const row of (ledgersRes.data ?? [])) {
+      const target = getBranchSummary(row);
+      if (target) {
+        target.totalDebit += Number(row.debit_total || 0);
+        target.totalCredit += Number(row.credit_total || 0);
+        target.ledgerBalance += Number(row.current_balance || 0);
+      }
+    }
+
+    const branchSummaries = Array.from(branchSummaryMap.values());
 
     const recentRoznamcha: RecentEntry[] = (recentRows.data ?? []).map((row: any) => ({
       id: row.id,
