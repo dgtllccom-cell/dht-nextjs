@@ -1,6 +1,7 @@
 "use client";
  
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
+import { createPortal } from "react-dom";
 import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Banknote,
@@ -21,7 +22,8 @@ import {
   Plus,
   FileText,
   CheckCircle,
-  XCircle
+  XCircle,
+  WalletCards
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -49,6 +51,15 @@ type PurchaseOrderRow = {
   remaining_paid: number | null;
   credit_amount: number | null;
   remaining_due: number | null;
+  super_admin_serial_number?: string | null;
+  country_transaction_serial_number?: string | null;
+  branch_transaction_serial_number?: string | null;
+  superAdminSerialNo?: string | null;
+  countrySerialNo?: string | null;
+  branchSerialNo?: string | null;
+  branchName?: string | null;
+  countryName?: string | null;
+  audit?: { branchCode?: string | null } | null;
   payment_status: string | null;
   ledger_posting_status: string | null;
   created_at: string | null;
@@ -106,7 +117,7 @@ function rowForm(row: PurchaseOrderRow) {
 
 function rowCountryName(row: PurchaseOrderRow) {
   const form = rowForm(row);
-  return String(form.countryName || form.loadingCountry || form.destinationCountry || form.originCountry || "Unknown Country");
+  return String(form.branchCountry || row.countryName || form.countryName || form.loadingCountry || form.destinationCountry || form.originCountry || "Unknown Country");
 }
 
 function rowBranchName(row: PurchaseOrderRow) {
@@ -115,7 +126,8 @@ function rowBranchName(row: PurchaseOrderRow) {
 }
 
 function rowCurrency(row: PurchaseOrderRow) {
-  const explicit = normalizeCurrency(row.currency_code || rowForm(row).currency || rowForm(row).purchaseCurrency || rowForm(row).purchaseAccountCurrency, "");
+  const form = rowForm(row);
+  const explicit = normalizeCurrency(form.purchaseCurrency || form.baseCurrency || row.currency_code || form.currency || form.purchaseAccountCurrency, "");
   if (explicit) return explicit;
   const country = rowCountryName(row).toLowerCase();
   return COUNTRY_CURRENCY[country] || "USD";
@@ -436,6 +448,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [session, setSession] = useState<any>(null);
+  const [reportNow, setReportNow] = useState<{ date: string; time: string } | null>(null);
 
   // Redesign state hooks
   const [viewingRow, setViewingRow] = useState<PurchaseOrderRow | null>(null);
@@ -507,8 +520,18 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [savedBanks, setSavedBanks] = useState<SavedBankItem[]>([]);
   const [savedMethods, setSavedMethods] = useState<string[]>([]);
   const [addOptionOpen, setAddOptionOpen] = useState(false);
+  const [addOptionType, setAddOptionType] = useState<"bank" | "method">("bank");
   const [activeTab, setActiveTab] = useState<"remaining" | "advance" | "history">("advance");
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  const [titleSlot, setTitleSlot] = useState<Element | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<Element | null>(null);
+
+  useEffect(() => {
+    setTitleSlot(document.getElementById("erp-page-title-slot"));
+    setActionsSlot(document.getElementById("erp-page-actions-slot"));
+  }, []);
+
   const [addOptionValue, setAddOptionValue] = useState("");
   const [addOptionAddress, setAddOptionAddress] = useState("");
 
@@ -606,6 +629,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+
+  useEffect(() => {
+    const now = new Date();
+    setReportNow({
+      date: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase(),
+      time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }).toUpperCase()
+    });
+  }, []);
   useEffect(() => {
     setPageIndex(0);
   }, [activeMode]);
@@ -1191,12 +1222,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
-        <div>
-          <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">{pageTitle}</h1>
-          <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">{pageDescription}</p>
-        </div>
+      {/* Portals for Top Navigation Strip */}
+      {titleSlot && createPortal(
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-black text-slate-900 dark:text-slate-100">{pageTitle}</h1>
+          <p className="hidden text-[10px] font-semibold text-slate-400 sm:block">{pageDescription}</p>
+        </div>,
+        titleSlot
+      )}
+
+      {actionsSlot && createPortal(
         <div className="flex flex-wrap items-center gap-2">
           {/* Search box input */}
           <div className="relative min-w-[200px] sm:min-w-[240px]">
@@ -1208,20 +1243,20 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 setPageIndex(0);
               }}
               placeholder="Search PO, Supplier..."
-              className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+              className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-[10px] font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
           {/* Filter toggle button */}
           <button
             onClick={() => setFiltersOpen(!filtersOpen)}
             className={cn(
-              "flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
+              "flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
               filtersOpen && "border-blue-500 bg-blue-50/50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-300"
             )}
           >
-            <Filter className="h-3.5 w-3.5" />
+            <Filter className="h-3 w-3" />
             Filter
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", filtersOpen && "rotate-180")} />
+            <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", filtersOpen && "rotate-180")} />
           </button>
           {/* Combined Reset & Refresh Button */}
           <button
@@ -1229,20 +1264,21 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               reset();
               void loadOrders();
             }}
-            className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
           >
-            <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin text-slate-550" : "h-3.5 w-3.5 text-slate-550"} />
+            <RefreshCw className={loading ? "h-3 w-3 animate-spin text-slate-550" : "h-3 w-3 text-slate-550"} />
             Reset & Refresh
           </button>
           {/* Three-dots menu (now contains export) */}
           <ReportActions rows={filtered} mode={activeMode} />
           {/* Calendar Date/Time Indicator */}
-          <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-            <CalendarDays className="h-4 w-4 text-slate-400" />
+          <div className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+            <CalendarDays className="h-3 w-3 text-slate-400" />
             <span>17 Jun 2026, 08:54 PM</span>
           </div>
-        </div>
-      </div>
+        </div>,
+        actionsSlot
+      )}
 
       {/* Unified Executive & Operations Summary Box */}
       <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase flex flex-col gap-3">
@@ -1260,11 +1296,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             </div>
             <div className="flex items-center gap-2">
               <span className="text-slate-400">Date:</span> 
-              <span className="text-slate-800 dark:text-slate-200 font-bold">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{reportNow?.date || "-"}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-slate-400">Time:</span> 
-              <span className="text-slate-800 dark:text-slate-200 font-bold">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }).toUpperCase()}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{reportNow?.time || "-"}</span>
             </div>
           </div>
         </div>
@@ -1352,19 +1388,20 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         )}
 
         {/* Table Container */}
-        <div style={{ minHeight: 320, overflowX: "auto", overflowY: "visible" }}>
-          <table style={{ width: "100%", minWidth: "1200px", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 12, color: "#1e293b" }}>
+        <div style={{ minHeight: 600, overflowX: "auto", overflowY: "visible" }}>
+          <table style={{ width: "100%", minWidth: "1600px", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 12, color: "#1e293b" }}>
             <colgroup>
-              <col style={{ width: "9%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "18%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "8%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "6%" }} />
-              <col style={{ width: "5%" }} />
+              <col style={{ width: "8%" }} />  {/* Order ID */}
+              <col style={{ width: "8%" }} />  {/* Bill & Date */}
+              <col style={{ width: "9%" }} />  {/* Branch & Country */}
+              <col style={{ width: "10%" }} /> {/* Purchase Account */}
+              <col style={{ width: "10%" }} /> {/* Sales Account */}
+              <col style={{ width: "10%" }} /> {/* Goods & Brand */}
+              <col style={{ width: "9%" }} />  {/* Weights & Qty */}
+              <col style={{ width: "11%" }} /> {/* Total & Exchange */}
+              <col style={{ width: "10%" }} /> {/* Advance Details */}
+              <col style={{ width: "10%" }} /> {/* Remaining Balance */}
+              <col style={{ width: "5%" }} />  {/* Status & Action */}
             </colgroup>
             <thead>
               <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 2 }}>
@@ -1372,12 +1409,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   { label: "Order ID", className: "text-left" },
                   { label: "Bill & Date", className: "text-left" },
                   { label: "Branch & Country", className: "text-left" },
-                  { label: "Supplier & Accounts", className: "text-left" },
-                  { label: "Goods Details", className: "text-left" },
-                  { label: "Weights", className: "text-right" },
-                  { label: "Total Price", className: "text-right" },
-                  { label: activeMode === "advance" ? "Advance Details" : activeMode === "remaining" ? "Remaining Details" : "Credit Details", className: "text-right" },
-                  { label: "Status", className: "text-center" },
+                  { label: "Purchase Account", className: "text-left" },
+                  { label: "Sales Account", className: "text-left" },
+                  { label: "Goods & Brand", className: "text-left" },
+                  { label: "Weights & Qty", className: "text-left" },
+                  { label: "Total & Exchange", className: "text-right" },
+                  { label: "Advance Details", className: "text-right" },
+                  { label: "Remaining Balance", className: "text-right" },
                   { label: "Action", className: "text-center" }
                 ].map((h, idx) => (
                   <th
@@ -1405,9 +1443,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 const billNo = form.billNo || "-";
                 const dateStr = date(form.purchaseDate || row.created_at);
                 
-                const superSerialNo = row.superAdminSerialNo || form.superAdminSerialNo || "-";
-                const countrySerialNo = row.countrySerialNo || form.countrySerialNo || "-";
-                const branchSerialNo = row.branchSerialNo || form.branchSerialNo || row.audit?.branchCode || form.branchCode || "-";
+                const superSerialNo = row.superAdminSerialNo || row.super_admin_serial_number || form.superAdminSerialNo || "-";
+                const countrySerialNo = row.countrySerialNo || row.country_transaction_serial_number || form.countrySerialNo || "-";
+                const branchSerialNo = row.branchSerialNo || row.branch_transaction_serial_number || form.branchSerialNo || row.audit?.branchCode || form.branchCode || "-";
                 
                 const branchName = row.branchName || form.branchName || "-";
                 const countryName = form.destinationCountry || row.countryName || form.countryName || "-";
@@ -1432,30 +1470,30 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                 const totalAmountBC = totalPrice;
                 const rowLocalCurrency = rowCurrency(row);
-                const totalAmountPKR = finalAmount;
+                const totalAmountLocal = finalAmount;
 
                 let paidAmountBC = 0;
-                let paidAmountPKR = 0;
+                let paidAmountLocal = 0;
                 let balanceAmountBC = 0;
-                let balanceAmountPKR = 0;
+                let balanceAmountLocal = 0;
 
                 if (activeMode === "advance") {
                   paidAmountBC = paidAdvanceBC;
-                  paidAmountPKR = paidAdvance;
+                  paidAmountLocal = paidAdvance;
                   balanceAmountBC = remainingAdvanceBC;
-                  balanceAmountPKR = remainingAdvance;
+                  balanceAmountLocal = remainingAdvance;
                 } else if (activeMode === "remaining") {
                   const remPaid = Number(row.remaining_paid || 0);
-                  paidAmountPKR = remPaid;
+                  paidAmountLocal = remPaid;
                   paidAmountBC = remPaid / exchangeRate;
-                  balanceAmountPKR = remainingDue;
+                  balanceAmountLocal = remainingDue;
                   balanceAmountBC = remainingDue / exchangeRate;
                 } else {
                   // credit or history
                   const credPaid = Number(row.credit_amount || 0);
-                  paidAmountPKR = credPaid;
+                  paidAmountLocal = credPaid;
                   paidAmountBC = credPaid / exchangeRate;
-                  balanceAmountPKR = Math.max(0, finalAmount - credPaid);
+                  balanceAmountLocal = Math.max(0, finalAmount - credPaid);
                   balanceAmountBC = Math.max(0, totalPrice - paidAmountBC);
                 }
 
@@ -1483,12 +1521,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "#f0f9ff"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}
                     >
-                      {/* Order ID Serials */}
+                      {/* Order ID */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="flex flex-col gap-0.5 font-mono text-[9px] font-bold">
-                          <span className="text-slate-600 dark:text-slate-400">S: {superSerialNo}</span>
-                          <span className="text-blue-600 dark:text-blue-400">C: {countrySerialNo}</span>
-                          <span className="text-emerald-600 dark:text-emerald-400">B: {branchSerialNo}</span>
+                        <div className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                          {row.purchase_order_no}
                         </div>
                       </td>
                       {/* Bill & Date */}
@@ -1505,131 +1541,115 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           <span className="text-[9px] text-slate-500 mt-0.5 font-medium">{countryName}</span>
                         </div>
                       </td>
-                      {/* Supplier & Accounts */}
+                      {/* Purchase Account */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="font-bold text-[11px] leading-normal truncate text-slate-900 dark:text-slate-100" title={form.supplierName || form.salesAccountName || "N/A"}>
-                          {form.supplierName || form.salesAccountName || "N/A"}
-                        </div>
-                        <div className="mt-1 space-y-0.5">
-                          <div className="text-[9px] font-semibold text-slate-500 flex items-center gap-1" title={form.purchaseAccountName || "N/A"}><span className="text-blue-500 font-bold">P:</span> <span className="truncate max-w-[140px]">{form.purchaseAccountName || "N/A"} {form.purchaseAccountNumber ? `(${form.purchaseAccountNumber})` : ""}</span></div>
-                          <div className="text-[9px] font-semibold text-slate-500 flex items-center gap-1" title={form.salesAccountName || form.supplierName || "N/A"}><span className="text-emerald-500 font-bold">S:</span> <span className="truncate max-w-[140px]">{form.salesAccountName || form.supplierName || "N/A"} {form.salesAccountNumber ? `(${form.salesAccountNumber})` : ""}</span></div>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 truncate" title={form.purchaseAccountName || "N/A"}>
+                            {form.purchaseAccountName || "N/A"}
+                          </span>
+                          <span className="font-mono text-[9px] text-slate-500 mt-0.5 font-semibold">
+                            {form.purchaseAccountNumber || "-"}
+                          </span>
                         </div>
                       </td>
-                      {/* Goods Details */}
+                      {/* Sales Account */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 truncate" title={form.salesAccountName || form.supplierName || "N/A"}>
+                            {form.salesAccountName || form.supplierName || "N/A"}
+                          </span>
+                          <span className="font-mono text-[9px] text-slate-500 mt-0.5 font-semibold">
+                            {form.salesAccountNumber || "-"}
+                          </span>
+                        </div>
+                      </td>
+                      {/* Goods & Brand */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
                         <div className="flex flex-col gap-0.5 text-[9px]">
-                          <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 truncate max-w-[120px]" title={goodsName}>{goodsName}</span>
-                          <span className="text-slate-500">Size: <span className="font-medium text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.size || "").filter(Boolean).join(", ") || "-"}</span></span>
-                          <span className="text-slate-500">Brand: <span className="font-medium text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.brand || "").filter(Boolean).join(", ") || "-"}</span></span>
+                          <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 truncate" title={goodsName}>{goodsName}</span>
+                          <span className="text-slate-500">
+                            Sz: <span className="font-medium text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.size || "").filter(Boolean).join(", ") || "-"}</span> | Br: <span className="font-medium text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.brand || "").filter(Boolean).join(", ") || "-"}</span>
+                          </span>
                         </div>
                       </td>
                       {/* Weights & Qty */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
-                        <div className="font-mono font-bold text-[11px] text-slate-800 dark:text-slate-200">Qty: {goods.length ? goods.reduce((s:number,g:any)=>s+Number(g.qtyNo||0),0).toLocaleString() : Number(form.quantity||0).toLocaleString()} {goods[0]?.qtyName || form.unit || ""}</div>
-                        <div className="font-mono text-[10px] text-slate-500 mt-0.5">G: {grossWeight.toLocaleString()}</div>
-                        <div className="font-mono text-[10px] text-slate-500 mt-0.5">N: {netWeight.toLocaleString()}</div>
-                      </td>
-                      {/* Total Price */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right">
-                        <div className={cn("font-mono font-bold text-xs", getRowColor())}>
-                          {money(totalAmountBC, row.currency_code ?? "USD")}
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-mono mt-0.5 font-bold flex flex-col">
-                          <span className="text-[8px] uppercase tracking-wider text-slate-400">Final Amount</span>
-                          <span className="text-emerald-600 dark:text-emerald-450">{money(totalAmountPKR, rowLocalCurrency)}</span>
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+                        <div className="flex flex-col gap-1 text-[9px] font-mono">
+                          <span className="text-slate-500">Qty: <span className="font-bold text-slate-700 dark:text-slate-200">{goods.length ? goods.reduce((s:number,g:any)=>s+Number(g.qtyNo||0),0).toLocaleString() : Number(form.quantity||0).toLocaleString()}</span></span>
+                          <span className="text-slate-500">Gross: <span className="font-semibold text-slate-700 dark:text-slate-300">{grossWeight.toLocaleString()}</span></span>
+                          <span className="text-slate-500">Net: <span className="font-semibold text-slate-700 dark:text-slate-300">{netWeight.toLocaleString()}</span></span>
                         </div>
                       </td>
-                      {/* Advance / Remaining Details */}
+                      {/* Total & Exchange */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
-                        {activeMode === "advance" ? (
-                          <div className="flex flex-col items-end gap-1 font-mono">
-                            <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-black text-[9px] mb-0.5 inline-block">
-                              ADV: {advancePercent}%
-                            </div>
-                            <div className="flex flex-col text-right w-full">
-                              <div className="flex justify-between w-full text-[9px] font-bold">
-                                <span className="text-slate-500 text-[8px] uppercase mr-2">Req:</span>
-                                <div>
-                                  <span className="text-slate-800 dark:text-slate-200">{money(requiredAdvanceBC, row.currency_code ?? "")}</span>
-                                  <br/>
-                                  <span className="text-emerald-600">{money(requiredAdvance, rowLocalCurrency)}</span>
-                                </div>
-                              </div>
-                              <div className="flex justify-between w-full text-[9px] font-bold mt-1">
-                                <span className="text-slate-500 text-[8px] uppercase mr-2">Paid:</span>
-                                <div>
-                                  <span className="text-slate-800 dark:text-slate-200">{money(paidAdvanceBC, row.currency_code ?? "")}</span>
-                                  <br/>
-                                  <span className="text-emerald-600">{money(paidAdvance, rowLocalCurrency)}</span>
-                                </div>
-                              </div>
-                              <div className="flex justify-between w-full text-[9px] font-bold mt-1">
-                                <span className="text-slate-500 text-[8px] uppercase mr-2">Rem:</span>
-                                <div>
-                                  <span className="text-rose-600">{money(remainingAdvanceBC, row.currency_code ?? "")}</span>
-                                  <br/>
-                                  <span className="text-rose-500">{money(remainingAdvance, rowLocalCurrency)}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : activeMode === "remaining" ? (
-                          <>
-                            <div className="font-mono text-[11px]" title="Required Remaining">
-                              Req: {money(totalAmountBC - paidAdvanceBC, row.currency_code ?? "")}
-                            </div>
-                            <div className="text-[9px] text-emerald-600 font-mono mt-0.5 font-semibold" title="Paid Remaining">
-                              Paid: {money(paidAmountBC, row.currency_code ?? "")}
-                            </div>
-                            <div className="text-[9px] text-rose-600 font-mono mt-0.5 font-bold" title="Remaining Due">
-                              Rem: {money(balanceAmountBC, row.currency_code ?? "")}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="font-mono text-[11px]" title="Credit Total">
-                              Cred: {money(totalAmountBC, row.currency_code ?? "")}
-                            </div>
-                            <div className="text-[9px] text-emerald-600 font-mono mt-0.5 font-semibold" title="Paid Credit">
-                              Paid: {money(paidAmountBC, row.currency_code ?? "")}
-                            </div>
-                            <div className="text-[9px] text-rose-600 font-mono mt-0.5 font-bold" title="Remaining Balance">
-                              Rem: {money(balanceAmountBC, row.currency_code ?? "")}
-                            </div>
-                          </>
-                        )}
+                        <div className="flex flex-col items-end gap-1 font-mono">
+                          <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
+                            {money(totalAmountBC, row.currency_code ?? "USD")}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-semibold">
+                            {money(totalAmountLocal, rowLocalCurrency)}
+                          </span>
+                          <span className="text-[9px] text-slate-400 mt-1">
+                            Rate: {exchangeRate}
+                          </span>
+                        </div>
                       </td>
-                      {/* Status */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center">
-                        {getStatusBadge(statusText)}
+                      {/* Advance Details */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
+                        <div className="flex flex-col items-end gap-1 font-mono">
+                          <span className="text-[9px] text-slate-500 uppercase font-semibold">Req ({advancePercent}%)</span>
+                          <span className="font-bold text-[10px] text-slate-700 dark:text-slate-300">
+                            {money(requiredAdvanceBC, row.currency_code ?? "USD")}
+                          </span>
+                          <span className="text-[9px] text-slate-500">
+                            {money(requiredAdvance, rowLocalCurrency)}
+                          </span>
+                          <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                            Paid: {money(paidAdvanceBC, row.currency_code ?? "USD")}
+                          </span>
+                        </div>
                       </td>
-                      {/* Action */}
+                      {/* Remaining Balance */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
+                        <div className="flex flex-col items-end gap-1 font-mono">
+                          <span className="font-black text-[11px] text-indigo-600 dark:text-indigo-400">
+                            {money(balanceAmountBC, row.currency_code ?? "USD")}
+                          </span>
+                          <span className="text-[10px] font-bold text-indigo-500/80 dark:text-indigo-400/80">
+                            {money(balanceAmountLocal, rowLocalCurrency)}
+                          </span>
+                        </div>
+                      </td>
+                      {/* Status & Action */}
                       <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
-                          <button 
-                            onClick={() => setOpenDropdownId(openDropdownId === row.id ? null : row.id)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-400 focus:outline-none"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-                          {openDropdownId === row.id && (
-                            <>
-                              <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)} />
-                              <div className="absolute right-0 top-full mt-1 w-48 rounded-md bg-white dark:bg-slate-900 shadow-lg ring-1 ring-black ring-opacity-5 z-50 overflow-hidden border border-slate-200 dark:border-slate-800 font-semibold">
-                                <div className="py-1">
-                                  <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setViewingRow(row); setOpenDropdownId(null); }}>
-                                    <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> View Detailed Bill
-                                  </button>
-                                  <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, true); setOpenDropdownId(null); }}>
-                                    <Printer className="mr-2.5 h-4 w-4 text-slate-500" /> Print A4 Invoice
-                                  </button>
-                                  <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] })); setOpenDropdownId(null); }}>
-                                    {isExpanded ? <XCircle className="mr-2.5 h-4 w-4 text-slate-500" /> : <Plus className="mr-2.5 h-4 w-4 text-slate-500" />} {isExpanded ? "Hide Payment History" : "Show Payment History"}
-                                  </button>
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          {getStatusBadge(statusText)}
+                          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              onClick={() => setOpenDropdownId(openDropdownId === row.id ? null : row.id)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-400 focus:outline-none shadow-sm bg-white dark:bg-slate-900"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                            {openDropdownId === row.id && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)} />
+                                <div className="absolute right-0 top-full mt-1 w-48 rounded-md bg-white dark:bg-slate-900 shadow-lg ring-1 ring-black ring-opacity-5 z-50 overflow-hidden border border-slate-200 dark:border-slate-800 font-semibold">
+                                  <div className="py-1">
+                                    <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setViewingRow(row); setOpenDropdownId(null); }}>
+                                      <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> View Detailed Bill
+                                    </button>
+                                    <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, true); setOpenDropdownId(null); }}>
+                                      <Printer className="mr-2.5 h-4 w-4 text-slate-500" /> Print A4 Invoice
+                                    </button>
+                                    <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] })); setOpenDropdownId(null); }}>
+                                      {isExpanded ? <XCircle className="mr-2.5 h-4 w-4 text-slate-500" /> : <Plus className="mr-2.5 h-4 w-4 text-slate-500" />} {isExpanded ? "Hide Payment History" : "Show Payment History"}
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
-                            </>
-                          )}
+                              </>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -2558,13 +2578,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             
             const totalPriceFC = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) : Number(form.totalAmount || 0);
             const exchangeRateVal = viewingRow.exchange_rate || form.exchangeRate || 1;
-            const finalAmountPKR = viewingRow.order_total || totals.grandFinal || 0;
+            const viewingLocalCurrency = rowCurrency(viewingRow);
+            const finalAmountLocal = viewingRow.order_total || totals.grandFinal || 0;
 
             const advancePercent = Number(form.advancePercent || 0);
             const reqAdvanceBC = (totalPriceFC * advancePercent) / 100;
-            const reqAdvancePKR = (finalAmountPKR * advancePercent) / 100;
-            const paidAdvancePKR = Number(viewingRow.advance_paid || 0);
-            const paidAdvanceBC = paidAdvancePKR / exchangeRateVal;
+            const reqAdvanceLocal = (finalAmountLocal * advancePercent) / 100;
+            const paidAdvanceLocal = Number(viewingRow.advance_paid || 0);
+            const paidAdvanceBC = paidAdvanceLocal / exchangeRateVal;
             const remAdvanceBC = Math.max(0, reqAdvanceBC - paidAdvanceBC);
 
             return (
@@ -2657,13 +2678,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       <span className="text-slate-400 text-xs">Total Purchase (FC)</span>
                       <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{money(totalPriceFC, viewingRow.currency_code ?? "")}</span>
                     </div>
-                    <div className="flex justify-between border-b pb-1.5">
+                    <div className="flex justify-between border-b pb-1.5 border-slate-100 dark:border-slate-800">
                       <span className="text-slate-400 text-xs">Exchange Rate</span>
-                      <span className="font-mono text-slate-600 dark:text-slate-400">1 {viewingRow.currency_code} = {Number(exchangeRateVal).toFixed(4)} PKR</span>
+                      <span className="font-mono text-slate-600 dark:text-slate-400">1 {viewingRow.currency_code} = {Number(exchangeRateVal).toFixed(4)} {viewingLocalCurrency}</span>
                     </div>
                     <div className="flex justify-between pt-0.5">
-                      <span className="text-slate-800 font-bold dark:text-slate-200">Final Converted (PKR)</span>
-                      <span className="font-mono font-black text-blue-600 dark:text-blue-400 text-base">{money(finalAmountPKR, "PKR")}</span>
+                      <span className="text-slate-800 font-bold dark:text-slate-200">Final Converted ({viewingLocalCurrency})</span>
+                      <span className="font-mono font-black text-blue-600 dark:text-blue-400 text-base">{money(finalAmountLocal, viewingLocalCurrency)}</span>
                     </div>
                   </div>
 

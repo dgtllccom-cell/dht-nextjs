@@ -2889,7 +2889,7 @@ export function PurchaseOrderWizard() {
   };
 
   return (
-    <div className="space-y-2 text-foreground bg-background mt-[-10px]">
+    <div className="space-y-2 text-foreground bg-background mt-[-10px] max-w-[1500px] mx-auto">
       {isSuperAdmin && (!form.countryId || !form.countryBranchId || !scopeConfirmed) && (
         <SimpleModal
           isOpen={true}
@@ -3081,11 +3081,32 @@ export function PurchaseOrderWizard() {
                       <CreditCard className="h-3.5 w-3.5 text-blue-600" /> Report 1: Payment Details
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[9px] space-y-1">
+                      <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[9px] space-y-2">
                         <div className="flex justify-between"><span className="text-slate-500">Payment Term:</span> <span className="font-bold text-slate-800">{form.paymentType || "N/A"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Advance (%):</span> <span className="font-bold text-slate-800">{form.advancePercent || 0}% / {form.advancePaymentDate}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Remaining (%):</span> <span className="font-bold text-slate-800">{100 - (form.advancePercent || 0)}% / {form.paymentDate}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Grand Total:</span> <span className="font-bold text-emerald-700">{form.currencyType || "USD"} {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                        
+                        <div className="flex justify-between border-t border-slate-200 pt-1">
+                          <span className="text-slate-500">Advance ({form.advancePercent || 0}%):<br/><span className="text-[7px]">Due: {form.advancePaymentDate}</span></span> 
+                          <span className="font-bold text-slate-800 text-right">
+                            <span className="block text-emerald-700">{form.currencyType || "USD"} {((reportTotals.grandPrimaryFinal || reportTotals.grandFinal || 0) * (form.advancePercent || 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="block text-blue-600 mt-0.5">{form.purchaseCurrency || "AED"} {((reportTotals.grandFinal || 0) * (form.advancePercent || 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-[7px] text-slate-400 font-mono">(@ {goodsEntries[0]?.exchangeRate || form.exchangeRate || 1})</span></span>
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between border-t border-slate-200 pt-1">
+                          <span className="text-slate-500">Remaining ({100 - (form.advancePercent || 0)}%):<br/><span className="text-[7px]">Due: {form.paymentDate}</span></span> 
+                          <span className="font-bold text-slate-800 text-right">
+                            <span className="block text-emerald-700">{form.currencyType || "USD"} {((reportTotals.grandPrimaryFinal || reportTotals.grandFinal || 0) * (100 - (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="block text-blue-600 mt-0.5">{form.purchaseCurrency || "AED"} {((reportTotals.grandFinal || 0) * (100 - (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-[7px] text-slate-400 font-mono">(@ {goodsEntries[0]?.exchangeRate || form.exchangeRate || 1})</span></span>
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between border-t border-slate-200 pt-1">
+                          <span className="text-slate-500">Grand Total:</span> 
+                          <span className="font-bold text-right">
+                            <span className="block text-emerald-700">{form.currencyType || "USD"} {(reportTotals.grandPrimaryFinal || reportTotals.grandFinal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="block text-blue-600 mt-0.5">{form.purchaseCurrency || "AED"} {(reportTotals.grandFinal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </span>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[9px] font-bold text-slate-700 mb-1">Payment Report / Notes</label>

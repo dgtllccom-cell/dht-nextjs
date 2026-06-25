@@ -183,6 +183,18 @@ export const sidebarTree: SidebarNode[] = [
         roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant"]
       },
       {
+        key: "ledgers-super-admin-detailed",
+        labelKey: "nav.ledger_super_admin_detailed",
+        href: "/dashboard/ledger/super-admin/detailed" as Route,
+        roles: ["super_admin"]
+      },
+      {
+        key: "ledgers-country-detailed",
+        labelKey: "nav.ledger_country_detailed",
+        href: "/dashboard/ledger/country/detailed" as Route,
+        roles: ["super_admin", "country_admin"]
+      },
+      {
         key: "ledgers-general-report",
         labelKey: "nav.ledger_general_report",
         href: "/dashboard/ledger/general-report" as Route,

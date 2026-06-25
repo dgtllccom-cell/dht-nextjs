@@ -72,6 +72,8 @@ export type UiKey =
   | "nav.country_ledger"
   | "nav.branch_ledger"
   | "nav.ledger_general_report"
+  | "nav.ledger_super_admin_detailed"
+  | "nav.ledger_country_detailed"
   | "nav.shipping_clearing"
   | "nav.shipping_line"
   | "nav.bl_entry"
@@ -416,6 +418,8 @@ const en: Dict = {
   "nav.country_ledger": "Country Ledger",
   "nav.branch_ledger": "City Ledger",
   "nav.ledger_general_report": "Ledger General Report",
+  "nav.ledger_super_admin_detailed": "Super Admin Ledger (Detailed)",
+  "nav.ledger_country_detailed": "Country Ledger (Detailed)",
   "nav.shipping_clearing": "Shipping Line / Clearing Agent",
   "nav.shipping_line": "Shipping Line",
   "nav.bl_entry": "B/L Entry",
@@ -745,6 +749,8 @@ const ur: Dict = {
   "nav.country_ledger": "کنٹری لیجر",
   "nav.branch_ledger": "سٹی لیجر",
   "nav.ledger_general_report": "لیجر جنرل رپورٹ",
+  "nav.ledger_super_admin_detailed": "سپر ایڈمن لیجر (تفصیلی)",
+  "nav.ledger_country_detailed": "کنٹری لیجر (تفصیلی)",
   "nav.shipping_clearing": "شپنگ لائن / کلیئرنگ ایجنٹ",
   "nav.shipping_line": "شپنگ لائن",
   "nav.bl_entry": "بی ایل انٹری",
@@ -1036,6 +1042,8 @@ const ar: Dict = {
   "nav.country_ledger": "دفتر الدولة",
   "nav.branch_ledger": "دفتر الفرع / المدينة",
   "nav.ledger_general_report": "تقرير دفتر الأستاذ العام",
+  "nav.ledger_super_admin_detailed": "دفتر الأستاذ للمشرف العام (مفصل)",
+  "nav.ledger_country_detailed": "دفتر الأستاذ للبلد (مفصل)",
   "nav.shipping_clearing": "الشحن / التخليص",
   "nav.shipping_line": "الشحن",
   "nav.bl_entry": "إدخال بوليصة شحن",
@@ -1327,6 +1335,8 @@ const fa: Dict = {
   "nav.country_ledger": "دفتر کل کشور",
   "nav.branch_ledger": "دفتر کل شعبه / شهر",
   "nav.ledger_general_report": "گزارش عمومی دفتر کل",
+  "nav.ledger_super_admin_detailed": "دفتر کل مدیر ارشد (مفصل)",
+  "nav.ledger_country_detailed": "دفتر کل کشور (مفصل)",
   "nav.shipping_clearing": "کشتیرانی / ترخیص",
   "nav.shipping_line": "کشتیرانی",
   "nav.clearing_agent": "ترخیص",
@@ -1617,6 +1627,8 @@ const ps: Dict = {
   "nav.country_ledger": "د هېواد لېجر",
   "nav.branch_ledger": "د څانګې / ښار لېجر",
   "nav.ledger_general_report": "د لېجر عمومي راپور",
+  "nav.ledger_super_admin_detailed": "سوپر اډمین لېجر (تفصيلي)",
+  "nav.ledger_country_detailed": "هیواد لېجر (تفصيلي)",
   "ledger.apply": "پلي کړئ",
   "ledger.reset": "ری سیٹ",
   "ledger.prev": "مخکینی",

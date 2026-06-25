@@ -399,21 +399,24 @@ export default async function SuperAdminDashboardPage() {
           </div>
         </div>
 
-        {/* Financial Summary */}
+        {/* Global Scope */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
           <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/40">
             <div className="flex items-center gap-2">
               <Landmark className="h-4 w-4 text-indigo-600" />
-              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Global Scope Standings</h2>
+              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Global Scope Control</h2>
             </div>
-            <p className="mt-0.5 text-xs text-slate-500">Per-country totals remain in each country currency</p>
+            <p className="mt-0.5 text-xs text-slate-500">Financial values are never merged across currencies. Use the country currency dashboard below for money totals.</p>
           </div>
           <div className="space-y-2.5 p-5">
-            <FinancialRow label="Ledger Debit Total"       value={money(data.ledgerDebit)} />
-            <FinancialRow label="Ledger Credit Total"      value={money(data.ledgerCredit)} />
-            <FinancialRow label="Ledger Current Balance"   value={money(data.ledgerBalance)} highlight />
-            <FinancialRow label="Purchase Booking Volume"  value={money(data.purchaseTotal)} />
-            <FinancialRow label="Sales Booking Volume"     value={money(data.salesTotal)} />
+            <FinancialRow label="Countries" value={String(data.counts.countries)} />
+            <FinancialRow label="Branches" value={String(data.counts.branches)} />
+            <FinancialRow label="Users" value={String(data.counts.users)} />
+            <FinancialRow label="Purchase Orders" value={String(data.counts.purchases)} />
+            <FinancialRow label="Sales Orders" value={String(data.counts.sales)} />
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs font-semibold text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
+              Currency rule active: AED, PKR, AFN, INR, and IRR remain separated per country.
+            </div>
           </div>
         </div>
       </section>
