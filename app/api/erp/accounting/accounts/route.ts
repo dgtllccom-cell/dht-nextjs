@@ -382,7 +382,7 @@ export async function POST(request: NextRequest) {
         currency: body.currency.toUpperCase(),
         opening_balance: body.openingBalance,
         current_balance: body.openingBalance,
-        status: "active",
+        status: body.status || "active",
         is_control_account: body.isControlAccount,
         contacts: body.contacts,
         created_by: actorId

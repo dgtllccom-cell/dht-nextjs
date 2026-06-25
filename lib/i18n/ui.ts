@@ -56,6 +56,7 @@ export type UiKey =
   | "nav.export_stock"
   | "nav.delivered_stock"
   | "nav.roznamcha"
+  | "nav.expenses_bill"
   | "nav.all_roznamcha"
   | "nav.roznamcha_all_report"
   | "nav.super_admin_roznamcha"
@@ -399,6 +400,7 @@ const en: Dict = {
   "nav.export_stock": "Export Stock",
   "nav.delivered_stock": "Delivered Stock",
   "nav.roznamcha": "Roznamcha",
+  "nav.expenses_bill": "Expenses Bill",
   "nav.all_roznamcha": "All Roznamcha",
   "nav.roznamcha_all_report": "Roznamcha All Report",
   "nav.super_admin_roznamcha": "Super Admin Roznamcha",
@@ -650,6 +652,7 @@ const en: Dict = {
   "ledger.next": "Next",
   "ledger.entries_label": "Ledger Entries",
   "ledger.entries_table": "Ledger Entries",
+  // Form fields & Buttons
   "form.from": "From",
   "form.to": "To",
   "form.quantity": "Quantity (Foreign Amount)",
@@ -726,6 +729,7 @@ const ur: Dict = {
   "nav.export_stock": "Export Stock",
   "nav.delivered_stock": "Delivered Stock",
   "nav.roznamcha": "روزنامچہ",
+  "nav.expenses_bill": "اخراجات کا بل",
   "nav.all_roznamcha": "تمام روزنامچہ",
   "nav.roznamcha_all_report": "روزنامچہ آل رپورٹ",
   "nav.super_admin_roznamcha": "سپر ایڈمن روزنامچہ",
@@ -1016,6 +1020,7 @@ const ar: Dict = {
   "nav.export_stock": "Export Stock",
   "nav.delivered_stock": "Delivered Stock",
   "nav.roznamcha": "روزنامچہ",
+  "nav.expenses_bill": "فاتورة المصروفات",
   "nav.all_roznamcha": "كل روزنامچہ",
   "nav.roznamcha_all_report": "تقرير روزنامچہ الشامل",
   "nav.super_admin_roznamcha": "روزنامچہ (مشرف أعلى)",
@@ -1306,6 +1311,7 @@ const fa: Dict = {
   "nav.export_stock": "Export Stock",
   "nav.delivered_stock": "Delivered Stock",
   "nav.roznamcha": "روزنامه",
+  "nav.expenses_bill": "صورتحساب هزینه‌ها",
   "nav.all_roznamcha": "همه روزنامه",
   "nav.roznamcha_all_report": "گزارش جامع روزنامه",
   "nav.super_admin_roznamcha": "روزنامه (سوپر ادمین)",
@@ -1544,6 +1550,7 @@ const ps: Dict = {
   "nav.export_stock": "Export Stock",
   "nav.delivered_stock": "Delivered Stock",
   "nav.roznamcha": "روزنامچه",
+  "nav.expenses_bill": "د لګښتونو بل",
   "nav.all_roznamcha": "ټول روزنامچه",
   "nav.roznamcha_all_report": "د روزنامچه ټول راپور",
   "nav.reports": "راپورونه",

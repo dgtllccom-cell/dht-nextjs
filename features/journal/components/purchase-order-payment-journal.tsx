@@ -16,8 +16,8 @@ import {
   Printer,
   RefreshCw,
   Search,
-  WalletCards,
   Save,
+  Paperclip,
   Plus,
   FileText,
   CheckCircle,
@@ -1925,15 +1925,22 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           <Input className="h-9 text-xs font-semibold" value={typeDetails.whatsappNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, whatsappNumber: e.target.value }))} placeholder="WhatsApp number" />
                         </FieldBlock>
                         <FieldBlock label="ID Card Copy Upload">
-                          <Input
-                            className="h-9 text-xs font-semibold bg-background"
-                            type="file"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] ?? null;
-                              setAttachmentFile(file);
-                              setTypeDetails((p) => ({ ...p, idCardCopyName: file?.name || "" }));
-                            }}
-                          />
+                          <div className="flex items-center gap-2">
+                            <Label className="cursor-pointer flex w-max items-center justify-center h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 border text-slate-500 shadow-sm transition gap-1.5 text-[10px] font-semibold">
+                              <Paperclip className="h-3 w-3" />
+                              <span>Attach</span>
+                              <Input
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] ?? null;
+                                  setAttachmentFile(file);
+                                  setTypeDetails((p) => ({ ...p, idCardCopyName: file?.name || "" }));
+                                }}
+                              />
+                            </Label>
+                            {typeDetails.idCardCopyName && <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-2 py-1.5 rounded border truncate max-w-[200px]">{typeDetails.idCardCopyName}</span>}
+                          </div>
                         </FieldBlock>
                       </div>
                     )}
@@ -2011,15 +2018,22 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         </div>
 
                         <FieldBlock label="Attachment Upload">
-                          <Input
-                            className="h-9 text-xs font-semibold bg-background"
-                            type="file"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] ?? null;
-                              setAttachmentFile(file);
-                              setTypeDetails((p) => ({ ...p, bankAttachmentName: file?.name || "" }));
-                            }}
-                          />
+                          <div className="flex items-center gap-2">
+                            <Label className="cursor-pointer flex w-max items-center justify-center h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 border text-slate-500 shadow-sm transition gap-1.5 text-[10px] font-semibold">
+                              <Paperclip className="h-3 w-3" />
+                              <span>Attach</span>
+                              <Input
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] ?? null;
+                                  setAttachmentFile(file);
+                                  setTypeDetails((p) => ({ ...p, bankAttachmentName: file?.name || "" }));
+                                }}
+                              />
+                            </Label>
+                            {typeDetails.bankAttachmentName && <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-2 py-1.5 rounded border truncate max-w-[150px]">{typeDetails.bankAttachmentName}</span>}
+                          </div>
                         </FieldBlock>
                       </div>
                     )}

@@ -21,7 +21,7 @@ import {
 } from "@/features/locations/components/location-hierarchy-select";
 import { createBank, type BankRecord } from "@/features/banks/bank-api";
 
-const BANK_TYPES = [
+const DEFAULT_BANK_TYPES = [
   "Commercial Bank",
   "Islamic Bank",
   "Central Bank",
@@ -34,7 +34,7 @@ const BANK_TYPES = [
   "Mobile Money Operator"
 ];
 
-const ACCOUNT_TYPES = [
+const DEFAULT_ACCOUNT_TYPES = [
   "Current Account",
   "Savings Account",
   "Fixed Deposit",
@@ -45,7 +45,7 @@ const ACCOUNT_TYPES = [
   "Payroll Account"
 ];
 
-const BRANCH_CODE_TYPES = [
+const DEFAULT_BRANCH_CODE_TYPES = [
   "SWIFT Code",
   "Routing Number",
   "IFSC Code",
@@ -135,6 +135,29 @@ export function BankForm({
   const [saving, setSaving] = useState(false);
   const [savedBank, setSavedBank] = useState<BankRecord | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [bankTypes, setBankTypes] = useState(DEFAULT_BANK_TYPES);
+  const [accountTypes, setAccountTypes] = useState(DEFAULT_ACCOUNT_TYPES);
+  const [branchCodeTypes, setBranchCodeTypes] = useState(DEFAULT_BRANCH_CODE_TYPES);
+  const [typeModal, setTypeModal] = useState<"bankType" | "accountType" | "branchCodeType" | null>(null);
+  const [newType, setNewType] = useState("");
+
+  function saveType() {
+    if (!newType.trim()) return;
+    if (typeModal === "bankType") {
+      setBankTypes([...bankTypes, newType.trim()]);
+      set("bankType", newType.trim());
+    } else if (typeModal === "accountType") {
+      setAccountTypes([...accountTypes, newType.trim()]);
+      set("accountType", newType.trim());
+    } else if (typeModal === "branchCodeType") {
+      setBranchCodeTypes([...branchCodeTypes, newType.trim()]);
+      set("branchCodeType", newType.trim());
+    }
+    setTypeModal(null);
+    setNewType("");
+  }
 
   function set(field: keyof BankFormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -284,10 +307,45 @@ export function BankForm({
         </span>
       </div>
 
-      <div className={mode === "standalone" ? "grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]" : "space-y-5"}>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs font-semibold text-slate-500 mb-2">
+        {[
+          { id: 1, label: "1. Bank Information" },
+          { id: 2, label: "2. Contact & Address" },
+          { id: 3, label: "3. Review & Save" },
+        ].map((s) => {
+          const active = currentStep === s.id;
+          const completed = currentStep > s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setCurrentStep(s.id as any)}
+              className={`flex items-center gap-2 border rounded-lg p-2.5 text-left transition-all ${
+                active
+                  ? "border-primary bg-primary/5 text-primary font-bold shadow-sm"
+                  : completed
+                  ? "border-emerald-200 bg-emerald-50/50 text-emerald-700 font-bold"
+                  : "border-slate-100 bg-slate-50/50 text-slate-400"
+              }`}
+            >
+              <div
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+                  active ? "bg-primary text-white" : completed ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
+                }`}
+              >
+                {completed ? <CheckCircle2 className="h-4 w-4" /> : s.id}
+              </div>
+              <span className="truncate">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
 
           {/* Section 1: Bank Information */}
+          {currentStep === 1 && (
           <section className="space-y-5 rounded-lg border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-2 border-b pb-3">
               <Landmark className="h-4 w-4 text-primary" aria-hidden />
@@ -298,18 +356,34 @@ export function BankForm({
               {/* Bank Type */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Bank Type *</Label>
-                <select value={form.bankType} onChange={(e) => set("bankType", e.target.value)} className={selectClass}>
+                <select 
+                  value={form.bankType} 
+                  onChange={(e) => {
+                    if (e.target.value === "__new__") setTypeModal("bankType");
+                    else set("bankType", e.target.value);
+                  }} 
+                  className={selectClass}
+                >
                   <option value="">Select Bank Type</option>
-                  {BANK_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {bankTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                  <option value="__new__">+ Add New Type</option>
                 </select>
               </div>
 
               {/* Account Type */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Account Type *</Label>
-                <select value={form.accountType} onChange={(e) => set("accountType", e.target.value)} className={selectClass}>
+                <select 
+                  value={form.accountType} 
+                  onChange={(e) => {
+                    if (e.target.value === "__new__") setTypeModal("accountType");
+                    else set("accountType", e.target.value);
+                  }} 
+                  className={selectClass}
+                >
                   <option value="">Select Account Type</option>
-                  {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {accountTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                  <option value="__new__">+ Add New Type</option>
                 </select>
               </div>
 
@@ -340,10 +414,14 @@ export function BankForm({
                 <div className="flex gap-1.5">
                   <select
                     value={form.branchCodeType}
-                    onChange={(e) => set("branchCodeType", e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === "__new__") setTypeModal("branchCodeType");
+                      else set("branchCodeType", e.target.value);
+                    }}
                     className="h-10 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0"
                   >
-                    {BRANCH_CODE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {branchCodeTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                    <option value="__new__">+ Add New Type</option>
                   </select>
                   <Input
                     value={form.branchCode}
@@ -440,8 +518,11 @@ export function BankForm({
               </div>
             </div>
           </section>
+          )}
+
 
           {/* Section 2: Contact & Address */}
+          {currentStep === 2 && (
           <section className="space-y-5 rounded-lg border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-2 border-b pb-3">
               <Globe className="h-4 w-4 text-primary" aria-hidden />
@@ -514,86 +595,136 @@ export function BankForm({
               />
             </div>
 
-            {/* Message */}
-            {message && (
-              <div
-                className={
-                  message.type === "success"
-                    ? "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
-                    : "rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
-                }
-              >
-                {message.text}
-              </div>
-            )}
+          </section>
+          )}
 
-            {/* Actions */}
-            <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
+          {currentStep === 3 && (
+            <div className="space-y-4">
+              <p className="text-sm font-semibold text-slate-800">Review & Save</p>
+              <p className="text-xs text-muted-foreground">
+                Please review the bank details on the right. Once confirmed, you can save the bank record.
+              </p>
+            </div>
+          )}
+
+          {/* Message */}
+          {message && (
+            <div
+              className={
+                message.type === "success"
+                  ? "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+                  : "rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+              }
+            >
+              {message.text}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4 mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCurrentStep((Math.max(1, currentStep - 1)) as any)}
+              disabled={currentStep === 1}
+              className="border-slate-200 text-slate-700 font-medium h-10 px-4"
+            >
+              Back
+            </Button>
+            
+            <div className="flex gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={onCancel ?? handleReset}
+                className="h-10 px-4"
               >
                 Cancel
               </Button>
-              <Button
-                type="button"
-                onClick={handleSave}
-                disabled={saving || !isReady}
-                className="gap-2"
-              >
-                <Save className="h-4 w-4" aria-hidden />
-                {saving ? "Saving..." : "Save Bank"}
-              </Button>
+              {currentStep < 3 ? (
+                <Button
+                  type="button"
+                  onClick={() => setCurrentStep((Math.min(3, currentStep + 1)) as any)}
+                  className="rounded-lg bg-primary hover:bg-primary-dark text-white font-medium shadow-sm h-10 px-8 gap-2"
+                >
+                  Next
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || !isReady}
+                  className="rounded-lg bg-primary text-white hover:bg-primary-dark transition gap-2 shadow-sm font-medium h-10 px-5"
+                >
+                  <Save className="h-4 w-4" aria-hidden />
+                  {saving ? "Saving..." : "Save Bank"}
+                </Button>
+              )}
             </div>
-          </section>
+          </div>
         </div>
 
         {/* Right Panel: Bank Summary Preview */}
         <aside className="h-fit rounded-lg border bg-card p-5 shadow-sm xl:sticky xl:top-24">
-          <div className="flex items-center gap-2 border-b pb-3 mb-4">
-            <Building2 className="h-4 w-4 text-primary" aria-hidden />
-            <h2 className="font-semibold text-sm">Bank Summary</h2>
+          <div className="flex items-center justify-between border-b pb-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" aria-hidden />
+              <h2 className="font-semibold text-sm">Bank Preview</h2>
+            </div>
+            <div>
+              {savedBank ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Saved Record
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  Live Draft
+                </span>
+              )}
+            </div>
           </div>
 
-          {savedBank ? (
-            <div className="space-y-3 text-xs">
-              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-center">
+          <div className="space-y-3 text-xs">
+            {savedBank && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-center mb-3">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 mx-auto mb-1" />
                 <p className="text-emerald-700 font-semibold text-xs">Saved Successfully</p>
               </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Bank Name</p>
-                <p className="font-bold text-sm mt-0.5">{savedBank.bank_name}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Account Title</p>
-                <p className="font-semibold mt-0.5">{savedBank.account_title}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Account Number</p>
-                <p className="font-mono font-bold mt-0.5">{savedBank.account_number}</p>
-              </div>
-              {savedBank.iban_number && (
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">IBAN</p>
-                  <p className="font-mono mt-0.5 break-all">{savedBank.iban_number}</p>
-                </div>
-              )}
-              <div className="flex justify-between border-t pt-2">
-                <span className="text-muted-foreground">Currency</span>
-                <span className="font-bold font-mono">{savedBank.currency}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Branch</span>
-                <span className="font-semibold">{savedBank.branch_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status</span>
-                <span className={`font-bold ${savedBank.account_status === "Active" ? "text-emerald-600" : "text-amber-600"}`}>
-                  {savedBank.account_status}
-                </span>
-              </div>
+            )}
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Bank Name</p>
+              <p className="font-bold text-sm mt-0.5 text-slate-900">{savedBank ? savedBank.bank_name : form.bankName || "-"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Account Title</p>
+              <p className="font-semibold mt-0.5 text-slate-800">{savedBank ? savedBank.account_title : form.accountTitle || "-"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Account Number</p>
+              <p className="font-mono font-bold mt-0.5 text-slate-900">{savedBank ? savedBank.account_number : form.accountNumber || "-"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">IBAN</p>
+              <p className="font-mono mt-0.5 break-all text-slate-700">{savedBank ? (savedBank.iban_number || "-") : form.ibanNumber || "-"}</p>
+            </div>
+            <div className="flex justify-between border-t pt-2">
+              <span className="text-muted-foreground">Currency</span>
+              <span className="font-bold font-mono text-slate-900">{savedBank ? savedBank.currency : form.currency || "-"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Branch</span>
+              <span className="font-semibold text-slate-800">{savedBank ? savedBank.branch_name : form.branchName || "-"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Status</span>
+              <span className={`font-bold ${savedBank ? (savedBank.account_status === "Active" ? "text-emerald-600" : "text-amber-600") : (form.accountStatus === "Active" ? "text-emerald-600" : "text-amber-600")}`}>
+                {savedBank ? savedBank.account_status : form.accountStatus}
+              </span>
+            </div>
+
+            {savedBank && (
               <Button
                 type="button"
                 variant="outline"
@@ -603,18 +734,29 @@ export function BankForm({
               >
                 + Add Another Bank
               </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
-              <div className="mb-3 rounded-lg border-2 border-dashed border-border p-6">
-                <Landmark className="h-8 w-8 mx-auto text-muted-foreground/40" />
-              </div>
-              <p className="text-sm font-semibold">Select or save a bank</p>
-              <p className="text-xs mt-1">Bank details will appear here</p>
-            </div>
-          )}
+            )}
+          </div>
         </aside>
       </div>
+
+      {typeModal && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/60 p-4">
+          <div className="w-full max-w-sm rounded-lg border bg-white p-5 shadow-2xl">
+            <h2 className="font-semibold text-slate-950">Add New Type</h2>
+            <div className="mt-4 space-y-3">
+              <Input value={newType} onChange={(e) => setNewType(e.target.value)} placeholder="Enter new type" />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setTypeModal(null)}>
+                  Cancel
+                </Button>
+                <Button type="button" onClick={saveType}>
+                  Save
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -25,6 +25,7 @@ import { apiPost, apiPatch } from "@/lib/api/client";
 import { CustomerPicker } from "@/features/customers/components/customer-picker";
 import { CompanyPicker } from "@/features/companies/components/company-picker";
 import { BankPicker } from "@/features/banks/components/bank-picker";
+import { WarehousePicker } from "@/features/warehouses/components/warehouse-picker";
 import { rtlLanguages, type SupportedLanguage } from "@/lib/i18n/languages";
 import { getLabel } from "./translations";
 import { AccountLiveReportPanel } from "./account-live-report-panel";
@@ -221,12 +222,14 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   const [contacts, setContacts] = useState<Array<{ type: string; value: string }>>([{ type: "Mobile", value: "" }]);
   const [journalCounter, setJournalCounter] = useState(0);
   const [lastBranchCode, setLastBranchCode] = useState("");
+  const [simulateCityAdmin, setSimulateCityAdmin] = useState(false);
   const [savedEntries, setSavedEntries] = useState<SavedEntry[]>([]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [lastCreated, setLastCreated] = useState<AccountCreateResponse | null>(null);
   const [loadingAccount, setLoadingAccount] = useState(false);
   const [actionsPortal, setActionsPortal] = useState<HTMLElement | null>(null);
+
 
   useEffect(() => {
     setActionsPortal(document.getElementById("erp-page-actions-slot"));
@@ -325,6 +328,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   const [linkedCompanyName, setLinkedCompanyName] = useState("");
   const [linkedBankId, setLinkedBankId] = useState<string | null>(null);
   const [linkedBankName, setLinkedBankName] = useState("");
+  const [linkedWarehouseId, setLinkedWarehouseId] = useState<string | null>(null);
 
   const [customerDetail, setCustomerDetail] = useState<any>(null);
   const [companyDetail, setCompanyDetail] = useState<any>(null);
@@ -564,6 +568,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           kind: category === "P/S" ? "income" : category === "EX" ? "expense" : "asset",
           currency: branchInfo.currency || selectedCountry?.currency_code || "USD",
           openingBalance: 0,
+          status: simulateCityAdmin ? "pending_approval" : "active",
           isControlAccount: accountTitle === "Bank",
           contacts
         });
@@ -1067,17 +1072,25 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                 <h2 className="text-sm font-bold text-slate-900">Step 5: Warehouse Details</h2>
               </div>
 
-              <div className="rounded-xl border border-amber-200 bg-amber-50/30 p-5 space-y-2">
-                <div className="font-bold text-amber-800">Form Disabled (Set to Zero)</div>
-                <p className="text-xs text-amber-700 leading-5">
-                  Warehouse setup page handles inventory locations, currently this configuration is disabled (set to zero). No forms or inputs are required. You can click Next to review and save the account.
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Search and select a warehouse from the <b>Warehouse Master</b>. Use <b>+ New Warehouse</b> to create a new warehouse that will be instantly available throughout the entire ERP.
                 </p>
+
+                <div className="max-w-md">
+                  <WarehousePicker
+                    label="Warehouse (Master)"
+                    value={linkedWarehouseId ?? ""}
+                    onValueChange={(val) => setLinkedWarehouseId(val || null)}
+                    placeholder="Search existing warehouses..."
+                  />
+                </div>
               </div>
 
               <div className="flex justify-between pt-4 border-t">
                 <Button variant="outline" onClick={() => setCurrentStep(4)}>Back</Button>
                 <Button type="button" onClick={() => setCurrentStep(6)} className="bg-primary text-white">
-                  Next
+                  {linkedWarehouseId ? "Save & Next" : "Skip & Next"}
                 </Button>
               </div>
             </div>
@@ -1134,9 +1147,8 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
 
               <div className="flex justify-between pt-4 border-t">
                 <Button variant="outline" onClick={() => setCurrentStep(5)}>Back</Button>
-                <Button type="button" onClick={saveEntry} disabled={!readyToSave || saving} className="bg-primary text-white">
-                  {saving ? "Saving..." : initialAccountId ? "Update & Save Account" : "Create & Save Account"}
-                </Button>
+                {/* Save button has been moved to the bottom of the Live Report Panel */}
+                <div className="text-xs text-slate-400 italic">Review details in the right panel and click save below.</div>
               </div>
             </div>
           )}
@@ -1193,6 +1205,20 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               window.open(`https://wa.me/?text=${text}`, "_blank");
             }}
           />
+          {currentStep === 6 && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow p-5 mt-4 flex items-center justify-between sticky bottom-4 z-10">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" id="simCity" checked={simulateCityAdmin} onChange={e => setSimulateCityAdmin(e.target.checked)} className="rounded border-slate-300 accent-primary" />
+                  <label htmlFor="simCity" className="text-xs font-bold text-slate-600 cursor-pointer">Simulate City Admin (Approval Flow)</label>
+                </div>
+                {simulateCityAdmin && <p className="text-[10px] text-amber-600 font-semibold max-w-xs">This will save the account as "Pending Approval" for a Super Admin to review.</p>}
+              </div>
+              <Button type="button" size="lg" onClick={saveEntry} disabled={!readyToSave || saving} className="bg-primary hover:bg-primary/90 text-white text-sm px-10 h-12 font-bold tracking-wider rounded-lg shadow-sm">
+                {saving ? "Saving..." : simulateCityAdmin ? "Submit for Approval" : initialAccountId ? "Update Account" : "Create & Save Account"}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

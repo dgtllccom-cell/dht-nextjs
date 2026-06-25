@@ -13,7 +13,8 @@ import {
   MapPin,
   ClipboardList,
   Search,
-  Building2
+  Building2,
+  Paperclip
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -745,21 +746,25 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-bold text-slate-700">Profile Picture</div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    setProfileFile(file);
-                    if (!file) {
-                      setPreviewImageUrl("");
-                      return;
-                    }
-                    setPreviewImageUrl(URL.createObjectURL(file));
-                  }}
-                  className="w-full mt-1 rounded border bg-white px-2 py-1 text-[10px] font-medium"
-                />
+                <div className="text-[10px] font-bold text-slate-700 mb-2">Profile Picture</div>
+                <Label className="cursor-pointer flex w-max items-center justify-center h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 border text-slate-500 shadow-sm transition gap-1.5 text-[10px] font-semibold">
+                  <Paperclip className="h-3 w-3" />
+                  <span>Attach</span>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setProfileFile(file);
+                      if (!file) {
+                        setPreviewImageUrl("");
+                        return;
+                      }
+                      setPreviewImageUrl(URL.createObjectURL(file));
+                    }}
+                    className="hidden"
+                  />
+                </Label>
               </div>
             </div>
 

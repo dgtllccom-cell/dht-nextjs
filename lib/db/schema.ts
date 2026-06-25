@@ -19,7 +19,7 @@ import {
 import { sql } from "drizzle-orm";
 
 export const accountKind = pgEnum("account_kind", ["asset", "liability", "equity", "income", "expense"]);
-export const accountStatus = pgEnum("account_status", ["active", "archived"]);
+export const accountStatus = pgEnum("account_status", ["active", "archived", "pending_approval"]);
 export const appRole = pgEnum("app_role", [
   "super_admin",
   "country_admin",

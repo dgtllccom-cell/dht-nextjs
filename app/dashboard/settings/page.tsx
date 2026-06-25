@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { Anchor, Building2, Landmark, MapPin, Settings, Ship, SlidersHorizontal } from "lucide-react";
+import { Anchor, Building2, Landmark, MapPin, Settings, Ship, SlidersHorizontal, Warehouse } from "lucide-react";
 
 const settingsItems = [
   {
@@ -20,6 +20,12 @@ const settingsItems = [
     description: "Create banks once and use them everywhere — accounts, payments, receipts, ledger, purchases, and reports.",
     href: "/dashboard/settings/bank" as Route,
     icon: Landmark
+  },
+  {
+    title: "Customer Warehouse",
+    description: "Register warehouses or storage facilities connected with the company.",
+    href: "/dashboard/settings/warehouse" as Route,
+    icon: Warehouse
   },
   {
     title: "Port / Boundary Master",

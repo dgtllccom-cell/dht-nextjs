@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { Building2, Save, X, RefreshCcw, CheckCircle2, User, MapPin, Phone, FileText, Info } from "lucide-react";
+import { Building2, Save, X, RefreshCcw, CheckCircle2, User, MapPin, Phone, FileText, Info, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,7 @@ export function CustomerForm({
   const [lastName, setLastName] = useState("");
   const [fatherName, setFatherName] = useState("");
   const [businessName, setBusinessName] = useState("");
+  const [passportPicture, setPassportPicture] = useState("");
 
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
@@ -533,6 +534,46 @@ export function CustomerForm({
                     <Input value={fatherName} onChange={(e) => setFatherName(e.target.value)} placeholder="Father Name" className="bg-white text-slate-900 border-slate-200 text-xs h-10" />
                   </div>
                 )}
+                
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Passport Size Picture *</Label>
+                  <div className="flex flex-col items-center w-max gap-2 mt-2">
+                    {passportPicture ? (
+                      <div className="relative h-16 w-16 overflow-hidden rounded-full border shadow-sm">
+                        <img src={passportPicture} alt="Passport" className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setPassportPicture("")}
+                          className="absolute right-0 top-0 grid h-5 w-5 place-items-center rounded-full bg-rose-500 text-white shadow-sm"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid h-16 w-16 place-items-center rounded-full bg-slate-50 border-2 border-dashed border-slate-300">
+                        <User className="h-6 w-6 text-slate-300" />
+                      </div>
+                    )}
+                    
+                    <Label className="cursor-pointer flex items-center justify-center h-7 px-3 rounded-full bg-slate-100 hover:bg-slate-200 border text-slate-500 shadow-sm transition gap-1.5 text-[10px] font-semibold">
+                      <Paperclip className="h-3 w-3" />
+                      <span>Attach</span>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setPassportPicture(reader.result as string);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </Label>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -767,26 +808,24 @@ export function CustomerForm({
 
                       <div className="space-y-1">
                         <Label className="text-[10px] font-semibold text-slate-500">{getLabel("documentUpload", lang)}</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            readOnly
-                            placeholder="No file uploaded"
-                            value={doc.upload}
-                            className="bg-slate-50 font-mono text-xs flex-1 border-slate-200 h-9"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              const updated = [...documents];
-                              const labelName = doc.type.startsWith("Custom: ") ? doc.type.slice(8).trim() : doc.type;
-                              updated[idx].upload = (labelName || "document").toLowerCase().replace(/\s+/g, "_") + "_scan.jpg";
-                              setDocuments(updated);
-                            }}
-                            className="border-slate-200 text-xs font-medium px-4 h-9 hover:bg-slate-50"
-                          >
-                            Browse
-                          </Button>
+                        <div className="flex items-center gap-2">
+                          <Label className="cursor-pointer flex w-max items-center justify-center h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 border text-slate-500 shadow-sm transition gap-1.5 text-[10px] font-semibold">
+                            <Paperclip className="h-3 w-3" />
+                            <span>Attach</span>
+                            <Input
+                              type="file"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const updated = [...documents];
+                                  updated[idx].upload = file.name;
+                                  setDocuments(updated);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                          </Label>
+                          {doc.upload && <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-2 py-1.5 rounded border truncate max-w-[200px]">{doc.upload}</span>}
                         </div>
                       </div>
                     </div>
@@ -893,12 +932,17 @@ export function CustomerForm({
               </div>
             )}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 {customerType === "Business" ? "Representative Name" : "Customer Name"}
               </p>
-              <p className="text-sm font-extrabold text-slate-900 mt-0.5">
-                {firstName || lastName ? `${firstName} ${lastName}`.trim() : "New Customer"}
-              </p>
+              <div className="flex items-center gap-3">
+                {passportPicture && (
+                  <img src={passportPicture} alt="Passport" className="h-10 w-10 rounded-full border shadow-sm object-cover" />
+                )}
+                <p className="text-sm font-extrabold text-slate-900">
+                  {firstName || lastName ? `${firstName} ${lastName}`.trim() : "New Customer"}
+                </p>
+              </div>
             </div>
             {customerType !== "Business" && fatherName && (
               <div>

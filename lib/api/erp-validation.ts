@@ -482,6 +482,7 @@ export const enterpriseAccountCreateSchema = scopeSchema.extend({
   customerId: optionalUuidSchema,
   companyId: optionalUuidSchema,
   bankId: optionalUuidSchema,
+  status: z.string().trim().max(80).optional(),
   contacts: z.array(z.object({ type: z.string(), value: z.string() })).default([])
 });
 
