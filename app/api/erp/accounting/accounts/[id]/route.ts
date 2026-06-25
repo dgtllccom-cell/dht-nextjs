@@ -29,7 +29,8 @@ const updateSchema = scopeSchema.extend({
   isControlAccount: z.coerce.boolean().optional(),
   customerId: optionalUuidSchema,
   companyId: optionalUuidSchema,
-  bankId: optionalUuidSchema
+  bankId: optionalUuidSchema,
+  contacts: z.array(z.object({ type: z.string(), value: z.string() })).optional()
 });
 
 type ApiSupabaseClient = Awaited<ReturnType<typeof createApiSupabaseClient>>;
@@ -38,7 +39,7 @@ async function loadAccount(supabase: ApiSupabaseClient, id: string) {
   const { data, error } = await supabase
     .from("enterprise_accounts")
     .select(
-      "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, bank_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at, deleted_at"
+      "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, bank_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, contacts, created_at, updated_at, deleted_at"
     )
     .eq("id", id)
     .maybeSingle();
@@ -175,6 +176,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (body.customerId !== undefined) updatePayload.customer_id = body.customerId;
     if (body.companyId !== undefined) updatePayload.company_id = body.companyId;
     if (body.bankId !== undefined) updatePayload.bank_id = body.bankId;
+    if (body.contacts !== undefined) updatePayload.contacts = body.contacts;
     if (nextScope === "super_admin") {
       updatePayload.country_id = null;
       updatePayload.country_branch_id = null;

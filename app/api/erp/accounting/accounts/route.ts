@@ -384,6 +384,7 @@ export async function POST(request: NextRequest) {
         current_balance: body.openingBalance,
         status: "active",
         is_control_account: body.isControlAccount,
+        contacts: body.contacts,
         created_by: actorId
       })
       .select("id")

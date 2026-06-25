@@ -11,7 +11,9 @@ import {
   FileSpreadsheet,
   Mail,
   MessageCircle,
-  Loader2
+  Loader2,
+  Phone,
+  X
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -215,6 +217,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   const [accountCode, setAccountCode] = useState("");
   const [manualReferenceNumber, setManualReferenceNumber] = useState("");
   const [accountName, setAccountName] = useState("");
+  const [contacts, setContacts] = useState<Array<{ type: string; value: string }>>([{ type: "Mobile", value: "" }]);
   const [journalCounter, setJournalCounter] = useState(0);
   const [lastBranchCode, setLastBranchCode] = useState("");
   const [savedEntries, setSavedEntries] = useState<SavedEntry[]>([]);
@@ -292,6 +295,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
             setAccountCode(acc.account_number || acc.code || "");
             setManualReferenceNumber(acc.manual_reference_number || "");
             setAccountName(acc.name || "");
+            setContacts(Array.isArray(acc.contacts) && acc.contacts.length > 0 ? acc.contacts : [{ type: "Mobile", value: "" }]);
           }
         }
       } catch (err) {
@@ -526,7 +530,8 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           name: accountName.trim(),
           kind: category === "P/S" ? "income" : category === "EX" ? "expense" : "asset",
           currency: branchInfo.currency || selectedCountry?.currency_code || "USD",
-          isControlAccount: accountTitle === "Bank"
+          isControlAccount: accountTitle === "Bank",
+          contacts
         });
         setMessage(`Updated account details successfully.`);
         void fetchReport();
@@ -553,7 +558,8 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           kind: category === "P/S" ? "income" : category === "EX" ? "expense" : "asset",
           currency: branchInfo.currency || selectedCountry?.currency_code || "USD",
           openingBalance: 0,
-          isControlAccount: accountTitle === "Bank"
+          isControlAccount: accountTitle === "Bank",
+          contacts
         });
         setLastCreated(response);
         setJournalCounter((current) => current + 1);
@@ -788,6 +794,87 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               <div className="space-y-2">
                 <Label htmlFor="accountName">{getLabel("accountName", lang)} *</Label>
                 <Input id="accountName" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="e.g. Sales Account" />
+              </div>
+
+              {/* Contacts List */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4.5 w-4.5 text-blue-600" />
+                    <h3 className="font-semibold text-slate-800 text-sm">Contacts</h3>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setContacts([...contacts, { type: "Mobile", value: "" }])}
+                    className="h-7 text-xs border-blue-200 text-blue-700 hover:bg-blue-50 px-2.5 rounded-md font-semibold"
+                  >
+                    + Add Contact
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {contacts.map((contact, idx) => {
+                    const isCustom = !["Mobile", "WhatsApp", "Email", "Landline", "Office"].includes(contact.type);
+                    return (
+                      <div key={idx} className="flex gap-2 items-end">
+                        <div className="w-1/3 space-y-1">
+                          <Label className="text-[10px] font-semibold text-slate-500">Type</Label>
+                          <select
+                            value={isCustom ? "Custom" : contact.type}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const updated = [...contacts];
+                              updated[idx].type = val === "Custom" ? "Custom: " : val;
+                              setContacts(updated);
+                            }}
+                            className={selectClass() + " h-9 text-xs px-2"}
+                          >
+                            <option value="Mobile">Mobile</option>
+                            <option value="WhatsApp">WhatsApp</option>
+                            <option value="Email">Email</option>
+                            <option value="Landline">Landline</option>
+                            <option value="Office">Office</option>
+                            <option value="Custom">+ Custom Type</option>
+                          </select>
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-[10px] font-semibold text-slate-500">Contact Value</Label>
+                          <Input
+                            value={contact.value}
+                            onChange={(e) => {
+                              const updated = [...contacts];
+                              updated[idx].value = e.target.value;
+                              setContacts(updated);
+                            }}
+                            placeholder={
+                              contact.type === "Email"
+                                ? "email@example.com"
+                                : contact.type === "WhatsApp"
+                                ? "+92 300 1234567"
+                                : "Contact Number"
+                            }
+                            className="h-9 text-xs font-mono"
+                          />
+                        </div>
+                        {contacts.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              const updated = contacts.filter((_, i) => i !== idx);
+                              setContacts(updated);
+                            }}
+                            className="h-9 w-9 text-rose-600 hover:bg-rose-50 rounded-lg flex items-center justify-center shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="flex justify-end pt-4">

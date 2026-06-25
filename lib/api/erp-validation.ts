@@ -465,7 +465,8 @@ export const accountUpdateSchema = scopeSchema.partial().extend({
   approvalRequestId: optionalUuidSchema,
   customerId: optionalUuidSchema,
   companyId: optionalUuidSchema,
-  bankId: optionalUuidSchema
+  bankId: optionalUuidSchema,
+  contacts: z.array(z.object({ type: z.string(), value: z.string() })).optional()
 });
 
 export const enterpriseAccountCreateSchema = scopeSchema.extend({
@@ -480,7 +481,8 @@ export const enterpriseAccountCreateSchema = scopeSchema.extend({
   isControlAccount: z.coerce.boolean().default(false),
   customerId: optionalUuidSchema,
   companyId: optionalUuidSchema,
-  bankId: optionalUuidSchema
+  bankId: optionalUuidSchema,
+  contacts: z.array(z.object({ type: z.string(), value: z.string() })).default([])
 });
 
 export const enterpriseLedgerCreateSchema = scopeSchema.extend({
