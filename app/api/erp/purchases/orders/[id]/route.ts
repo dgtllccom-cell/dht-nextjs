@@ -97,6 +97,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       const s = String(body.paymentStatus).toLowerCase();
       patch.payment_status = ["pending", "partial", "completed", "cancelled"].includes(s) ? s : "pending";
     }
+    
+    // Only set as edited if this isn't the transfer status update itself
+    if (body.ledgerPostingStatus !== "Posted" && body.ledgerPostingStatus !== "posted") {
+      patch.is_edited_since_transfer = true;
+    }
+    
     patch.updated_at = new Date().toISOString();
 
     const isAlreadyPosted = (before as any)?.ledger_posting_status === "posted";

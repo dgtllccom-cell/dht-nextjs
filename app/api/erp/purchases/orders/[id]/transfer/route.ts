@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const order = await requireSupabaseData(
       supabase
         .from("purchase_orders")
-        .select("id, country_id, country_branch_id, city_branch_id, order_total, currency_code, exchange_rate, purchase_order_no, purchase_contract_no, form_data, ledger_posting_status")
+        .select("id, country_id, country_branch_id, city_branch_id, order_total, currency_code, exchange_rate, purchase_order_no, purchase_contract_no, form_data, ledger_posting_status, is_edited_since_transfer")
         .eq("id", params.id)
         .is("deleted_at", null)
         .maybeSingle()
@@ -44,6 +44,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     // ── Revert previous posting if already transferred ──────────────────────
     if ((order as any).ledger_posting_status === "posted") {
+      if (!(order as any).is_edited_since_transfer) {
+        return handleApiError(new Error("This booking has already been transferred and cannot be transferred again."));
+      }
       await revertOrderBookingTransfer((order as any).id, supabase, adminSupabase);
     }
 
@@ -119,13 +122,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       );
     }
 
-    // ── Stage 1: Booking Transfer ───────────────────────────────────────────
-    //   DEBIT  Purchase Account  (goods received → purchase cost)
-    //   CREDIT Sales/AP Account  (liability created against supplier)
+    // ── Stage 1: Booking Transfer (Reversed per User Request) ───────────────
+    //   DEBIT  Sales Account     (user explicitly requested sales = debit)
+    //   CREDIT Purchase Account  (user explicitly requested purchase = credit)
     //
-    // Uses post_purchase_booking_transfer (a SECURITY DEFINER wrapper) which
-    // calls set_config('request.jwt.claims', ...) in the SAME transaction so
-    // auth.uid() returns the correct actor UUID for all nested function calls.
+    // Uses post_purchase_booking_transfer (a SECURITY DEFINER wrapper)
     const { data: transferPaymentId, error: transferError } = await adminSupabase.rpc(
       "post_purchase_booking_transfer",
       {
@@ -136,10 +137,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         p_amount:             totalPurchaseAmount,
         p_currency_code:      ledgerCurrency,
         p_exchange_rate:      exchangeRate,
-        p_debit_ledger_id:    purchaseLedgerId,
-        p_credit_ledger_id:   salesLedgerId,
+        p_debit_ledger_id:    salesLedgerId, // Swapped!
+        p_credit_ledger_id:   purchaseLedgerId, // Swapped!
         p_reference_no:       (order as any).purchase_contract_no || (order as any).purchase_order_no || null,
-        p_narration:          `Booking Transfer: PO ${(order as any).purchase_order_no} — Dr ${purchaseAccountCode} / Cr ${salesAccountCode}`
+        p_narration:          `Booking Transfer: PO ${(order as any).purchase_order_no} — Dr ${salesAccountCode} / Cr ${purchaseAccountCode}`
       }
     );
 
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       console.error("TRANSFER_STAGE_ERROR:", transferError);
       throw new Error(
         `Booking Transfer Ledger Entry failed: ${transferError.message}. ` +
-        `(Debit: ${purchaseAccountCode}, Credit: ${salesAccountCode})`
+        `(Debit: ${salesAccountCode}, Credit: ${purchaseAccountCode})`
       );
     }
 
@@ -174,6 +175,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const patch = {
       ledger_posting_status: "posted",
+      is_edited_since_transfer: false,
       payment_status:        paymentStatus,
       advance_paid:          advancePaid,
       remaining_due:         remainingDue,

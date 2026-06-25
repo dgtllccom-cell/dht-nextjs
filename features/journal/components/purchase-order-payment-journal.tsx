@@ -39,6 +39,9 @@ type PurchaseOrderRow = {
   id: string;
   purchase_order_no: string;
   purchase_contract_no: string | null;
+  country_id?: string | null;
+  country_branch_id?: string | null;
+  city_branch_id?: string | null;
   currency_code: string | null;
   exchange_rate: number | null;
   order_total: number | null;
@@ -80,6 +83,87 @@ function money(value: unknown, currency = "") {
 
 function numeric(value: unknown) {
   return Number(value || 0);
+}
+
+
+const COUNTRY_CURRENCY: Record<string, string> = {
+  "united arab emirates": "AED",
+  "uae": "AED",
+  "pakistan": "PKR",
+  "afghanistan": "AFN",
+  "india": "INR",
+  "iran": "IRR"
+};
+
+function normalizeCurrency(value: unknown, fallback = "USD") {
+  const raw = String(value || "").trim().toUpperCase();
+  return raw || fallback;
+}
+
+function rowForm(row: PurchaseOrderRow) {
+  return row.form_data?.form || {};
+}
+
+function rowCountryName(row: PurchaseOrderRow) {
+  const form = rowForm(row);
+  return String(form.countryName || form.loadingCountry || form.destinationCountry || form.originCountry || "Unknown Country");
+}
+
+function rowBranchName(row: PurchaseOrderRow) {
+  const form = rowForm(row);
+  return String(form.branchName || form.purchaseAccountBranch || form.salesAccountBranch || "Unassigned Branch");
+}
+
+function rowCurrency(row: PurchaseOrderRow) {
+  const explicit = normalizeCurrency(row.currency_code || rowForm(row).currency || rowForm(row).purchaseCurrency || rowForm(row).purchaseAccountCurrency, "");
+  if (explicit) return explicit;
+  const country = rowCountryName(row).toLowerCase();
+  return COUNTRY_CURRENCY[country] || "USD";
+}
+
+function orderTotal(row: PurchaseOrderRow) {
+  const form = rowForm(row);
+  const goods = row.form_data?.goodsEntries || [];
+  const totals = row.form_data?.totals || {};
+  if (Number(row.order_total || 0) > 0) return Number(row.order_total || 0);
+  if (Number(totals.grandFinal || 0) > 0) return Number(totals.grandFinal || 0);
+  if (Array.isArray(goods) && goods.length) return goods.reduce((sum: number, g: any) => sum + Number(g.finalAmount || g.localAmount || g.totalAmount || 0), 0);
+  return Number(form.totalAmount || form.grandFinal || 0);
+}
+
+function requiredAdvanceAmount(row: PurchaseOrderRow) {
+  const form = rowForm(row);
+  const pct = Number(form.advancePercent || 0);
+  return pct > 0 ? (orderTotal(row) * pct) / 100 : Number(row.advance_paid || 0);
+}
+
+type CountryPaymentSummary = {
+  key: string;
+  country: string;
+  currency: string;
+  totalOrders: number;
+  invoiceAmount: number;
+  advancePaid: number;
+  remainingBalance: number;
+};
+
+function countryPaymentSummaries(rows: PurchaseOrderRow[]): CountryPaymentSummary[] {
+  const map = new Map<string, CountryPaymentSummary>();
+  rows.forEach((row) => {
+    const country = rowCountryName(row);
+    const currency = rowCurrency(row);
+    const key = `${country.toLowerCase()}::${currency}`;
+    const current = map.get(key) || { key, country, currency, totalOrders: 0, invoiceAmount: 0, advancePaid: 0, remainingBalance: 0 };
+    const invoiceAmount = orderTotal(row);
+    const advancePaid = Number(row.advance_paid || 0);
+    const explicitRemaining = Number(row.remaining_due || 0);
+    current.totalOrders += 1;
+    current.invoiceAmount += invoiceAmount;
+    current.advancePaid += advancePaid;
+    current.remainingBalance += explicitRemaining > 0 ? explicitRemaining : Math.max(0, invoiceAmount - advancePaid);
+    map.set(key, current);
+  });
+  return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
 }
 
 function date(value: string | null | undefined) {
@@ -345,6 +429,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   };
   const [query, setQuery] = useState("");
   const [draftFilter, setDraftFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -529,6 +616,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     return orders.filter((row) => {
       if (row.ledger_posting_status?.toLowerCase() !== "posted") return false;
       if (draft && !(row.payment_status ?? "").toLowerCase().includes(draft)) return false;
+      if (countryFilter && rowCountryName(row) !== countryFilter) return false;
+      if (branchFilter && rowBranchName(row) !== branchFilter) return false;
+      if (currencyFilter && rowCurrency(row) !== currencyFilter) return false;
 
       // Extract form values for clearance calculation
       const form = row.form_data?.form || {};
@@ -565,7 +655,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle));
     });
-  }, [activeMode, draftFilter, orders, query]);
+  }, [activeMode, branchFilter, countryFilter, currencyFilter, draftFilter, orders, query]);
 
   const selected = selectedId ? (filtered.find((row) => row.id === selectedId) ?? null) : null;
   const pageRows = useMemo(() => {
@@ -575,6 +665,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   function reset() {
     setQuery("");
     setDraftFilter("");
+    setCountryFilter("");
+    setBranchFilter("");
+    setCurrencyFilter("");
     setPageIndex(0);
   }
 
@@ -686,6 +779,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }, [selectedId, selected, baseCurrency]);
 
   const cards = useMemo(() => kpis(filtered, activeMode, baseCurrency), [activeMode, filtered, baseCurrency]);
+  const countryOptions = useMemo(() => Array.from(new Set(orders.map(rowCountryName))).filter(Boolean).sort(), [orders]);
+  const branchOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowBranchName))).filter(Boolean).sort(), [orders, countryFilter]);
+  const currencyOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowCurrency))).filter(Boolean).sort(), [orders, countryFilter]);
+  const countryCards = useMemo(() => countryPaymentSummaries(filtered), [filtered]);
 
   const isLocalCurrency = currency.trim().toUpperCase() === baseCurrency;
   const showCalcPanel =
@@ -1172,21 +1269,37 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           </div>
         </div>
 
-        {/* Row 2: Executive Summary (Financials) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-1">
-          {cards.map((card, i) => (
-            <div key={card.label} className="flex flex-col bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl shadow-sm">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">{card.label}</span>
-              <span className={cn("font-black text-lg", 
-                i === 0 ? "text-slate-800 dark:text-slate-200" :
-                i === 1 ? "text-blue-700 dark:text-blue-400" :
-                i === 2 ? "text-emerald-600 dark:text-emerald-450" :
-                "text-rose-600 dark:text-rose-400"
-              )}>
-                {card.value} {card.sublabel === "PKR" ? "PKR" : ""}
-              </span>
+        {/* Row 2: Country-wise Financial Summary. Never mix currencies across countries. */}
+        <div className="grid gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+          {countryCards.length ? countryCards.map((card) => (
+            <div key={card.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{card.country}</div>
+                  <div className="text-xs font-black text-blue-700 dark:text-blue-300">{card.currency}</div>
+                </div>
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{card.totalOrders} POs</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[10px] normal-case">
+                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
+                  <div className="font-bold uppercase text-slate-400">Invoice</div>
+                  <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{money(card.invoiceAmount, card.currency)}</div>
+                </div>
+                <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
+                  <div className="font-bold uppercase text-emerald-600">Advance</div>
+                  <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">{money(card.advancePaid, card.currency)}</div>
+                </div>
+                <div className="col-span-2 rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
+                  <div className="font-bold uppercase text-rose-600">Remaining Balance</div>
+                  <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(card.remainingBalance, card.currency)}</div>
+                </div>
+              </div>
             </div>
-          ))}
+          )) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-semibold normal-case text-slate-500 dark:border-slate-800 dark:bg-slate-900/40">
+              No country-wise purchase payment records found for this scope.
+            </div>
+          )}
         </div>
       </div>
 
@@ -1206,7 +1319,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
         {/* Collapsible Filter Panel */}
         {filtersOpen && (
-          <div className="grid gap-4 border-b border-slate-100 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-900/10 md:grid-cols-3">
+          <div className="grid gap-4 border-b border-slate-100 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-900/10 md:grid-cols-3 xl:grid-cols-5">
             <label className="block">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">Payment Status</span>
               <select
@@ -1221,7 +1334,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 <option value="overdue">Overdue</option>
               </select>
             </label>
-            <MiniFilter label="Currency" value="" options={Array.from(new Set(orders.map((row) => row.currency_code ?? "").filter(Boolean)))} onChange={() => undefined} />
+            <MiniFilter label="Country" value={countryFilter} options={countryOptions} onChange={(value) => { setCountryFilter(value); setBranchFilter(""); setPageIndex(0); }} />
+            <MiniFilter label="Branch" value={branchFilter} options={branchOptions} onChange={(value) => { setBranchFilter(value); setPageIndex(0); }} />
+            <MiniFilter label="Currency" value={currencyFilter} options={currencyOptions} onChange={(value) => { setCurrencyFilter(value); setPageIndex(0); }} />
             <div className="flex items-end">
               <Button
                 size="sm"
@@ -1316,6 +1431,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 const remainingDue = Number(row.remaining_due || 0);
 
                 const totalAmountBC = totalPrice;
+                const rowLocalCurrency = rowCurrency(row);
                 const totalAmountPKR = finalAmount;
 
                 let paidAmountBC = 0;
@@ -1420,7 +1536,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         </div>
                         <div className="text-[10px] text-slate-500 font-mono mt-0.5 font-bold flex flex-col">
                           <span className="text-[8px] uppercase tracking-wider text-slate-400">Final Amount</span>
-                          <span className="text-emerald-600 dark:text-emerald-450">{money(totalAmountPKR, baseCurrency)}</span>
+                          <span className="text-emerald-600 dark:text-emerald-450">{money(totalAmountPKR, rowLocalCurrency)}</span>
                         </div>
                       </td>
                       {/* Advance / Remaining Details */}
@@ -1436,7 +1552,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                 <div>
                                   <span className="text-slate-800 dark:text-slate-200">{money(requiredAdvanceBC, row.currency_code ?? "")}</span>
                                   <br/>
-                                  <span className="text-emerald-600">{money(requiredAdvance, baseCurrency)}</span>
+                                  <span className="text-emerald-600">{money(requiredAdvance, rowLocalCurrency)}</span>
                                 </div>
                               </div>
                               <div className="flex justify-between w-full text-[9px] font-bold mt-1">
@@ -1444,7 +1560,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                 <div>
                                   <span className="text-slate-800 dark:text-slate-200">{money(paidAdvanceBC, row.currency_code ?? "")}</span>
                                   <br/>
-                                  <span className="text-emerald-600">{money(paidAdvance, baseCurrency)}</span>
+                                  <span className="text-emerald-600">{money(paidAdvance, rowLocalCurrency)}</span>
                                 </div>
                               </div>
                               <div className="flex justify-between w-full text-[9px] font-bold mt-1">
@@ -1452,7 +1568,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                 <div>
                                   <span className="text-rose-600">{money(remainingAdvanceBC, row.currency_code ?? "")}</span>
                                   <br/>
-                                  <span className="text-rose-500">{money(remainingAdvance, baseCurrency)}</span>
+                                  <span className="text-rose-500">{money(remainingAdvance, rowLocalCurrency)}</span>
                                 </div>
                               </div>
                             </div>

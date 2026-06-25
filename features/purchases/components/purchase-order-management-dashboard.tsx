@@ -931,6 +931,12 @@ export function PurchaseOrderManagementDashboard() {
     const itemToTransfer = selectedData || selected;
     if (!itemToTransfer) return;
     
+    // Prevent duplicate transfer
+    if (itemToTransfer.ledger_posting_status === "posted" && !itemToTransfer.is_edited_since_transfer) {
+      alert("This booking has already been transferred and cannot be transferred again.");
+      return;
+    }
+    
     setTransferring(true);
     try {
       const updatedFormData = {

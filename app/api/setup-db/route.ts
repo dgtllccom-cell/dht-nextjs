@@ -23,6 +23,11 @@ export async function GET() {
 
     await sql`alter table tax_codes enable row level security;`;
     
+    // Add is_edited_since_transfer to purchase_orders if it doesn't exist
+    try {
+      await sql`alter table purchase_orders add column if not exists is_edited_since_transfer boolean default false;`;
+    } catch(e){}
+    
     // Drop existing policies if any
     try { await sql`drop policy if exists "Enable read access for authenticated users on tax_codes" on tax_codes;`; } catch(e){}
     try { await sql`drop policy if exists "Enable insert access for authenticated users on tax_codes" on tax_codes;`; } catch(e){}
