@@ -115,7 +115,7 @@ export function BankPicker({
         <SimpleModal
           title="New Bank — Bank Master Form"
           onClose={() => setOpenCreate(false)}
-          className="max-w-5xl max-h-[90vh] overflow-y-auto"
+          className="max-w-[90vw] lg:max-w-6xl max-h-[90vh] overflow-y-auto"
         >
           <BankForm
             mode="embedded"

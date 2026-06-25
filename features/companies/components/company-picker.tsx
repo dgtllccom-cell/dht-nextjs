@@ -113,7 +113,7 @@ export function CompanyPicker({
         <SimpleModal
           title="New Company — Company Master"
           onClose={() => setOpenCreate(false)}
-          className="max-w-4xl max-h-[90vh] overflow-y-auto"
+          className="max-w-[90vw] lg:max-w-6xl max-h-[90vh] overflow-y-auto"
         >
           <CompanyIncorporationForm
             mode="embedded"

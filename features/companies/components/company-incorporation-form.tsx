@@ -254,6 +254,7 @@ export function CompanyIncorporationForm({
   const [typeModal, setTypeModal] = useState<DynamicList | null>(null);
   const [newType, setNewType] = useState("");
   const [message, setMessage] = useState("");
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
 
   const [savedCompanies, setSavedCompanies] = useState<(CompanyIncorporationData & { id: string })[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(initialCompanyId ?? null);
@@ -513,9 +514,46 @@ export function CompanyIncorporationForm({
         </span>
       </div>
 
-      <div className={mode === "standalone" ? "grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]" : "space-y-4"}>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-semibold text-slate-500 mb-2">
+        {[
+          { id: 1, label: "1. Company Details" },
+          { id: 2, label: "2. Location" },
+          { id: 3, label: "3. Contacts & IDs" },
+          { id: 4, label: "4. Review & Save" },
+        ].map((s) => {
+          const active = currentStep === s.id;
+          const completed = currentStep > s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setCurrentStep(s.id as any)}
+              className={`flex items-center gap-2 border rounded-lg p-2.5 text-left transition-all ${
+                active
+                  ? "border-primary bg-primary/5 text-primary font-bold shadow-sm"
+                  : completed
+                  ? "border-emerald-200 bg-emerald-50/50 text-emerald-700 font-bold"
+                  : "border-slate-100 bg-slate-50/50 text-slate-400"
+              }`}
+            >
+              <div
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+                  active ? "bg-primary text-white" : completed ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
+                }`}
+              >
+                {completed ? <CheckCircle2 className="h-4 w-4" /> : s.id}
+              </div>
+              <span className="truncate">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           <section className="space-y-5 rounded-lg border bg-card p-5 shadow-sm">
+          {currentStep === 1 && (
+            <>
             <SectionTitle>Company Details</SectionTitle>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-1.5">
@@ -531,7 +569,11 @@ export function CompanyIncorporationForm({
                 <Input value={businessName} onChange={(event) => { setBusinessName(event.target.value); setSelectedCompanyId(null); }} placeholder="Enter business name" className="bg-white text-slate-900 border-slate-200" />
               </div>
             </div>
+            </>
+          )}
 
+          {currentStep === 2 && (
+            <>
             <SectionTitle>Location</SectionTitle>
             <LocationHierarchySelect
               value={location}
@@ -553,7 +595,11 @@ export function CompanyIncorporationForm({
               <Label className="text-xs font-semibold text-slate-700">Full Address</Label>
               <Input value={address} onChange={(event) => { setAddress(event.target.value); setSelectedCompanyId(null); }} placeholder="Enter full address" className="bg-white text-slate-900 border-slate-200" />
             </div>
+            </>
+          )}
 
+          {currentStep === 3 && (
+            <>
             <DynamicRows
               label="Contacts"
               list="contacts"
@@ -587,24 +633,49 @@ export function CompanyIncorporationForm({
               onAdd={() => { addRow("ownerIds"); setSelectedCompanyId(null); }}
               onNewType={setTypeModal}
             />
+            </>
+          )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-              <p className="text-xs text-muted-foreground max-w-sm">
+          {currentStep === 4 && (
+            <div className="space-y-4">
+              <p className="text-sm font-semibold text-slate-800">Review & Save</p>
+              <p className="text-xs text-muted-foreground">
                 Incorporate all details. Saving will update the entity registry and return you to the registry dashboard.
               </p>
+            </div>
+          )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4 mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStep((Math.max(1, currentStep - 1)) as any)}
+                disabled={currentStep === 1}
+                className="border-slate-200 text-slate-700 font-medium h-10 px-4"
+              >
+                Back
+              </Button>
+              
               <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.push("/dashboard/settings/company" as Route)}
-                  className="border-slate-200 text-slate-700 font-medium"
-                >
-                  Cancel
-                </Button>
-                <Button type="button" onClick={submitForm} className="rounded-lg bg-primary text-white hover:bg-primary-dark transition gap-2 shadow-sm font-medium">
-                  <Save className="h-4 w-4" aria-hidden />
-                  {initialCompanyId ? "Update Profile" : "Submit and Save"}
-                </Button>
+                {currentStep < 4 ? (
+                  <Button
+                    type="button"
+                    onClick={() => setCurrentStep((Math.min(4, currentStep + 1)) as any)}
+                    className="rounded-lg bg-primary hover:bg-primary-dark text-white font-medium shadow-sm h-10 px-8 gap-2"
+                  >
+                    Next
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={submitForm}
+                    disabled={!ready}
+                    className="rounded-lg bg-primary text-white hover:bg-primary-dark transition gap-2 shadow-sm font-medium h-10 px-5"
+                  >
+                    <Save className="h-4 w-4" aria-hidden />
+                    {initialCompanyId ? "Update Profile" : "Submit and Save"}
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -622,8 +693,7 @@ export function CompanyIncorporationForm({
           </section>
         </div>
 
-        {mode === "standalone" ? (
-          <aside className="h-fit rounded-lg border bg-card p-5 shadow-sm xl:sticky xl:top-24">
+        <aside className="h-fit rounded-lg border bg-card p-5 shadow-sm xl:sticky xl:top-24">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-primary" aria-hidden />
@@ -739,7 +809,6 @@ export function CompanyIncorporationForm({
               ) : null}
             </div>
           </aside>
-        ) : null}
       </div>
 
       {typeModal ? (
