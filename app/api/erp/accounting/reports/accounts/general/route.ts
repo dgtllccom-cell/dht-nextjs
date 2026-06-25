@@ -45,6 +45,7 @@ type EnterpriseAccountRow = {
   current_balance: string | number;
   status: "active" | "archived";
   is_control_account: boolean;
+  contacts?: Array<{ type: string; value: string }>;
   created_at: string;
   updated_at: string;
 };
@@ -213,7 +214,7 @@ export async function GET(request: NextRequest) {
         let q = supabase
           .from("enterprise_accounts")
           .select(
-            "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, bank_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at"
+            "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, bank_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, contacts, created_at, updated_at"
           )
           .is("deleted_at", null)
           .order("created_at", { ascending: false });
@@ -517,7 +518,8 @@ export async function GET(request: NextRequest) {
           currency: row.currency,
           usdRate: row.usdRate,
           usdAmount: row.usdAmount
-        }))
+        })),
+        contacts: account.contacts || []
       };
     });
 

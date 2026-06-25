@@ -46,6 +46,7 @@ type AccountRow = {
   createdAt: string;
   latestActivityAt: string;
   recentActivityLabel: string | null;
+  contacts: Array<{ type: string; value: string }>;
 };
 
 type ReportMeta = {
@@ -79,7 +80,7 @@ function fmtTime(date: string) {
   return new Date(date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 }
 function exportCSV(rows: AccountRow[]) {
-  const header = ["#", "Account Number", "Super Admin Account Number", "Country Serial", "Branch Serial", "Manual Ref No", "Customer Name / Account", "Account Type", "Category", "Branch Name", "Branch Code", "Country", "Currency", "Company Status", "Bank Status"];
+  const header = ["#", "Account Number", "Super Admin Account Number", "Country Serial", "Branch Serial", "Manual Ref No", "Customer Name / Account", "Owner", "Account Type", "Category", "Branch Name", "Branch Code", "Country", "Currency", "Company Status", "Bank Status"];
   const lines = rows.map((r, i) => [
     i + 1,
     r.accountCode,
@@ -87,7 +88,8 @@ function exportCSV(rows: AccountRow[]) {
     r.countrySerialNumber ?? "-",
     r.branchSerialNumber ?? "-",
     r.manualReferenceNumber ?? "",
-    r.customerName && r.customerName !== "-" ? `${r.accountName} (${r.customerName})` : r.accountName,
+    r.accountName,
+    r.customerName && r.customerName !== "-" ? r.customerName : "—",
     r.subType,
     r.accountCategory,
     r.branchName,
@@ -508,6 +510,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                   "Branch Serial",
                   "Manual Ref No",
                   "Customer Name / Account",
+                  "Owner",
                   "Account Type",
                   "Category",
                   "Branch Name",
@@ -587,14 +590,14 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                           <div className="asr-avatar">{row.accountName.charAt(0).toUpperCase()}</div>
                           <div>
                             <div className="font-black text-[var(--asr-title)] text-[11px] leading-tight">{row.accountName}</div>
-                            {row.customerName && row.customerName !== "-" && (
-                              <div className="text-[10px] text-slate-700 dark:text-slate-300 font-bold mt-0.5">
-                                Owner: <span className="text-[#10b981]">{row.customerName}</span>
-                              </div>
-                            )}
                             <div className="text-[9px] text-[var(--asr-muted)] font-mono mt-0.5">{row.customerNumber}</div>
                           </div>
                         </div>
+                      </td>
+
+                      {/* Owner */}
+                      <td className="asr-td">
+                        <span className="font-bold text-[#10b981] text-[11px]">{row.customerName && row.customerName !== "-" ? row.customerName : "—"}</span>
                       </td>
 
                       {/* Account Type */}
@@ -673,12 +676,27 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                       {/* Contact Status */}
                       <td className="asr-td">
                         <div className="flex items-center justify-center gap-1.5">
-                          <span className="asr-contact-dot bg-rose-50 text-rose-500 border-rose-100">
-                            <Phone className="h-2.5 w-2.5" />
-                          </span>
-                          <span className="asr-contact-dot bg-purple-50 text-purple-500 border-purple-100">
-                            <Mail className="h-2.5 w-2.5" />
-                          </span>
+                          {(() => {
+                            const phones = row.contacts?.filter(c => c.type.toLowerCase().includes("mobile") || c.type.toLowerCase().includes("whatsapp") || c.type.toLowerCase().includes("phone") || c.type.toLowerCase().includes("landline") || c.type.toLowerCase().includes("office"));
+                            const emails = row.contacts?.filter(c => c.type.toLowerCase().includes("email"));
+                            
+                            return (
+                              <>
+                                <span 
+                                  className={cn("asr-contact-dot", phones?.length ? "bg-rose-50 text-rose-500 border-rose-100" : "bg-slate-50 text-slate-300 border-slate-100")}
+                                  title={phones?.length ? phones.map(p => `${p.type}: ${p.value}`).join("\\n") : "No Phone"}
+                                >
+                                  <Phone className="h-2.5 w-2.5" />
+                                </span>
+                                <span 
+                                  className={cn("asr-contact-dot", emails?.length ? "bg-purple-50 text-purple-500 border-purple-100" : "bg-slate-50 text-slate-300 border-slate-100")}
+                                  title={emails?.length ? emails.map(e => `${e.type}: ${e.value}`).join("\\n") : "No Email"}
+                                >
+                                  <Mail className="h-2.5 w-2.5" />
+                                </span>
+                              </>
+                            );
+                          })()}
                         </div>
                       </td>
 
