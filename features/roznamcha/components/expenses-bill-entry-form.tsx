@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Lock, Unlock, Plus, Trash2, Save, FileText, LayoutDashboard, Settings2, Calculator, BadgePercent, Building2, User } from "lucide-react";
+import { Lock, Unlock, Plus, Trash2, Save, FileText, LayoutDashboard, Settings2, Calculator, BadgePercent, Building2, User, MapPin, Eye } from "lucide-react";
 import { SupportedLanguage } from "@/lib/i18n/languages";
 import { SimpleModal } from "@/components/ui/simple-modal";
 import { apiGet, apiPost } from "@/lib/api/client";
@@ -41,6 +42,29 @@ type RowEntry = {
 
 export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
   const [viewMode, setViewMode] = useState<"list" | "form">("list");
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+
+  type SessionInfo = {
+    user: { id: string; email: string | null; fullName: string | null };
+    roles: string[];
+  };
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/erp/auth/session", { credentials: "include" })
+      .then((res) => res.json())
+      .then((info: SessionInfo) => {
+        if (active) setSessionInfo(info);
+      })
+      .catch(console.error);
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    setPortalNode(document.getElementById("erp-page-actions-slot"));
+  }, []);
+
   // Header State
   const [headerLocked, setHeaderLocked] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("UAE");
@@ -137,15 +161,18 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
   useEffect(() => {
     const q = Number(qty) || 0;
     const u = Number(unitPrice) || 0;
-    const amt = q * u;
-    setAmount(amt);
+    if (q > 0 || u > 0) {
+      setAmount(q * u);
+    }
+  }, [qty, unitPrice]);
 
+  useEffect(() => {
     const bCur = branchDefaultCurrency(branch);
-    let final = amt;
+    let final = amount;
     if (currency !== bCur) {
       const rate = Number(exchangeRate) || 0;
       if (rate > 0) {
-        final = operation === "*" ? amt * rate : amt / rate;
+        final = operation === "*" ? amount * rate : amount / rate;
       }
     }
     setFinalAmount(final);
@@ -158,7 +185,7 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
     }
     setTaxAmt(tAmt);
     setGrandAmount(grand);
-  }, [qty, unitPrice, currency, branch, operation, exchangeRate, taxOn, taxPct]);
+  }, [amount, currency, branch, operation, exchangeRate, taxOn, taxPct]);
 
   const showFx = currency !== branchDefaultCurrency(branch);
 
@@ -219,9 +246,11 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
     setDetails("");
     setQty("");
     setUnitPrice("");
-    setTaxPct("");
+    setAmount(0);
+    setOperation("*");
     setTaxOn(false);
-
+    setTaxPct("");
+    
     // Focus details for next row
     setTimeout(() => {
       detailsRef.current?.focus();
@@ -243,7 +272,7 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
     setSaving(true);
     // Simulate API call
     console.log("Saving Expenses Bill Payload:", {
-      header: { billSerial, branch, billDate, billTitle, purchaseNo },
+      header: { billSerial, branch, billDate, billTitle, referenceNo },
       entries: rows
     });
     setTimeout(() => {
@@ -261,25 +290,30 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
   return (
     <div className="container mx-auto p-4 max-w-[1400px] space-y-6">
       
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <FileText className="h-6 w-6 text-primary" />
+      {/* Page Header Portal */}
+      {portalNode && createPortal(
+        <div className="flex items-center gap-3">
+          <h1 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5 mr-2">
+            <FileText className="h-4 w-4 text-primary" />
             Expenses Bill
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Manage and create new expense bills.</p>
-        </div>
-        {viewMode === "list" ? (
-          <Button onClick={() => setViewMode("form")} className="bg-primary hover:bg-primary/90 text-white shadow-md">
-            <Plus className="h-4 w-4 mr-2" /> New Bill
-          </Button>
-        ) : (
-          <Button variant="outline" onClick={() => setViewMode("list")}>
-            Cancel
-          </Button>
-        )}
-      </div>
+          {viewMode === "list" ? (
+            <Button size="sm" onClick={() => setViewMode("form")} className="h-7 text-xs bg-primary hover:bg-primary/90 text-white shadow-sm">
+              <Plus className="h-3 w-3 mr-1" /> New Bill
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setViewMode("list")} className="h-7 text-xs shadow-sm">
+                Cancel
+              </Button>
+              <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+                <Eye className="h-3 w-3 mr-1" /> View
+              </Button>
+            </div>
+          )}
+        </div>,
+        portalNode
+      )}
 
       {viewMode === "list" ? (
         <Card className="shadow-sm overflow-hidden">
@@ -308,107 +342,152 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
         </Card>
       ) : (
         <>
-          {/* TOP REPORTS ROW (4 Steps) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* TOP REPORTS ROW (3 Steps) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             
-            {/* Report 1: Branch Details */}
+            {/* Report 1: Branch & Session Details */}
             <Card className="shadow-sm border-t-4 border-t-indigo-500 opacity-90 hover:opacity-100 transition-opacity">
               <CardHeader className="py-2 px-3 bg-slate-50 border-b border-slate-100">
-                <CardTitle className="text-xs uppercase font-bold text-slate-600 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> 1. Branch Details</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 space-y-2.5">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Country</span>
-                  <select 
-                    className="border border-slate-200 rounded p-1 w-[130px] text-slate-700 bg-white" 
-                    value={selectedCountry}
-                    onChange={(e) => setSelectedCountry(e.target.value)}
-                    disabled={headerLocked}
-                  >
-                    <option value="UAE">UAE</option>
-                    <option value="Pakistan">Pakistan</option>
-                    <option value="Afghanistan">Afghanistan</option>
-                  </select>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Main Branch</span>
-                  <select className="border border-slate-200 rounded p-1 w-[130px] text-slate-700 bg-white" disabled={headerLocked}>
-                    <option>Dubai HQ</option>
-                    <option>Sharjah</option>
-                  </select>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">City Branch</span>
-                  <select className="border border-slate-200 rounded p-1 w-[130px] text-slate-700 bg-white" disabled={headerLocked}>
-                    <option>Deira</option>
-                    <option>Bur Dubai</option>
-                  </select>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Report 2: User Details */}
-            <Card className="shadow-sm border-t-4 border-t-blue-500 opacity-90 hover:opacity-100 transition-opacity">
-              <CardHeader className="py-2 px-3 bg-slate-50 border-b border-slate-100">
-                <CardTitle className="text-xs uppercase font-bold text-slate-600 flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> 2. User Details</CardTitle>
+                <CardTitle className="text-xs uppercase font-bold text-slate-600 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> 1. Branch & Session Details</CardTitle>
               </CardHeader>
               <CardContent className="p-3 space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">User ID</span>
-                  <span className="font-semibold text-slate-700">superadmin</span>
+                {/* User / Role Row */}
+                <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">User</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-700">{sessionInfo?.user?.fullName || "superadmin"}</span>
+                    <span className="font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">
+                      {sessionInfo?.roles?.[0] ? sessionInfo.roles[0].replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : "Super Admin"}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Role</span>
-                  <span className="font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Super Admin</span>
+
+                {/* Name Row */}
+                <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Name</span>
+                  <span className="font-semibold text-slate-700">{sessionInfo?.user?.fullName || "superadmin"}</span>
                 </div>
+
+                {/* Date Row */}
+                <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Date</span>
+                  <span className="font-semibold text-slate-700">{new Date().toLocaleDateString()}</span>
+                </div>
+
+                {/* Day Row */}
+                <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Day</span>
+                  <span className="font-semibold text-slate-700">{new Date().toLocaleDateString(undefined, { weekday: 'long' })}</span>
+                </div>
+
+                {/* Login Country Row */}
+                <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Login Country</span>
+                  <span className="font-semibold text-slate-700">{selectedCountry}</span>
+                </div>
+
+                {/* Country Row */}
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Status</span>
-                  <span className="font-semibold text-emerald-600 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Active Now</span>
+                  <span className="text-slate-500 font-medium">Country</span>
+                  <div className="relative inline-flex items-center group cursor-pointer">
+                    <select 
+                      className="appearance-none bg-transparent border-0 p-0 pr-5 font-bold text-slate-700 text-right focus:ring-0 cursor-pointer text-xs z-10 w-[120px]" 
+                      value={selectedCountry}
+                      onChange={(e) => setSelectedCountry(e.target.value)}
+                      disabled={headerLocked}
+                    >
+                      <option value="UAE">UAE</option>
+                      <option value="Pakistan">Pakistan</option>
+                      <option value="Afghanistan">Afghanistan</option>
+                    </select>
+                    <MapPin className="w-3.5 h-3.5 text-blue-500 absolute right-0 pointer-events-none group-hover:scale-110 transition-transform" />
+                  </div>
+                </div>
+
+                {/* Main Branch Row */}
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-medium">Main Branch</span>
+                  <div className="relative inline-flex items-center group cursor-pointer">
+                    <select className="appearance-none bg-transparent border-0 p-0 pr-5 font-bold text-slate-700 text-right focus:ring-0 cursor-pointer text-xs z-10 w-[120px]" disabled={headerLocked}>
+                      <option>Dubai HQ</option>
+                      <option>Sharjah</option>
+                    </select>
+                    <MapPin className="w-3.5 h-3.5 text-blue-500 absolute right-0 pointer-events-none group-hover:scale-110 transition-transform" />
+                  </div>
+                </div>
+
+                {/* City Branch Row */}
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-medium">City Branch</span>
+                  <div className="relative inline-flex items-center group cursor-pointer">
+                    <select className="appearance-none bg-transparent border-0 p-0 pr-5 font-bold text-slate-700 text-right focus:ring-0 cursor-pointer text-xs z-10 w-[120px]" disabled={headerLocked} value={branch} onChange={e=>setBranch(e.target.value)}>
+                      <option value="DB">Deira</option>
+                      <option value="SHJ">Sharjah</option>
+                    </select>
+                    <MapPin className="w-3.5 h-3.5 text-blue-500 absolute right-0 pointer-events-none group-hover:scale-110 transition-transform" />
+                  </div>
+                </div>
+
+                {/* Session Time */}
+                <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-50">
+                  <span className="text-slate-500 font-medium">Session Time</span>
+                  <span className="font-semibold text-slate-700">{new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</span>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Report 3: Bill Info */}
+            {/* Report 2: Bill Info */}
             <Card className={`shadow-sm border-t-4 transition-colors duration-300 opacity-90 hover:opacity-100 ${headerLocked ? "border-t-emerald-500 bg-emerald-50/10" : "border-t-amber-400"}`}>
               <CardHeader className="py-2 px-3 bg-slate-50 border-b border-slate-100">
-                <CardTitle className="text-xs uppercase font-bold text-slate-600 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> 3. Bill Info</CardTitle>
+                <CardTitle className="text-xs uppercase font-bold text-slate-600 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> 2. Bill Info</CardTitle>
               </CardHeader>
-              <CardContent className="p-3 space-y-2.5">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Bill Mode</span>
-                  <select className="border border-primary/30 rounded p-1 w-[130px] text-primary bg-primary/5 font-bold" disabled={headerLocked} value={billMode} onChange={e=>setBillMode(e.target.value)}>
-                    <option value="new">New Bill</option>
-                    <option value="attached">Attached Bill</option>
+              <CardContent className="p-3 space-y-2">
+                <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
+                  <select 
+                    className="appearance-none bg-transparent font-bold text-slate-700 text-xs focus:ring-0 cursor-pointer w-[100px]"
+                    value={`${billMode}-${billTitle}`}
+                    onChange={(e) => {
+                       const [mode, title] = e.target.value.split('-');
+                       setBillMode(mode);
+                       setBillTitle(title);
+                    }}
+                    disabled={headerLocked}
+                  >
+                    <option value="new-purchase">New Bill</option>
+                    <option value="attached-purchase">Purchase</option>
+                    <option value="attached-sale">Sale</option>
                   </select>
+                  <Input placeholder="Search Bill No..." className="h-6 text-xs w-[130px] border-slate-200" disabled={headerLocked || billMode === 'new'} />
+                </div>
+                <div className="text-[10px] bg-slate-50 p-1.5 rounded border border-slate-100 text-slate-600 italic">
+                  Select bill type to attach references.
+                </div>
+                
+                <div className="flex justify-between items-center text-xs pt-1">
+                  <span className="text-slate-500 font-medium">Bill Number</span>
+                  <span className="font-bold text-slate-800 bg-slate-100 px-1 rounded">{billSerial}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-500 font-medium">Date</span>
-                  <input type="date" className="border border-slate-200 rounded p-1 w-[130px] text-slate-700 bg-white" disabled={headerLocked} value={billDate} onChange={e=>setBillDate(e.target.value)} />
+                  <input type="date" className="border border-slate-200 rounded px-1 w-[110px] h-6 text-slate-700 bg-white" disabled={headerLocked} value={billDate} onChange={e=>setBillDate(e.target.value)} />
                 </div>
-                {billMode === "attached" ? (
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-500 font-medium">Type</span>
-                    <select className="border border-slate-200 rounded p-1 w-[130px] text-slate-700 bg-white" disabled={headerLocked} value={billTitle} onChange={e=>setBillTitle(e.target.value)}>
-                      <option value="purchase">Purchase</option>
-                      <option value="sales">Sales</option>
-                      <option value="clearing">Clearing</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                ) : (
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400 font-medium">Type</span>
-                    <span className="text-slate-400 italic">N/A</span>
-                  </div>
-                )}
+
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-medium">Super Admin Sr.</span>
+                  <span className="font-semibold text-slate-600">SA-{billSerial.split('-')[1]}-{Math.floor(Math.random() * 900) + 100}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-medium">Country Sr.</span>
+                  <span className="font-semibold text-slate-600">CT-{billSerial.split('-')[1]}-{Math.floor(Math.random() * 90) + 10}</span>
+                </div>
               </CardContent>
             </Card>
 
-            {/* Report 4: Bill Summary & Action */}
+            {/* Report 3: Bill Summary & Action */}
             <Card className={`shadow-sm border-t-4 transition-colors duration-300 opacity-90 hover:opacity-100 ${headerLocked ? "border-t-emerald-500 bg-emerald-50/10" : "border-t-amber-400"}`}>
               <CardHeader className="py-2 px-3 bg-slate-50 border-b border-slate-100">
                 <CardTitle className="text-xs uppercase font-bold text-slate-600 flex justify-between items-center">
-                  <span className="flex items-center gap-1.5"><Settings2 className="w-3.5 h-3.5" /> 4. Summary</span>
+                  <span className="flex items-center gap-1.5"><Settings2 className="w-3.5 h-3.5" /> 3. Summary</span>
                   <span className="text-[10px] font-mono text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">{billSerial}</span>
                 </CardTitle>
               </CardHeader>
@@ -466,8 +545,8 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
               <Input type="number" step="0.01" value={unitPrice} onChange={e => setUnitPrice(e.target.value ? Number(e.target.value) : "")} onKeyDown={handleKeyDown} />
             </div>
             <div className="w-28 space-y-1">
-              <Label className="text-xs text-slate-500">Amount</Label>
-              <Input readOnly value={amount.toFixed(2)} className="bg-slate-50 text-right font-mono" />
+              <Label className="text-xs text-slate-600 font-semibold">Amount</Label>
+              <Input type="number" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value) || 0)} onKeyDown={handleKeyDown} className="bg-white text-right font-mono" placeholder="0.00" />
             </div>
 
             {/* Currency & FX */}

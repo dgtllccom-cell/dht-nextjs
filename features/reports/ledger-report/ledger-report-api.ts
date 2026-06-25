@@ -90,14 +90,20 @@ export async function listLedgerReportLedgers(params: {
 }
 
 export async function getLedgerStatement(params: {
-  ledgerId: string;
+  ledgerId: string | string[];
   fromDate: string;
   toDate: string;
   limit?: number;
 }) {
-  const qp = new URLSearchParams({
-    ledgerId: params.ledgerId,
-    fromDate: params.fromDate,
+  const qp = new URLSearchParams();
+  if (Array.isArray(params.ledgerId)) {
+    params.ledgerId.forEach(id => qp.append("ledgerId", id));
+  } else {
+    qp.set("ledgerId", params.ledgerId);
+  }
+  qp.set("fromDate", params.fromDate);
+  qp.set("toDate", params.toDate);
+
     toDate: params.toDate
   });
   if (params.limit) qp.set("limit", String(params.limit));

@@ -71,9 +71,20 @@ export function UnifiedDetailedLedgerView() {
         const scope = isSuperAdmin ? "super_admin" : "country";
         const res = await listLedgerReportLedgers({ reportScope: scope as any, limit: 100 });
         if (active && res?.ledgers) {
-          const options = res.ledgers.map(row => ({
-            value: row.ledgerId,
-            label: `${row.accountCode || row.ledgerCode} - ${row.accountName || row.ledgerName} (${row.ledgerCurrency})`
+          const grouped = new Map<string, { label: string; ids: string[] }>();
+          for (const row of res.ledgers) {
+            const key = row.accountId || row.accountCode || row.ledgerCode;
+            if (!grouped.has(key)) {
+              grouped.set(key, {
+                label: `${row.accountCode || row.ledgerCode} - ${row.accountName || row.ledgerName} (${row.ledgerCurrency})`,
+                ids: []
+              });
+            }
+            grouped.get(key)!.ids.push(row.ledgerId);
+          }
+          const options = Array.from(grouped.values()).map(g => ({
+            value: g.ids.join(","),
+            label: g.label
           }));
           setLedgerOptions(options);
         }
@@ -92,7 +103,7 @@ export function UnifiedDetailedLedgerView() {
     setLoading(true);
     try {
       const res = await getLedgerStatement({
-        ledgerId: selectedLedgerId,
+        ledgerId: selectedLedgerId.split(","),
         fromDate,
         toDate,
         limit: 1000

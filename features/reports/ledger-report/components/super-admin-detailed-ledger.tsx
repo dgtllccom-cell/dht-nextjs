@@ -55,9 +55,6 @@ export function SuperAdminDetailedLedgerView() {
   const [ledgerOptions, setLedgerOptions] = useState<SearchSelectOption[]>([]);
   const [searchingLedgers, setSearchingLedgers] = useState(false);
 
-  // Exchange Rate
-  const [exchangeRate, setExchangeRate] = useState<number>(278.50);
-
   // Search ledgers for dropdown
   useEffect(() => {
     let active = true;
@@ -66,9 +63,20 @@ export function SuperAdminDetailedLedgerView() {
       try {
         const res = await listLedgerReportLedgers({ reportScope: "super_admin", limit: 100 });
         if (active && res?.ledgers) {
-          const options = res.ledgers.map(row => ({
-            value: row.ledgerId,
-            label: `${row.accountCode || row.ledgerCode} - ${row.accountName || row.ledgerName} (${row.ledgerCurrency})`
+          const grouped = new Map<string, { label: string; ids: string[] }>();
+          for (const row of res.ledgers) {
+            const key = row.accountId || row.accountCode || row.ledgerCode;
+            if (!grouped.has(key)) {
+              grouped.set(key, {
+                label: `${row.accountCode || row.ledgerCode} - ${row.accountName || row.ledgerName} (${row.ledgerCurrency})`,
+                ids: []
+              });
+            }
+            grouped.get(key)!.ids.push(row.ledgerId);
+          }
+          const options = Array.from(grouped.values()).map(g => ({
+            value: g.ids.join(","),
+            label: g.label
           }));
           setLedgerOptions(options);
         }
@@ -87,7 +95,7 @@ export function SuperAdminDetailedLedgerView() {
     setLoading(true);
     try {
       const res = await getLedgerStatement({
-        ledgerId: selectedLedgerId,
+        ledgerId: selectedLedgerId.split(","),
         fromDate,
         toDate,
         limit: 1000
@@ -111,7 +119,6 @@ export function SuperAdminDetailedLedgerView() {
     setSelectedLedgerId(null);
     setHeader(null);
     setLines([]);
-    setExchangeRate(278.50);
     setFilterType("none");
     setFilterValue("");
   };
@@ -130,8 +137,8 @@ export function SuperAdminDetailedLedgerView() {
   const calculatedTotals = useMemo(() => {
     let sumDr = 0;
     let sumCr = 0;
-    let sumDrPkr = 0;
-    let sumCrPkr = 0;
+    let sumDrUsd = 0;
+    let sumCrUsd = 0;
     let running = 0;
 
     const filteredLines = lines.filter(line => {
@@ -147,17 +154,17 @@ export function SuperAdminDetailedLedgerView() {
       sumCr += line.credit || 0;
       running += (line.debit || 0) - (line.credit || 0);
 
-      const drPkr = (line.debit || 0) * exchangeRate;
-      const crPkr = (line.credit || 0) * exchangeRate;
+      const drUsd = (line.debit || 0) > 0 ? (line.usdAmount || 0) : 0;
+      const crUsd = (line.credit || 0) > 0 ? (line.usdAmount || 0) : 0;
 
-      sumDrPkr += drPkr;
-      sumCrPkr += crPkr;
+      sumDrUsd += drUsd;
+      sumCrUsd += crUsd;
 
       return {
         ...line,
         runningBalance: running,
-        drPkr,
-        crPkr
+        drUsd,
+        crUsd
       };
     });
 
@@ -165,11 +172,11 @@ export function SuperAdminDetailedLedgerView() {
       lines: mappedLines,
       sumDr,
       sumCr,
-      sumDrPkr,
-      sumCrPkr,
+      sumDrUsd,
+      sumCrUsd,
       running
     };
-  }, [lines, exchangeRate, filterType, filterValue, header]);
+  }, [lines, filterType, filterValue, header]);
 
   return (
     <div className="p-4 bg-[#f7f8fb] min-h-screen">
@@ -277,22 +284,6 @@ export function SuperAdminDetailedLedgerView() {
           <div className="kv"><div className="k">Dr:</div><div className="v text-rose-600">{fmt(calculatedTotals.sumDr)}</div></div>
           <div className="kv"><div className="k">Cr:</div><div className="v text-emerald-600">{fmt(calculatedTotals.sumCr)}</div></div>
           <div className="kv"><div className="k">Balance:</div><div className={`v ${calculatedTotals.running < 0 ? 'text-rose-600' : calculatedTotals.running > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>{fmt(calculatedTotals.running)}</div></div>
-          
-          <div className="kv">
-            <div className="k">Exchange Rate:</div>
-            <div className="v text-blue-600 flex items-center gap-1">
-              1 USD =
-              <Input 
-                type="number" 
-                step="0.01" 
-                min="0" 
-                value={exchangeRate} 
-                onChange={(e) => setExchangeRate(Number(e.target.value) || 0)}
-                className="h-7 w-24 text-xs inline-flex px-1" 
-              />
-              PKR
-            </div>
-          </div>
         </div>
 
 
@@ -306,6 +297,8 @@ export function SuperAdminDetailedLedgerView() {
             <tr>
               <th>Date</th>
               <th>Serial</th>
+              <th>User ID / Name</th>
+              <th>Branch Name</th>
               <th>Name</th>
               <th>No.</th>
               <th>Details</th>
@@ -313,8 +306,8 @@ export function SuperAdminDetailedLedgerView() {
               <th>Cr.</th>
               <th>Total</th>
               <th>Ex. Rate</th>
-              <th>Dr. (PKR)</th>
-              <th>Cr. (PKR)</th>
+              <th>Dr. (USD)</th>
+              <th>Cr. (USD)</th>
             </tr>
           </thead>
           <tbody>
@@ -323,39 +316,52 @@ export function SuperAdminDetailedLedgerView() {
                 <td className="whitespace-nowrap">{line.entryDate?.split('T')[0] || "-"}</td>
                 <td className="whitespace-nowrap">{line.branchSerialNo || line.countrySerialNo || line.superAdminSerialNo || "-"}</td>
                 <td className="whitespace-nowrap"><a href="#" className="text-blue-600 hover:underline">{line.createdByName || "-"}</a></td>
+                <td className="whitespace-nowrap">{line.branchName || "-"}</td>
+                <td className="whitespace-nowrap font-medium text-slate-700">{line.sourceTable === "ledger_posting_batches" ? "Opening Balance" : line.sourceTable === "roznamcha_entries" ? "Roznamcha" : line.sourceTable || "-"}</td>
                 <td className="whitespace-nowrap">{line.referenceNo || "-"}</td>
-                <td>{line.description || "-"}</td>
+                <td>
+                  <div>{line.description || "-"}</div>
+                  {((line as any).perKgRate || (line as any).purchaseCurrency || (line as any).totalPurchaseAmount) ? (
+                    <div className="text-[10px] text-slate-500 mt-1 pt-1 border-t border-slate-100">
+                      {[
+                        (line as any).perKgRate ? `Per KG Rate: ${fmt((line as any).perKgRate)}` : null,
+                        (line as any).purchaseCurrency ? `Purch. Cur: ${(line as any).purchaseCurrency}` : null,
+                        (line as any).totalPurchaseAmount ? `Total Purch: ${fmt((line as any).totalPurchaseAmount)}` : null
+                      ].filter(Boolean).join(" | ")}
+                    </div>
+                  ) : null}
+                </td>
                 <td className="text-right text-rose-700 font-medium">{line.debit ? fmt(line.debit) : "0"}</td>
                 <td className="text-right text-emerald-700 font-medium">{line.credit ? fmt(line.credit) : "0"}</td>
                 <td className={`text-right font-bold ${line.runningBalance < 0 ? 'text-rose-700' : line.runningBalance > 0 ? 'text-emerald-700' : ''}`}>
                   {fmt(line.runningBalance)}
                 </td>
-                <td className="text-center">{exchangeRate.toFixed(2)}</td>
-                <td className="text-right text-blue-700 font-medium">{line.debit ? fmt(line.drPkr) : "0.00"}</td>
-                <td className="text-right text-amber-600 font-medium">{line.credit ? fmt(line.crPkr) : "0.00"}</td>
+                <td className="text-center">{line.usdRate ? line.usdRate.toFixed(4) : "0.00"}</td>
+                <td className="text-right text-blue-700 font-medium">{line.debit ? fmt((line as any).drUsd) : "0.00"}</td>
+                <td className="text-right text-amber-600 font-medium">{line.credit ? fmt((line as any).crUsd) : "0.00"}</td>
               </tr>
             ))}
             {calculatedTotals.lines.length === 0 && !loading && (
               <tr>
-                <td colSpan={11} className="text-center py-6 text-slate-500">No entries found. Select an account and apply filters.</td>
+                <td colSpan={13} className="text-center py-6 text-slate-500">No entries found. Select an account and apply filters.</td>
               </tr>
             )}
             {loading && (
               <tr>
-                <td colSpan={11} className="text-center py-6 text-slate-500"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" /> Loading data...</td>
+                <td colSpan={13} className="text-center py-6 text-slate-500"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" /> Loading data...</td>
               </tr>
             )}
           </tbody>
           {calculatedTotals.lines.length > 0 && (
             <tfoot>
               <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
-                <td colSpan={5} className="text-right">Totals</td>
+                <td colSpan={7} className="text-right">Totals</td>
                 <td className="text-right text-rose-700">{fmt(calculatedTotals.sumDr)}</td>
                 <td className="text-right text-emerald-700">{fmt(calculatedTotals.sumCr)}</td>
                 <td className={`text-right ${calculatedTotals.running < 0 ? 'text-rose-700' : calculatedTotals.running > 0 ? 'text-emerald-700' : ''}`}>{fmt(calculatedTotals.running)}</td>
                 <td className="text-center">—</td>
-                <td className="text-right text-blue-700">{fmt(calculatedTotals.sumDrPkr)}</td>
-                <td className="text-right text-amber-600">{fmt(calculatedTotals.sumCrPkr)}</td>
+                <td className="text-right text-blue-700">{fmt(calculatedTotals.sumDrUsd)}</td>
+                <td className="text-right text-amber-600">{fmt(calculatedTotals.sumCrUsd)}</td>
               </tr>
             </tfoot>
           )}
