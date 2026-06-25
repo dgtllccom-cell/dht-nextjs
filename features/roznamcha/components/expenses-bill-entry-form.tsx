@@ -136,6 +136,29 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
   const [rows, setRows] = useState<RowEntry[]>([]);
   const [saving, setSaving] = useState(false);
 
+  const [recentBills, setRecentBills] = useState<any[]>([]);
+  const [loadingBills, setLoadingBills] = useState(false);
+
+  const fetchRecentBills = async () => {
+    try {
+      setLoadingBills(true);
+      const res = await apiGet("/api/erp/expenses");
+      if (res && res.bills) {
+        setRecentBills(res.bills);
+      }
+    } catch (err) {
+      console.error("Failed to fetch recent bills", err);
+    } finally {
+      setLoadingBills(false);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === "list") {
+      fetchRecentBills();
+    }
+  }, [viewMode]);
+
   //persisted currency to show correct defaults
   const branchDefaultCurrency = (b: string) => {
     if (b === "DB" || b === "SHJ") return "AED";
@@ -268,21 +291,39 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
     setRows(rows.filter(r => r.id !== id));
   };
 
-  const handleSaveToDatabase = () => {
+  const handleSaveToDatabase = async () => {
     setSaving(true);
-    // Simulate API call
-    console.log("Saving Expenses Bill Payload:", {
-      header: { billSerial, branch, billDate, billTitle, referenceNo },
-      entries: rows
-    });
-    setTimeout(() => {
-      setSaving(false);
-      alert("Bill saved successfully! (Frontend Only Preview)");
+    try {
+      const payload = {
+        header: { billSerial, branch, billDate, billMode, billTitle, referenceNo },
+        entries: rows.map(r => ({
+          rowSerial: r.rowSerial,
+          details: r.details,
+          qty: r.qty,
+          unitPrice: r.unitPrice,
+          amount: r.amount,
+          currency: r.currency,
+          operation: r.operation,
+          exchangeRate: r.exchangeRate,
+          finalAmount: r.finalAmount,
+          taxOn: r.taxOn,
+          taxPct: r.taxPct,
+          taxAmt: r.taxAmt,
+          grandAmount: r.grandAmount
+        }))
+      };
+      const res = await apiPost("/api/erp/expenses", payload);
+      alert("Bill saved successfully!");
       setRows([]);
       setHeaderLocked(false);
       setReferenceNo("");
+      fetchRecentBills();
       setViewMode("list");
-    }, 1000);
+    } catch (err: any) {
+      alert(err.message || "Failed to save bill.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const totalFinal = rows.reduce((sum, r) => sum + r.grandAmount, 0);
@@ -330,12 +371,36 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
-                    <FileText className="h-8 w-8 mx-auto mb-3 opacity-20" />
-                    No recent bills found. Click "New Bill" to create one.
-                  </td>
-                </tr>
+                {loadingBills ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500">Loading bills...</td>
+                  </tr>
+                ) : recentBills.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                      <FileText className="h-8 w-8 mx-auto mb-3 opacity-20" />
+                      No recent bills found. Click "New Bill" to create one.
+                    </td>
+                  </tr>
+                ) : (
+                  recentBills.map((b: any) => {
+                    const total = b.expenses_bill_lines?.reduce((sum: number, l: any) => sum + Number(l.grand_amount), 0) || 0;
+                    return (
+                      <tr key={b.id} className="hover:bg-slate-50 transition-colors cursor-pointer">
+                        <td className="px-4 py-3 font-medium text-slate-700">{b.serial_no}</td>
+                        <td className="px-4 py-3 text-slate-600">{b.bill_date}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <span className={`px-2 py-0.5 rounded text-xs ${b.bill_mode === 'attached' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                            {b.bill_mode.toUpperCase()} - {b.bill_title.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{b.reference_no || "-"}</td>
+                        <td className="px-4 py-3 text-slate-600">{b.branch_id}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-800">{total.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

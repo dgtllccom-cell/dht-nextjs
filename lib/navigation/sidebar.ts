@@ -261,6 +261,12 @@ export const sidebarTree: SidebarNode[] = [
                 labelKey: "nav.expenses_bill",
                 href: "/dashboard/roznamcha/expenses-bill" as Route,
                 roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+              },
+              {
+                key: "roz-money-exchange",
+                labelKey: "Money Changer",
+                href: "/dashboard/roznamcha/money-exchange" as Route,
+                roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
               }
             ]
           },

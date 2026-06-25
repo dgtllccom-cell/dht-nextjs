@@ -99,6 +99,7 @@ export function DashboardFrame({
       { title: "Daily Exchange Rate Manager", category: "Modules", href: "/dashboard/reports/exchange-rate", keywords: "daily exchange rate usd foreign currency update converter settings" },
       { title: "Credit & Debit Entries (Cash Entry)", category: "Modules", href: "/dashboard/roznamcha/cash-entry", keywords: "cash entry debit credit roznamcha entries post transaction" },
       { title: "Expenses Bill (Bill Entry)", category: "Modules", href: "/dashboard/roznamcha/expenses-bill", keywords: "expenses bill entry roznamcha tax invoice" },
+      { title: "Money Changer (Currency Exchange)", category: "Modules", href: "/dashboard/roznamcha/money-exchange", keywords: "money changer currency exchange buy sell profit loss roznamcha" },
       { title: "Roznamcha All Report Ledger", category: "Modules", href: "/dashboard/roznamcha/all", keywords: "roznamcha all report transaction logs ledger postings" },
       
       { title: "Accounts Master General Report", category: "Modules", href: "/dashboard/accounts", keywords: "accounts master general report setup balance" },
