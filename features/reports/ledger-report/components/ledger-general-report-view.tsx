@@ -839,28 +839,45 @@ export function LedgerReportView({
               </p>
             </div>
             <div className="text-xs text-slate-400">
-              {t(lang, "ledger.rows")}: <b className="text-slate-100">{displayRows.length}</b>
+            <div className="text-xs text-slate-500">
+              {t(lang, "ledger.rows")}: <b className="text-slate-900">{displayRows.length}</b>
             </div>
           </div>
         </div>
         <div className="p-0">
-          <DarkTable headers={["S.No", "Country", "Branch", "Account No", "Account Name", "Entries", "Opening Bal", "Credit", "Debit", "Created Date", "Last Entry Date", "Balance", "Actions"]}>
-            {loading ? (
-              <tr>
-                <Td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-400">
-                  {t(lang, "ledger.loading")}
-                </Td>
-              </tr>
-            ) : tableRows.length ? (
+          <ReportTable
+              headers={[
+                "#",
+                "Country",
+                "Branch",
+                "Account No",
+                "Account Name",
+                "Entries",
+                "Opening Bal",
+                "Credit",
+                "Debit",
+                "Created Date",
+                "Last Entry",
+                "Balance",
+                ""
+              ]}
+            >
+              {loading ? (
+                <tr>
+                  <Td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-500">
+                    {t(lang, "ledger.loading")}
+                  </Td>
+                </tr>
+              ) : tableRows.length ? (
               tableRows.map((row, index) => {
                 const active = row.ledgerId === ledgerId;
                 return (
                   <tr
                     key={row.ledgerId}
                     className={cn(
-                      "cursor-pointer border-b border-slate-800/60 transition hover:bg-[#152345]",
-                      index % 2 === 0 ? "bg-[#0b1730]/40" : "bg-transparent",
-                      active ? "bg-blue-900/20" : ""
+                      "cursor-pointer border-b border-slate-100 transition hover:bg-slate-50",
+                      index % 2 === 0 ? "bg-white" : "bg-slate-50/50",
+                      active ? "bg-blue-50" : ""
                     )}
                     onClick={() => {
                       if (row.accountCode || row.ledgerCode) {
@@ -871,24 +888,24 @@ export function LedgerReportView({
                       }
                     }}
                   >
-                    <Td className="font-mono text-slate-400">{(page - 1) * pageSize + index + 1}</Td>
+                    <Td className="font-mono text-slate-500">{(page - 1) * pageSize + index + 1}</Td>
                     <Td>{row.countryName || "-"}</Td>
                     <Td>{buildBranchLabel(row)}</Td>
-                    <Td className="font-mono text-blue-400">{row.accountCode || row.ledgerCode}</Td>
-                    <Td className="font-bold text-slate-200">{row.accountName || row.ledgerName}</Td>
-                    <Td className="text-right tabular-nums text-slate-300">{row.entries}</Td>
-                    <Td className="text-right tabular-nums text-slate-400">{fmtNumber(row.openingBalance ?? 0)}</Td>
-                    <Td className="text-right tabular-nums text-emerald-400">{fmtNumber(row.credit)}</Td>
-                    <Td className="text-right tabular-nums text-rose-400">{fmtNumber(row.debit)}</Td>
-                    <Td className="text-slate-400">{formatDateString(row.createdAt)}</Td>
-                    <Td className="text-slate-400">{formatDateString(row.lastEntryDate)}</Td>
-                    <Td className="text-right tabular-nums font-bold text-white">{fmtNumber(row.balance)}</Td>
+                    <Td className="font-mono text-blue-600">{row.accountCode || row.ledgerCode}</Td>
+                    <Td className="font-bold text-slate-800">{row.accountName || row.ledgerName}</Td>
+                    <Td className="text-right tabular-nums text-slate-600">{row.entries}</Td>
+                    <Td className="text-right tabular-nums text-slate-600">{fmtNumber(row.openingBalance ?? 0)}</Td>
+                    <Td className="text-right tabular-nums text-emerald-600">{fmtNumber(row.credit)}</Td>
+                    <Td className="text-right tabular-nums text-rose-600">{fmtNumber(row.debit)}</Td>
+                    <Td className="text-slate-500">{formatDateString(row.createdAt)}</Td>
+                    <Td className="text-slate-500">{formatDateString(row.lastEntryDate)}</Td>
+                    <Td className="text-right tabular-nums font-bold text-slate-900">{fmtNumber(row.balance)}</Td>
                     <Td onClick={(e) => e.stopPropagation()}>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-slate-400 hover:text-white hover:bg-slate-800"
+                        className="h-7 w-7 text-slate-400 hover:text-slate-700 hover:bg-slate-200"
                         title="View Ledger"
                         onClick={() => {
                           router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
@@ -902,12 +919,12 @@ export function LedgerReportView({
               })
             ) : (
               <tr>
-                <Td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-400">
+                <Td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-500">
                   {t(lang, "ledger.no_data")}
                 </Td>
               </tr>
             )}
-          </DarkTable>
+          </ReportTable>
           <TableFooter 
             text={`${t(lang, "ledger.pagination_hint")} ${pageSize}`} 
             page={page} 
@@ -1091,10 +1108,10 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone?:
   const isDebit = label.includes("Debit");
   const isCredit = label.includes("Credit");
   const isActive = label.includes("Active");
-  const color = tone ? tone : isDebit ? "text-rose-400" : isCredit || isActive ? "text-emerald-400" : "text-white";
+  const color = tone ? tone : isDebit ? "text-rose-600" : isCredit || isActive ? "text-emerald-600" : "text-slate-900";
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-700/50 bg-[#0b1730] p-4 shadow-lg transition-all hover:bg-[#0b1730]/80">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</div>
+    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</div>
       <div className={cn("mt-1 text-2xl font-black tabular-nums tracking-tighter", color)}>{value}</div>
     </div>
   );
@@ -1104,23 +1121,23 @@ function KeyValue({ label, value, tone }: { label: string; value: string; tone?:
   return (
     <div className="grid grid-cols-[128px_1fr] gap-3 text-sm">
       <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={cn("font-medium text-slate-200", tone)}>{value || "-"}</div>
+      <div className={cn("font-medium text-slate-700", tone)}>{value || "-"}</div>
     </div>
   );
 }
 
-function DarkTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
+function ReportTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   return (
-    <div className="w-full overflow-x-auto rounded-xl border border-slate-700/50 bg-[#0b1730]/50 shadow-inner">
+    <div className="w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
       <table className="w-full min-w-[1200px] text-left text-xs">
         <thead>
-          <tr className="border-b border-slate-700/50 bg-slate-900/40">
+          <tr className="border-b border-slate-200 bg-slate-50/80">
             {headers.map((h, i) => (
               <Th key={i} className={i > 4 ? "text-right" : ""}>{h}</Th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/60">
+        <tbody className="divide-y divide-slate-100">
           {children}
         </tbody>
       </table>
@@ -1130,7 +1147,7 @@ function DarkTable({ headers, children }: { headers: string[]; children: React.R
 
 function Th({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("whitespace-nowrap px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400", className)}>
+    <th className={cn("whitespace-nowrap px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-500", className)}>
       {children}
     </th>
   );
@@ -1138,7 +1155,7 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
 
 function Td({ children, className, onClick }: { children: React.ReactNode; className?: string; onClick?: (e: React.MouseEvent) => void }) {
   return (
-    <td onClick={onClick} className={cn("whitespace-nowrap px-4 py-3 align-middle text-[11px] font-medium text-slate-300", className)}>
+    <td onClick={onClick} className={cn("whitespace-nowrap px-4 py-3 align-middle text-[11px] font-medium text-slate-700", className)}>
       {children}
     </td>
   );
@@ -1146,19 +1163,20 @@ function Td({ children, className, onClick }: { children: React.ReactNode; class
 
 function TableFooter({ text, page, pageCount, onPrev, onNext, pageSize }: { text: string; page: number; pageCount: number; onPrev: () => void; onNext: () => void; pageSize: number }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3 text-xs text-slate-400">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3 text-xs text-slate-500">
       <span>{text}</span>
       <div className="flex items-center gap-2">
-        <Button type="button" variant="outline" size="sm" className="h-7 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800" disabled={page <= 1} onClick={onPrev}>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-slate-600 hover:text-slate-900" disabled={page <= 1} onClick={onPrev}>
           Prev
         </Button>
         <div className="text-xs">
-          Page <b className="text-slate-100">{page}</b> / {pageCount}
+          Page <b className="text-slate-800">{page}</b> / {pageCount}
         </div>
-        <Button type="button" variant="outline" size="sm" className="h-7 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800" disabled={page >= pageCount} onClick={onNext}>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-slate-600 hover:text-slate-900" disabled={page >= pageCount} onClick={onNext}>
           Next
         </Button>
       </div>
     </div>
   );
 }
+
