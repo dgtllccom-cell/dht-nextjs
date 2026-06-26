@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getErpSessionFromCookies } from "@/lib/auth/server";
-import { createSupabaseAdminClient } from "@/lib/db/supabase-admin";
+import { getCurrentErpSession } from "@/lib/auth/session";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 
 const moneyExchangePayloadSchema = z.object({
@@ -8,7 +8,7 @@ const moneyExchangePayloadSchema = z.object({
   branchId: z.string().min(1),
   entryDate: z.string().date(),
   transactionType: z.enum(["Purchase", "Sale"]),
-  accountNo: z.string().min(1),
+  accountNo: z.string().nullable().optional(),
   qtyCurrency: z.string().min(2),
   exCurrency: z.string().min(2),
   operation: z.enum(["multiply", "divide"]),
@@ -19,12 +19,20 @@ const moneyExchangePayloadSchema = z.object({
   receivedFrom: z.string().nullable().optional(),
   mobile: z.string().nullable().optional(),
   details: z.string().nullable().optional(),
-  profitBaseCurrency: z.number()
+  profitBaseCurrency: z.number(),
+  receivedType: z.string().nullable().optional(),
+  purchaseCountry: z.string().nullable().optional(),
+  purchaseCity: z.string().nullable().optional(),
+  purchasedFrom: z.string().nullable().optional(),
+  receivedCountry: z.string().nullable().optional(),
+  receivedCity: z.string().nullable().optional(),
+  receivedOfficeName: z.string().nullable().optional(),
+  receivedOfficeNumbers: z.string().nullable().optional()
 });
 
 export async function POST(req: Request) {
   try {
-    const session = await getErpSessionFromCookies();
+    const session = await getCurrentErpSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
@@ -39,7 +47,7 @@ export async function POST(req: Request) {
         branch_id: parsed.branchId,
         entry_date: parsed.entryDate,
         transaction_type: parsed.transactionType,
-        account_no: parsed.accountNo,
+        account_no: parsed.accountNo || null,
         qty_currency: parsed.qtyCurrency,
         ex_currency: parsed.exCurrency,
         operation: parsed.operation,
@@ -51,8 +59,16 @@ export async function POST(req: Request) {
         mobile: parsed.mobile || null,
         details: parsed.details || null,
         profit_base_currency: parsed.profitBaseCurrency,
+        received_type: parsed.receivedType || null,
+        purchase_country: parsed.purchaseCountry || null,
+        purchase_city: parsed.purchaseCity || null,
+        purchased_from: parsed.purchasedFrom || null,
+        received_country: parsed.receivedCountry || null,
+        received_city: parsed.receivedCity || null,
+        received_office_name: parsed.receivedOfficeName || null,
+        received_office_numbers: parsed.receivedOfficeNumbers || null,
         created_at: new Date().toISOString(),
-        created_by: session.user?.id || null
+        created_by: session.userId || null
       })
       .select("id")
       .single();
@@ -68,7 +84,7 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const session = await getErpSessionFromCookies();
+    const session = await getCurrentErpSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const supabase = createSupabaseAdminClient() as any;

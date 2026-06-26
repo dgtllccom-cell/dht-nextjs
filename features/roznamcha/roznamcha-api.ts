@@ -58,12 +58,18 @@ export async function listRoznamchaEntries(params: {
   countryId?: string | null;
   countryBranchId?: string | null;
   cityBranchId?: string | null;
+  fromDate?: string | null;
+  toDate?: string | null;
+  search?: string | null;
   limit?: number;
 }) {
   const qp = new URLSearchParams();
   if (params.countryId) qp.set("countryId", params.countryId);
   if (params.countryBranchId) qp.set("countryBranchId", params.countryBranchId);
   if (params.cityBranchId) qp.set("cityBranchId", params.cityBranchId);
+  if (params.fromDate) qp.set("fromDate", params.fromDate);
+  if (params.toDate) qp.set("toDate", params.toDate);
+  if (params.search) qp.set("search", params.search);
   if (params.limit) qp.set("limit", String(params.limit));
 
   return apiGet<{ entries: RoznamchaEntryRow[]; limit: number }>(`/api/erp/roznamcha?${qp.toString()}`);

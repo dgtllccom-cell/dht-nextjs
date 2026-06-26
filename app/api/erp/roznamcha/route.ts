@@ -467,6 +467,8 @@ export async function GET(request: NextRequest) {
     const requestedLimit = Number(request.nextUrl.searchParams.get("limit") ?? "100");
     const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 500) : 100;
     const search = request.nextUrl.searchParams.get("search")?.trim();
+    const fromDate = request.nextUrl.searchParams.get("fromDate")?.trim();
+    const toDate = request.nextUrl.searchParams.get("toDate")?.trim();
 
     authorizeApiScope(session, {
       resource: "roznamcha",
@@ -509,6 +511,9 @@ export async function GET(request: NextRequest) {
     } else if (!session.isSuperAdmin && session.cityBranchIds.length) {
       query = query.in("city_branch_id", session.cityBranchIds);
     }
+
+    if (fromDate) query = (query as any).gte("entry_date", fromDate);
+    if (toDate) query = (query as any).lte("entry_date", toDate);
 
     if (search) {
       const safeSearch = search.replace(/[%,]/g, "");

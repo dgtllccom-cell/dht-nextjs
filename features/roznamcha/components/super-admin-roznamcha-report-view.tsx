@@ -106,6 +106,29 @@ function monthStartIso() {
   return d.toISOString().slice(0, 10);
 }
 
+type QuickPeriod = "today" | "yesterday" | "last7" | "last30" | "month" | "year";
+
+function isoDateFromOffset(offsetDays: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+
+function yearStartIso() {
+  const d = new Date();
+  d.setMonth(0, 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function quickPeriodRange(period: QuickPeriod) {
+  if (period === "today") return { fromDate: todayIso(), toDate: todayIso() };
+  if (period === "yesterday") return { fromDate: isoDateFromOffset(-1), toDate: isoDateFromOffset(-1) };
+  if (period === "last7") return { fromDate: isoDateFromOffset(-6), toDate: todayIso() };
+  if (period === "last30") return { fromDate: isoDateFromOffset(-29), toDate: todayIso() };
+  if (period === "year") return { fromDate: yearStartIso(), toDate: todayIso() };
+  return { fromDate: monthStartIso(), toDate: todayIso() };
+}
+
 function safeText(value: string | null | undefined) {
   const v = (value ?? "").toString().trim();
   return v || "-";
@@ -505,21 +528,19 @@ function filterRows(
 }
 
 function countryStats(rows: SuperAdminRoznamchaRow[]) {
-  const countries = ["Pakistan", "India", "UAE", "Afghanistan"];
-  return countries.map((name) => {
-    const matchingRows = rows.filter((r) => r.countryName.toLowerCase() === name.toLowerCase());
-    const debit = matchingRows.reduce((sum, r) => sum + r.debit, 0);
-    const credit = matchingRows.reduce((sum, r) => sum + r.credit, 0);
-    const currency = matchingRows[0]?.currency ?? (name === "Pakistan" ? "PKR" : name === "India" ? "INR" : name === "UAE" ? "AED" : "AFN");
-    return {
-      name,
-      currency,
-      entries: matchingRows.length,
-      debit,
-      credit,
-      balance: debit - credit
-    };
-  });
+  const map = new Map<string, { name: string; currency: string; entries: number; debit: number; credit: number; balance: number }>();
+  for (const row of rows) {
+    const name = row.countryName && row.countryName !== "-" ? row.countryName : "Unknown Country";
+    const currency = row.countryCurrency && row.countryCurrency !== "-" ? row.countryCurrency : row.currency || "-";
+    const key = `${name.toLowerCase()}::${currency.toUpperCase()}`;
+    const current = map.get(key) ?? { name, currency, entries: 0, debit: 0, credit: 0, balance: 0 };
+    current.entries += 1;
+    current.debit += row.debit;
+    current.credit += row.credit;
+    current.balance += row.debit - row.credit;
+    map.set(key, current);
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function fetchSessionInfo() {
@@ -601,7 +622,7 @@ export function SuperAdminRoznamchaReportView({
     );
   }, [sessionInfo]);
 
-  async function loadReport() {
+  async function loadReport(rangeFilters: FilterState = appliedFilters) {
     setRefreshing(true);
     try {
       const session = await fetchSessionInfo();
@@ -617,7 +638,10 @@ export function SuperAdminRoznamchaReportView({
 
       const response = await listRoznamchaEntries({
         ...scope,
-        limit: 250
+        fromDate: rangeFilters.fromDate,
+        toDate: rangeFilters.toDate,
+        search: rangeFilters.partySearch,
+        limit: 500
       });
 
       const detailed = await Promise.all(
@@ -799,8 +823,10 @@ export function SuperAdminRoznamchaReportView({
   }, [selectedId, visibleRows]);
 
   function applyFilters() {
-    setAppliedFilters({ ...draftFilters });
+    const nextFilters = { ...draftFilters };
+    setAppliedFilters(nextFilters);
     setRatesApplied({ ...ratesDraft });
+    void loadReport(nextFilters);
   }
 
   function resetFilters() {
@@ -817,6 +843,7 @@ export function SuperAdminRoznamchaReportView({
     };
     setDraftFilters(reset);
     setAppliedFilters(reset);
+    void loadReport(reset);
 
     const ratesReset = {
       pkr: 278.50,
@@ -1057,9 +1084,9 @@ export function SuperAdminRoznamchaReportView({
   const uaeVal = rows.filter(r => r.countryName.toLowerCase() === "uae").reduce((sum, r) => sum + r.debit - r.credit, 0);
   const afgVal = rows.filter(r => r.countryName.toLowerCase() === "afghanistan").reduce((sum, r) => sum + r.debit - r.credit, 0);
 
-  const pakStr = pakVal !== 0 ? formatCompact(Math.abs(pakVal)) : "2.5M";
-  const uaeStr = uaeVal !== 0 ? formatCompact(Math.abs(uaeVal)) : "1.7M";
-  const afgStr = afgVal !== 0 ? formatCompact(Math.abs(afgVal)) : "1.0M";
+  const pakStr = formatCompact(Math.abs(pakVal));
+  const uaeStr = formatCompact(Math.abs(uaeVal));
+  const afgStr = formatCompact(Math.abs(afgVal));
 
   const filtersContent = (
         <div className="flex flex-wrap items-center gap-1.5 ml-2 border-l pl-2 border-slate-200 dark:border-slate-800">
@@ -1074,6 +1101,25 @@ export function SuperAdminRoznamchaReportView({
             </button>
             {dateOpen && (
               <div className="absolute right-0 mt-1 w-64 rounded-xl bg-white border border-slate-200 shadow-2xl z-[80] p-3 space-y-3 text-left">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    ["today", "Today"],
+                    ["yesterday", "Yesterday"],
+                    ["last7", "Last 7 Days"],
+                    ["last30", "Last 30 Days"],
+                    ["month", "This Month"],
+                    ["year", "This Year"]
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] font-bold text-slate-700 hover:border-blue-300 hover:bg-blue-50"
+                      onClick={() => setDraftFilters((cur) => ({ ...cur, ...quickPeriodRange(value as QuickPeriod) }))}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] text-slate-500 font-bold">From Date</Label>
                   <Input
@@ -1347,193 +1393,88 @@ export function SuperAdminRoznamchaReportView({
   );
 
   return (
-    <div className="mx-auto max-w-[1680px] space-y-3 bg-[#f7f8fb] px-3 py-3 text-[12.5px] md:px-4">
+    <div className="w-full max-w-none space-y-5 bg-[#f8fafc] px-4 py-4 text-[13px] md:px-6 xl:px-8">
       {portalNode ? createPortal(filtersContent, portalNode) : null}
       {titlePortalNode ? createPortal(titleContent, titlePortalNode) : null}
 
+      {/* KPI Cards (Top Level) */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
+        <SummaryCard 
+          title="Total Debit" 
+          value={appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalDebitSum)}` : `USD ${fmtNumber(totalDebitSum)}`} 
+          tone="red" 
+        />
+        <SummaryCard 
+          title="Total Credit" 
+          value={appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalCreditSum)}` : `USD ${fmtNumber(totalCreditSum)}`} 
+          tone="green" 
+        />
+        <SummaryCard 
+          title="Total Balance" 
+          value={appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}` : `USD ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}`} 
+          tone="slate" 
+        />
+        <SummaryCard title="Total Transactions" value={String(visibleRows.length)} tone="blue" />
+        <SummaryCard title="Active Branches" value={String(branchesIncludedCount)} tone="amber" />
+        <SummaryCard title="Active Countries" value={String(new Set(visibleRows.map((row) => row.countryId || row.countryName).filter(Boolean)).size)} tone="blue" />
+        <SummaryCard title="Exchange Rate" value={showUsd ? "USD Enabled" : "Local Currency"} tone="slate" />
+      </div>
 
-
-      {typeFilter === "country" ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Card 1: Branch Summary */}
-          <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Branch Summary</h2>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">Total Entries</span>
-                <span className="font-extrabold text-slate-900 text-sm">{visibleRows.length || 125}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">Total Debit</span>
-                <span className="font-extrabold text-red-600 text-sm">{totalDebitSum > 0 ? fmtNumber(totalDebitSum) : "4,550,000"}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">Total Credit</span>
-                <span className="font-extrabold text-emerald-600 text-sm">{totalCreditSum > 0 ? fmtNumber(totalCreditSum) : "5,200,000"}</span>
-              </div>
-              <div className="flex justify-between items-center border-t pt-1.5 mt-1.5 border-slate-100">
-                <span className="text-slate-500 font-semibold">Balance</span>
-                <span className="font-extrabold text-slate-950 text-sm">{totalDebitSum !== 0 || totalCreditSum !== 0 ? fmtNumber(Math.abs(totalDebitSum - totalCreditSum)) : "650,000"}</span>
-              </div>
-            </div>
-          </Card>
-
-          {/* Card 2: Country Details */}
-          <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Country Details</h2>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">Pakistan</span>
-                <span className="font-extrabold text-slate-900 text-sm">{pakStr}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">UAE</span>
-                <span className="font-extrabold text-slate-900 text-sm">{uaeStr}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">Afghanistan</span>
-                <span className="font-extrabold text-slate-900 text-sm">{afgStr}</span>
-              </div>
-            </div>
-          </Card>
-
-          {/* Card 3: Printing Card */}
-          <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Printing Card</h2>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">Printed By</span>
-                <span className="font-extrabold text-slate-900 text-sm">{sessionInfo?.user?.fullName ?? "Admin"}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">Date</span>
-                <span className="font-extrabold text-slate-900 text-sm">{clientSession.printDate || "2026-05-28"}</span>
-              </div>
-              <div className="flex justify-between items-center border-t pt-1.5 mt-1.5 border-slate-100">
-                <span className="text-slate-500 font-semibold">Status</span>
-                <span className="font-bold text-emerald-600 text-sm">Ready</span>
-              </div>
-            </div>
-          </Card>
-
-          {/* Card 4: Report Actions */}
-          <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Report Actions</h2>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">View</span>
-                <span className="font-extrabold text-slate-900 text-sm">Full Form</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">Export</span>
-                <span className="font-extrabold text-slate-900 text-sm">PDF / Excel</span>
-              </div>
-              <div className="flex justify-between items-center border-t pt-1.5 mt-1.5 border-slate-100">
-                <span className="text-slate-500 font-semibold">Mode</span>
-                <span className="font-extrabold text-slate-950 text-sm">Print Ready</span>
-              </div>
-            </div>
-          </Card>
+      {/* Middle Layout based on role */}
+      {typeFilter === "super_admin" ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">🌍 Country-Based Financial Summary</h2>
+            <span className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-1 rounded-md">Currency isolation enforced</span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {countryOverview.map((item) => (
+              <Card key={item.name} className="overflow-hidden rounded-2xl border-0 bg-white shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 text-white flex justify-between items-center">
+                  <span className="font-black tracking-wide text-sm">{item.name}</span>
+                  <span className="bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded-full">{item.entries} Trx</span>
+                </div>
+                <CardContent className="p-4 space-y-3 bg-white">
+                  <div className="flex justify-between items-end border-b border-slate-100 pb-2">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Currency</span>
+                    <span className="text-base font-black text-slate-800">{item.currency}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-500">Total Debit</span>
+                    <span className="font-black text-rose-600">{fmtNumber(item.debit)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-500">Total Credit</span>
+                    <span className="font-black text-emerald-600">{fmtNumber(item.credit)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                    <span className="text-xs font-bold text-slate-500 uppercase">Balance</span>
+                    <span className="text-lg font-black text-slate-900">{fmtNumber(Math.abs(item.balance))}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* Daily Summary Dashboard Cards */}
-          <div className="bg-white text-slate-900 rounded-xl p-4 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">📅 Daily Operations Summary (USD Converted)</span>
-              <span className="text-[10px] text-slate-500 font-semibold">Active Date Range: {appliedFilters.fromDate} to {appliedFilters.toDate}</span>
-            </div>
-            
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {/* Card 1: Active Branches */}
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-lg font-bold">🏢</div>
-                <div className="space-y-0.5">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Worked Branches</p>
-                  <p className="text-lg font-black text-slate-900">{branchesIncludedCount} Branches</p>
-                  <p className="text-[9px] text-slate-500 font-medium">Active branch offices today</p>
-                </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="rounded-2xl border-0 bg-white shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] p-5">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">Report Details</h2>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-slate-600">Total Entries</span>
+                <span className="font-black text-slate-900">{visibleRows.length}</span>
               </div>
-
-              {/* Card 2: Debit Entries */}
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg font-bold">📈</div>
-                <div className="space-y-0.5">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Debit (Money Received)</p>
-                  <p className="text-sm font-black text-emerald-600">${fmtNumber(visibleRows.reduce((sum, r) => sum + (r.debit > 0 ? (r.debitUsd > 0 ? r.debitUsd : r.debit / getRowRate(r.currency)) : 0), 0))} USD</p>
-                  <p className="text-[9px] text-slate-500 font-bold">{visibleRows.filter(r => r.debit > 0).length} Debit Voucher Entries</p>
-                </div>
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-slate-600">Printed By</span>
+                <span className="font-black text-slate-900">{sessionInfo?.user?.fullName ?? "Admin"}</span>
               </div>
-
-              {/* Card 3: Credit Entries */}
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-lg font-bold">📉</div>
-                <div className="space-y-0.5">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Credit (Money Paid)</p>
-                  <p className="text-sm font-black text-red-600">${fmtNumber(visibleRows.reduce((sum, r) => sum + (r.credit > 0 ? (r.creditUsd > 0 ? r.creditUsd : r.credit / getRowRate(r.currency)) : 0), 0))} USD</p>
-                  <p className="text-[9px] text-slate-500 font-bold">{visibleRows.filter(r => r.credit > 0).length} Credit Voucher Entries</p>
-                </div>
-              </div>
-
-              {/* Card 4: Exchange Rates */}
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-lg font-bold">💱</div>
-                <div className="space-y-0.5 flex-1 min-w-0">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Active Exchange Rates</p>
-                  <div className="grid grid-cols-2 gap-x-2 text-[9.5px] font-mono font-bold text-slate-700">
-                    <div>PKR: {ratesApplied.pkr.toFixed(1)}</div>
-                    <div>AED: {ratesApplied.aed.toFixed(3)}</div>
-                    <div>AFN: {ratesApplied.afn.toFixed(1)}</div>
-                    <div>INR: {ratesApplied.inr.toFixed(1)}</div>
-                  </div>
-                  <p className="text-[9px] text-slate-500 font-medium">Local rate units per 1 USD</p>
-                </div>
+              <div className="flex justify-between items-center border-t border-slate-100 pt-3">
+                <span className="font-semibold text-slate-600">Print Date</span>
+                <span className="font-black text-slate-900">{clientSession.printDate}</span>
               </div>
             </div>
-          </div>
-
-          {/* Country breakdowns (rendered smaller) */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {countryOverview.map((item) => {
-              const usdRateVal = getRowRate(item.currency);
-              
-              return (
-                <Card key={item.name} className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                  <CardHeader className="border-b bg-slate-50/50 dark:bg-slate-900/50 py-2 px-3 flex flex-row items-center justify-between">
-                    <CardTitle className="text-xs font-bold text-slate-900 dark:text-slate-100">{item.name} Summary</CardTitle>
-                    <span className="text-[10px] text-slate-400 font-bold italic">{item.entries} entries</span>
-                  </CardHeader>
-                  <CardContent className="p-3 space-y-2 text-xs">
-                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
-                      <span className="text-slate-500 font-medium">Currency:</span>
-                      <span className="text-slate-400">:</span>
-                      <span className="font-extrabold text-slate-900 dark:text-slate-100">{item.currency}</span>
-                    </div>
-                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
-                      <span className="text-slate-500 font-medium">Dr (Local):</span>
-                      <span className="text-slate-400">:</span>
-                      <span className="font-bold text-red-600 dark:text-red-400">{fmtNumber(item.debit)}</span>
-                    </div>
-                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
-                      <span className="text-slate-500 font-medium">Cr (Local):</span>
-                      <span className="text-slate-400">:</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-450">{fmtNumber(item.credit)}</span>
-                    </div>
-                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
-                      <span className="text-slate-500 font-medium">Balance (Local):</span>
-                      <span className="text-slate-400">:</span>
-                      <span className="font-bold text-red-600 dark:text-red-400">{fmtNumber(item.balance)}</span>
-                    </div>
-                    <div className="grid grid-cols-[105px_8px_1fr] items-center py-0.5">
-                      <span className="text-slate-500 font-medium">USD Rate:</span>
-                      <span className="text-slate-400">:</span>
-                      <span className="font-bold text-slate-900 dark:text-slate-100">{fmtRate(usdRateVal)} {item.currency} per 1 USD</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          </Card>
         </div>
       )}
 
@@ -1961,6 +1902,23 @@ export function SuperAdminRoznamchaReportView({
           </div>
         )}
       </DetailDrawer>
+    </div>
+  );
+}
+
+function SummaryCard({ title, value, tone }: { title: string; value: string; tone: "blue" | "green" | "red" | "amber" | "slate" }) {
+  const toneClass = {
+    blue: "from-blue-50 to-blue-100/50 text-blue-800 border-blue-200 shadow-blue-900/5",
+    green: "from-emerald-50 to-emerald-100/50 text-emerald-800 border-emerald-200 shadow-emerald-900/5",
+    red: "from-rose-50 to-rose-100/50 text-rose-800 border-rose-200 shadow-rose-900/5",
+    amber: "from-amber-50 to-amber-100/50 text-amber-800 border-amber-200 shadow-amber-900/5",
+    slate: "from-slate-50 to-white text-slate-800 border-slate-200 shadow-slate-900/5"
+  }[tone];
+  
+  return (
+    <div className={cn("rounded-2xl border bg-gradient-to-br p-4 shadow-sm transition-transform hover:scale-[1.02]", toneClass)}>
+      <div className="text-[11px] font-bold uppercase tracking-widest opacity-60 mb-1">{title}</div>
+      <div className="truncate text-xl font-black tabular-nums">{value}</div>
     </div>
   );
 }

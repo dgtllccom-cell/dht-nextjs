@@ -20,9 +20,12 @@ export async function GET(request: NextRequest) {
     const supabase = await createApiSupabaseClient();
     let query = supabase
       .from("ledgers")
-      .select(
-        "id, scope, country_id, country_branch_id, city_branch_id, account_id, code, name, currency, opening_balance, current_balance, debit_total, credit_total, is_active, created_at, updated_at"
-      )
+      .select(`
+        id, scope, country_id, country_branch_id, city_branch_id, account_id, code, name, currency, opening_balance, current_balance, debit_total, credit_total, is_active, created_at, updated_at,
+        enterprise_accounts(account_number, contacts),
+        countries(name),
+        city_branches(name)
+      `)
       .is("deleted_at", null)
       .order("code", { ascending: true });
 

@@ -38,13 +38,18 @@ type SessionInfo = {
 };
 
 export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
-  const [viewMode, setViewMode] = useState<"list" | "form">("list");
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
   
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [countries, setCountries] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   
+  // Locations states
+  const [purchaseCountryId, setPurchaseCountryId] = useState("");
+  const [receivedCountryId, setReceivedCountryId] = useState("");
+  const [purchaseCities, setPurchaseCities] = useState<any[]>([]);
+  const [receivedCities, setReceivedCities] = useState<any[]>([]);
+
   // Scoping & context
   const [selectedCountry, setSelectedCountry] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
@@ -58,11 +63,17 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
   const [recentBills, setRecentBills] = useState<MoneyExchangeEntry[]>([]);
 
   // Form states
-  const [accountNo, setAccountNo] = useState("");
-  const [accountName, setAccountName] = useState("");
-  const [accountStatus, setAccountStatus] = useState<"idle"|"loading"|"found"|"error">("idle");
-  
   const [transactionType, setTransactionType] = useState<"Purchase"|"Sale">("Purchase");
+  const [receivedType, setReceivedType] = useState("Name");
+  const [purchaseCountry, setPurchaseCountry] = useState("");
+  const [purchaseCity, setPurchaseCity] = useState("");
+  const [purchasedFrom, setPurchasedFrom] = useState("");
+  const [receivedCountry, setReceivedCountry] = useState("");
+  const [receivedCity, setReceivedCity] = useState("");
+  const [receivedOfficeName, setReceivedOfficeName] = useState("");
+  const [receivedOfficeNumberType, setReceivedOfficeNumberType] = useState("Mobile");
+  const [receivedOfficeNumberValue, setReceivedOfficeNumberValue] = useState("");
+  
   const [qtyCurrency, setQtyCurrency] = useState("");
   const [exCurrency, setExCurrency] = useState("");
   const [operation, setOperation] = useState<"multiply"|"divide">("multiply");
@@ -88,20 +99,22 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
   useEffect(() => {
     let active = true;
     Promise.all([
-      apiGet("/api/erp/auth/session"),
-      apiGet("/api/erp/locations/countries"),
-      apiGet("/api/erp/locations/city-branches")
+      apiGet<any>("/api/erp/auth/session"),
+      apiGet<any>("/api/erp/locations/countries"),
+      apiGet<any>("/api/branch-management/city-branches")
     ]).then(([sess, cRes, bRes]) => {
       if (!active) return;
       setSessionInfo(sess);
-      setCountries(cRes?.data || []);
-      setBranches(bRes?.data || []);
+      setCountries(cRes?.countries || cRes?.data || []);
+      
+      const branchesList = bRes?.cityBranches || bRes?.entries || bRes?.data || [];
+      setBranches(branchesList);
       
       // Default to user's branch if possible
-      const defaultBranchId = sess?.scopes?.cityBranchIds?.[0] || bRes?.data?.[0]?.id || "";
+      const defaultBranchId = sess?.scopes?.cityBranchIds?.[0] || branchesList?.[0]?.id || "";
       setSelectedBranch(defaultBranchId);
       if (defaultBranchId) {
-        const br = bRes?.data?.find((x: any) => x.id === defaultBranchId);
+        const br = branchesList?.find((x: any) => x.id === defaultBranchId);
         if (br) {
           setSelectedCountry(br.country_id);
           setBranchCurrency(br.currency_code || "PKR");
@@ -110,6 +123,8 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
     }).catch(console.error);
     return () => { active = false; };
   }, []);
+
+
 
   useEffect(() => {
     // Generate Serial when branch changes
@@ -122,9 +137,10 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
   }, [selectedBranch, entryDate, branches]);
 
   const fetchRecentBills = async () => {
+    if (!selectedBranch) return;
     try {
       setLoadingBills(true);
-      const res = await apiGet(`/api/erp/money-exchange?branchId=${selectedBranch}`);
+      const res = await apiGet<any>(`/api/erp/money-exchange?branchId=${selectedBranch}`);
       if (res && res.entries) {
         setRecentBills(res.entries);
       }
@@ -136,33 +152,8 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
   };
 
   useEffect(() => {
-    if (viewMode === "list" && selectedBranch) {
-      fetchRecentBills();
-    }
-  }, [viewMode, selectedBranch]);
-
-  // Account Lookup
-  const searchAccount = async () => {
-    if (!accountNo.trim()) return;
-    setAccountStatus("loading");
-    try {
-      const qp = new URLSearchParams();
-      qp.set("query", accountNo);
-      qp.set("cityBranchId", selectedBranch);
-      qp.set("limit", "1");
-      const res = await apiGet<any>(`/api/erp/accounting/accounts/lookup?${qp.toString()}`);
-      if (res && res.data && res.data.length > 0) {
-        setAccountName(res.data[0].accountName);
-        setAccountStatus("found");
-      } else {
-        setAccountStatus("error");
-        setAccountName("Not Found");
-      }
-    } catch (err) {
-      setAccountStatus("error");
-      setAccountName("Lookup failed");
-    }
-  };
+    fetchRecentBills();
+  }, [selectedBranch]);
 
   // Calculations
   useEffect(() => {
@@ -179,7 +170,8 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
   // Save Entry
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (accountStatus !== "found") return alert("Please select a valid account first.");
+    if (!selectedBranch) return alert("Please select a valid Branch.");
+    if (!entrySerial) return alert("Serial number not generated.");
     if (!qtyCurrency || !exCurrency || finalAmount <= 0) return alert("Please complete formula fields properly.");
     
     setSaving(true);
@@ -189,7 +181,6 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
         branchId: selectedBranch,
         entryDate,
         transactionType,
-        accountNo,
         qtyCurrency,
         exCurrency,
         operation,
@@ -200,27 +191,33 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
         receivedFrom: receivedFrom.trim() || null,
         mobile: mobile.trim() || null,
         details: details.trim() || null,
-        profitBaseCurrency: profit || 0
+        profitBaseCurrency: profit || 0,
+        receivedType: receivedType || null,
+        purchaseCountry: purchaseCountry.trim() || null,
+        purchaseCity: purchaseCity.trim() || null,
+        purchasedFrom: purchasedFrom.trim() || null,
+        receivedCountry: receivedCountry.trim() || null,
+        receivedCity: receivedCity.trim() || null,
+        receivedOfficeName: receivedOfficeName.trim() || null,
+        receivedOfficeNumbers: receivedOfficeNumberValue.trim() ? `${receivedOfficeNumberType}: ${receivedOfficeNumberValue.trim()}` : null
       };
       
       await apiPost("/api/erp/money-exchange", payload);
       alert("Exchange entry saved successfully!");
       
-      // Reset
-      setAccountNo("");
-      setAccountName("");
-      setAccountStatus("idle");
+      // Reset form but keep location states (makes repeated entries easier)
       setRate("");
       setQuantity("");
       setReceiptName("");
       setReceivedFrom("");
       setMobile("");
       setDetails("");
-      setQtyCurrency("");
-      setExCurrency("");
-      setProfit(null);
+      setPurchasedFrom("");
+      setReceivedOfficeName("");
+      setReceivedOfficeNumberValue("");
       
-      setViewMode("list");
+      // refresh table
+      fetchRecentBills();
     } catch (err: any) {
       alert(err.message || "Failed to save entry.");
     } finally {
@@ -236,216 +233,275 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
   }, [recentBills, searchQtyCur, searchExCur]);
 
   return (
-    <div className="container mx-auto p-4 max-w-[1400px] space-y-6">
+    <div className="container mx-auto p-4 max-w-[1600px]">
       {portalNode && createPortal(
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5 mr-2">
             <ArrowRightLeft className="h-4 w-4 text-primary" />
             Money Changer
           </h1>
-          {viewMode === "list" ? (
-            <Button size="sm" onClick={() => setViewMode("form")} className="h-7 text-xs bg-primary hover:bg-primary/90 text-white shadow-sm">
-              <Plus className="h-3 w-3 mr-1" /> New Entry
-            </Button>
-          ) : (
-            <Button size="sm" variant="outline" onClick={() => setViewMode("list")} className="h-7 text-xs shadow-sm">
-              Cancel
-            </Button>
-          )}
         </div>,
         portalNode
       )}
 
-      {viewMode === "list" ? (
-        <Card className="shadow-sm overflow-hidden">
-          <CardHeader className="py-3 px-4 bg-slate-50 border-b flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              Exchange Report
-            </CardTitle>
-            <div className="flex gap-2">
-              <Input placeholder="Search Qty Cur..." className="h-7 text-xs w-32" value={searchQtyCur} onChange={e=>setSearchQtyCur(e.target.value)} />
-              <Input placeholder="Search Ex Cur..." className="h-7 text-xs w-32" value={searchExCur} onChange={e=>setSearchExCur(e.target.value)} />
-            </div>
-          </CardHeader>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left whitespace-nowrap">
-              <thead className="bg-slate-100 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-3 py-2 font-semibold">Serial</th>
-                  <th className="px-3 py-2 font-semibold">Date</th>
-                  <th className="px-3 py-2 font-semibold">Type</th>
-                  <th className="px-3 py-2 font-semibold">A/C No</th>
-                  <th className="px-3 py-2 font-semibold">Qty Cur</th>
-                  <th className="px-3 py-2 font-semibold">Ex Cur</th>
-                  <th className="px-3 py-2 font-semibold text-right">Rate</th>
-                  <th className="px-3 py-2 font-semibold text-right">Qty</th>
-                  <th className="px-3 py-2 font-semibold text-right">Final</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loadingBills ? (
-                  <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></td></tr>
-                ) : filteredBills.length === 0 ? (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-500">No recent entries found.</td></tr>
-                ) : (
-                  filteredBills.map(b => (
-                    <tr key={b.id} className="hover:bg-slate-50">
-                      <td className="px-3 py-2 font-medium text-slate-700">{b.serial_no}</td>
-                      <td className="px-3 py-2 text-slate-600">{b.entry_date}</td>
-                      <td className="px-3 py-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${b.transaction_type === 'Purchase' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                          {b.transaction_type.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-slate-600">{b.account_no}</td>
-                      <td className="px-3 py-2 font-semibold text-slate-800">{b.qty_currency}</td>
-                      <td className="px-3 py-2 font-semibold text-slate-800">{b.ex_currency}</td>
-                      <td className="px-3 py-2 text-right font-mono">{b.rate}</td>
-                      <td className={`px-3 py-2 text-right font-mono font-bold ${b.transaction_type === 'Purchase' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {b.transaction_type === 'Purchase' ? '+' : '-'}{b.quantity.toFixed(2)}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono font-bold text-slate-800">{b.final_amount.toFixed(2)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ) : (
-        <form onSubmit={handleSave} className="space-y-4">
-          <Card className="shadow-sm border-t-4 border-t-indigo-500">
-            <CardHeader className="py-2 px-3 bg-slate-50 border-b border-slate-100">
-              <CardTitle className="text-xs uppercase font-bold text-slate-600 flex items-center justify-between">
-                <span className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> 1. Branch & Session Details</span>
-                <span className="bg-white px-2 py-0.5 rounded border text-[10px] font-mono text-slate-500">{entrySerial}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs pb-1 border-b">
-                  <span className="text-slate-500 font-medium">Branch</span>
-                  <select className="border-0 bg-transparent text-right font-bold text-slate-700 p-0 focus:ring-0 cursor-pointer" value={selectedBranch} onChange={e=>setSelectedBranch(e.target.value)}>
-                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                </div>
-                <div className="flex justify-between items-center text-xs pb-1 border-b">
-                  <span className="text-slate-500 font-medium">Base Currency</span>
-                  <span className="font-bold text-slate-700">{branchCurrency}</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs pb-1 border-b">
-                  <span className="text-slate-500 font-medium">User</span>
-                  <span className="font-bold text-slate-700">{sessionInfo?.user?.fullName || "Admin"}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs pb-1 border-b">
-                  <span className="text-slate-500 font-medium">Date</span>
-                  <input type="date" value={entryDate} onChange={e=>setEntryDate(e.target.value)} className="border-0 bg-transparent text-right font-bold text-slate-700 p-0 h-4 focus:ring-0 w-24" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm border-t-4 border-t-amber-400">
-            <CardHeader className="py-2 px-3 bg-slate-50 border-b border-slate-100">
-              <CardTitle className="text-xs uppercase font-bold text-slate-600 flex items-center gap-1.5"><Settings2 className="w-3.5 h-3.5" /> 2. Exchange Entry (Simple Formula)</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
-              
-              <div className="flex gap-4 items-end">
-                <div className="flex-1 space-y-1">
-                  <Label className="text-xs font-bold text-slate-600">Account Number</Label>
-                  <div className="flex gap-2">
-                    <Input placeholder="Search Account Code..." value={accountNo} onChange={e=>setAccountNo(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); searchAccount();}}} className="h-8 text-sm max-w-sm" />
-                    <Button type="button" onClick={searchAccount} className="h-8">Search</Button>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* LEFT FORM */}
+        <div className="lg:col-span-7 space-y-4">
+          <form onSubmit={handleSave} className="space-y-4">
+            <Card className="shadow-sm border-t-4 border-t-indigo-500">
+              <CardHeader className="py-2 px-3 bg-slate-50 border-b border-slate-100">
+                <CardTitle className="text-xs uppercase font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> 1. Branch & Session Details</span>
+                  <span className="bg-white px-2 py-0.5 rounded border text-[10px] font-mono text-slate-500">{entrySerial || "Pending..."}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs pb-1 border-b">
+                    <span className="text-slate-500 font-medium">Branch</span>
+                    <select className="border-0 bg-transparent text-right font-bold text-slate-700 p-0 focus:ring-0 cursor-pointer" value={selectedBranch} onChange={e=>setSelectedBranch(e.target.value)}>
+                      {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
                   </div>
-                  {accountStatus === "loading" && <p className="text-[10px] text-blue-500">Searching...</p>}
-                  {accountStatus === "found" && <p className="text-[10px] text-emerald-600 font-bold">✓ {accountName}</p>}
-                  {accountStatus === "error" && <p className="text-[10px] text-rose-500 font-bold">✗ Account not found</p>}
+                  <div className="flex justify-between items-center text-xs pb-1 border-b">
+                    <span className="text-slate-500 font-medium">Base Currency</span>
+                    <span className="font-bold text-slate-700">{branchCurrency}</span>
+                  </div>
                 </div>
-                <div className="w-48 space-y-1">
-                  <Label className="text-xs font-bold text-slate-600">Transaction Type</Label>
-                  <select className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-bold" value={transactionType} onChange={e=>setTransactionType(e.target.value as any)}>
-                    <option value="Purchase">Purchase</option>
-                    <option value="Sale">Sale</option>
-                  </select>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs pb-1 border-b">
+                    <span className="text-slate-500 font-medium">User</span>
+                    <span className="font-bold text-slate-700">{sessionInfo?.user?.fullName || "Admin"}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs pb-1 border-b">
+                    <span className="text-slate-500 font-medium">Date</span>
+                    <input type="date" value={entryDate} onChange={e=>setEntryDate(e.target.value)} className="border-0 bg-transparent text-right font-bold text-slate-700 p-0 h-4 focus:ring-0 w-24" />
+                  </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-2">
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Qty Currency</Label>
-                  <select className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm" value={qtyCurrency} onChange={e=>setQtyCurrency(e.target.value)}>
-                    <option value="">--</option>
-                    <option value="AED">AED</option>
-                    <option value="PKR">PKR</option>
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="AFN">AFN</option>
-                  </select>
+            <Card className="shadow-sm border-t-4 border-t-amber-400">
+              <CardHeader className="py-2 px-3 bg-slate-50 border-b border-slate-100">
+                <CardTitle className="text-xs uppercase font-bold text-slate-600 flex items-center gap-1.5"><Settings2 className="w-3.5 h-3.5" /> 2. Exchange Entry (Simple Formula)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-4">
+                
+                <div className="flex gap-4 items-end">
+                  <div className="w-48 space-y-1">
+                    <Label className="text-xs font-bold text-slate-600">Transaction Type</Label>
+                    <select className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-bold" value={transactionType} onChange={e=>setTransactionType(e.target.value as any)}>
+                      <option value="Purchase">Purchase</option>
+                      <option value="Sale">Sale</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Ex. Currency</Label>
-                  <select className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm" value={exCurrency} onChange={e=>setExCurrency(e.target.value)}>
-                    <option value="">--</option>
-                    <option value="AED">AED</option>
-                    <option value="PKR">PKR</option>
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="AFN">AFN</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Op</Label>
-                  <select className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm" value={operation} onChange={e=>setOperation(e.target.value as any)}>
-                    <option value="multiply">×</option>
-                    <option value="divide">÷</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Rate</Label>
-                  <Input type="number" step="0.000001" className="h-8 text-sm" value={rate} onChange={e=>setRate(e.target.value ? Number(e.target.value) : "")} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Quantity</Label>
-                  <Input type="number" step="0.01" className="h-8 text-sm" value={quantity} onChange={e=>setQuantity(e.target.value ? Number(e.target.value) : "")} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] font-bold text-indigo-600">Final Amount</Label>
-                  <Input readOnly value={finalAmount > 0 ? finalAmount.toFixed(2) : ""} className="h-8 text-sm font-mono font-bold bg-slate-50" />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2">
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Receipt Name</Label>
-                  <Input className="h-8 text-sm" value={receiptName} onChange={e=>setReceiptName(e.target.value)} />
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <div className="w-24 space-y-1">
+                    <Label className="text-[10px]">Qty Cur.</Label>
+                    <select className="flex h-7 w-full rounded-md border border-input bg-background px-2 text-xs" value={qtyCurrency} onChange={e=>setQtyCurrency(e.target.value)}>
+                      <option value="">--</option>
+                      <option value="AED">AED</option>
+                      <option value="PKR">PKR</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="AFN">AFN</option>
+                    </select>
+                  </div>
+                  <div className="w-24 space-y-1">
+                    <Label className="text-[10px]">Ex. Cur.</Label>
+                    <select className="flex h-7 w-full rounded-md border border-input bg-background px-2 text-xs" value={exCurrency} onChange={e=>setExCurrency(e.target.value)}>
+                      <option value="">--</option>
+                      <option value="AED">AED</option>
+                      <option value="PKR">PKR</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="AFN">AFN</option>
+                    </select>
+                  </div>
+                  <div className="w-16 space-y-1">
+                    <Label className="text-[10px]">Op</Label>
+                    <select className="flex h-7 w-full rounded-md border border-input bg-background px-2 text-xs" value={operation} onChange={e=>setOperation(e.target.value as any)}>
+                      <option value="multiply">×</option>
+                      <option value="divide">÷</option>
+                    </select>
+                  </div>
+                  <div className="w-24 space-y-1">
+                    <Label className="text-[10px]">Rate</Label>
+                    <Input type="number" step="0.000001" className="h-7 text-xs px-2" value={rate} onChange={e=>setRate(e.target.value ? Number(e.target.value) : "")} />
+                  </div>
+                  <div className="w-24 space-y-1">
+                    <Label className="text-[10px]">Quantity</Label>
+                    <Input type="number" step="0.01" className="h-7 text-xs px-2" value={quantity} onChange={e=>setQuantity(e.target.value ? Number(e.target.value) : "")} />
+                  </div>
+                  <div className="flex-1 min-w-[120px] space-y-1">
+                    <Label className="text-[10px] font-bold text-indigo-600">Final Amount</Label>
+                    <Input readOnly value={finalAmount > 0 ? finalAmount.toFixed(2) : ""} className="h-7 text-xs font-mono font-bold bg-slate-50" />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Received From</Label>
-                  <Input className="h-8 text-sm" value={receivedFrom} onChange={e=>setReceivedFrom(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Mobile</Label>
-                  <Input className="h-8 text-sm" value={mobile} onChange={e=>setMobile(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Details</Label>
-                  <Input className="h-8 text-sm" value={details} onChange={e=>setDetails(e.target.value)} />
-                </div>
-              </div>
 
-            </CardContent>
-            <div className="p-3 bg-slate-50 border-t flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={()=>setViewMode("list")} disabled={saving}>Cancel</Button>
-              <Button type="submit" disabled={saving || accountStatus !== "found"} className="font-bold px-8 shadow-md">
-                {saving ? "Saving..." : "Save Exchange Entry"}
-              </Button>
+                <div className="space-y-3 pt-3 border-t mt-3">
+                  <h4 className="text-[11px] font-bold text-slate-500 uppercase">Received Details</h4>
+                  
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="space-y-1 col-span-1">
+                      <Label className="text-[9px] uppercase">Recv. Type</Label>
+                      <select className="flex h-7 w-full rounded border border-input bg-background px-1.5 text-xs" value={receivedType} onChange={e=>setReceivedType(e.target.value)}>
+                        <option value="Name">Name</option>
+                        <option value="Agent">Agent</option>
+                        <option value="Bank">Bank</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1 col-span-1">
+                      <Label className="text-[9px] uppercase">Name</Label>
+                      <Input className="h-7 text-xs px-1.5" value={receiptName} onChange={e=>setReceiptName(e.target.value)} />
+                    </div>
+                    <div className="space-y-1 col-span-1">
+                      <Label className="text-[9px] uppercase">Mobile/WhatsApp</Label>
+                      <Input className="h-7 text-xs px-1.5" value={mobile} onChange={e=>setMobile(e.target.value)} />
+                    </div>
+                    <div className="space-y-1 col-span-1">
+                      <Label className="text-[9px] uppercase">Details</Label>
+                      <Input className="h-7 text-xs px-1.5" value={details} onChange={e=>setDetails(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase">Purchase Country</Label>
+                      <select className="flex h-7 w-full rounded border border-input bg-background px-1.5 text-xs" 
+                        value={purchaseCountryId} 
+                        onChange={e => {
+                          setPurchaseCountryId(e.target.value);
+                          if(e.target.value) {
+                            const opt = e.target.options[e.target.selectedIndex];
+                            setPurchaseCountry(opt.text);
+                          } else {
+                            setPurchaseCountry("");
+                          }
+                          setPurchaseCity(""); // reset
+                        }}>
+                        <option value="">--</option>
+                        {countries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase">Purchase City</Label>
+                      <Input className="h-7 text-xs px-1.5" placeholder="Type city..." value={purchaseCity} onChange={e=>setPurchaseCity(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase">Purchased From</Label>
+                      <Input className="h-7 text-xs px-1.5" value={purchasedFrom} onChange={e=>setPurchasedFrom(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase">Recv. Country</Label>
+                      <select className="flex h-7 w-full rounded border border-input bg-background px-1.5 text-xs"
+                        value={receivedCountryId} 
+                        onChange={e => {
+                          setReceivedCountryId(e.target.value);
+                          if(e.target.value) {
+                            const opt = e.target.options[e.target.selectedIndex];
+                            setReceivedCountry(opt.text);
+                          } else {
+                            setReceivedCountry("");
+                          }
+                          setReceivedCity(""); // reset
+                        }}>
+                        <option value="">--</option>
+                        {countries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase">Recv. City</Label>
+                      <Input className="h-7 text-xs px-1.5" placeholder="Type city..." value={receivedCity} onChange={e=>setReceivedCity(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase">Recv. Office Name</Label>
+                      <Input className="h-7 text-xs px-1.5" value={receivedOfficeName} onChange={e=>setReceivedOfficeName(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase">Office Number</Label>
+                      <div className="flex gap-1">
+                        <select className="w-1/3 h-7 text-[10px] rounded border bg-background px-1" value={receivedOfficeNumberType} onChange={e=>setReceivedOfficeNumberType(e.target.value)}>
+                          <option value="Mobile">Mobile</option>
+                          <option value="WhatsApp">WhatsApp</option>
+                          <option value="Office 1">Office 1</option>
+                          <option value="Office 2">Office 2</option>
+                        </select>
+                        <Input className="flex-1 h-7 text-xs px-1.5" placeholder="Number..." value={receivedOfficeNumberValue} onChange={e=>setReceivedOfficeNumberValue(e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </CardContent>
+              <div className="p-3 bg-slate-50 border-t flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={()=> { /* Could reset form */ }} disabled={saving}>Clear</Button>
+                <Button type="submit" size="sm" disabled={saving} className="font-bold px-6 shadow-md">
+                  {saving ? "Saving..." : "Save Exchange Entry"}
+                </Button>
+              </div>
+            </Card>
+          </form>
+        </div>
+
+        {/* RIGHT REPORT/TABLE */}
+        <div className="lg:col-span-5">
+          <Card className="shadow-sm overflow-hidden sticky top-6">
+            <CardHeader className="py-3 px-4 bg-slate-50 border-b space-y-2">
+              <CardTitle className="text-sm font-bold flex items-center justify-between">
+                <span>Exchange Report</span>
+                <span className="text-xs font-normal text-slate-500">Recent entries</span>
+              </CardTitle>
+              <div className="flex gap-2">
+                <Input placeholder="Search Qty Cur..." className="h-7 text-[11px] w-full" value={searchQtyCur} onChange={e=>setSearchQtyCur(e.target.value)} />
+                <Input placeholder="Search Ex Cur..." className="h-7 text-[11px] w-full" value={searchExCur} onChange={e=>setSearchExCur(e.target.value)} />
+              </div>
+            </CardHeader>
+            <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+              <table className="w-full text-left whitespace-nowrap">
+                <thead className="bg-slate-100 text-[10px] uppercase text-slate-500 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-2 py-2 font-semibold">Type/Date</th>
+                    <th className="px-2 py-2 font-semibold">Currencies</th>
+                    <th className="px-2 py-2 font-semibold text-right">Final</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-[11px]">
+                  {loadingBills ? (
+                    <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-500"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></td></tr>
+                  ) : filteredBills.length === 0 ? (
+                    <tr><td colSpan={3} className="px-4 py-12 text-center text-slate-500">No recent entries found.</td></tr>
+                  ) : (
+                    filteredBills.map(b => (
+                      <tr key={b.id} className="hover:bg-slate-50">
+                        <td className="px-2 py-2">
+                          <div className={`inline-block px-1 rounded-[3px] text-[9px] font-bold mb-0.5 ${b.transaction_type === 'Purchase' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                            {b.transaction_type.toUpperCase()}
+                          </div>
+                          <div className="text-slate-500 text-[10px]">{b.entry_date}</div>
+                        </td>
+                        <td className="px-2 py-2">
+                          <div className="font-semibold text-slate-700">{b.qty_currency} &rarr; {b.ex_currency}</div>
+                          <div className="text-[10px] text-slate-500">Rate: {b.rate} | Qty: {b.quantity}</div>
+                        </td>
+                        <td className="px-2 py-2 text-right">
+                          <div className="font-bold text-slate-800 text-xs">{b.final_amount.toFixed(2)}</div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </Card>
-        </form>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
