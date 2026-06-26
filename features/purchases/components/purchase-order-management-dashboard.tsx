@@ -1413,9 +1413,9 @@ export function PurchaseOrderManagementDashboard() {
 
                   // General
                   const srNo = index + 1;
-                  const superSerialNo = (row as any).superAdminSerialNo || row.form_data?.form?.superAdminSerialNo || "-";
-                  const countrySerialNo = (row as any).countrySerialNo || row.form_data?.form?.countrySerialNo || "-";
-                  const branchSerialNo = (row as any).branchSerialNo || row.form_data?.form?.branchSerialNo || row.audit?.branchCode || "-";
+                  const superSerialNo = (row as any).super_admin_serial_number || (row as any).superAdminSerialNo || row.form_data?.form?.superAdminSerialNo || "-";
+                  const countrySerialNo = (row as any).country_transaction_serial_number || (row as any).countrySerialNo || row.form_data?.form?.countrySerialNo || "-";
+                  const branchSerialNo = (row as any).branch_transaction_serial_number || (row as any).branchSerialNo || row.form_data?.form?.branchSerialNo || row.audit?.branchCode || "-";
                   const purchaseCode = row.purchaseBookingOrderNumber || "-";
                   const salesCode = row.form_data?.form?.salesOrderNo || "-";
                   const invoiceNo = row.form_data?.form?.billNo || row.form_data?.form?.invoiceNo || row.form_data?.form?.purchaseContractNo || row.purchaseContractNo || "-";
@@ -2374,3 +2374,4 @@ export function PurchaseOrderManagementDashboard() {
     </div>
   );
 }
+

@@ -370,6 +370,11 @@ export const sidebarTree: SidebarNode[] = [
             href: "/dashboard/purchase/purchase-loading-records" as Route
           },
           {
+            key: "purchase-loading-form",
+            label: "Ready for Loading (Form)",
+            href: "/dashboard/purchase/loading-form" as Route
+          },
+          {
             key: "purchase-bill-of-lading",
             labelKey: "nav.bl_entry",
             href: "/dashboard/purchase/bill-of-lading" as Route

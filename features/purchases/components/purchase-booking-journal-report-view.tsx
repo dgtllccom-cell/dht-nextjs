@@ -134,6 +134,44 @@ function initialPurchaseOrderFromUrl() {
   return new URLSearchParams(window.location.search).get("purchaseOrderNo") ?? "";
 }
 
+type CountryBookingSummary = {
+  key: string;
+  country: string;
+  currency: string;
+  totalOrders: number;
+  invoiceAmount: number;
+  advancePaid: number;
+  remainingBalance: number;
+};
+
+function countryBookingSummaries(rows: PurchaseReport[]): CountryBookingSummary[] {
+  const map = new Map<string, CountryBookingSummary>();
+  rows.forEach((row) => {
+    const country = row.countryName || "UNKNOWN";
+    const currency = row.currency || "USD";
+    const key = `${country.toLowerCase()}::${currency}`;
+    const current = map.get(key) || { key, country, currency, totalOrders: 0, invoiceAmount: 0, advancePaid: 0, remainingBalance: 0 };
+    
+    const invoiceAmount = Number(row.totalPurchaseAmount || 0);
+    const advancePaid = Number((row as any).advance_paid || 0);
+    const remainingPaid = Number((row as any).remaining_paid || 0);
+    const creditAmount = Number((row as any).credit_amount || 0);
+    const totalPaidLocal = advancePaid + remainingPaid + creditAmount;
+    
+    current.totalOrders += 1;
+    current.invoiceAmount += invoiceAmount;
+    current.advancePaid += advancePaid;
+    current.remainingBalance += Math.max(0, invoiceAmount - totalPaidLocal);
+    map.set(key, current);
+  });
+  return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
+}
+
+function money(value: unknown, currency = "") {
+  const amount = Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return currency ? `${amount} ${currency}` : amount;
+}
+
 const sampleReports: PurchaseReport[] = [
   {
     id: "sample-1",
@@ -712,14 +750,7 @@ function RowActionsMenu({
           <MenuAction
             icon={<Boxes />}
             label="Generate Packing List"
-            onClick={() => {
-              setOpen(false);
-              openTradeDocumentWindow("packing", report);
-            }}
-          />
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
 
@@ -885,14 +916,17 @@ export function PurchaseBookingJournalReportView({
   const [selectedId, setSelectedId] = useState("");
   const [activeTab, setActiveTab] = useState<DashboardTab>("purchase");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [transferring, setTransferring] = useState(false);
-  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+  const [transferring, setTransferring] = useState(false);  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [titleSlot, setTitleSlot] = useState<Element | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<Element | null>(null);
 
   useEffect(() => {
+    setTitleSlot(document.getElementById("erp-page-title-slot"));
     setActionsSlot(document.getElementById("erp-page-actions-slot"));
   }, []);
 
-  const handleTransfer = async () => {
+  const [allowedCountryId, setAllowedCountryId] = useState<string | null>(null);handleTransfer = async () => {
     if (!selected) return;
     
     const form = selected.form_data?.form || {};
@@ -1221,259 +1255,239 @@ export function PurchaseBookingJournalReportView({
   const confirmedContainers = allContainers.filter((row) => row.status === "Confirmed").length;
   const remainingContainers = Math.max(0, allContainers.length - confirmedContainers);
 
+  const countryCards = useMemo(() => countryBookingSummaries(registerRows), [registerRows]);
+
   return (
-    <div className="w-full bg-slate-50/50 dark:bg-background text-foreground animate-in fade-in duration-200">
-      <div className="mx-auto w-full max-w-none px-4 py-3 space-y-3">
-        
-        {/* Page Header */}
-        <div className="flex flex-col gap-4 border-b pb-4">
-          <div className="flex items-center justify-between">
-            <div>
-            <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">Purchase Booking Register</h1>
-            <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">Wholesaler / Import Export / Container Trading</p>
-            </div>
-            {!actionsSlot && (
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Fallback rendering of controls when portal is not available */}
-                <select
-                  value={filters.draftStatus}
-                  onChange={(event) => setFilters((previous) => ({ ...previous, draftStatus: event.target.value }))}
-                  className="h-9 min-w-[140px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350"
-                  aria-label="Draft status"
-                >
-                  <option value="">Draft Dropdown</option>
-                  <option value="open">Open</option>
-                  <option value="partial">Partial Confirmed</option>
-                  <option value="fully">Fully Confirmed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Portals for Top Navigation Strip */}
+      {titleSlot && createPortal(
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-black text-slate-900 dark:text-slate-100">Purchase Booking Register</h1>
+          <p className="hidden text-[10px] font-semibold text-slate-400 sm:block">Wholesaler / Import Export / Container Trading</p>
+        </div>,
+        titleSlot
+      )}
 
-                <div className="relative min-w-[200px]">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
-                  <input
-                    value={searchText}
-                    onChange={(event) => setSearchText(event.target.value)}
-                    placeholder="Search booking, supplier, branch..."
-                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
-                  />
-                </div>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setFiltersOpen((open) => !open)}
-                  className="h-9 rounded-xl border-slate-200 font-bold text-xs"
-                >
-                  <Filter className="mr-1.5 h-3.5 w-3.5" />
-                  Filter
-                </Button>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setSearchText("");
-                    setFilters((previous) => ({
-                      ...previous,
-                      supplier: "",
-                      branch: "",
-                      country: "",
-                      status: "",
-                      currency: "",
-                      bookingNo: "",
-                      containerNo: "",
-                      blNo: "",
-                      confirmationStatus: "",
-                      financialSupplier: "",
-                      financialCurrency: "",
-                      draftStatus: ""
-                    }));
-                    void loadReport();
-                  }}
-                  className="h-9 rounded-xl border-slate-200 font-bold text-xs"
-                >
-                  <RefreshCcw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
-                  Reset & Refresh
-                </Button>
-
-                <ReportActions rows={registerRows} />
-
-                <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-                  <CalendarDays className="h-4 w-4 text-slate-400" />
-                  <span>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                </div>
-
-                <Button
-                  type="button"
-                  onClick={() => {
-                    if (onNewBooking) {
-                      onNewBooking();
-                    } else {
-                      router.push("/dashboard/purchase/new-purchase-booking-order");
-                    }
-                  }}
-                  className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
-                >
-                  <Plus className="h-4 w-4" /> New Booking
-                </Button>
-              </div>
-            )}
+      {actionsSlot && createPortal(
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Draft Status box */}
+          <select
+            value={filters.draftStatus}
+            onChange={(event) => setFilters((previous) => ({ ...previous, draftStatus: event.target.value }))}
+            className="h-8 min-w-[140px] rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350"
+          >
+            <option value="">Draft Dropdown</option>
+            <option value="open">Open</option>
+            <option value="partial">Partial Confirmed</option>
+            <option value="fully">Fully Confirmed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          {/* Search box input */}
+          <div className="relative min-w-[200px] sm:min-w-[240px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              placeholder="Search booking, supplier, branch..."
+              className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-[10px] font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+            />
           </div>
-          {actionsSlot && createPortal(
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={filters.draftStatus}
-                onChange={(event) => setFilters((previous) => ({ ...previous, draftStatus: event.target.value }))}
-                className="h-9 min-w-[140px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350"
-                aria-label="Draft status"
-              >
-                <option value="">Draft Dropdown</option>
-                <option value="open">Open</option>
-                <option value="partial">Partial Confirmed</option>
-                <option value="fully">Fully Confirmed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+          {/* Filter toggle button */}
+          <button
+            onClick={() => setFiltersOpen(!filtersOpen)}
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
+              filtersOpen && "border-blue-500 bg-blue-50/50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-300"
+            )}
+          >
+            <Filter className="h-3 w-3" />
+            Filter
+          </button>
+          {/* Combined Reset & Refresh Button */}
+          <button
+            onClick={() => {
+              setSearchText("");
+              setFilters((previous) => ({
+                ...previous,
+                supplier: "",
+                branch: "",
+                country: "",
+                status: "",
+                currency: "",
+                bookingNo: "",
+                containerNo: "",
+                blNo: "",
+                confirmationStatus: "",
+                financialSupplier: "",
+                financialCurrency: "",
+                draftStatus: ""
+              }));
+              void loadReport();
+            }}
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
+          >
+            <RefreshCcw className={loading ? "h-3 w-3 animate-spin text-slate-550" : "h-3 w-3 text-slate-550"} />
+            Reset & Refresh
+          </button>
+          {/* Three-dots menu (now contains export) */}
+          <ReportActions rows={registerRows} />
+          {/* Calendar Date/Time Indicator */}
+          <div className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+            <CalendarDays className="h-3 w-3 text-slate-400" />
+            <span>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+          </div>
+          {/* New Booking Button */}
+          <button
+            onClick={() => {
+              if (onNewBooking) {
+                onNewBooking();
+              } else {
+                router.push("/dashboard/purchase/new-purchase-booking-order");
+              }
+            }}
+            className="h-8 rounded-lg bg-blue-600 px-3 text-[10px] font-bold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5 transition"
+          >
+            <Plus className="h-3 w-3" /> New Booking
+          </button>
+        </div>,
+        actionsSlot
+      )}
 
-              <div className="relative min-w-[200px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
-                <input
-                  value={searchText}
-                  onChange={(event) => setSearchText(event.target.value)}
-                  placeholder="Search booking, supplier, branch..."
-                  className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
-                />
+      {/* Unified Executive & Operations Summary Box */}
+      <div className="border border-slate-200 rounded-xl bg-white dark:border-slate-800 dark:bg-slate-950/80 p-3.5 shadow-sm text-xs font-semibold text-slate-500 uppercase flex flex-col gap-3">
+        
+        {/* Row 1: Session Info */}
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-2.5">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Branch Name:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{lockedBranchName || (session?.branchName && session.branchName !== "QUETTA MAIN BRANCH" && session.branchName !== "Quetta" ? session.branchName : (session?.countryName ? session.countryName + " MAIN BRANCH" : "UNITED ARAB EMIRATES MAIN BRANCH"))}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">User Name:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{session?.user?.fullName || session?.name || session?.username || "SUPER ADMIN"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Date:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Time:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Country-wise Financial Summary. Never mix currencies across countries. */}
+        <div className="grid gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+          {countryCards.length ? countryCards.map((card) => (
+            <div key={card.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{card.country}</div>
+                  <div className="text-xs font-black text-blue-700 dark:text-blue-300">{card.currency}</div>
+                </div>
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{card.totalOrders} POs</span>
               </div>
-
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setFiltersOpen((open) => !open)}
-                className="h-9 rounded-xl border-slate-200 font-bold text-xs"
-              >
-                <Filter className="mr-1.5 h-3.5 w-3.5" />
-                Filter
-              </Button>
-
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setSearchText("");
-                  setFilters((previous) => ({
-                    ...previous,
-                    supplier: "",
-                    branch: "",
-                    country: "",
-                    status: "",
-                    currency: "",
-                    bookingNo: "",
-                    containerNo: "",
-                    blNo: "",
-                    confirmationStatus: "",
-                    financialSupplier: "",
-                    financialCurrency: "",
-                    draftStatus: ""
-                  }));
-                  void loadReport();
-                }}
-                className="h-9 rounded-xl border-slate-200 font-bold text-xs"
-              >
-                <RefreshCcw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
-                Reset & Refresh
-              </Button>
-
-              <ReportActions rows={registerRows} />
-
-              <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-                <CalendarDays className="h-4 w-4 text-slate-400" />
-                <span>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+              <div className="grid grid-cols-2 gap-2 text-[10px] normal-case">
+                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
+                  <div className="font-bold uppercase text-slate-400">Invoice</div>
+                  <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{money(card.invoiceAmount, card.currency)}</div>
+                </div>
+                <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
+                  <div className="font-bold uppercase text-emerald-600">Advance</div>
+                  <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">{money(card.advancePaid, card.currency)}</div>
+                </div>
+                <div className="col-span-2 rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
+                  <div className="font-bold uppercase text-rose-600">Outstanding Balance</div>
+                  <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(card.remainingBalance, card.currency)}</div>
+                </div>
               </div>
-
-              <Button
-                type="button"
-                onClick={() => {
-                  if (onNewBooking) {
-                    onNewBooking();
-                  } else {
-                    router.push("/dashboard/purchase/new-purchase-booking-order");
-                  }
-                }}
-                className="h-9 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm border-0 flex items-center gap-1.5"
-              >
-                <Plus className="h-4 w-4" /> New Booking
-              </Button>
-            </div>,
-            actionsSlot
+            </div>
+          )) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-semibold normal-case text-slate-500 dark:border-slate-800 dark:bg-slate-900/40">
+              No country-wise purchase booking records found for this scope.
+            </div>
           )}
         </div>
+      </div>
 
-        {/* Session & Summary Info */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 xl:grid-cols-6 gap-3 uppercase">
-          <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col justify-center dark:bg-slate-950/80 dark:border-slate-800">
-            <span className="text-[9px] text-slate-400 font-bold tracking-wider mb-1">Branch Name</span>
-            <span className="text-xs text-slate-800 dark:text-slate-200 font-bold truncate" title={lockedBranchName || "ALL BRANCHES"}>{lockedBranchName || "ALL BRANCHES"}</span>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col justify-center dark:bg-slate-950/80 dark:border-slate-800">
-            <span className="text-[9px] text-slate-400 font-bold tracking-wider mb-1">User Name</span>
-            <span className="text-xs text-slate-800 dark:text-slate-200 font-bold truncate" title={session?.user?.fullName || session?.name || "SUPER ADMIN"}>{session?.user?.fullName || session?.name || "SUPER ADMIN"}</span>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col justify-center dark:bg-slate-950/80 dark:border-slate-800">
-            <span className="text-[9px] text-slate-400 font-bold tracking-wider mb-1">Date & Time</span>
-            <span className="text-xs text-slate-800 dark:text-slate-200 font-bold truncate">
-              {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()} &bull; 08:54 PM
-            </span>
-          </div>
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 shadow-sm flex flex-col justify-center border-l-4 border-l-blue-500 dark:bg-blue-950/20 dark:border-blue-900/50">
-            <span className="text-[9px] text-blue-500 font-bold tracking-wider mb-1">Total Purchase Orders</span>
-            <span className="text-lg text-blue-700 dark:text-blue-400 font-black leading-none">{totals.totalBookings}</span>
-          </div>
-          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 shadow-sm flex flex-col justify-center border-l-4 border-l-emerald-500 dark:bg-emerald-950/20 dark:border-emerald-900/50">
-            <span className="text-[9px] text-emerald-600 font-bold tracking-wider mb-1">Total Transfer</span>
-            <span className="text-lg text-emerald-700 dark:text-emerald-400 font-black leading-none">{totals.totalPosted}</span>
-          </div>
-          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 shadow-sm flex flex-col justify-center border-l-4 border-l-amber-500 dark:bg-amber-950/20 dark:border-amber-900/50">
-            <span className="text-[9px] text-amber-600 font-bold tracking-wider mb-1">Outstanding</span>
-            <span className="text-lg text-amber-700 dark:text-amber-400 font-black leading-none">{formatNumber(totals.outstanding)}</span>
-          </div>
+      {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {/* ── Report Section ──────────────────────────── */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        {/* Table Header */}
+        <div className="flex flex-col items-center justify-center text-center w-full py-4 border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-950">
+          <h2 className="text-sm font-extrabold text-slate-950 dark:text-slate-100">Purchase Booking Register</h2>
+          <p className="text-[10px] text-slate-400 mt-0.5">List of all purchase bookings across regions</p>
         </div>
 
-        {/* Table Section Card */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950 overflow-hidden">
-          {/* Table Header Controls */}
-          <div className="flex flex-col items-center justify-center text-center w-full py-4 border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-950">
-            <h2 className="text-sm font-extrabold text-slate-950 dark:text-slate-100">Purchase Booking List</h2>
-            <p className="text-[10px] text-slate-400 mt-0.5">List of purchase bookings and container logistics status</p>
+        {message ? (
+          <div className="m-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 font-semibold shadow-sm animate-in fade-in">
+            {message}
           </div>
+        ) : !reports.length ? (
+          <div className="m-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-800 font-semibold shadow-sm animate-in fade-in">
+            No live purchase booking records found for this scope. The register is not showing demo or cross-scope records.
+          </div>
+        ) : null}
 
-          {message ? (
-            <div className="m-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 font-semibold shadow-sm animate-in fade-in">
-              {message}
-            </div>
-          ) : !reports.length ? (
-            <div className="m-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-800 font-semibold shadow-sm animate-in fade-in">
-              No live purchase booking records found for this scope. The register is not showing demo or cross-scope records.
-            </div>
-          ) : null}
+        {filtersOpen ? (
+          <div className="grid gap-4 border-b border-slate-100 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-900/10 md:grid-cols-4 xl:grid-cols-7">
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">From Date</span>
+              <input type="date" value={filters.fromDate} onChange={(e) => setFilters((previous) => ({ ...previous, fromDate: e.target.value }))} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">To Date</span>
+              <input type="date" value={filters.toDate} onChange={(e) => setFilters((previous) => ({ ...previous, toDate: e.target.value }))} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">Supplier</span>
+              <select value={filters.supplier} onChange={(e) => setFilters((previous) => ({ ...previous, supplier: e.target.value }))} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+                <option value="">All Suppliers</option>
+                {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">Branch</span>
+              <select disabled={!!lockedBranchName} value={filters.branch} onChange={(e) => setFilters((previous) => ({ ...previous, branch: e.target.value }))} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 disabled:opacity-50">
+                <option value="">All Branches</option>
+                {branches.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">Country</span>
+              <select disabled={!!lockedCountryName} value={filters.country} onChange={(e) => setFilters((previous) => ({ ...previous, country: e.target.value }))} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 disabled:opacity-50">
+                <option value="">All Countries</option>
+                {countries.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">Status</span>
+              <select value={filters.status} onChange={(e) => setFilters((previous) => ({ ...previous, status: e.target.value }))} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+                <option value="">All Status</option>
+                <option value="Open">Open</option>
+                <option value="Partial Confirmed">Partial Confirmed</option>
+                <option value="Fully Confirmed">Fully Confirmed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">Currency</span>
+              <select value={filters.currency} onChange={(e) => setFilters((previous) => ({ ...previous, currency: e.target.value }))} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+                <option value="">All Currencies</option>
+                {currencies.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+          </div>
+        ) : null}
 
-          {filtersOpen ? (
-            <div className="border-b border-slate-100 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-900/10">
-              <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-7">
-                <DarkInput label="From Date" type="date" value={filters.fromDate} onChange={(value) => setFilters((previous) => ({ ...previous, fromDate: value }))} />
-                <DarkInput label="To Date" type="date" value={filters.toDate} onChange={(value) => setFilters((previous) => ({ ...previous, toDate: value }))} />
-                <DarkSelect label="Supplier" value={filters.supplier} options={suppliers} placeholder="All Suppliers" onChange={(value) => setFilters((previous) => ({ ...previous, supplier: value }))} />
-                <DarkSelect disabled={!!lockedBranchName} label="Branch" value={filters.branch} options={branches} placeholder="All Branches" onChange={(value) => setFilters((previous) => ({ ...previous, branch: value }))} />
-                <DarkSelect disabled={!!lockedCountryName} label="Country" value={filters.country} options={countries} placeholder="All Countries" onChange={(value) => setFilters((previous) => ({ ...previous, country: value }))} />
-                <DarkSelect label="Status" value={filters.status} options={["Open", "Partial Confirmed", "Fully Confirmed", "Cancelled"]} placeholder="All Status" onChange={(value) => setFilters((previous) => ({ ...previous, status: value }))} />
-                <DarkSelect label="Currency" value={filters.currency} options={currencies} placeholder="All" onChange={(value) => setFilters((previous) => ({ ...previous, currency: value }))} />
-              </div>
-            </div>
-          ) : null}
-
-          <div className="p-4 space-y-3">
+        <div className="p-0">
           <DarkTable
             tableGroups={[
               { label: "General Information", span: 10, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },

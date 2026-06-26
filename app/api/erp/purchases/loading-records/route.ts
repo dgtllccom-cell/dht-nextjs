@@ -235,6 +235,17 @@ export async function POST(request: NextRequest) {
         .single()
     );
 
+    if (body.purchaseOrderId) {
+      const { data: po } = await supabase.from("purchase_orders").select("form_data").eq("id", body.purchaseOrderId).single();
+      if (po) {
+        const formData = po.form_data || {};
+        const workflow = formData.workflow || {};
+        workflow.containerStatus = "Loaded";
+        formData.workflow = workflow;
+        await supabase.from("purchase_orders").update({ form_data: formData }).eq("id", body.purchaseOrderId);
+      }
+    }
+
     await writeAuditLog({
       action: "create",
       entityTable: "purchase_loading_records",

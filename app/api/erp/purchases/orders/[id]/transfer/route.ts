@@ -137,8 +137,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         p_amount:             totalPurchaseAmount,
         p_currency_code:      ledgerCurrency,
         p_exchange_rate:      exchangeRate,
-        p_debit_ledger_id:    salesLedgerId, // Swapped!
-        p_credit_ledger_id:   purchaseLedgerId, // Swapped!
+        p_debit_ledger_id:    purchaseLedgerId, // Purchase is Debit (Expense/Asset)
+        p_credit_ledger_id:   salesLedgerId, // Sales/Supplier is Credit (Liability)
         p_reference_no:       (order as any).purchase_contract_no || (order as any).purchase_order_no || null,
         p_narration:          `Booking Transfer: PO ${(order as any).purchase_order_no} — Dr ${salesAccountCode} / Cr ${purchaseAccountCode}`
       }
@@ -282,7 +282,7 @@ async function getLedgerIdByCode(
     .from("enterprise_accounts")
     .select("id")
     .or(
-      `code.eq.${lookup},account_number.eq.${lookup},manual_reference_number.eq.${lookup},customer_number.eq.${lookup}`
+      `code.eq.${lookup},account_number.eq.${lookup},manual_reference_number.eq.${lookup},customer_number.eq.${lookup},name.ilike.${lookup}`
     )
     .eq("status", "active")
     .is("deleted_at", null)

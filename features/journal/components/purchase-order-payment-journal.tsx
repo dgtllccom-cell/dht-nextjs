@@ -654,7 +654,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       // Extract form values for clearance calculation
       const form = row.form_data?.form || {};
       const totals = row.form_data?.totals || {};
-      const finalAmount = row.order_total || totals.grandFinal || 0;
+      const finalAmount = orderTotal(row);
       const advancePercent = Number(form.advancePercent || 0);
       const requiredAdvance = (finalAmount * advancePercent) / 100;
       const paidAdvance = Number(row.advance_paid || 0);
@@ -663,14 +663,18 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       const isCreditPaid = (row.payment_status || "").toLowerCase().includes("posted") || 
                            (row.payment_status || "").toLowerCase().includes("paid");
 
-      const isAdvanceCleared = advancePercent > 0 ? remainingAdvance <= 0.01 : true;
+      const isAdvanceCleared = advancePercent > 0 ? remainingAdvance <= 0.01 : paidAdvance > 0;
       const isRemainingCleared = remainingDue <= 0.01;
 
       if (activeMode === "advance") {
-        if (advancePercent <= 0) return false; // Doesn't require advance
-        if (remainingAdvance <= 0.01) return false; // Already cleared
+        const isPartial = (row.payment_status || "").toLowerCase() === "partial" || (row.payment_status || "").toLowerCase() === "advance pending";
+        if (advancePercent <= 0 && (!isPartial || paidAdvance > 0)) return false; // Doesn't require advance
+        if (advancePercent > 0 && remainingAdvance <= 0.01) return false; // Already cleared
       } else if (activeMode === "remaining") {
         if (remainingDue <= 0.01) return false; // Already cleared
+        // Should only appear in Remaining after Loading is done
+        const isLoaded = row.form_data?.workflow?.containerStatus === "Loaded" || row.form_data?.workflow?.containerStatus === "loaded";
+        if (!isLoaded) return false;
       } else if (activeMode === "credit") {
         if (isCreditPaid) return false; // Already cleared
       } else if (activeMode === "history") {
@@ -1456,7 +1460,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                 const totalPrice = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) : Number(form.totalAmount || 0);
                 const exchangeRate = row.exchange_rate || form.exchangeRate || 1;
-                const finalAmount = row.order_total || totals.grandFinal || 0;
+                const finalAmount = orderTotal(row);
+                // When exchangeRate is 1 but we clearly have a different total vs finalAmount, calculate the real effective rate
+                const effectiveRate = exchangeRate !== 1 ? exchangeRate : (finalAmount > 0 && totalPrice > 0 ? (finalAmount / totalPrice) : 1);
 
                 const advancePercent = Number(form.advancePercent || 0);
                 const requiredAdvance = (finalAmount * advancePercent) / 100;
@@ -1464,7 +1470,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
 
                 const requiredAdvanceBC = (totalPrice * advancePercent) / 100;
-                const paidAdvanceBC = paidAdvance / exchangeRate;
+                const paidAdvanceBC = paidAdvance / effectiveRate;
                 const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
                 const remainingDue = Number(row.remaining_due || 0);
 
@@ -1485,9 +1491,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 } else if (activeMode === "remaining") {
                   const remPaid = Number(row.remaining_paid || 0);
                   paidAmountLocal = remPaid;
-                  paidAmountBC = remPaid / exchangeRate;
+                  paidAmountBC = remPaid / effectiveRate;
                   balanceAmountLocal = remainingDue;
-                  balanceAmountBC = remainingDue / exchangeRate;
+                  balanceAmountBC = remainingDue / effectiveRate;
                 } else {
                   // credit or history
                   const credPaid = Number(row.credit_amount || 0);
