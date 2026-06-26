@@ -42,121 +42,26 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       cityBranchId: (order as any)?.city_branch_id ?? null
     });
 
-    // ── Revert previous posting if already transferred ──────────────────────
-    if ((order as any).ledger_posting_status === "posted") {
-      if (!(order as any).is_edited_since_transfer) {
-        return handleApiError(new Error("This booking has already been transferred and cannot be transferred again."));
-      }
-      await revertOrderBookingTransfer((order as any).id, supabase, adminSupabase);
+    // ── Prevent Duplicate Transfers ────────────────────────────────
+    if ((order as any).ledger_posting_status === "transferred" || (order as any).ledger_posting_status === "posted") {
+      return handleApiError(new Error("This booking has already been transferred to Payment and cannot be transferred again."));
     }
-
 
     const formData = (order as any).form_data || {};
     const form = formData.form || {};
     const totals = formData.totals || {};
-
-    // Declare currency/exchangeRate BEFORE using them (fixes TDZ bug)
-    const ledgerCurrency = String(form.purchaseCurrency || form.purchaseAccountCurrency || (order as any).currency_code || "USD").toUpperCase();
-    const orderCurrency = String((order as any).currency_code || "USD").toUpperCase();
-    const isDualCurrency = ledgerCurrency !== orderCurrency;
     
-    const exchangeRate = Number(form.exchangeRate || (order as any).exchange_rate || 1);
-    const entryDate = (form.purchaseDate || new Date().toISOString().slice(0, 10)) as string;
-
-    // Scope context for ledger lookup
-    const scopeCtx: ScopeContext = {
-      countryId:       (order as any).country_id       ?? null,
-      countryBranchId: (order as any).country_branch_id ?? null,
-      cityBranchId:    (order as any).city_branch_id    ?? null
-    };
-
     const rawTotal = String((order as any).order_total || totals.grandFinal || "0").replace(/,/g, "");
     let totalPurchaseAmount = Number(rawTotal);
 
     if (isNaN(totalPurchaseAmount) || totalPurchaseAmount <= 0) {
-      throw new Error("Purchase order total must be a valid number greater than zero to post ledger entries.");
+      throw new Error("Purchase order total must be a valid number greater than zero to transfer.");
     }
-
-    // Determine advance payment amount (starts at 0 for cash payment workflow)
+    
     const advancePaid = 0;
 
-
-    // ── Resolve Ledger IDs from Booking accounts ────────────────────────────
-    // The booking selects:
-    //   purchaseAccountNo → Purchase/Debit account
-    //   salesAccountNo    → Sales/Credit account
-    //
-    // Accounting flow (per business rules):
-    //   Stage 1 (Transfer):  DEBIT Purchase Account  | CREDIT Sales Account
-    //   Stage 2 (Advance):   DEBIT Sales Account     | CREDIT Purchase Account
-
-    const purchaseAccountCode = String(form.purchaseAccountNo || form.purchaseAccount || "").trim();
-    const salesAccountCode    = String(form.salesAccountNo    || form.salesAccount    || "").trim();
-
-    if (!purchaseAccountCode) {
-      throw new Error(
-        "Purchase Account (Debit) is not set in this booking. " +
-        "Please edit the booking and select a Purchase Account before transferring."
-      );
-    }
-    if (!salesAccountCode) {
-      throw new Error(
-        "Sales/Credit Account is not set in this booking. " +
-        "Please edit the booking and select a Credit Account before transferring."
-      );
-    }
-
-    const purchaseLedgerId = await getLedgerIdByCode(supabase, purchaseAccountCode, scopeCtx);
-    const salesLedgerId    = await getLedgerIdByCode(supabase, salesAccountCode, scopeCtx);
-
-    if (!purchaseLedgerId) {
-      throw new Error(
-        `Purchase (Debit) Ledger not found for account code: "${purchaseAccountCode}". ` +
-        `Please make sure the account "${form.purchaseAccountName || purchaseAccountCode}" exists and has an active ledger linked to it.`
-      );
-    }
-    if (!salesLedgerId) {
-      throw new Error(
-        `Sales/Credit Ledger not found for account code: "${salesAccountCode}". ` +
-        `Please make sure the account "${form.salesAccountName || salesAccountCode}" exists and has an active ledger linked to it.`
-      );
-    }
-
-    // ── Stage 1: Booking Transfer (Reversed per User Request) ───────────────
-    //   DEBIT  Sales Account     (user explicitly requested sales = debit)
-    //   CREDIT Purchase Account  (user explicitly requested purchase = credit)
-    //
-    // Uses post_purchase_booking_transfer (a SECURITY DEFINER wrapper)
-    const { data: transferPaymentId, error: transferError } = await adminSupabase.rpc(
-      "post_purchase_booking_transfer",
-      {
-        p_actor_id:           session.userId,
-        p_purchase_order_id:  (order as any).id,
-        p_kind:               "booking",
-        p_entry_date:         entryDate,
-        p_amount:             totalPurchaseAmount,
-        p_currency_code:      ledgerCurrency,
-        p_exchange_rate:      exchangeRate,
-        p_debit_ledger_id:    purchaseLedgerId, // Purchase is Debit (Expense/Asset)
-        p_credit_ledger_id:   salesLedgerId, // Sales/Supplier is Credit (Liability)
-        p_reference_no:       (order as any).purchase_contract_no || (order as any).purchase_order_no || null,
-        p_narration:          `Booking Transfer: PO ${(order as any).purchase_order_no} — Dr ${salesAccountCode} / Cr ${purchaseAccountCode}`
-      }
-    );
-
-    if (transferError) {
-      console.error("TRANSFER_STAGE_ERROR:", transferError);
-      throw new Error(
-        `Booking Transfer Ledger Entry failed: ${transferError.message}. ` +
-        `(Debit: ${salesAccountCode}, Credit: ${purchaseAccountCode})`
-      );
-    }
-
-    // ── Stage 2: Advance Payment (if applicable) ────────────────────────────
-    // Stage 2 is skipped per user request to only record booking transfers once.
-    let paymentId = null;
-
-    // ── Update Order Status ─────────────────────────────────────────────────
+    // ── Update Order Status to "transferred" ────────────────────────────────
+    // Per rules: "Transfer to Purchase Transfer Payment" does not post to Ledger.
     const remainingDue = Math.max(0, totalPurchaseAmount - advancePaid);
     const paymentStatus = remainingDue === 0 ? "completed" : advancePaid > 0 ? "partial" : "pending";
 
@@ -167,14 +72,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         transferAudit: {
           userId: session.userId,
           userName: session.fullName || session.email || "User",
-          transferDate: new Date().toISOString(),
-          transferId: transferPaymentId || "N/A"
+          transferDate: new Date().toISOString()
         }
       }
     };
 
     const patch = {
-      ledger_posting_status: "posted",
+      ledger_posting_status: "transferred",
       is_edited_since_transfer: false,
       payment_status:        paymentStatus,
       advance_paid:          advancePaid,
@@ -201,13 +105,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       purchaseOrderId:  params.id,
       paymentStatus,
       advancePaid,
-      remainingDue,
-      transferPaymentId,
-      paymentId,
-      accounts: {
-        debitAccount:  purchaseAccountCode,
-        creditAccount: salesAccountCode
-      }
+      remainingDue
     });
   } catch (error) {
     console.error("TRANSFER_PAYMENT_ERROR:", error);

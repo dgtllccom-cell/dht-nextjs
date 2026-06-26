@@ -33,6 +33,8 @@ const createSchema = z.object({
   shipmentStatus: z.string().trim().max(120).nullable().optional(),
   carrierName: z.string().trim().max(180).nullable().optional(),
   remarks: z.string().trim().max(1000).nullable().optional(),
+  loadedContainers: z.coerce.number().min(1).default(1),
+  loadedQuantity: z.coerce.number().min(0).default(0),
   reportPayload: z.record(z.string(), z.unknown()).default({})
 });
 
@@ -236,13 +238,52 @@ export async function POST(request: NextRequest) {
     );
 
     if (body.purchaseOrderId) {
-      const { data: po } = await supabase.from("purchase_orders").select("form_data").eq("id", body.purchaseOrderId).single();
+      const { data: po } = await supabase.from("purchase_orders").select("form_data, payment_status, remaining_due, status").eq("id", body.purchaseOrderId).single();
       if (po) {
         const formData = po.form_data || {};
         const workflow = formData.workflow || {};
-        workflow.containerStatus = "Loaded";
+        
+        const totalContainers = Number(formData.form?.containerCount || formData.totals?.totalContainers || 0);
+        const totalQuantity = Number(formData.totals?.grandTotalWeight || formData.totals?.grandNetWeight || formData.form?.quantity || 0);
+
+        const currentLoadedContainers = Number(workflow.loadedContainers || 0);
+        const currentLoadedQuantity = Number(workflow.loadedQuantity || 0);
+
+        const newLoadedContainers = currentLoadedContainers + body.loadedContainers;
+        const newLoadedQuantity = currentLoadedQuantity + body.loadedQuantity;
+
+        const remainingContainers = Math.max(0, totalContainers - newLoadedContainers);
+        const remainingQuantity = Math.max(0, totalQuantity - newLoadedQuantity);
+
+        workflow.totalContainers = totalContainers;
+        workflow.loadedContainers = newLoadedContainers;
+        workflow.remainingContainers = remainingContainers;
+
+        workflow.totalQuantity = totalQuantity;
+        workflow.loadedQuantity = newLoadedQuantity;
+        workflow.remainingQuantity = remainingQuantity;
+
+        if (remainingContainers > 0) {
+           workflow.containerStatus = "Partially Loaded";
+        } else {
+           workflow.containerStatus = "Fully Loaded";
+        }
+
         formData.workflow = workflow;
-        await supabase.from("purchase_orders").update({ form_data: formData }).eq("id", body.purchaseOrderId);
+        
+        const isPaid = po.payment_status === "completed" || po.remaining_due === 0;
+        let newStatus = po.status;
+        
+        // Step 6: Move to Finalized Purchase Orders automatically if paid and fully loaded
+        if (isPaid && remainingContainers === 0) {
+           newStatus = "completed";
+           workflow.lifecycleStatus = "Finalized Purchase Orders";
+        }
+
+        await supabase.from("purchase_orders").update({ 
+           form_data: formData,
+           status: newStatus 
+        }).eq("id", body.purchaseOrderId);
       }
     }
 

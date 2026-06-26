@@ -543,7 +543,8 @@ export function LedgerReportView({
   }, [menuOpen]);
 
   return (
-    <div className="w-full space-y-4 px-4 py-4 md:px-6">
+    <div className="w-full bg-slate-50/50 dark:bg-background text-foreground animate-in fade-in duration-200">
+      <div className="mx-auto w-full max-w-[1800px] p-4 sm:p-6 lg:p-8 space-y-4">
       <ReportHeader
         title={pageTitle}
         generatedAt={generatedAt}
@@ -767,18 +768,18 @@ export function LedgerReportView({
         <StatCard label="Active Accounts" value={String(activeLedgers)} tone="text-emerald-600" />
       </div>
 
-      <Card className="border-slate-200/80 shadow-sm">
-        <CardHeader className="space-y-2 border-b pb-3">
+      <section className="mb-3 rounded-xl border border-slate-700 bg-[#0b1730] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.25)] text-slate-200">
+        <div className="space-y-2 border-b border-slate-700 pb-3 mb-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <CardTitle className="text-base">Account Details</CardTitle>
+              <h2 className="text-base font-bold text-slate-100">Account Details</h2>
             </div>
             <span className={badgeClass(selectedLedger?.status === "inactive" ? "inactive" : "active")}>
               {selectedLedger?.status === "inactive" ? "Inactive" : "Active"}
             </span>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3 p-4">
+        </div>
+        <div className="space-y-3">
           {selectedLedger ? (
             <>
               <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -788,7 +789,7 @@ export function LedgerReportView({
                 <KeyValue label="Branch" value={buildBranchLabel(selectedLedger)} />
                 <KeyValue label="Country" value={selectedLedger.countryName || "-"} />
                 <KeyValue label="Currency" value={selectedLedger.ledgerCurrency || "-"} />
-                <KeyValue label="Status" value={selectedLedger.status === "inactive" ? "Inactive" : "Active"} tone={selectedLedger.status === "inactive" ? "text-rose-600" : "text-emerald-600"} />
+                <KeyValue label="Status" value={selectedLedger.status === "inactive" ? "Inactive" : "Active"} tone={selectedLedger.status === "inactive" ? "text-rose-400" : "text-emerald-400"} />
                 <KeyValue label="Opening Balance" value={fmtNumber((statement?.lines?.[0] ? statement.lines[0]!.runningBalance - statement.lines[0]!.debit + statement.lines[0]!.credit : selectedLedger.balance ?? 0))} />
                 <KeyValue label="Current Balance" value={fmtNumber(statement?.totals?.balance ?? selectedLedger.balance ?? 0)} />
               </div>
@@ -798,7 +799,7 @@ export function LedgerReportView({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-2"
+                  className="gap-2 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
                   onClick={() => {
                     if (selectedLedger && (selectedLedger.accountCode || selectedLedger.ledgerCode)) {
                       router.push(`/dashboard/ledger/new?account=${encodeURIComponent(selectedLedger.accountCode || selectedLedger.ledgerCode)}`);
@@ -810,135 +811,113 @@ export function LedgerReportView({
                   <Search className="h-4 w-4" aria-hidden />
                   View Ledger
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => openPrint(false)}>
+                <Button type="button" variant="outline" size="sm" className="gap-2 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800" onClick={() => openPrint(false)}>
                   <Printer className="h-4 w-4" aria-hidden />
                   Print
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-2" onClick={exportReportCsv}>
+                <Button type="button" variant="outline" size="sm" className="gap-2 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800" onClick={exportReportCsv}>
                   <DownloadActionIcon className="h-4 w-4" aria-hidden />
                   PDF / Excel
                 </Button>
               </div>
 
-              {loadingStatement ? <div className="text-sm text-muted-foreground">Loading selected account...</div> : null}
+              {loadingStatement ? <div className="text-sm text-slate-400">Loading selected account...</div> : null}
             </>
           ) : (
-            <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">{t(lang, "ledger.select_account_hint")}</div>
+            <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 text-sm text-slate-400">{t(lang, "ledger.select_account_hint")}</div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <Card className="border-slate-200/80 shadow-sm">
-        <CardHeader className="space-y-2 border-b pb-3">
+      <section className="mb-3 rounded-xl border border-slate-700 bg-[#0b1730] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.25)] text-slate-200">
+        <div className="space-y-2 border-b border-slate-700 pb-3 mb-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <CardTitle className="text-base">{t(lang, "ledger.entries_table_title")}</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t(lang, "ledger.showing_range")} <span className="font-mono text-[11px] text-foreground">{fromDate} → {toDate}</span>
+              <h2 className="text-base font-bold text-slate-100">{t(lang, "ledger.entries_table_title")}</h2>
+              <p className="mt-1 text-xs text-slate-400">
+                {t(lang, "ledger.showing_range")} <span className="font-mono text-[11px] text-slate-300">{fromDate} → {toDate}</span>
               </p>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {t(lang, "ledger.rows")}: <b className="text-foreground">{displayRows.length}</b>
+            <div className="text-xs text-slate-400">
+              {t(lang, "ledger.rows")}: <b className="text-slate-100">{displayRows.length}</b>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1300px] border-separate border-spacing-0 text-xs">
-              <thead className="sticky top-0 z-10 bg-slate-900 text-white dark:bg-slate-800">
-                <tr className="whitespace-nowrap">
-                  {["S.No", "Country", "Branch", "Account No", "Account Name", "Entries", "Opening Bal", "Credit", "Debit", "Created Date", "Last Entry Date", "Balance", "Actions"].map((head) => (
-                    <th key={head} className="border-b border-slate-700 px-3 py-2 text-left font-semibold">
-                      {head}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={12} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                      {t(lang, "ledger.loading")}
-                    </td>
-                  </tr>
-                ) : tableRows.length ? (
-                  tableRows.map((row, index) => {
-                    const active = row.ledgerId === ledgerId;
-                    return (
-                      <tr
-                        key={row.ledgerId}
-                        className={cn(
-                          "cursor-pointer border-b transition hover:bg-slate-50 dark:hover:bg-slate-900/40",
-                          index % 2 === 0 ? "bg-background" : "bg-muted/20",
-                          active ? "bg-primary/5 dark:bg-primary/10" : ""
-                        )}
+        </div>
+        <div className="p-0">
+          <DarkTable headers={["S.No", "Country", "Branch", "Account No", "Account Name", "Entries", "Opening Bal", "Credit", "Debit", "Created Date", "Last Entry Date", "Balance", "Actions"]}>
+            {loading ? (
+              <tr>
+                <Td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-400">
+                  {t(lang, "ledger.loading")}
+                </Td>
+              </tr>
+            ) : tableRows.length ? (
+              tableRows.map((row, index) => {
+                const active = row.ledgerId === ledgerId;
+                return (
+                  <tr
+                    key={row.ledgerId}
+                    className={cn(
+                      "cursor-pointer border-b border-slate-800/60 transition hover:bg-[#152345]",
+                      index % 2 === 0 ? "bg-[#0b1730]/40" : "bg-transparent",
+                      active ? "bg-blue-900/20" : ""
+                    )}
+                    onClick={() => {
+                      if (row.accountCode || row.ledgerCode) {
+                        router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
+                      } else {
+                        void loadSelectedStatement(row.ledgerId);
+                        setDrawerOpen(true);
+                      }
+                    }}
+                  >
+                    <Td className="font-mono text-slate-400">{(page - 1) * pageSize + index + 1}</Td>
+                    <Td>{row.countryName || "-"}</Td>
+                    <Td>{buildBranchLabel(row)}</Td>
+                    <Td className="font-mono text-blue-400">{row.accountCode || row.ledgerCode}</Td>
+                    <Td className="font-bold text-slate-200">{row.accountName || row.ledgerName}</Td>
+                    <Td className="text-right tabular-nums text-slate-300">{row.entries}</Td>
+                    <Td className="text-right tabular-nums text-slate-400">{fmtNumber(row.openingBalance ?? 0)}</Td>
+                    <Td className="text-right tabular-nums text-emerald-400">{fmtNumber(row.credit)}</Td>
+                    <Td className="text-right tabular-nums text-rose-400">{fmtNumber(row.debit)}</Td>
+                    <Td className="text-slate-400">{formatDateString(row.createdAt)}</Td>
+                    <Td className="text-slate-400">{formatDateString(row.lastEntryDate)}</Td>
+                    <Td className="text-right tabular-nums font-bold text-white">{fmtNumber(row.balance)}</Td>
+                    <Td onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-slate-400 hover:text-white hover:bg-slate-800"
+                        title="View Ledger"
                         onClick={() => {
-                          if (row.accountCode || row.ledgerCode) {
-                            router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
-                          } else {
-                            void loadSelectedStatement(row.ledgerId);
-                            setDrawerOpen(true);
-                          }
+                          router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
                         }}
                       >
-                        <td className="px-3 py-2 font-mono">{(page - 1) * pageSize + index + 1}</td>
-                        <td className="px-3 py-2">{row.countryName || "-"}</td>
-                        <td className="px-3 py-2">{buildBranchLabel(row)}</td>
-                        <td className="px-3 py-2 font-mono">{row.accountCode || row.ledgerCode}</td>
-                        <td className="px-3 py-2 font-medium text-slate-950 dark:text-slate-100">{row.accountName || row.ledgerName}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{row.entries}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-600 dark:text-slate-400">{fmtNumber(row.openingBalance ?? 0)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-emerald-600">{fmtNumber(row.credit)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-rose-600">{fmtNumber(row.debit)}</td>
-                        <td className="px-3 py-2">{formatDateString(row.createdAt)}</td>
-                        <td className="px-3 py-2">{formatDateString(row.lastEntryDate)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{fmtNumber(row.balance)}</td>
-                        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                            title="View Ledger"
-                            onClick={() => {
-                              router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
-                            }}
-                          >
-                            <Search className="h-3.5 w-3.5" aria-hidden />
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={12} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                      {t(lang, "ledger.no_data")}
-                    </td>
+                        <Search className="h-3.5 w-3.5" aria-hidden />
+                      </Button>
+                    </Td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
-            <div className="text-xs text-muted-foreground">
-              {t(lang, "ledger.pagination_hint")} {pageSize}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                {t(lang, "ledger.prev")}
-              </Button>
-              <div className="text-xs text-muted-foreground">
-                {t(lang, "ledger.page")} <b className="text-foreground">{page}</b> / {pageCount}
-              </div>
-              <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
-                {t(lang, "ledger.next")}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                );
+              })
+            ) : (
+              <tr>
+                <Td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-400">
+                  {t(lang, "ledger.no_data")}
+                </Td>
+              </tr>
+            )}
+          </DarkTable>
+          <TableFooter 
+            text={`${t(lang, "ledger.pagination_hint")} ${pageSize}`} 
+            page={page} 
+            pageCount={pageCount} 
+            onPrev={() => setPage((p) => Math.max(1, p - 1))} 
+            onNext={() => setPage((p) => Math.min(pageCount, p + 1))} 
+            pageSize={pageSize} 
+          />
+        </div>
+      </section>
 
       <DetailDrawer
         isOpen={drawerOpen}
@@ -1064,6 +1043,7 @@ export function LedgerReportView({
           <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">{t(lang, "ledger.select_account_hint")}</div>
         )}
       </DetailDrawer>
+      </div>
     </div>
   );
 }
@@ -1108,21 +1088,77 @@ function MenuAction({
 }
 
 function StatCard({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  const isDebit = label.includes("Debit");
+  const isCredit = label.includes("Credit");
+  const isActive = label.includes("Active");
+  const color = tone ? tone : isDebit ? "text-rose-400" : isCredit || isActive ? "text-emerald-400" : "text-white";
   return (
-    <Card className="border-slate-200/80 shadow-sm">
-      <CardContent className="p-3">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</div>
-        <div className={cn("mt-1 text-xl font-semibold leading-none tracking-tight", tone)}>{value}</div>
-      </CardContent>
-    </Card>
+    <div className="relative overflow-hidden rounded-2xl border border-slate-700/50 bg-[#0b1730] p-4 shadow-lg transition-all hover:bg-[#0b1730]/80">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</div>
+      <div className={cn("mt-1 text-2xl font-black tabular-nums tracking-tighter", color)}>{value}</div>
+    </div>
   );
 }
 
 function KeyValue({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
     <div className="grid grid-cols-[128px_1fr] gap-3 text-sm">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={cn("font-semibold text-slate-950 dark:text-slate-100", tone)}>{value || "-"}</div>
+      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={cn("font-medium text-slate-200", tone)}>{value || "-"}</div>
+    </div>
+  );
+}
+
+function DarkTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
+  return (
+    <div className="w-full overflow-x-auto rounded-xl border border-slate-700/50 bg-[#0b1730]/50 shadow-inner">
+      <table className="w-full min-w-[1200px] text-left text-xs">
+        <thead>
+          <tr className="border-b border-slate-700/50 bg-slate-900/40">
+            {headers.map((h, i) => (
+              <Th key={i} className={i > 4 ? "text-right" : ""}>{h}</Th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-800/60">
+          {children}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <th className={cn("whitespace-nowrap px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400", className)}>
+      {children}
+    </th>
+  );
+}
+
+function Td({ children, className, onClick }: { children: React.ReactNode; className?: string; onClick?: (e: React.MouseEvent) => void }) {
+  return (
+    <td onClick={onClick} className={cn("whitespace-nowrap px-4 py-3 align-middle text-[11px] font-medium text-slate-300", className)}>
+      {children}
+    </td>
+  );
+}
+
+function TableFooter({ text, page, pageCount, onPrev, onNext, pageSize }: { text: string; page: number; pageCount: number; onPrev: () => void; onNext: () => void; pageSize: number }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3 text-xs text-slate-400">
+      <span>{text}</span>
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" size="sm" className="h-7 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800" disabled={page <= 1} onClick={onPrev}>
+          Prev
+        </Button>
+        <div className="text-xs">
+          Page <b className="text-slate-100">{page}</b> / {pageCount}
+        </div>
+        <Button type="button" variant="outline" size="sm" className="h-7 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800" disabled={page >= pageCount} onClick={onNext}>
+          Next
+        </Button>
+      </div>
     </div>
   );
 }

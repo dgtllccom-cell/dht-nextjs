@@ -34,6 +34,7 @@ import { useRouter } from "next/navigation";
 import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
 import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-window";
+import { cn } from "@/lib/utils";
 
 type PurchaseReport = {
   id: string;
@@ -750,7 +751,14 @@ function RowActionsMenu({
           <MenuAction
             icon={<Boxes />}
             label="Generate Packing List"
-    </section>
+            onClick={() => {
+              setOpen(false);
+              openTradeDocumentWindow("packing", report);
+            }}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -912,11 +920,12 @@ export function PurchaseBookingJournalReportView({
   const [reports, setReports] = useState<PurchaseReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<ReportScope | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [activeTab, setActiveTab] = useState<DashboardTab>("purchase");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [transferring, setTransferring] = useState(false);  const [refreshKey, setRefreshKey] = useState(0);
+  const [transferring, setTransferring] = useState(false);
 
   const [titleSlot, setTitleSlot] = useState<Element | null>(null);
   const [actionsSlot, setActionsSlot] = useState<Element | null>(null);
@@ -926,7 +935,7 @@ export function PurchaseBookingJournalReportView({
     setActionsSlot(document.getElementById("erp-page-actions-slot"));
   }, []);
 
-  const [allowedCountryId, setAllowedCountryId] = useState<string | null>(null);handleTransfer = async () => {
+  const handleTransfer = async () => {
     if (!selected) return;
     
     const form = selected.form_data?.form || {};
@@ -1798,8 +1807,8 @@ export function PurchaseBookingJournalReportView({
             })}
           </DarkTable>
           <TableFooter text={`Showing 1 to ${registerRows.length} of ${reports.length} scoped entries`} />
-          </div>
         </div>
+      </section>
 
         <DetailDrawer
           isOpen={isDrawerOpen}
@@ -2353,7 +2362,6 @@ export function PurchaseBookingJournalReportView({
             );
           })() : null}
         </DetailDrawer>
-      </div>
     </div>
   );
 }

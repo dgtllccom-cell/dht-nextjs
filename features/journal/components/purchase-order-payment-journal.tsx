@@ -667,9 +667,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       const isRemainingCleared = remainingDue <= 0.01;
 
       if (activeMode === "advance") {
-        const isPartial = (row.payment_status || "").toLowerCase() === "partial" || (row.payment_status || "").toLowerCase() === "advance pending";
-        if (advancePercent <= 0 && (!isPartial || paidAdvance > 0)) return false; // Doesn't require advance
-        if (advancePercent > 0 && remainingAdvance <= 0.01) return false; // Already cleared
+        // Show all pending POs even if advancePercent is 0, so users can make manual advance payments
+        const isFullyPaid = (row.payment_status || "").toLowerCase() === "paid" || (row.payment_status || "").toLowerCase() === "completed";
+        if (isFullyPaid) return false;
+        
+        if (advancePercent > 0 && remainingAdvance <= 0.01) return false; // Already cleared required advance
+
       } else if (activeMode === "remaining") {
         if (remainingDue <= 0.01) return false; // Already cleared
         // Should only appear in Remaining after Loading is done

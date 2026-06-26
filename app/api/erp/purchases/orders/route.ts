@@ -310,38 +310,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (ledgerPostingStatus === "posted") {
-      const entryDate = form.advancePaymentDate || form.purchaseDate || new Date().toISOString().slice(0, 10);
-      
-      const debitLedgerId = await getLedgerIdByCode(supabase, form.purchaseAccountNo);
-      const creditLedgerId = await getLedgerIdByCode(supabase, form.salesAccountNo);
-      
-      if (!debitLedgerId) {
-        throw new Error(`Debit Ledger (Inventory) not found for account code: ${form.purchaseAccountNo}`);
-      }
-      if (!creditLedgerId) {
-        throw new Error(`Credit Ledger (Supplier Payable) not found for account code: ${form.salesAccountNo}`);
-      }
-
-      // 1. Stage 1: Credit purchase entry: Debit Inventory, Credit Supplier Payable
-      const { error: transferError } = await supabase.rpc("post_purchase_booking_transfer", {
-        p_actor_id: session.userId,
-        p_purchase_order_id: orderId,
-        p_kind: "booking",
-        p_entry_date: entryDate,
-        p_amount: orderTotal,
-        p_currency_code: recordCurrencyCode,
-        p_exchange_rate: Number(body.exchangeRate || 1),
-        p_debit_ledger_id: debitLedgerId,
-        p_credit_ledger_id: creditLedgerId,
-        p_reference_no: body.purchaseContractNo || null,
-        p_narration: `Booking Transfer for PO ${purchaseOrderNo}${form.orderReportRemarks || form.remarks ? ` - ${form.orderReportRemarks || form.remarks}` : ""}`
-      });
-
-      if (transferError) {
-        throw new Error(`Booking Transfer Ledger Entry failed: ${transferError.message}`);
-      }
-    }
+    // Ledger posting has been removed from Purchase Booking.
+    // Booking must remain only in the Purchase Booking Register until transferred and paid.
 
     await writeAuditLog({
       action: "create",

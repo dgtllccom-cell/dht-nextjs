@@ -93,6 +93,39 @@ type ApiPayload = {
   warning?: string;
 };
 
+type CountryTransferSummary = {
+  key: string;
+  country: string;
+  currency: string;
+  totalOrders: number;
+  invoiceAmount: number;
+  advancePaid: number;
+  remainingBalance: number;
+};
+
+function countryTransferSummaries(rows: PurchaseReport[]): CountryTransferSummary[] {
+  const map = new Map<string, CountryTransferSummary>();
+  rows.forEach((row) => {
+    const country = row.countryName || "UNKNOWN";
+    const currency = row.currency || "USD";
+    const key = `${country.toLowerCase()}::${currency}`;
+    const current = map.get(key) || { key, country, currency, totalOrders: 0, invoiceAmount: 0, advancePaid: 0, remainingBalance: 0 };
+    
+    const invoiceAmount = Number(row.totalPurchaseAmount || 0);
+    const advancePaid = Number((row as any).advance_paid || 0);
+    const remainingPaid = Number((row as any).remaining_paid || 0);
+    const creditAmount = Number((row as any).credit_amount || 0);
+    const totalPaidLocal = advancePaid + remainingPaid + creditAmount;
+    
+    current.totalOrders += 1;
+    current.invoiceAmount += invoiceAmount;
+    current.advancePaid += advancePaid;
+    current.remainingBalance += Math.max(0, invoiceAmount - totalPaidLocal);
+    map.set(key, current);
+  });
+  return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
+}
+
 const sampleReports: PurchaseReport[] = [
   {
     id: "sample-po-1",
@@ -932,8 +965,8 @@ export function PurchaseOrderManagementDashboard() {
     if (!itemToTransfer) return;
     
     // Prevent duplicate transfer
-    if (itemToTransfer.ledger_posting_status === "posted" && !itemToTransfer.is_edited_since_transfer) {
-      alert("This booking has already been transferred and cannot be transferred again.");
+    if ((itemToTransfer.ledger_posting_status === "posted" || itemToTransfer.ledger_posting_status === "transferred") && !itemToTransfer.is_edited_since_transfer) {
+      alert("This booking has already been transferred to Payment.");
       return;
     }
     
@@ -943,8 +976,8 @@ export function PurchaseOrderManagementDashboard() {
         ...(itemToTransfer.form_data || {}),
         workflow: {
           ...(itemToTransfer.form_data?.workflow || {}),
-          lifecycleStatus: "Booking Confirmed",
-          paymentStatus: "Advance Paid"
+          lifecycleStatus: "Transfer to Payment",
+          paymentStatus: "Pending Payment"
         }
       };
 
@@ -953,8 +986,8 @@ export function PurchaseOrderManagementDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           formData: updatedFormData,
-          ledgerPostingStatus: "Posted",
-          paymentStatus: "Partial"
+          ledgerPostingStatus: "transferred",
+          paymentStatus: "pending"
         })
       });
 
@@ -963,7 +996,7 @@ export function PurchaseOrderManagementDashboard() {
         throw new Error(payload?.error?.message || payload?.error || "Transfer failed.");
       }
 
-      // Also hit the transfer API to post to Roznamcha and Ledger
+      // Also hit the transfer API to mark as transferred
       const transferResponse = await fetch(`/api/erp/purchases/orders/${itemToTransfer.id}/transfer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1139,6 +1172,8 @@ export function PurchaseOrderManagementDashboard() {
     return filtered.filter(row => String(row.status || "").toUpperCase() === "DELIVERED").length;
   }, [filtered]);
 
+  const countryCards = useMemo(() => countryTransferSummaries(filtered), [filtered]);
+
   const pageHeaderContent = (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-4">
       <div>
@@ -1256,64 +1291,37 @@ export function PurchaseOrderManagementDashboard() {
           </div>
         </div>
 
-        {/* Row 2: Executive Summary (Financials) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-3 border-b border-slate-100 dark:border-slate-850 pb-2.5">
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Purchase Bookings</span>
-            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{totals.totalOrders}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Transfer</span>
-            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{totalPosted}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Purchase Amount</span>
-            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{money(totalAmountPKR)} {localCurrencyLabel}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Revenue Amount</span>
-            <span className="text-emerald-600 dark:text-emerald-450 font-black text-sm">{money(totalRevenuePKR)} {localCurrencyLabel}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Asset (USD)</span>
-            <span className="text-blue-700 dark:text-blue-400 font-black text-sm">${money(totalUSD)}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Booking Purchase</span>
-            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{filtered.length} Orders</span>
-          </div>
-        </div>
-
-        {/* Row 3: Operations Summary (Logistics) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-x-6 gap-y-3 pt-0.5">
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Booking Pending</span>
-            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{pendingBookingsCount}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Confirmed PO</span>
-            <span className="text-emerald-600 dark:text-emerald-450 font-black text-sm">{confirmedPOCount}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Total Containers</span>
-            <span className="text-blue-600 dark:text-blue-450 font-black text-sm">{totalContainersCount}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Transit Cargo</span>
-            <span className="text-amber-600 dark:text-amber-450 font-black text-sm">{transitCargoCount}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Warehouse Balance</span>
-            <span className="text-indigo-600 dark:text-indigo-400 font-black text-sm">{warehouseBalanceCount}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 tracking-wider">Delivered Balance</span>
-            <span className="text-slate-800 dark:text-slate-200 font-black text-sm">{deliveredBalanceCount}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-rose-500 dark:text-rose-450 mb-0.5 tracking-wider">Remaining Due ({localCurrencyLabel})</span>
-            <span className="text-rose-600 dark:text-rose-400 font-black text-sm truncate" title={money(remainingDuePKR) + " " + localCurrencyLabel}>{money(remainingDuePKR)}</span>
-          </div>
+        {/* Row 2: Country-wise Financial Summary. Never mix currencies across countries. */}
+        <div className="grid gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+          {countryCards.length ? countryCards.map((card) => (
+            <div key={card.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{card.country}</div>
+                  <div className="text-xs font-black text-blue-700 dark:text-blue-300">{card.currency}</div>
+                </div>
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{card.totalOrders} POs</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[10px] normal-case">
+                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
+                  <div className="font-bold uppercase text-slate-400">Invoice</div>
+                  <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{money(card.invoiceAmount, card.currency)}</div>
+                </div>
+                <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
+                  <div className="font-bold uppercase text-emerald-600">Advance</div>
+                  <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">{money(card.advancePaid, card.currency)}</div>
+                </div>
+                <div className="col-span-2 rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
+                  <div className="font-bold uppercase text-rose-600">Outstanding Balance</div>
+                  <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(card.remainingBalance, card.currency)}</div>
+                </div>
+              </div>
+            </div>
+          )) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-semibold normal-case text-slate-500 dark:border-slate-800 dark:bg-slate-900/40">
+              No country-wise purchase transfer records found for this scope.
+            </div>
+          )}
         </div>
       </div>
 

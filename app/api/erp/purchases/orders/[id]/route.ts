@@ -110,85 +110,21 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       (patch.ledger_posting_status === "posted" && !isAlreadyPosted) ||
       (isAlreadyPosted && (body.ledgerPostingStatus === "posted" || body.orderTotal !== undefined || body.formData !== undefined));
 
-    if (shouldPost) {
-      if (isAlreadyPosted) {
-        patch.ledger_posting_status = "posted";
-        const adminSupabase = createSupabaseAdminClient() as any;
-        await revertOrderBookingTransfer(params.id, supabase, adminSupabase);
-      }
-      const orderId = params.id;
+    // Ledger posting has been removed from Purchase Booking.
+    // Booking must remain only in the Purchase Booking Register until transferred and paid.
+    
+    // We still update advance calculations if needed
+    if (body.orderTotal !== undefined || body.formData !== undefined) {
       const orderTotal = body.orderTotal !== undefined ? body.orderTotal : (before as any).order_total;
-      const currencyCode = body.currencyCode !== undefined ? body.currencyCode : (before as any).currency_code;
-      const exchangeRate = body.exchangeRate !== undefined ? body.exchangeRate : (before as any).exchange_rate;
       const formData = body.formData !== undefined ? body.formData : (before as any).form_data;
-      
       const form = formData?.form ?? {};
-
-      // If this is an admin re-transfer, record it in the audit trail
-      if (isAlreadyPosted) {
-        if (!form.transferAudit) {
-          form.transferAudit = {
-            userId: session.userId,
-            userName: session.fullName || "Admin",
-            transferDate: (before as any).created_at
-          };
-        }
-        form.transferAudit.retransferDate = new Date().toISOString();
-        form.transferAudit.retransferBy = session.fullName || session.userId;
-        patch.form_data = { ...(formData as any), form };
-      }
       const advancePercent = Number(form.advancePercent ?? 10);
       const advanceAmount = (Number(orderTotal) * advancePercent) / 100;
       const remainingDue = Math.max(0, Number(orderTotal) - advanceAmount);
-      const entryDate = form.advancePaymentDate || form.purchaseDate || new Date().toISOString().slice(0, 10);
-
+      
       patch.advance_paid = advanceAmount;
       patch.remaining_due = remainingDue;
       patch.payment_status = remainingDue === 0 ? "completed" : advanceAmount > 0 ? "partial" : "pending";
-      const debitLedgerId = await getLedgerIdByCode(supabase, form.purchaseAccountNo, {
-        userId: session.userId,
-        countryId: (before as any)?.country_id ?? null,
-        countryBranchId: (before as any)?.country_branch_id ?? null,
-        cityBranchId: (before as any)?.city_branch_id ?? null,
-        kind: "asset",
-        name: form.purchaseAccountName || `${form.purchaseAccountNo} Account`,
-        currencyCode: currencyCode || "USD"
-      });
-      const creditLedgerId = await getLedgerIdByCode(supabase, form.salesAccountNo, {
-        userId: session.userId,
-        countryId: (before as any)?.country_id ?? null,
-        countryBranchId: (before as any)?.country_branch_id ?? null,
-        cityBranchId: (before as any)?.city_branch_id ?? null,
-        kind: "liability",
-        name: form.salesAccountName || form.supplierName || `${form.salesAccountNo} Account`,
-        currencyCode: currencyCode || "USD"
-      });
-      
-      if (!debitLedgerId) {
-        throw new Error(`Debit Ledger (Inventory) not found for account code: ${form.purchaseAccountNo}`);
-      }
-      if (!creditLedgerId) {
-        throw new Error(`Credit Ledger (Supplier Payable) not found for account code: ${form.salesAccountNo}`);
-      }
-
-      // 1. Stage 1: Credit purchase entry: Debit Inventory, Credit Supplier Payable
-      const { error: transferError } = await supabase.rpc("post_purchase_booking_transfer", {
-        p_actor_id: session.userId,
-        p_purchase_order_id: orderId,
-        p_kind: "booking",
-        p_entry_date: entryDate,
-        p_amount: Number(orderTotal),
-        p_currency_code: currencyCode || "USD",
-        p_exchange_rate: Number(exchangeRate || 1),
-        p_debit_ledger_id: debitLedgerId,
-        p_credit_ledger_id: creditLedgerId,
-        p_reference_no: body.purchaseContractNo || (before as any).purchase_contract_no || null,
-        p_narration: `Booking Transfer for PO ${(before as any).purchase_order_no}${form.orderReportRemarks || form.remarks ? ` - ${form.orderReportRemarks || form.remarks}` : ""}`
-      });
-
-      if (transferError) {
-        throw new Error(`Booking Transfer Ledger Entry failed: ${transferError.message}`);
-      }
     }
 
     const updated = await requireSupabaseData(

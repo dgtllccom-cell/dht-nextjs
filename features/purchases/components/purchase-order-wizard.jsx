@@ -5648,7 +5648,7 @@ export function PurchaseOrderWizard() {
           <div className="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-lg animate-in zoom-in-95 duration-200">
             <div className="bg-blue-900 text-white p-4 flex items-center justify-between border-b border-blue-800">
               <h2 className="font-black tracking-wider uppercase text-sm flex items-center gap-2">
-                <FileSignature className="h-4 w-4 text-blue-300" /> Business Ledger Posting
+                <FileSignature className="h-4 w-4 text-blue-300" /> Transfer to Payment Module
               </h2>
               <button type="button" onClick={() => setTransferConfirmModal(false)} className="text-blue-300 hover:text-white transition">
                 <X className="h-5 w-5" />
@@ -5659,64 +5659,10 @@ export function PurchaseOrderWizard() {
               <div className="flex items-start gap-3 bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100">
                 <CheckSquare className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
                 <p className="font-semibold leading-relaxed">
-                  You are about to transfer this purchase order to the Purchase Booking Roznamcha (Business Journal). Please verify the automated Double-Entry accounting mapping below:
+                  You are about to transfer this Purchase Booking to the <strong>Purchase Transfer Payment</strong> module. 
+                  <br/><br/>
+                  <em>Note: No accounting entries (Roznamcha, Ledger) will be posted at this stage. Entries will only be posted when the payment is officially processed.</em>
                 </p>
-              </div>
-              
-              <div className="grid gap-3">
-                {/* DR Box */}
-                <div className="border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm relative">
-                  <div className="absolute top-0 right-0 bg-red-100 text-red-700 font-black px-2 py-1 text-[9px] rounded-bl border-b border-l border-red-200 uppercase">
-                    DR (Debit)
-                  </div>
-                  <div className="p-3">
-                    <span className="text-slate-500 font-bold block mb-1 uppercase text-[9px] tracking-wider">Purchase Account</span>
-                    <div className="flex justify-between items-end border-b border-slate-100 pb-2 mb-2 mt-2">
-                      <div className="font-black text-sm text-slate-900">{form.purchaseAccountName || "N/A"}</div>
-                      <div className="font-mono text-slate-500">{form.purchaseAccountNo || "N/A"}</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3 text-[9px]">
-                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span> <span className="font-bold">{form.purchaseAccountBranch || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Country:</span> <span className="font-bold">{form.origin || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Global Serial:</span> <span className="font-bold font-mono">{form.purchaseAccountSerialNumber || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Country Serial:</span> <span className="font-bold font-mono">{form.purchaseAccountCountrySerialNumber || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Branch Serial:</span> <span className="font-bold font-mono">{form.purchaseAccountBranchSerialNumber || "N/A"}</span></div>
-                    </div>
-                    <div className="flex justify-between items-center text-red-700 pt-2 border-t border-slate-100">
-                      <span className="font-semibold text-slate-600">Debit Amount:</span>
-                      <span className="font-black text-sm">
-                        {form.purchaseCurrency || form.purchaseAccountCurrency || "USD"} {((form.currencyType !== (form.purchaseCurrency || form.purchaseAccountCurrency || "USD")) ? (reportTotals.grandFinal * Number(form.exchangeRate || 1)) : reportTotals.grandFinal).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* CR Box */}
-                <div className="border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm relative">
-                  <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-700 font-black px-2 py-1 text-[9px] rounded-bl border-b border-l border-emerald-200 uppercase">
-                    CR (Credit)
-                  </div>
-                  <div className="p-3">
-                    <span className="text-slate-500 font-bold block mb-1 uppercase text-[9px] tracking-wider">Sales Account</span>
-                    <div className="flex justify-between items-end border-b border-slate-100 pb-2 mb-2 mt-2">
-                      <div className="font-black text-sm text-slate-900">{form.salesAccountName || "N/A"}</div>
-                      <div className="font-mono text-slate-500">{form.salesAccountNo || "N/A"}</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3 text-[9px]">
-                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span> <span className="font-bold">{form.salesAccountBranch || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Country:</span> <span className="font-bold">{form.branchCountry || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Global Serial:</span> <span className="font-bold font-mono">{form.salesAccountSerialNumber || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Country Serial:</span> <span className="font-bold font-mono">{form.salesAccountCountrySerialNumber || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Branch Serial:</span> <span className="font-bold font-mono">{form.salesAccountBranchSerialNumber || "N/A"}</span></div>
-                    </div>
-                    <div className="flex justify-between items-center text-emerald-700 pt-2 border-t border-slate-100">
-                      <span className="font-semibold text-slate-600">Credit Amount:</span>
-                      <span className="font-black text-sm">
-                        {form.purchaseCurrency || form.purchaseAccountCurrency || "USD"} {((form.currencyType !== (form.purchaseCurrency || form.purchaseAccountCurrency || "USD")) ? (reportTotals.grandFinal * Number(form.exchangeRate || 1)) : reportTotals.grandFinal).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
