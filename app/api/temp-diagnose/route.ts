@@ -21,7 +21,7 @@ export async function GET() {
       )
     `.then(r => r[0].exists);
 
-    let migrations = [];
+    let migrations: any[] = [];
     if (checkTable) {
       migrations = await sql`
         SELECT version FROM supabase_migrations.schema_migrations ORDER BY version ASC
@@ -32,7 +32,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       hasMigrationsTable: checkTable,
-      appliedMigrations: migrations.map(r => r.version)
+      appliedMigrations: migrations.map((r: any) => r.version)
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 });

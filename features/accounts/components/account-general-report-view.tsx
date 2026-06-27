@@ -3,7 +3,8 @@
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Expand, Eye, FileSpreadsheet, FileText, MoreVertical, PencilLine, Printer, Search, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Download, Expand, Eye, FileSpreadsheet, FileText, MoreVertical, PencilLine, Printer, Search, Trash2, CalendarDays, RefreshCw, SlidersHorizontal, Landmark, CheckCircle2, ChevronDown, PackageCheck, FileCheck2, Building2, MapPin } from "lucide-react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { apiDelete, apiGet } from "@/lib/api/client";
@@ -447,6 +448,13 @@ export function AccountGeneralReportView({
   const [dashboardScope, setDashboardScope] = useState<AccountDashboardScope>("super_admin");
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(initialAccountId ?? null);
   const [accountToDelete, setAccountToDelete] = useState<AccountGeneralReportRow | null>(null);
+  const [titlePortal, setTitlePortal] = useState<HTMLElement | null>(null);
+  const [actionsPortal, setActionsPortal] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setTitlePortal(document.getElementById("erp-page-title-slot"));
+    setActionsPortal(document.getElementById("erp-page-actions-slot"));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -825,566 +833,419 @@ export function AccountGeneralReportView({
     }
   }
 
-  const containerClassName = expandedView ? "fixed inset-0 z-50 overflow-auto bg-background p-4 md:p-6" : "space-y-6";
+  const containerClassName = expandedView ? "fixed inset-0 z-50 overflow-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6" : "space-y-4 text-slate-900 dark:text-slate-100 max-w-none mx-auto p-4 bg-slate-50/30 dark:bg-slate-900/30 rounded-2xl";
+
+  const pageHeaderContent = (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-4">
+      <div>
+        <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">{pageTitle}</h1>
+        <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">{subtitle ?? "Enterprise Registry & Financial Ledger Details"}</p>
+      </div>
+    </div>
+  );
+
+  const pageActionsContent = (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Scope Selector */}
+      <select
+        value={dashboardScope}
+        onChange={(event) => {
+          const next = event.target.value as AccountDashboardScope;
+          setDashboardScope(next);
+          setCountryName("all");
+          setDraftCountryName("all");
+          setBranchCode("all");
+          setDraftBranchCode("all");
+        }}
+        className="h-9 min-w-[150px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-350 cursor-pointer shadow-sm"
+      >
+        <option value="super_admin" disabled={!isSuperAdmin}>SUPER ADMIN</option>
+        <option value="country">COUNTRY SCOPE</option>
+        <option value="branch">BRANCH SCOPE</option>
+      </select>
+
+      {/* Search Input */}
+      <div className="relative min-w-[200px]">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-450" />
+        <input
+          value={draftQuery}
+          onChange={(e) => { setDraftQuery(e.target.value); setQuery(e.target.value); }}
+          placeholder="Search account, name, branch..."
+          className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 shadow-sm"
+        />
+      </div>
+
+      <Button type="button" size="sm" variant="outline" onClick={() => setActionsOpen(!actionsOpen)} className="h-9 rounded-xl border-slate-200 font-bold text-xs shadow-sm">
+        <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" /> Filter
+      </Button>
+      <Button type="button" size="sm" variant="outline" onClick={resetFilters} className="h-9 rounded-xl border-slate-200 font-bold text-xs shadow-sm">
+        <RefreshCw className={loading ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} /> Reset
+      </Button>
+
+      <div className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+        <CalendarDays className="h-4 w-4 text-slate-400" />
+        <span>{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+      </div>
+    </div>
+  );
 
   return (
     <div className={containerClassName}>
-      <ReportPageHeader
-        title={pageTitle}
-        subtitle={subtitle ?? "All created accounts with live balances, journals, and linked ledger activity."}
-        actions={
-          <>
-            <Button type="button" variant="outline" size="sm" onClick={openFullScreen} disabled={loading}>
-              <Expand className="h-4 w-4" aria-hidden />
-              {expandedView ? "Shrink View" : "Open Full Screen"}
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => window.print()} disabled={loading}>
-              <Printer className="h-4 w-4" aria-hidden />
-              Print
-            </Button>
-            <div className="relative" ref={actionsRef}>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Report actions"
-                disabled={loading}
-                onClick={() => setActionsOpen((value) => !value)}
-              >
-                <MoreVertical className="h-4 w-4" aria-hidden />
-              </Button>
+      {titlePortal && createPortal(pageHeaderContent, titlePortal)}
+      {actionsPortal && createPortal(pageActionsContent, actionsPortal)}
+      
+      {(!titlePortal || !actionsPortal) && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+          {pageHeaderContent}
+          {pageActionsContent}
+        </div>
+      )}
 
-              {actionsOpen ? (
-                <div className="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-lg border bg-background shadow-lg">
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-                    onClick={() => {
-                      setActionsOpen(false);
-                      window.print();
-                    }}
-                  >
-                    <Printer className="h-4 w-4" aria-hidden />
-                    Print
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-                    onClick={() => {
-                    setActionsOpen(false);
-                    window.print();
-                  }}
-                >
-                  <DownloadActionIcon className="h-4 w-4" aria-hidden />
-                  PDF Export
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-                    onClick={() => {
-                      setActionsOpen(false);
-                      exportCsv();
-                    }}
-                  >
-                    <FileSpreadsheet className="h-4 w-4" aria-hidden />
-                    Excel Export
-                  </button>
-                </div>
-              ) : null}
+      {/* Unified Executive & Operations Summary Box */}
+      <div className="border border-slate-200/60 rounded-2xl bg-white/80 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/60 p-5 shadow-sm text-xs font-semibold text-slate-500 uppercase flex flex-col gap-4 transition-all hover:shadow-md">
+        
+        {/* Row 1: Session Info */}
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-2.5">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Branch Scope:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{branchCode !== "all" ? branchCode : (session?.scopes?.isSuperAdmin ? "GLOBAL ADMIN" : session?.roles?.[0] ?? "MAIN BRANCH")}</span>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Session Role:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{isSuperAdmin ? "SUPER ADMIN" : "AUTHORIZED USER"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Total Ledgers:</span> 
+              <span className="text-slate-800 dark:text-slate-200 font-bold">{visibleSummary.totalLedgers}</span>
+            </div>
+          </div>
+        </div>
 
-            <ReportFilterMenu ariaLabel="Account filters" disabled={loading}>
-              <div className="border-b bg-muted/10 px-3 py-2 text-sm font-semibold">Account Filters</div>
-              <div className="space-y-3 p-3">
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">Search</Label>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                    <Input
-                      className="h-9 pl-9 text-xs"
-                      value={draftQuery}
-                      onChange={(e) => setDraftQuery(e.target.value)}
-                      placeholder="Search code, name, journal, branch, or city"
-                    />
-                  </div>
-                </div>
-
-                <SearchSelect
-                  label="Account"
-                  value={draftAccountId}
-                  placeholder="All accounts"
-                  options={[{ value: "all", label: "All Accounts", keywords: "all accounts" }, ...accountOptions]}
-                  onValueChange={setDraftAccountId}
-                  disabled={loading}
-                />
-
-                <SearchSelect
-                  label="Country"
-                  value={draftCountryName}
-                  placeholder="All countries"
-                  options={countryOptions}
-                  onValueChange={setDraftCountryName}
-                  disabled={loading || (!isSuperAdmin && dashboardScope !== "super_admin")}
-                />
-
-                <SearchSelect
-                  label="Branch"
-                  value={draftBranchCode}
-                  placeholder="All branches"
-                  options={branchOptions}
-                  onValueChange={setDraftBranchCode}
-                  disabled={loading}
-                />
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">From Date</Label>
-                    <Input type="date" className="h-9 text-xs" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">To Date</Label>
-                    <Input type="date" className="h-9 text-xs" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">Status</Label>
-                  <select
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                    value={draftStatus}
-                    onChange={(e) => setDraftStatus(e.target.value)}
-                  >
-                    <option value="all">All</option>
-                    <option value="active">Active</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
-
-                <div className="flex justify-end gap-2 border-t pt-3">
-                  <Button type="button" variant="outline" size="sm" onClick={resetFilters}>
-                    Reset
-                  </Button>
-                  <Button type="button" size="sm" onClick={applyFilters}>
-                    Apply
-                  </Button>
-                </div>
+        {/* Row 2: Account Financial Summary Cards */}
+        <div className="grid gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Accounts</div>
+                <div className="text-xs font-black text-blue-700 dark:text-blue-300">SYSTEM WIDE</div>
               </div>
-            </ReportFilterMenu>
-          </>
-        }
-      />
-
-      <Card className="rounded-lg">
-        <CardContent className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1">
-            <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">
-              Account Reporting System
+              <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{visibleSummary.activeAccounts} Active</span>
             </div>
-            <div className="text-sm font-semibold">
-              {dashboardScope === "super_admin"
-                ? "Level 1 - Super Admin Account Dashboard"
-                : dashboardScope === "country"
-                  ? "Level 2 - Country Account Dashboard"
-                  : "Level 3 - Branch Account Dashboard"}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Scope-aware accounts, ledgers, balances, country/branch hierarchy, and activity reporting.
+            <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
+              <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
+                <div className="font-bold uppercase text-slate-400">Count</div>
+                <div className="font-mono text-sm font-black text-slate-900 dark:text-slate-100">{visibleSummary.totalAccounts.toLocaleString()}</div>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Label className="text-xs font-semibold text-muted-foreground">Dashboard Level</Label>
-            <select
-              className="h-9 rounded-lg border bg-background px-3 text-sm font-semibold shadow-sm"
-              value={dashboardScope}
-              onChange={(event) => {
-                const next = event.target.value as AccountDashboardScope;
-                setDashboardScope(next);
-                setCountryName("all");
-                setDraftCountryName("all");
-                setBranchCode("all");
-                setDraftBranchCode("all");
-              }}
-            >
-              <option value="super_admin" disabled={!isSuperAdmin}>
-                Super Admin
-              </option>
-              <option value="country">Country</option>
-              <option value="branch">Branch</option>
-            </select>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Debit</div>
+                <div className="text-xs font-black text-rose-700 dark:text-rose-300">RECEIVABLES / DR</div>
+              </div>
+              <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">Aggregated</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
+              <div className="rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
+                <div className="font-bold uppercase text-rose-600">Debit Total</div>
+                <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{fmtNumber(visibleSummary.debitTotal)}</div>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {highlightCreated && selectedRow ? (
-        <Card className="rounded-lg border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
-          <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Credit</div>
+                <div className="text-xs font-black text-emerald-700 dark:text-emerald-300">PAYABLES / CR</div>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">Aggregated</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
+              <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
+                <div className="font-bold uppercase text-emerald-600">Credit Total</div>
+                <div className="font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">{fmtNumber(visibleSummary.creditTotal)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Net Balance</div>
+                <div className="text-xs font-black text-blue-700 dark:text-blue-300">OVERALL POSITION</div>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-300">Consolidated</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
+              <div className={cn("rounded-lg p-2", visibleSummary.totalBalance < 0 ? "bg-rose-50 dark:bg-rose-950/20" : "bg-emerald-50 dark:bg-emerald-950/20")}>
+                <div className={cn("font-bold uppercase", visibleSummary.totalBalance < 0 ? "text-rose-600" : "text-emerald-600")}>Balance</div>
+                <div className={cn("font-mono text-sm font-black", visibleSummary.totalBalance < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300")}>{fmtNumber(visibleSummary.totalBalance)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* REPORT-3: SEARCH & TRANSACTION REPORT */}
+      <section className="bg-white border border-slate-200 dark:border-slate-800 dark:bg-slate-950 p-6 rounded-2xl shadow-sm space-y-6">
+        <div className="flex flex-col items-center justify-center text-center w-full py-3 border-b border-slate-100 dark:border-slate-800/60">
+          <h2 className="text-sm font-black tracking-widest text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 justify-center">
+            <SlidersHorizontal className="h-4 w-4 text-blue-600 dark:text-blue-500" />
+            Account Master Registry & Search Report
+          </h2>
+          <p className="text-[10px] text-slate-400 mt-1.5 font-medium tracking-wide">Financial Accounts & Sub-Ledgers Detail View</p>
+        </div>
+
+        {actionsOpen ? (
+          <div className="rounded border border-slate-200 bg-slate-50/30 p-4 dark:border-slate-800 dark:bg-slate-955 animate-in fade-in duration-200">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <label className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Country Scope</span>
+                <select value={draftCountryName} onChange={(e) => setDraftCountryName(e.target.value)} disabled={!isSuperAdmin && dashboardScope !== "super_admin"} className="h-9 w-full rounded border border-slate-250 bg-white px-3 text-xs focus:border-blue-500 outline-none transition disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-800 dark:bg-slate-950">
+                  {countryOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Branch Scope</span>
+                <select value={draftBranchCode} onChange={(e) => setDraftBranchCode(e.target.value)} className="h-9 w-full rounded border border-slate-250 bg-white px-3 text-xs focus:border-blue-500 outline-none transition disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-800 dark:bg-slate-950">
+                  {branchOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</span>
+                <select value={draftStatus} onChange={(e) => setDraftStatus(e.target.value)} className="h-9 w-full rounded border border-slate-250 bg-white px-3 text-xs focus:border-blue-500 outline-none transition disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-800 dark:bg-slate-950">
+                  <option value="all">All</option>
+                  <option value="active">Active</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </label>
+              <label className="space-y-1 flex gap-2">
+                <div className="w-1/2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">From Date</span>
+                  <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="h-9 w-full rounded border border-slate-250 bg-white px-3 text-xs focus:border-blue-500 outline-none transition dark:border-slate-800 dark:bg-slate-950" />
+                </div>
+                <div className="w-1/2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">To Date</span>
+                  <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="h-9 w-full rounded border border-slate-250 bg-white px-3 text-xs focus:border-blue-500 outline-none transition dark:border-slate-800 dark:bg-slate-950" />
+                </div>
+              </label>
+            </div>
+            <div className="mt-3 flex justify-end gap-2 border-t border-slate-150 pt-3 dark:border-slate-800">
+              <Button size="sm" variant="outline" onClick={resetFilters} className="h-8 text-[10px] font-bold">Reset Filters</Button>
+              <Button size="sm" onClick={applyFilters} className="bg-blue-600 hover:bg-blue-700 text-white h-8 text-[10px] font-bold"><RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", loading && "animate-spin")} />Apply Filters</Button>
+            </div>
+          </div>
+        ) : null}
+
+        {error ? <div className="rounded border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-900 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-200">{error}</div> : null}
+        
+        {highlightCreated && selectedRow ? (
+          <div className="rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200 flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             <div>
-              <div className="text-sm font-extrabold">Account Created Successfully</div>
-              <div className="mt-1 text-xs">
-                New account is now selected in Account Register. Country, City Branch, Company, Balance, Status, and Created Date are visible below.
-              </div>
-            </div>
-            <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
-              <span><b>Account:</b> {selectedRow.accountCode}</span>
-              <span><b>Country:</b> {selectedRow.countryName}</span>
-              <span><b>City Branch:</b> {selectedRow.cityBranchName ?? selectedRow.cityName}</span>
-              <span><b>Company:</b> {selectedRow.companyName}</span>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Card className="rounded-lg">
-        <CardContent className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input
-              className="h-10 pl-9 text-sm"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setDraftQuery(event.target.value);
-              }}
-              placeholder="Search account no, account name, country, branch, role, status..."
-              aria-label="Account search"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="rounded-full border bg-background px-3 py-1 font-semibold">
-              {filteredRows.length} visible accounts
-            </span>
-            <span className="rounded-full border bg-background px-3 py-1 font-semibold">
-              Filters open from Search / Filters
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        {dashboardCards.map((card) => (
-          <Card key={card.label} className="rounded-lg">
-            <CardContent className="p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{card.label}</p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight">{card.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {chartGroups.map((chart) => (
-          <MiniChart key={chart.title} title={chart.title} rows={chart.rows} formatValue={chart.formatValue} />
-        ))}
-      </div>
-
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-
-      <div className={cn("grid gap-6", showProfilePanel ? "xl:grid-cols-[minmax(0,1fr)_420px]" : "xl:grid-cols-1")}>
-        <section className="rounded-lg border bg-card">
-          <div className="border-b px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="font-semibold">New Account General Report</h2>
-                <p className="text-sm text-muted-foreground">
-                  Shows every created account with journal code, balances, and linked ledger activity.
-                </p>
-              </div>
-              <div className="text-xs text-muted-foreground">Generated {fmtDateTime(data?.generatedAt)}</div>
+              <span className="font-bold">Account Created Successfully!</span>
+              <span className="block mt-0.5">Account <span className="font-mono font-black">{selectedRow.accountCode}</span> in {selectedRow.countryName} has been selected.</span>
             </div>
           </div>
+        ) : null}
 
-          <div className="overflow-auto">
-            <table className="min-w-[1360px] w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-muted/80 text-left text-muted-foreground backdrop-blur">
-                <tr>
-                  <ReportTh className="text-left">Account Number</ReportTh>
-                  <ReportTh className="text-left">Account Name</ReportTh>
-                  <ReportTh className="text-left">Country</ReportTh>
-                  <ReportTh className="text-left">Manual Ref.</ReportTh>
-                  <ReportTh className="text-left">Main Branch</ReportTh>
-                  <ReportTh className="text-left">City Branch</ReportTh>
-                  <ReportTh className="text-left">Branch Code</ReportTh>
-                  <ReportTh className="text-left">Company Name</ReportTh>
-                  <ReportTh className="text-left">Currency</ReportTh>
-                  <ReportTh className="text-right">Debit</ReportTh>
-                  <ReportTh className="text-right">Credit</ReportTh>
-                  <ReportTh className="text-right">Current Balance</ReportTh>
-                  <ReportTh className="text-left">Status</ReportTh>
-                  <ReportTh className="text-left">Created</ReportTh>
-                  <ReportTh className="text-left">Actions</ReportTh>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+        <div className={cn("grid gap-6 items-start", showProfilePanel ? "xl:grid-cols-[minmax(0,1fr)_420px]" : "xl:grid-cols-1")}>
+          <div className="overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+            <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[350px]">
+              <table className="min-w-[1400px] w-full text-xs text-left border-collapse">
+                <thead className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
                   <tr>
-                    <td colSpan={15} className="px-5 py-10 text-center text-sm text-muted-foreground">
-                      Loading account general report...
-                    </td>
-                  </tr>
-                ) : filteredRows.length ? (
-                  filteredRows.map((row) => {
-                    const active = row.accountId === selectedRow?.accountId;
-                    const highlighted = row.accountId === highlightedAccountId;
-                    return (
-                      <tr
-                        key={row.accountId}
-                        className={cn(
-                          "border-t transition hover:bg-muted/30",
-                          active ? "bg-muted/40" : "",
-                          highlighted ? "bg-emerald-50 ring-2 ring-inset ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : ""
-                        )}
-                        onClick={() => setSelectedAccountId(row.accountId)}
+                    {[
+                      { label: "Account Overview", span: 3, cls: "bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-t-2 border-t-slate-400" },
+                      { label: "Branch & Location", span: 3, cls: "bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-800 dark:text-indigo-400 border-t-2 border-t-indigo-500" },
+                      { label: "Financial Information", span: 4, cls: "bg-blue-50/50 dark:bg-blue-950/20 text-blue-800 dark:text-blue-400 border-t-2 border-t-blue-500" },
+                      { label: "Status", span: 1, cls: "bg-amber-50/50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-t-2 border-t-amber-500" },
+                      { label: "Actions", span: 1, cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border-t-2 border-t-slate-300" },
+                    ].map((group) => (
+                      <th
+                        key={group.label}
+                        colSpan={group.span}
+                        className={`${group.cls} px-3 py-2 text-[10px] font-extrabold uppercase tracking-widest text-center border-r border-slate-200 dark:border-slate-800 last:border-r-0`}
                       >
-                        <ReportTd className="whitespace-nowrap font-mono text-xs">{row.accountCode}</ReportTd>
-                        <ReportTd className="min-w-44 font-medium">
-                          <div className="flex flex-col">
-                            <span>{row.accountName}</span>
-                            <span className="text-xs text-muted-foreground">{row.accountCategory} / {row.subType}</span>
-                          </div>
-                        </ReportTd>
-                        <ReportTd>{row.countryName}</ReportTd>
-                        <ReportTd className="whitespace-nowrap font-mono text-xs">{row.manualReferenceNumber ?? "-"}</ReportTd>
-                        <ReportTd>{row.mainBranchName ?? (row.branchType === "Main Branch" ? row.branchName : "-")}</ReportTd>
-                        <ReportTd>{row.cityBranchName ?? (row.branchType === "City Branch" ? row.branchName : "-")}</ReportTd>
-                        <ReportTd className="whitespace-nowrap font-mono text-xs">{row.branchCode}</ReportTd>
-                        <ReportTd>{row.companyName}</ReportTd>
-                        <ReportTd>{row.currency}</ReportTd>
-                        <ReportTd className="text-right font-mono">{fmtNumber(row.debitTotal)}</ReportTd>
-                        <ReportTd className="text-right font-mono">{fmtNumber(row.creditTotal)}</ReportTd>
-                        <ReportTd className={cn("text-right font-mono font-semibold", rowTone(row.currentBalance))}>
-                          {fmtNumber(row.currentBalance)}
-                        </ReportTd>
-                        <ReportTd>
-                          <span
-                            className={cn(
-                              "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
-                              row.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
-                            )}
-                          >
-                            {titleCase(row.status)}
-                          </span>
-                        </ReportTd>
-                        <ReportTd className="whitespace-nowrap text-xs text-muted-foreground">{fmtDateTime(row.createdAt)}</ReportTd>
-                        <ReportTd>
-                          <AccountRowActionsMenu
-                            row={row}
-                            disabled={loadingDeleting}
-                            onView={() => {
-                              if (showProfilePanel) {
-                                setSelectedAccountId(row.accountId);
-                              } else {
-                                router.push(`/dashboard/accounts/view?accountId=${row.accountId}` as Route);
-                              }
-                            }}
-                            onEdit={() => router.push(`/dashboard/accounts/setup?accountId=${row.accountId}` as Route)}
-                            onOpenAccount={() => {
-                              if (showProfilePanel) {
-                                setSelectedAccountId(row.accountId);
-                              } else {
-                                router.push(`/dashboard/accounts/view?accountId=${row.accountId}` as Route);
-                              }
-                            }}
-                            onOpenLedger={() => {
-                              if (row.ledgerId) router.push(`/dashboard/ledger/general-report?ledgerId=${row.ledgerId}` as Route);
-                            }}
-                            onViewJournal={() => setSelectedAccountId(row.accountId)}
-                            onPrint={() => window.print()}
-                            onPdf={() => window.print()}
-                            onExcel={() => exportCsv("selected")}
-                            onDelete={canDelete ? () => void deleteAccount(row) : undefined}
-                          />
-                        </ReportTd>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={15} className="px-5 py-10 text-center text-sm text-muted-foreground">
-                      No accounts found for the selected filters.
-                    </td>
+                        {group.label}
+                      </th>
+                    ))}
                   </tr>
-                )}
-              </tbody>
-            </table>
+                  <tr className="bg-white dark:bg-slate-950 text-[9px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b-2 border-slate-200 dark:border-slate-800">
+                    {[
+                      "ACCOUNT CODE", "ACCOUNT NAME", "CATEGORY",
+                      "COUNTRY", "MAIN BRANCH", "CITY BRANCH",
+                      "CURRENCY", "DEBIT", "CREDIT", "BALANCE",
+                      "STATUS", "ACTIONS"
+                    ].map((header, i) => (
+                      <th key={i} className="px-3 py-3 border-r border-slate-100 dark:border-slate-800/50 last:border-r-0 whitespace-nowrap text-center align-middle">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-500 font-medium">
+                        <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-blue-500" />
+                        Loading accounts registry...
+                      </td>
+                    </tr>
+                  ) : filteredRows.length ? (
+                    filteredRows.map((row) => {
+                      const active = row.accountId === selectedRow?.accountId;
+                      const highlighted = row.accountId === highlightedAccountId;
+                      
+                      return (
+                        <tr
+                          key={row.accountId}
+                          onClick={() => setSelectedAccountId(row.accountId)}
+                          className={cn(
+                            "cursor-pointer transition hover:bg-blue-50/30 dark:hover:bg-blue-950/10 text-center text-[10px] font-semibold text-slate-800 dark:text-slate-350",
+                            active && "bg-blue-50/40 dark:bg-blue-950/10",
+                            highlighted && "bg-emerald-50 dark:bg-emerald-950/30"
+                          )}
+                        >
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono font-bold text-blue-700 dark:text-blue-400">{row.accountCode}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-bold text-left">{row.accountName}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 uppercase text-[9px] tracking-wide text-slate-500">{row.accountCategory} / {row.subType}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850">{row.countryName}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850">{row.mainBranchName ?? (row.branchType === "Main Branch" ? row.branchName : "-")}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850">{row.cityBranchName ?? (row.branchType === "City Branch" ? row.branchName : "-")}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-black">{row.currency}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono text-rose-600 dark:text-rose-400 text-right">{fmtNumber(row.debitTotal)}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono text-emerald-600 dark:text-emerald-400 text-right">{fmtNumber(row.creditTotal)}</td>
+                          <td className={cn("px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono font-black text-right", rowTone(row.currentBalance))}>{fmtNumber(row.currentBalance)}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850">
+                            <span className={cn("inline-block px-1.5 py-0.5 rounded text-[8px] font-black uppercase text-white tracking-widest", row.status === "active" ? "bg-emerald-600" : "bg-slate-500")}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-center align-middle">
+                            <AccountRowActionsMenu
+                              row={row}
+                              disabled={loadingDeleting}
+                              onView={() => {
+                                if (showProfilePanel) setSelectedAccountId(row.accountId);
+                                else router.push(`/dashboard/accounts/view?accountId=${row.accountId}` as Route);
+                              }}
+                              onEdit={() => router.push(`/dashboard/accounts/setup?accountId=${row.accountId}` as Route)}
+                              onOpenAccount={() => {
+                                if (showProfilePanel) setSelectedAccountId(row.accountId);
+                                else router.push(`/dashboard/accounts/view?accountId=${row.accountId}` as Route);
+                              }}
+                              onOpenLedger={() => {
+                                if (row.ledgerId) router.push(`/dashboard/ledger/general-report?ledgerId=${row.ledgerId}` as Route);
+                              }}
+                              onViewJournal={() => setSelectedAccountId(row.accountId)}
+                              onPrint={() => window.print()}
+                              onPdf={() => window.print()}
+                              onExcel={() => exportCsv("selected")}
+                              onDelete={canDelete ? () => void deleteAccount(row) : undefined}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-500">
+                        No accounts match the selected filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </section>
 
-        {showProfilePanel ? (
-        <aside className="h-fit rounded-lg border bg-card xl:sticky xl:top-24">
-          <div className="border-b px-5 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-semibold">Account View Profile</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Complete account, branch, audit, and financial profile.</p>
+          {showProfilePanel && (
+            <div className="w-full shrink-0 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg flex flex-col h-fit overflow-y-auto xl:sticky xl:top-24 max-h-[calc(100vh-140px)]">
+              <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-10 shadow-sm">
+                <h3 className="text-base font-black text-[#0f2942] dark:text-white uppercase tracking-widest flex items-center gap-2">
+                  <FileCheck2 className="h-5 w-5 text-blue-600" />
+                  Account Verification
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-bold">Review account details and balances</p>
               </div>
-              <span className="rounded-full border bg-background px-3 py-1 text-xs font-semibold text-muted-foreground">
-                {selectedRow ? "Selected" : "Empty"}
-              </span>
-            </div>
-          </div>
 
-          <div className="space-y-4 p-5">
-            <Card className="rounded-lg border-dashed">
-              <CardContent className="p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workspace</p>
-                <div className="mt-2 space-y-1 text-sm">
-                  <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Company</span>
-                    <span className="font-semibold">{data?.workspace.companyName ?? "-"}</span>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Company Code</span>
-                    <span className="font-semibold">{data?.workspace.companyCode ?? "-"}</span>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Company Owner</span>
-                    <span className="font-semibold">{data?.workspace.companyOwner ?? "-"}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-foreground">Account Information</h3>
-              <PreviewRow label="Account Number" value={selectedRow?.accountCode} />
-              <PreviewRow label="Manual Reference" value={selectedRow?.manualReferenceNumber ?? undefined} />
-              <PreviewRow label="Country Serial" value={selectedRow?.countrySerialNumber} />
-              <PreviewRow label="Branch Serial" value={selectedRow?.branchSerialNumber} />
-              <PreviewRow label="Customer Number" value={selectedRow?.customerNumber} />
-              <PreviewRow label="Account Name" value={selectedRow?.accountName} />
-              <PreviewRow label="Journal Code" value={selectedRow?.journalCode} />
-              <PreviewRow label="Account Category" value={selectedRow?.accountCategory} />
-              <PreviewRow label="Sub Type" value={selectedRow?.subType} />
-              <PreviewRow label="Status" value={selectedRow?.status ? titleCase(selectedRow.status) : "-"} />
-              <PreviewRow label="Created Date" value={fmtDateTime(selectedRow?.createdAt)} />
-            </div>
-
-            <div className="space-y-2 border-t pt-4">
-              <h3 className="text-sm font-semibold text-foreground">Branch Information</h3>
-              <PreviewRow label="Main Branch" value={selectedRow?.mainBranchName ?? selectedRow?.branchName} />
-              <PreviewRow label="City Branch" value={selectedRow?.cityBranchName ?? selectedRow?.cityName} />
-              <PreviewRow label="Branch Code" value={selectedRow?.branchCode} />
-              <PreviewRow label="Branch Type" value={selectedRow?.branchType} />
-              <PreviewRow label="Ledger Name" value={selectedRow?.ledgerName ?? "-"} />
-              <PreviewRow label="Ledger Status" value={selectedRow?.ledgerStatus ? titleCase(selectedRow.ledgerStatus) : "-"} />
-            </div>
-
-            <div className="space-y-2 border-t pt-4">
-              <h3 className="text-sm font-semibold text-foreground">Country Information</h3>
-              <PreviewRow label="Country" value={selectedRow?.countryName} />
-              <PreviewRow label="Country Code" value={selectedRow?.countryCode} />
-              <PreviewRow label="State / Province" value={selectedRow?.stateName} />
-              <PreviewRow label="State Code" value={selectedRow?.stateCode} />
-              <PreviewRow label="City" value={selectedRow?.cityName} />
-              <PreviewRow label="City Code" value={selectedRow?.cityCode} />
-              <PreviewRow label="Currency" value={selectedRow?.currency} />
-            </div>
-
-            <div className="space-y-2 border-t pt-4">
-              <h3 className="text-sm font-semibold text-foreground">Contact Information</h3>
-              <PreviewRow label="Company" value={selectedRow?.companyName} />
-              <PreviewRow label="Company Code" value={selectedRow?.companyCode} />
-              <PreviewRow label="Company Owner" value={selectedRow?.companyOwner} />
-              <PreviewRow label="Branch Contact" value="Linked from branch profile" />
-            </div>
-
-            <div className="space-y-2 border-t pt-4">
-              <h3 className="text-sm font-semibold text-foreground">Financial Summary</h3>
-              <PreviewRow label="Opening Balance" value={selectedRow ? fmtNumber(selectedRow.openingBalance) : "-"} />
-              <PreviewRow label="Debit Total" value={selectedRow ? fmtNumber(selectedRow.debitTotal) : "-"} />
-              <PreviewRow label="Credit Total" value={selectedRow ? fmtNumber(selectedRow.creditTotal) : "-"} />
-              <PreviewRow label="Current Balance" value={selectedRow ? fmtNumber(selectedRow.currentBalance) : "-"} tone={selectedRow ? rowTone(selectedRow.currentBalance) : undefined} />
-              <PreviewRow label="Linked Ledger Entries" value={selectedRow ? String(selectedRow.linkedLedgerCount) : "-"} />
-              <PreviewRow label="Journal Activity" value={selectedRow ? String(selectedRow.journalActivityCount) : "-"} />
-            </div>
-
-            <div className="space-y-2 border-t pt-4">
-              <h3 className="text-sm font-semibold text-foreground">Audit Information</h3>
-              <PreviewRow label="Latest Journal" value={selectedRow?.latestJournalNo ?? "-"} />
-              <PreviewRow label="Recent Activity" value={selectedRow?.recentActivityLabel ?? "-"} />
-              <PreviewRow label="Recent Activity At" value={fmtDateTime(selectedRow?.recentActivityAt)} />
-              <PreviewRow label="Last Ledger Activity" value={fmtDateTime(selectedRow?.latestActivityAt)} />
-            </div>
-
-            <div className="space-y-2 border-t pt-4">
-              <h3 className="text-sm font-semibold text-foreground">Journal Preview</h3>
-              {selectedRow?.recentMovements.length ? (
-                <div className="space-y-2">
-                  {selectedRow.recentMovements.map((movement, index) => (
-                    <div key={`${movement.source}-${movement.referenceNo ?? index}`} className="rounded-lg border bg-background p-3 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold uppercase tracking-wide text-muted-foreground">{movement.source}</span>
-                        <span className="text-muted-foreground">{fmtDateTime(movement.entryDate)}</span>
+              <div className="p-5 space-y-6 flex-1 bg-slate-50/50 dark:bg-slate-900/20">
+                {selectedRow ? (
+                  <>
+                    <div className="space-y-3">
+                      <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5"><Building2 className="h-3 w-3" /> Account Info</div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="col-span-2"><span className="text-slate-400 block text-[9px] uppercase">Account Name</span><span className="font-bold truncate">{selectedRow.accountName}</span></div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Code</span><span className="font-bold font-mono text-blue-700 dark:text-blue-400">{selectedRow.accountCode}</span></div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Category</span><span className="font-bold uppercase text-[10px]">{selectedRow.accountCategory}</span></div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Created</span><span className="font-bold font-mono text-[10px]">{fmtDateTime(selectedRow.createdAt)}</span></div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Status</span><span className={cn("font-black uppercase text-[10px]", selectedRow.status === 'active' ? 'text-emerald-600' : 'text-slate-500')}>{selectedRow.status}</span></div>
+                        </div>
                       </div>
-                      <div className="mt-2 grid gap-1">
-                        <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground">Ref</span>
-                          <span className="font-medium">{movement.referenceNo ?? "-"}</span>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                          <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5"><MapPin className="h-3 w-3" /> Location</div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Country</span><span className="font-bold text-xs truncate block">{selectedRow.countryName}</span></div>
+                          <div className="mt-1"><span className="text-slate-400 block text-[9px] uppercase">Branch</span><span className="font-bold text-xs">{selectedRow.branchName}</span></div>
                         </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground">Debit</span>
-                          <span className="font-medium">{fmtNumber(movement.debit)}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground">Credit</span>
-                          <span className="font-medium">{fmtNumber(movement.credit)}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground">Currency</span>
-                          <span className="font-medium">{movement.currency}</span>
+                        <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                          <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Workspace</div>
+                          <div><span className="text-slate-400 block text-[9px] uppercase">Company</span><span className="font-bold text-[10px] truncate block leading-tight">{data?.workspace.companyName ?? "-"}</span></div>
+                          <div className="mt-1"><span className="text-slate-400 block text-[9px] uppercase">Owner</span><span className="font-bold text-[10px] leading-tight">{data?.workspace.companyOwner ?? "-"}</span></div>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-lg border border-dashed bg-background p-3 text-sm text-muted-foreground">
-                  No journal activity found for this account yet.
-                </p>
-              )}
-            </div>
 
-            <div className="space-y-2 border-t pt-4">
-              <h3 className="text-sm font-semibold text-foreground">Entry Status</h3>
-              <PreviewRow label="Selection State" value={selectedRow ? "Selected" : "Empty"} />
-              <PreviewRow label="Active Account" value={selectedRow?.status ? titleCase(selectedRow.status) : "-"} />
-              <PreviewRow label="Last Activity" value={fmtDateTime(selectedRow?.latestActivityAt)} />
-            </div>
+                    <div className="bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-1.5"><Landmark className="h-3 w-3" /> Financial Summary</div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between items-center border-b border-blue-100 dark:border-blue-900/30 pb-1">
+                          <span className="text-slate-500 font-bold uppercase text-[9px]">Opening Balance</span>
+                          <span className="font-mono font-bold text-[11px] text-slate-700 dark:text-slate-300">{fmtNumber(selectedRow.openingBalance)} {selectedRow.currency}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-blue-100 dark:border-blue-900/30 pb-1">
+                          <span className="text-rose-600 font-bold uppercase text-[9px]">Total Debit</span>
+                          <span className="font-mono font-bold text-[11px] text-rose-700 dark:text-rose-400">{fmtNumber(selectedRow.debitTotal)} {selectedRow.currency}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-blue-100 dark:border-blue-900/30 pb-1">
+                          <span className="text-emerald-600 font-bold uppercase text-[9px]">Total Credit</span>
+                          <span className="font-mono font-bold text-[11px] text-emerald-700 dark:text-emerald-400">{fmtNumber(selectedRow.creditTotal)} {selectedRow.currency}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1">
+                          <span className="text-blue-700 dark:text-blue-400 font-black uppercase text-[10px]">Current Balance</span>
+                          <span className={cn("font-mono font-black text-sm", rowTone(selectedRow.currentBalance))}>{fmtNumber(selectedRow.currentBalance)} {selectedRow.currency}</span>
+                        </div>
+                      </div>
+                    </div>
 
-            <div className="flex flex-wrap gap-2 border-t pt-4">
-              <Button type="button" variant="outline" size="sm" onClick={() => selectedRow && setSelectedAccountId(selectedRow.accountId)} disabled={!selectedRow}>
-                View
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => selectedRow && router.push(`/dashboard/accounts/setup?accountId=${selectedRow.accountId}` as Route)} disabled={!selectedRow}>
-                Edit
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => window.print()} disabled={loading}>
-                <Printer className="h-4 w-4" aria-hidden />
-                Print
-              </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => window.print()} disabled={!selectedRow}>
-                  <DownloadActionIcon className="h-4 w-4" aria-hidden />
-                  PDF Export
-                </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => exportCsv()} disabled={loading}>
-                <FileSpreadsheet className="h-4 w-4" aria-hidden />
-                Excel Export
-              </Button>
-            </div>
-
-            {selectedRow?.recentMovements.length ? (
-              <div className="border-t pt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Selected Row</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {selectedRow.accountCode} - {selectedRow.accountName}
-                </p>
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button type="button" variant="outline" className="flex-1 h-9 font-bold text-[10px] uppercase tracking-wider shadow-sm" onClick={() => router.push(`/dashboard/accounts/setup?accountId=${selectedRow.accountId}` as Route)}>
+                        <PencilLine className="h-3.5 w-3.5 mr-1.5" /> Edit Account
+                      </Button>
+                      <Button type="button" variant="outline" className="flex-1 h-9 font-bold text-[10px] uppercase tracking-wider shadow-sm" onClick={() => window.print()}>
+                        <Printer className="h-3.5 w-3.5 mr-1.5" /> Print Info
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <FileCheck2 className="h-12 w-12 mb-3 opacity-20" />
+                    <p className="text-xs font-bold uppercase tracking-widest text-center">No Account Selected</p>
+                    <p className="text-[10px] text-center mt-1 w-2/3">Click on any account in the registry to view its details here.</p>
+                  </div>
+                )}
               </div>
-            ) : null}
-          </div>
-        </aside>
-        ) : null}
-      </div>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

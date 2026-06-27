@@ -40,7 +40,7 @@ function cleanSerialPrefix(value: unknown, fallback: string) {
   return (cleaned || fallback).slice(0, 12);
 }
 
-async function nextTransactionSerial(admin: any, scopeType: "global" | "country" | "branch", scopeKey: string, prefix: string) {
+async function nextTransactionSerial(admin: any, scopeType: "global" | "country" | "branch" | "main_branch" | "city_branch" | "module_roznamcha", scopeKey: string, prefix: string) {
   const { data, error } = await admin.rpc("next_transaction_serial", {
     p_scope_type: scopeType,
     p_scope_key: scopeKey,
@@ -188,7 +188,7 @@ async function generateTransactionSerials(admin: any, body: ReturnType<typeof ro
   }
   
   // Entry Serial specifically for Roznamcha
-  const entrySerialPrefix = body.roznamchaBookType === "bank" ? "BNK" : "ROZ";
+  const entrySerialPrefix = (body as any).roznamchaBookType === "bank" ? "BNK" : "ROZ";
 
   return {
     superAdminSerialNumber,
@@ -196,13 +196,13 @@ async function generateTransactionSerials(admin: any, body: ReturnType<typeof ro
       ? await nextTransactionSerial(admin, "country", body.countryId, countryPrefix)
       : null,
     branchTransactionSerialNumber: body.cityBranchId || body.countryBranchId
-      ? await nextTransactionSerial(admin, "branch", body.cityBranchId || body.countryBranchId, body.cityBranchId ? cityBranchPrefix : mainBranchPrefix)
+      ? await nextTransactionSerial(admin, "branch", (body.cityBranchId || body.countryBranchId) as string, body.cityBranchId ? cityBranchPrefix : mainBranchPrefix)
       : null,
     mainBranchTransactionSerialNumber: body.countryBranchId
-      ? await nextTransactionSerial(admin, "main_branch", body.countryBranchId, mainBranchPrefix)
+      ? await nextTransactionSerial(admin, "main_branch", body.countryBranchId as string, mainBranchPrefix)
       : null,
     cityBranchTransactionSerialNumber: body.cityBranchId
-      ? await nextTransactionSerial(admin, "city_branch", body.cityBranchId, cityBranchPrefix)
+      ? await nextTransactionSerial(admin, "city_branch", body.cityBranchId as string, cityBranchPrefix)
       : null,
     entrySerialNumber: await nextTransactionSerial(admin, "module_roznamcha", "global", entrySerialPrefix)
   };

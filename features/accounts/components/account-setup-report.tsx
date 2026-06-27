@@ -677,8 +677,9 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                       <td className="asr-td">
                         <div className="flex items-center justify-center gap-1.5">
                           {(() => {
-                            const phones = row.contacts?.filter(c => c.type.toLowerCase().includes("mobile") || c.type.toLowerCase().includes("whatsapp") || c.type.toLowerCase().includes("phone") || c.type.toLowerCase().includes("landline") || c.type.toLowerCase().includes("office"));
-                            const emails = row.contacts?.filter(c => c.type.toLowerCase().includes("email"));
+                            const safeContacts = Array.isArray(row.contacts) ? row.contacts : (typeof row.contacts === 'string' ? JSON.parse(row.contacts || '[]') : []);
+                            const phones = safeContacts.filter((c: any) => c?.type?.toLowerCase().includes("mobile") || c?.type?.toLowerCase().includes("whatsapp") || c?.type?.toLowerCase().includes("phone") || c?.type?.toLowerCase().includes("landline") || c?.type?.toLowerCase().includes("office"));
+                            const emails = safeContacts.filter((c: any) => c?.type?.toLowerCase().includes("email"));
                             
                             return (
                               <>
