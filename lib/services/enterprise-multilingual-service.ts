@@ -96,7 +96,8 @@ export async function saveEnterpriseRecordTranslations(
 
   for (const field of activeFields) {
     const originalText = String(field.value).trim();
-    const translations = createFiveLanguageText(originalText, input.originalLanguage);
+    const { autoTranslateText } = await import("./auto-translation-service");
+    const translations = await autoTranslateText(originalText, input.originalLanguage);
     const payload = {
       record_table: input.recordTable,
       record_id: input.recordId,
@@ -152,7 +153,8 @@ export async function recordEnterpriseMultilingualEvent(
 ) {
   const db = adminDb();
   const messageLanguage = normalizeLanguage(input.messageLanguage, session?.preferredLanguage ?? "en");
-  const translations = createFiveLanguageText(input.message, messageLanguage);
+  const { autoTranslateText } = await import("./auto-translation-service");
+  const translations = await autoTranslateText(input.message, messageLanguage);
   const primaryAssignment = session?.assignments?.[0] ?? null;
   const requestMeta = request
     ? {

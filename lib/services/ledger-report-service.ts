@@ -99,22 +99,29 @@ async function loadTranslations(input: {
 
   if (!ids.length || !tables.length || !fields.length) return new Map<string, string>();
 
-  const { data, error } = await input.supabase
-    .from("record_translations")
-    .select(
-      "record_table, record_id, field_name, original_text, original_language_code, english_text, arabic_text, urdu_text, persian_text, pashto_text"
-    )
-    .in("record_table", tables)
-    .in("record_id", ids)
-    .in("field_name", fields)
-    .is("deleted_at", null)
-    .order("updated_at", { ascending: false })
-    .limit(2000);
+  const CHUNK_SIZE = 100;
+  let allData: any[] = [];
 
-  if (error) throw new Error(error.message);
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    const chunkIds = ids.slice(i, i + CHUNK_SIZE);
+    const { data, error } = await input.supabase
+      .from("record_translations")
+      .select(
+        "record_table, record_id, field_name, original_text, original_language_code, english_text, arabic_text, urdu_text, persian_text, pashto_text"
+      )
+      .in("record_table", tables)
+      .in("record_id", chunkIds)
+      .in("field_name", fields)
+      .is("deleted_at", null)
+      .order("updated_at", { ascending: false })
+      .limit(2000);
+
+    if (error) throw new Error(error.message);
+    if (data) allData = allData.concat(data);
+  }
 
   const map = new Map<string, string>();
-  for (const row of (data ?? []) as TranslationRow[]) {
+  for (const row of (allData ?? []) as TranslationRow[]) {
     const resolved = multilingualService.resolveText(
       {
         originalText: row.original_text,
@@ -229,37 +236,34 @@ export class LedgerReportService {
     const countryBranchIds = unique(rows.map((r) => r.country_branch_id));
     const cityBranchIds = unique(rows.map((r) => r.city_branch_id));
 
+    const fetchInChunks = async (table: string, select: string, ids: (string | null | undefined)[]) => {
+      let all: any[] = [];
+      const CHUNK_SIZE = 100;
+      const validIds = ids.filter(Boolean) as string[];
+      for (let i = 0; i < validIds.length; i += CHUNK_SIZE) {
+        const chunk = validIds.slice(i, i + CHUNK_SIZE);
+        const { data, error } = await supabase.from(table).select(select).in("id", chunk).is("deleted_at", null);
+        if (error) throw new Error(error.message);
+        if (data) all = all.concat(data);
+      }
+      return { data: all, error: null };
+    };
+
     const [accountsRes, enterpriseAccountsRes, countriesRes, countryBranchesRes, cityBranchesRes] = await Promise.all([
       accountIds.length
-        ? supabase
-            .from("accounts")
-            .select("id, code, name, kind, currency, company_id")
-            .in("id", accountIds)
-            .is("deleted_at", null)
+        ? fetchInChunks("accounts", "id, code, name, kind, currency, company_id", accountIds)
         : Promise.resolve({ data: [], error: null }),
       enterpriseAccountIds.length
-        ? supabase
-            .from("enterprise_accounts")
-            .select("id, code, account_number, manual_reference_number, customer_number, country_serial_number, branch_serial_number, name, kind, currency")
-            .in("id", enterpriseAccountIds)
-            .is("deleted_at", null)
+        ? fetchInChunks("enterprise_accounts", "id, code, account_number, manual_reference_number, customer_number, country_serial_number, branch_serial_number, name, kind, currency, contacts", enterpriseAccountIds)
         : Promise.resolve({ data: [], error: null }),
       countryIds.length
-        ? supabase.from("countries").select("id, name").in("id", countryIds).is("deleted_at", null)
+        ? fetchInChunks("countries", "id, name", countryIds)
         : Promise.resolve({ data: [], error: null }),
       countryBranchIds.length
-        ? supabase
-            .from("country_branches")
-            .select("id, name, code, state_province_id, city_id, address")
-            .in("id", countryBranchIds)
-            .is("deleted_at", null)
+        ? fetchInChunks("country_branches", "id, name, code, state_province_id, city_id, address", countryBranchIds)
         : Promise.resolve({ data: [], error: null }),
       cityBranchIds.length
-        ? supabase
-            .from("city_branches")
-            .select("id, name, code, state_province_id, city_id, address")
-            .in("id", cityBranchIds)
-            .is("deleted_at", null)
+        ? fetchInChunks("city_branches", "id, name, code, state_province_id, city_id, address", cityBranchIds)
         : Promise.resolve({ data: [], error: null })
     ]);
 
@@ -312,9 +316,9 @@ export class LedgerReportService {
     const cityIds = unique([...countryBranches.map((b) => b.city_id), ...cityBranches.map((b) => b.city_id)]);
 
     const [companiesRes, statesRes, citiesRes] = await Promise.all([
-      companyIds.length ? supabase.from("companies").select("id, name").in("id", companyIds).is("deleted_at", null) : Promise.resolve({ data: [], error: null }),
-      stateIds.length ? supabase.from("states_provinces").select("id, name").in("id", stateIds).is("deleted_at", null) : Promise.resolve({ data: [], error: null }),
-      cityIds.length ? supabase.from("cities").select("id, name").in("id", cityIds).is("deleted_at", null) : Promise.resolve({ data: [], error: null })
+      companyIds.length ? fetchInChunks("companies", "id, name", companyIds) : Promise.resolve({ data: [], error: null }),
+      stateIds.length ? fetchInChunks("states_provinces", "id, name", stateIds) : Promise.resolve({ data: [], error: null }),
+      cityIds.length ? fetchInChunks("cities", "id, name", cityIds) : Promise.resolve({ data: [], error: null })
     ]);
 
     if (companiesRes.error) throw new Error(companiesRes.error.message);
@@ -384,6 +388,7 @@ export class LedgerReportService {
         cityId: branchCityId,
         cityName,
         address,
+        contacts: enterpriseAccount?.contacts ?? null,
         createdAt: row.created_at ?? null
       };
     });

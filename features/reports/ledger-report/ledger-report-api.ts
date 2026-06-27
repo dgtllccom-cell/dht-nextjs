@@ -34,6 +34,7 @@ export type LedgerLookupRow = {
   stateName: string | null;
   cityName: string | null;
   address: string | null;
+  contacts?: any;
   createdAt?: string | null;
 };
 
@@ -66,6 +67,7 @@ export async function listLedgerReportLedgers(params: {
   countryBranchId?: string | null;
   cityBranchId?: string | null;
   limit?: number;
+  language?: string | null;
 }) {
   const qp = new URLSearchParams();
   qp.set("reportScope", params.reportScope);
@@ -75,6 +77,7 @@ export async function listLedgerReportLedgers(params: {
   if (params.countryBranchId) qp.set("countryBranchId", params.countryBranchId);
   if (params.cityBranchId) qp.set("cityBranchId", params.cityBranchId);
   if (params.limit) qp.set("limit", String(params.limit));
+  if (params.language) qp.set("language", params.language);
 
   return apiGet<{
     reportScope: LedgerReportScope;

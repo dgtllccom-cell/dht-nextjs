@@ -305,6 +305,9 @@ export function CashEntryForm({
     superAdmin?: string | null;
     country?: string | null;
     branch?: string | null;
+    mainBranch?: string | null;
+    cityBranch?: string | null;
+    entrySerial?: string | null;
   } | null>(null);
   const [branchLocked, setBranchLocked] = useState(true);
 
@@ -922,11 +925,11 @@ export function CashEntryForm({
       setLoadingLedgers(true);
       try {
         const res = await listLedgerReportLedgers({
-          reportScope: "branch",
+          reportScope: "country",
           countryId: countryId || null,
-          countryBranchId: countryBranchId || null,
-          cityBranchId: cityBranchId || null,
-          limit: 250
+          // Omit branch filters to allow searching and selecting ANY ledger within the selected Country (inter-branch cash entry)
+          limit: 2000,
+          language: lang
         });
         if (!cancelled) {
           const rows = Array.isArray(res.ledgers) ? res.ledgers : [];
@@ -1055,7 +1058,6 @@ export function CashEntryForm({
     setCalcOp("mul");
     setExchangeRate("1");
     setAttachmentFile(null);
-    setSavedSerials(null);
     setActiveCreator("");
     setActiveApprover("");
     setActiveStatus("");
@@ -1064,6 +1066,8 @@ export function CashEntryForm({
   function resetPaymentDraft() {
     clearSelectedAccount();
     setRoznamchaBookType("");
+    setRoznamchaType("Cash Book No.");
+    setRoznamchaNumber("");
     setEntryDate(todayIso());
     setReferenceNo("");
     setNarration("");
@@ -1563,13 +1567,25 @@ export function CashEntryForm({
       const res = await apiPost<RoznamchaPostResponse>("/api/erp/roznamcha", payload);
       setLastEntryId(res.entryId ?? null);
       setEditEntryId(null);
+      const incrementSerial = (serial: string | null | undefined) => {
+        if (!serial) return null;
+        const parts = serial.split("-");
+        if (parts.length === 2) {
+          const num = parseInt(parts[1], 10);
+          if (!isNaN(num)) {
+            return `${parts[0]}-${(num + 1).toString().padStart(parts[1].length, "0")}`;
+          }
+        }
+        return serial;
+      };
+
       setSavedSerials({
-        superAdmin: res.superAdminSerialNumber,
-        country: res.countryTransactionSerialNumber,
-        branch: res.branchTransactionSerialNumber,
-        mainBranch: (res as any).mainBranchTransactionSerialNumber,
-        cityBranch: (res as any).cityBranchTransactionSerialNumber,
-        entrySerial: (res as any).entrySerialNumber
+        superAdmin: incrementSerial(res.superAdminSerialNumber),
+        country: incrementSerial(res.countryTransactionSerialNumber),
+        branch: incrementSerial(res.branchTransactionSerialNumber),
+        mainBranch: incrementSerial((res as any).mainBranchTransactionSerialNumber),
+        cityBranch: incrementSerial((res as any).cityBranchTransactionSerialNumber),
+        entrySerial: incrementSerial((res as any).entrySerialNumber)
       });
       const roleName = session?.roles?.[0] ? session.roles[0].replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : "User";
       setActiveCreator(`${session?.user?.fullName || "System User"} | ${roleName}`);
@@ -1578,7 +1594,7 @@ export function CashEntryForm({
       const serialText = [res.superAdminSerialNumber, res.countryTransactionSerialNumber, res.branchTransactionSerialNumber, (res as any).mainBranchTransactionSerialNumber, (res as any).cityBranchTransactionSerialNumber, (res as any).entrySerialNumber]
         .filter(Boolean)
         .join(" / ");
-      setMessage(res.entryId ? `Saved successfully. Serials: ${serialText || res.entryId}` : "Saved successfully.");
+      setMessage(`Saved successfully. Serials: ${serialText || res.entryId || "N/A"}`);
       window.dispatchEvent(
         new CustomEvent("erp:posting-saved", {
           detail: { source: "roznamcha", entryId: res.entryId ?? null }
@@ -1722,8 +1738,10 @@ export function CashEntryForm({
     return ledgers.map((row) => {
       const code = row.accountCode || row.ledgerCode || "";
       const name = row.accountName || row.ledgerName || "";
-      const label = code ? `${code} — ${name}` : name;
-      const keywords = `${row.accountCode} ${row.ledgerCode} ${row.accountName} ${row.ledgerName} ${row.manualReferenceNumber} ${row.customerNumber}`;
+      const branchName = row.cityBranchName || row.countryBranchName || "";
+      const suffix = branchName ? ` (${branchName})` : "";
+      const label = (code ? `${code} — ${name}` : name) + suffix;
+      const keywords = `${row.accountCode} ${row.ledgerCode} ${row.accountName} ${row.ledgerName} ${row.manualReferenceNumber} ${row.customerNumber} ${branchName}`;
       return { value: row.ledgerId, label, keywords };
     });
   }, [ledgers]);
@@ -1752,10 +1770,9 @@ export function CashEntryForm({
       {/* Super Admin Scope Modal */}
       {isSuperAdmin && (!countryId || !countryBranchId) && (
         <SimpleModal
-          isOpen={true}
           onClose={() => {}} // Cannot close without selecting
           title="Super Admin: Select Working Scope"
-          width="md"
+          className="max-w-md"
         >
           <div className="space-y-4 p-2">
             <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -1863,36 +1880,6 @@ export function CashEntryForm({
                 onChange={(e) => setEntryDate(e.target.value)}
                 className="bg-transparent border-none p-0 outline-none font-bold text-slate-850 dark:text-slate-150 cursor-pointer text-xs"
               />
-
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Journal Serial</span>
-              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
-                {savedSerials?.superAdmin || "—"}
-              </span>
-
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Country Serial</span>
-              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
-                {savedSerials?.country || "—"}
-              </span>
-
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Branch Serial</span>
-              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
-                {savedSerials?.branch || "—"}
-              </span>
-
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Main Branch Serial</span>
-              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
-                {(savedSerials as any)?.mainBranch || "—"}
-              </span>
-
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">City Branch Serial</span>
-              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-xs font-mono">
-                {(savedSerials as any)?.cityBranch || "—"}
-              </span>
-
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Entry Serial</span>
-              <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-xs font-mono">
-                {(savedSerials as any)?.entrySerial || "—"}
-              </span>
             </div>
 
             <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
@@ -1979,6 +1966,28 @@ export function CashEntryForm({
             </div>
           </div>
 
+          {/* Group 3: Serials */}
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Journal Serial</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">{savedSerials?.superAdmin || "Pending Save"}</span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Country Serial</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">{savedSerials?.country || "Pending Save"}</span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Branch Serial</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">{savedSerials?.branch || "Pending Save"}</span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">Main Branch Sr</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">{(savedSerials as any)?.mainBranch || "Pending Save"}</span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 text-right">City Branch Sr</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">{(savedSerials as any)?.cityBranch || "Pending Save"}</span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 text-right">Entry Serial</span>
+              <span className="font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">{(savedSerials as any)?.entrySerial || "Pending Save"}</span>
+            </div>
+          </div>
           {/* Group 3: Customer Details */}
           {selectedCounterLedger && (
             <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold border-l pl-6 border-slate-200 dark:border-slate-700">
@@ -1997,24 +2006,44 @@ export function CashEntryForm({
                 {selectedCounterLedger.customerNumber || "-"}
               </span>
 
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Location</span>
-              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]">
-                {selectedCounterLedger.cityName || "-"} / {selectedCounterLedger.countryName || selectedCountry?.name || "-"}
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Currency</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150">
+                {selectedCounterLedger.ledgerCurrency || "-"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 text-right">Balance</span>
+              <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                {fmtAmount(selectedCounterLedger.currentBalance || 0)}
               </span>
             </div>
           )}
 
-          {/* Group 4: Company Details */}
+          {/* Group 4: Company & Contact Details */}
           {selectedCounterLedger && (
-            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold">
+            <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-xs font-semibold border-l pl-6 border-slate-200 dark:border-slate-700">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Company</span>
-              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]" title={selectedCounterLedger.companyName || `${selectedCounterLedger.accountName || "Test"} (Pvt.) Ltd.`}>
-                {selectedCounterLedger.companyName || `${selectedCounterLedger.accountName || "Test"} (Pvt.) Ltd.`}
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]" title={selectedCounterLedger.companyName || "-"}>
+                {selectedCounterLedger.companyName || "-"}
               </span>
 
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Tax / NTN</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Mobile / Ph</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]">
+                {Array.isArray(selectedCounterLedger.contacts) ? selectedCounterLedger.contacts.find((c: any) => c.type === "mobile")?.value || selectedCounterLedger.contacts.find((c: any) => c.type === "phone")?.value || "-" : "-"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Email</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]">
+                {Array.isArray(selectedCounterLedger.contacts) ? selectedCounterLedger.contacts.find((c: any) => c.type === "email")?.value || "-" : "-"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Location</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-150 truncate max-w-[150px]">
+                {selectedCounterLedger.countryName || selectedCountry?.name || "-"} / {selectedCounterLedger.cityBranchName || "-"}
+              </span>
+
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Branch Code</span>
               <span className="font-extrabold text-slate-850 dark:text-slate-150 font-mono">
-                {selectedCounterLedger.customerNumber ? "1234567-8" : "-"}
+                {selectedCounterLedger.branchSerialNumber || "-"}
               </span>
             </div>
           )}
@@ -2067,6 +2096,9 @@ export function CashEntryForm({
                       options={accountOptions}
                       disabled={loadingLedgers}
                       onValueChange={handleCounterLedgerChange}
+                      onSearchValueChange={setAccountNoInput}
+                      createLabel="Search on Server"
+                      onCreateNew={lookupAccountNo}
                     />
                   </FieldBlock>
 
@@ -2414,7 +2446,10 @@ export function CashEntryForm({
                       <div className="flex flex-wrap gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 justify-end">
                         <Button
                           type="button"
-                          onClick={() => window.location.reload()}
+                          onClick={() => {
+                            resetPaymentDraft();
+                            setMessage("Form reset.");
+                          }}
                           variant="outline"
                           className="h-10 px-4 rounded-lg font-bold gap-2 text-xs"
                         >
@@ -2428,8 +2463,7 @@ export function CashEntryForm({
                             const newId = await save();
                             if (newId) {
                               resetPaymentDraft();
-                              setMessage("Accepted successfully.");
-                              setShowPaymentWorkReport(false);
+                              setMessage(`کامیابی سے منظور ہو گیا! آپ اگلی ٹرانزیکشن درج کر سکتے ہیں۔`); // "Accepted successfully! You can enter the next transaction."
                             }
                           }}
                           className="h-10 px-8 rounded-lg font-bold bg-blue-600 hover:bg-blue-700 text-white gap-2 text-xs"
@@ -2463,22 +2497,8 @@ export function CashEntryForm({
                     <div className="grid gap-3">
                       <ReportBox
                         rows={[
-                          ["Date", entryDate.split("-").reverse().join("/")],
-                          ["Journal Serial", savedSerials?.superAdmin || "Pending Save"],
-                          ["Country Serial", savedSerials?.country || "Pending Save"],
-                          ["Branch Serial", savedSerials?.branch || "Pending Save"],
-                          ["Main Branch Serial", (savedSerials as any)?.mainBranch || "Pending Save"],
-                          ["City Branch Serial", (savedSerials as any)?.cityBranch || "Pending Save"],
-                          ["Entry Serial", (savedSerials as any)?.entrySerial || "Pending Save"],
                           ["Amount", txAmount ? `${fmtAmount(txAmount)} ${currency.toUpperCase()}` : "-"],
                           ...(showCalcPanel && amount ? [["Final Payment (Converted)", `${fmtAmount(amount)} ${targetAccountCurrency}`]] : []),
-                          ["Exchange Rate", currency && !isLocalCurrency ? exchangeRate : "-"],
-                          ["Rate Source", currency && !isLocalCurrency ? exchangeRateSource : "-"],
-                          ["Rate Time", currency && !isLocalCurrency ? (exchangeRateEffectiveAt || "-") : "-"],
-                          ...((isSuperAdmin || session?.roles?.some(r => r === "country_admin" || r === "accountant")) && isLocalCurrency && saUsdRate ? [
-                            ["SA USD Rate", String(saUsdRate)],
-                            ["SA USD Equiv.", saUsdAmount ? `${fmtAmount(saUsdAmount)} USD` : "-"]
-                          ] : []),
                           ["Payment Type", paymentType ? `${paymentType[0]!.toUpperCase()}${paymentType.slice(1)} Roznamcha` : "-"]
                         ].filter(Boolean) as Array<[string, string]>}
                       />
@@ -2592,7 +2612,10 @@ export function CashEntryForm({
                   variant="default"
                   size="sm"
                   className="h-7 px-3 text-[10px] font-black bg-blue-600 hover:bg-blue-700 text-white"
-                  onClick={() => setShowPaymentWorkReport(true)}
+                  onClick={() => {
+                    resetPaymentDraft();
+                    setShowPaymentWorkReport(true);
+                  }}
                 >
                   + New Entry
                 </Button>

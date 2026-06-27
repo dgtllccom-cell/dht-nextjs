@@ -585,10 +585,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     let cancelled = false;
     async function fetchLedgers() {
       try {
-        const response = await fetch("/api/erp/ledgers");
-        const body = await response.json();
-        if (body?.ok && body.data?.ledgers && !cancelled) {
-          setLedgers(body.data.ledgers);
+        const { listLedgerReportLedgers } = await import("@/features/reports/ledger-report/ledger-report-api");
+        const res = await listLedgerReportLedgers({
+          reportScope: "super_admin",
+          limit: 2000
+        });
+        if (!cancelled) {
+          setLedgers(Array.isArray(res.ledgers) ? res.ledgers : []);
         }
       } catch (err) {
         console.error("Ledger load error:", err);

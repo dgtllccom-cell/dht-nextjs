@@ -4,7 +4,9 @@ import { apiOk, handleApiError } from "@/lib/api/response";
 import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { createApiSupabaseClient } from "@/lib/api/supabase";
 import { requireErpSession } from "@/lib/auth/session";
-import { ledgerScopeSchema, optionalUuidSchema, scopeSchema } from "@/lib/api/erp-validation";
+import { getRequestLanguage } from "@/lib/i18n/server";
+import { multilingualService } from "@/lib/services/multilingual-service";
+import { ledgerScopeSchema, optionalUuidSchema, scopeSchema, supportedLanguageSchema } from "@/lib/api/erp-validation";
 
 function isUuid(value: string | null | undefined) {
   return Boolean(
@@ -34,7 +36,36 @@ const updateSchema = scopeSchema.extend({
 });
 
 type ApiSupabaseClient = Awaited<ReturnType<typeof createApiSupabaseClient>>;
+type TranslationRow = {
+  record_table: string;
+  record_id: string;
+  field_name: string;
+  original_text: string;
+  original_language_code: string;
+  english_text: string | null;
+  arabic_text: string | null;
+  urdu_text: string | null;
+  persian_text: string | null;
+  pashto_text: string | null;
+};
 
+function resolveTranslation(row: TranslationRow | null | undefined, language: "en" | "ar" | "ur" | "fa" | "ps", fallback: string) {
+  if (!row) return fallback;
+  return (
+    multilingualService.resolveText(
+      {
+        originalText: row.original_text,
+        originalLanguage: row.original_language_code as "en" | "ar" | "ur" | "fa" | "ps",
+        en: row.english_text ?? undefined,
+        ar: row.arabic_text ?? undefined,
+        ur: row.urdu_text ?? undefined,
+        fa: row.persian_text ?? undefined,
+        ps: row.pashto_text ?? undefined
+      },
+      language
+    ) || fallback
+  );
+}
 async function loadAccount(supabase: ApiSupabaseClient, id: string) {
   const { data, error } = await supabase
     .from("enterprise_accounts")
@@ -80,9 +111,11 @@ async function loadAccount(supabase: ApiSupabaseClient, id: string) {
     | null;
 }
 
-export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireErpSession();
+    const fallbackLanguage = await getRequestLanguage();
+    const language = supportedLanguageSchema.default(fallbackLanguage).parse(request.nextUrl.searchParams.get("language") ?? undefined);
     const { id } = await context.params;
     const supabase = await createApiSupabaseClient();
     const account = await loadAccount(supabase, id);
@@ -108,7 +141,26 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 
     if (ledgerError) throw new Error(ledgerError.message);
 
-    return apiOk({ account, ledger: ledger ?? null });
+    const { data: translations, error: translationError } = await supabase
+      .from("record_translations")
+      .select("record_table, record_id, field_name, original_text, original_language_code, english_text, arabic_text, urdu_text, persian_text, pashto_text")
+      .eq("record_table", "enterprise_accounts")
+      .eq("record_id", account.id)
+      .eq("field_name", "name")
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (translationError) throw new Error(translationError.message);
+
+    const localizedName = resolveTranslation((translations ?? null) as TranslationRow | null, language, account.name);
+    const localizedAccount = {
+      ...account,
+      raw_name: account.name,
+      localized_name: localizedName,
+      name: localizedName
+    };
+
+    return apiOk({ account: localizedAccount, ledger: ledger ?? null });
   } catch (error) {
     return handleApiError(error);
   }
@@ -288,3 +340,7 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
     return handleApiError(error);
   }
 }
+
+
+
+

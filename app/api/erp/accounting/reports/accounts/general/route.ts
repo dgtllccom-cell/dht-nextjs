@@ -16,7 +16,7 @@ const querySchema = z.object({
   status: z.enum(["all", "active", "archived"]).default("all"),
   fromDate: z.string().date().optional(),
   toDate: z.string().date().optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(500),
+  limit: z.coerce.number().int().min(1).max(2000).default(1000),
   language: supportedLanguageSchema.default("en")
 });
 
@@ -242,30 +242,27 @@ export async function GET(request: NextRequest) {
     const supabase = createSupabaseAdminClient() as any;
     const sessionUserIdIsUuid = uuidSchema.safeParse(session.userId).success;
 
-    const [profileRes, accountRes] = await Promise.all([
-      sessionUserIdIsUuid
-        ? supabase.from("profiles").select("id, full_name, default_company_id").eq("id", session.userId).maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      (() => {
-        let q = supabase
-          .from("enterprise_accounts")
-          .select(
-            "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, bank_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, contacts, created_at, updated_at"
-          )
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false });
+    const profileRes = sessionUserIdIsUuid
+      ? await supabase.from("profiles").select("id, full_name, default_company_id").eq("id", session.userId).maybeSingle()
+      : { data: null, error: null };
 
-        if (effectiveQuery.scope) q = q.eq("scope", effectiveQuery.scope);
-        if (effectiveQuery.countryId) q = q.eq("country_id", effectiveQuery.countryId);
-        if (effectiveQuery.countryBranchId) q = q.eq("country_branch_id", effectiveQuery.countryBranchId);
-        if (effectiveQuery.cityBranchId) q = q.eq("city_branch_id", effectiveQuery.cityBranchId);
-        if (effectiveQuery.status !== "all") q = q.eq("status", effectiveQuery.status);
-        if (effectiveQuery.fromDate) q = q.gte("created_at", `${effectiveQuery.fromDate}T00:00:00.000Z`);
-        if (effectiveQuery.toDate) q = q.lte("created_at", `${effectiveQuery.toDate}T23:59:59.999Z`);
+    let accountQuery = supabase
+      .from("enterprise_accounts")
+      .select(
+        "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, bank_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, contacts, created_at, updated_at"
+      )
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
 
-        return q.limit(effectiveQuery.limit);
-      })()
-    ]);
+    if (effectiveQuery.scope) accountQuery = accountQuery.eq("scope", effectiveQuery.scope);
+    if (effectiveQuery.countryId) accountQuery = accountQuery.eq("country_id", effectiveQuery.countryId);
+    if (effectiveQuery.countryBranchId) accountQuery = accountQuery.eq("country_branch_id", effectiveQuery.countryBranchId);
+    if (effectiveQuery.cityBranchId) accountQuery = accountQuery.eq("city_branch_id", effectiveQuery.cityBranchId);
+    if (effectiveQuery.status !== "all") accountQuery = accountQuery.eq("status", effectiveQuery.status);
+    if (effectiveQuery.fromDate) accountQuery = accountQuery.gte("created_at", `${effectiveQuery.fromDate}T00:00:00.000Z`);
+    if (effectiveQuery.toDate) accountQuery = accountQuery.lte("created_at", `${effectiveQuery.toDate}T23:59:59.999Z`);
+
+    const accountRes = await accountQuery.limit(effectiveQuery.limit);
 
     if (profileRes.error) throw new Error(profileRes.error.message);
     if (accountRes.error) throw new Error(accountRes.error.message);
@@ -273,49 +270,61 @@ export async function GET(request: NextRequest) {
     const accountRows = (accountRes.data ?? []) as EnterpriseAccountRow[];
     const accountIds = accountRows.map((row) => row.id);
 
-    const translationRes = accountIds.length
-      ? await supabase
-          .from("record_translations")
-          .select("record_table, record_id, field_name, original_text, original_language_code, english_text, arabic_text, urdu_text, persian_text, pashto_text")
-          .eq("record_table", "enterprise_accounts")
-          .in("record_id", accountIds)
-          .is("deleted_at", null)
-      : { data: [], error: null };
+    // Helper to chunk arrays to avoid URL length limits (> 16KB)
+    async function fetchInChunks<T>(items: string[], chunkSize: number, fetcher: (chunk: string[]) => Promise<{ data: T[] | null; error: any }>) {
+      if (!items.length) return { data: [], error: null };
+      const results: T[] = [];
+      for (let i = 0; i < items.length; i += chunkSize) {
+        const chunk = items.slice(i, i + chunkSize);
+        const res = await fetcher(chunk);
+        if (res.error) return { data: null, error: res.error };
+        if (res.data) results.push(...res.data);
+      }
+      return { data: results, error: null };
+    }
+
+    const translationRes = await fetchInChunks(accountIds, 150, async (chunk) => {
+      return supabase
+        .from("record_translations")
+        .select("record_table, record_id, field_name, original_text, original_language_code, english_text, arabic_text, urdu_text, persian_text, pashto_text")
+        .eq("record_table", "enterprise_accounts")
+        .in("record_id", chunk)
+        .is("deleted_at", null);
+    });
     if (translationRes.error) throw new Error(translationRes.error.message);
     const translationLookup = new Map(
       ((translationRes.data ?? []) as TranslationRow[]).map((row) => [translationKey(row.record_table, row.record_id, row.field_name), row] as const)
     );
 
-    const [ledgerRes, postingRes, roznamchaLineRes, auditRes] = await Promise.all([
-      accountIds.length
-        ? supabase
-            .from("ledgers")
-            .select(
-              "id, enterprise_account_id, parent_ledger_id, code, name, currency, opening_balance, current_balance, debit_total, credit_total, normal_balance, is_active, created_at, updated_at"
-            )
-            .is("deleted_at", null)
-            .in("enterprise_account_id", accountIds)
-        : Promise.resolve({ data: [], error: null }),
-      accountIds.length
-        ? supabase
-            .from("ledger_posting_lines")
-            .select("enterprise_account_id, ledger_id, batch_id, debit, credit, currency, usd_rate, usd_amount, created_at")
-            .in("enterprise_account_id", accountIds)
-        : Promise.resolve({ data: [], error: null }),
-      accountIds.length
-        ? supabase
-            .from("roznamcha_lines")
-            .select("enterprise_account_id, ledger_id, roznamcha_entry_id, debit, credit, currency, usd_rate, usd_amount")
-            .in("enterprise_account_id", accountIds)
-        : Promise.resolve({ data: [], error: null }),
-      accountIds.length
-        ? supabase
-            .from("audit_logs")
-            .select("entity_id, entity_table, action, created_at")
-            .in("entity_id", accountIds)
-            .in("entity_table", ["enterprise_accounts", "ledgers"])
-        : Promise.resolve({ data: [], error: null })
-    ]);
+    const ledgerRes = await fetchInChunks(accountIds, 150, async (chunk) => {
+      return supabase
+        .from("ledgers")
+        .select("id, enterprise_account_id, parent_ledger_id, code, name, currency, opening_balance, current_balance, debit_total, credit_total, normal_balance, is_active, created_at, updated_at")
+        .is("deleted_at", null)
+        .in("enterprise_account_id", chunk);
+    });
+
+    const postingRes = await fetchInChunks(accountIds, 150, async (chunk) => {
+      return supabase
+        .from("ledger_posting_lines")
+        .select("enterprise_account_id, ledger_id, batch_id, debit, credit, currency, usd_rate, usd_amount, created_at")
+        .in("enterprise_account_id", chunk);
+    });
+
+    const roznamchaLineRes = await fetchInChunks(accountIds, 150, async (chunk) => {
+      return supabase
+        .from("roznamcha_lines")
+        .select("enterprise_account_id, ledger_id, roznamcha_entry_id, debit, credit, currency, usd_rate, usd_amount")
+        .in("enterprise_account_id", chunk);
+    });
+
+    const auditRes = await fetchInChunks(accountIds, 150, async (chunk) => {
+      return supabase
+        .from("audit_logs")
+        .select("entity_id, entity_table, action, created_at")
+        .in("entity_id", chunk)
+        .in("entity_table", ["enterprise_accounts", "ledgers"]);
+    });
 
     if (ledgerRes.error) throw new Error(ledgerRes.error.message);
     if (postingRes.error) throw new Error(postingRes.error.message);
@@ -330,14 +339,13 @@ export async function GET(request: NextRequest) {
     const batchIds = [...new Set(postingLines.map((row) => row.batch_id).filter((value): value is string => Boolean(value)))];
     const entryIds = [...new Set(rozLines.map((row) => row.roznamcha_entry_id).filter((value): value is string => Boolean(value)))];
 
-    const [postingBatchRes, roznamchaEntryRes] = await Promise.all([
-      batchIds.length
-        ? supabase.from("ledger_posting_batches").select("id, reference_no, entry_date, status, created_at").in("id", batchIds)
-        : Promise.resolve({ data: [], error: null }),
-      entryIds.length
-        ? supabase.from("roznamcha_entries").select("id, voucher_no, entry_date, status, created_at").in("id", entryIds)
-        : Promise.resolve({ data: [], error: null })
-    ]);
+    const postingBatchRes = await fetchInChunks(batchIds, 150, async (chunk) => {
+      return supabase.from("ledger_posting_batches").select("id, reference_no, entry_date, status, created_at").in("id", chunk);
+    });
+
+    const roznamchaEntryRes = await fetchInChunks(entryIds, 150, async (chunk) => {
+      return supabase.from("roznamcha_entries").select("id, voucher_no, entry_date, status, created_at").in("id", chunk);
+    });
 
     if (postingBatchRes.error) throw new Error(postingBatchRes.error.message);
     if (roznamchaEntryRes.error) throw new Error(roznamchaEntryRes.error.message);
@@ -345,20 +353,16 @@ export async function GET(request: NextRequest) {
     const postingBatches = (postingBatchRes.data ?? []) as PostingBatchRow[];
     const rozEntries = (roznamchaEntryRes.data ?? []) as RoznamchaEntryRow[];
 
-    const [countryIds, countryBranchIds, cityBranchIds, customerIds] = [
-      [...new Set(accountRows.map((row) => row.country_id).filter((value): value is string => Boolean(value)))],
-      [...new Set(accountRows.map((row) => row.country_branch_id).filter((value): value is string => Boolean(value)))],
-      [...new Set(accountRows.map((row) => row.city_branch_id).filter((value): value is string => Boolean(value)))],
-      [...new Set(accountRows.map((row) => row.customer_id).filter((value): value is string => Boolean(value)))]
-    ];
+    const countryIds = [...new Set(accountRows.map((row) => row.country_id).filter((value): value is string => Boolean(value)))];
+    const countryBranchIds = [...new Set(accountRows.map((row) => row.country_branch_id).filter((value): value is string => Boolean(value)))];
+    const cityBranchIds = [...new Set(accountRows.map((row) => row.city_branch_id).filter((value): value is string => Boolean(value)))];
+    const customerIds = [...new Set(accountRows.map((row) => row.customer_id).filter((value): value is string => Boolean(value)))];
 
-    const [countriesRes, countryBranchesRes, cityBranchesRes, companyRes, customersRes] = await Promise.all([
-      countryIds.length ? supabase.from("countries").select("id, name, iso2, currency_code").in("id", countryIds) : Promise.resolve({ data: [], error: null }),
-      countryBranchIds.length ? supabase.from("country_branches").select("id, country_id, name, code, local_currency, status").in("id", countryBranchIds) : Promise.resolve({ data: [], error: null }),
-      cityBranchIds.length ? supabase.from("city_branches").select("id, country_id, country_branch_id, city_name, name, code, local_currency, status").in("id", cityBranchIds) : Promise.resolve({ data: [], error: null }),
-      profileRes.data?.default_company_id ? supabase.from("companies").select("id, name, legal_name, base_currency, created_at, updated_at").eq("id", profileRes.data.default_company_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
-      customerIds.length ? supabase.from("customers").select("id, customer_name").in("id", customerIds) : Promise.resolve({ data: [], error: null })
-    ]);
+    const countriesRes = await fetchInChunks(countryIds, 150, async (chunk) => supabase.from("countries").select("id, name, iso2, currency_code").in("id", chunk));
+    const countryBranchesRes = await fetchInChunks(countryBranchIds, 150, async (chunk) => supabase.from("country_branches").select("id, country_id, name, code, local_currency, status").in("id", chunk));
+    const cityBranchesRes = await fetchInChunks(cityBranchIds, 150, async (chunk) => supabase.from("city_branches").select("id, country_id, country_branch_id, city_name, name, code, local_currency, status").in("id", chunk));
+    const companyRes = profileRes.data?.default_company_id ? await supabase.from("companies").select("id, name, legal_name, base_currency, created_at, updated_at").eq("id", profileRes.data.default_company_id).maybeSingle() : { data: null, error: null };
+    const customersRes = await fetchInChunks(customerIds, 150, async (chunk) => supabase.from("customers").select("id, customer_name").in("id", chunk));
 
     if (countriesRes.error) throw new Error(countriesRes.error.message);
     if (countryBranchesRes.error) throw new Error(countryBranchesRes.error.message);

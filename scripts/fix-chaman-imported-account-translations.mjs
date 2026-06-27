@@ -60,7 +60,13 @@ function parseRows() {
 function fiveLanguagePayload(originalText) {
   const text = clean(originalText);
   if (!text) return null;
-  return {`r`n    en: containsArabicScript(text) ? transliterateArabicScriptToLatin(text) : text,`r`n    ur: text,`r`n    ar: text,`r`n    fa: text,`r`n    ps: text`r`n  };
+  return {
+    en: containsArabicScript(text) ? transliterateArabicScriptToLatin(text) : text,
+    ur: text,
+    ar: text,
+    fa: text,
+    ps: text
+  };
 }
 
 async function upsertTranslation(sql, input) {

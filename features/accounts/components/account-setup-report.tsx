@@ -167,8 +167,8 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
     setLoading(true);
     setErrorMsg("");
     try {
-      const params = new URLSearchParams({ limit: "500", language: lang });
-      const res = await fetch(`/api/erp/accounting/reports/accounts/general?${params.toString()}`);
+      const params = new URLSearchParams({ limit: "2000", language: lang });
+      const res = await fetch(`/api/erp/accounting/reports/accounts/general?${params.toString()}`, { cache: "no-store", credentials: "same-origin" });
       const json = await res.json();
       if (json?.ok && json?.data) {
         setRows(json.data.rows ?? []);
@@ -209,7 +209,16 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
 
   /* ── Filter options ───────────────────────────────────────── */
   const uniqueCountries = useMemo(() => [...new Set(rows.map(r => r.countryName).filter(Boolean))].sort(), [rows]);
-  const uniqueBranches  = useMemo(() => [...new Set(rows.map(r => r.branchName).filter(Boolean))].sort(), [rows]);
+  const branchMatches = (row: AccountRow, value: string) => {
+    const q = value.toLowerCase();
+    return [row.branchName, row.mainBranchName, row.cityBranchName, row.branchCode]
+      .filter(Boolean)
+      .some((part) => part.toLowerCase() === q);
+  };
+  const uniqueBranches  = useMemo(() => {
+    const values = rows.flatMap(r => [r.branchName, r.mainBranchName, r.cityBranchName, r.branchCode]).filter(Boolean);
+    return [...new Set(values)].sort();
+  }, [rows]);
   const uniqueTypes     = useMemo(() => [...new Set(rows.map(r => r.accountCategory).filter(Boolean))].sort(), [rows]);
   const uniqueSubs      = useMemo(() => [...new Set(rows.map(r => r.subType).filter(Boolean))].sort(), [rows]);
 
@@ -221,7 +230,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
         const matchCode = r.accountCode.toLowerCase().includes(q) || (r.manualReferenceNumber ?? "").toLowerCase().includes(q);
         const matchName = r.accountName.toLowerCase().includes(q);
         const matchCountry = r.countryName.toLowerCase().includes(q);
-        const matchBranch = r.branchName.toLowerCase().includes(q);
+        const matchBranch = [r.branchName, r.mainBranchName, r.cityBranchName, r.branchCode].some((part) => part.toLowerCase().includes(q));
         if (!matchCode && !matchName && !matchCountry && !matchBranch) return false;
       } else if (searchField === "code") {
         if (!r.accountCode.toLowerCase().includes(q) && !(r.manualReferenceNumber ?? "").toLowerCase().includes(q)) return false;
@@ -230,12 +239,12 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
       } else if (searchField === "country") {
         if (!r.countryName.toLowerCase().includes(q)) return false;
       } else if (searchField === "branch") {
-        if (!r.branchName.toLowerCase().includes(q)) return false;
+        if (![r.branchName, r.mainBranchName, r.cityBranchName, r.branchCode].some((part) => part.toLowerCase().includes(q))) return false;
       }
     }
     if (accName && !r.accountName.toLowerCase().includes(accName.toLowerCase())) return false;
     if (country !== "all" && r.countryName !== country) return false;
-    if (branch !== "all" && r.branchName !== branch) return false;
+    if (branch !== "all" && !branchMatches(r, branch)) return false;
     if (accType !== "all" && r.accountCategory !== accType) return false;
     if (subType !== "all" && r.subType !== subType) return false;
     return true;
@@ -690,7 +699,11 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                       <td className="asr-td">
                         <div className="flex items-center justify-center gap-1.5">
                           {(() => {
-                            const safeContacts: Array<{ type: string; value: string }> = Array.isArray(row.contacts) ? row.contacts : (typeof row.contacts === "string" ? JSON.parse(row.contacts || "[]") : []);
+                            let parsedContacts = row.contacts;
+                            if (typeof parsedContacts === "string") {
+                              try { parsedContacts = JSON.parse(parsedContacts); } catch (e) { parsedContacts = []; }
+                            }
+                            const safeContacts: Array<{ type: string; value: string }> = Array.isArray(parsedContacts) ? parsedContacts : [];
                             const phones = safeContacts.filter((c) => c?.type?.toLowerCase().includes("mobile") || c?.type?.toLowerCase().includes("whatsapp") || c?.type?.toLowerCase().includes("phone") || c?.type?.toLowerCase().includes("landline") || c?.type?.toLowerCase().includes("office"));
                             const emails = safeContacts.filter((c) => c?.type?.toLowerCase().includes("email"));
                             

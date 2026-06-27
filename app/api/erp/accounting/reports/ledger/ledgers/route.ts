@@ -14,7 +14,7 @@ const querySchema = z.object({
   countryId: uuidSchema.optional(),
   countryBranchId: uuidSchema.optional(),
   cityBranchId: uuidSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(250)
+  limit: z.coerce.number().int().min(1).max(3000).default(250)
 });
 
 function normalizeForSearch(value: string) {
@@ -29,7 +29,8 @@ function normalizeForSearch(value: string) {
 export async function GET(request: NextRequest) {
   try {
     const session = await requireErpSession();
-    const language = await getRequestLanguage();
+    const urlLang = request.nextUrl.searchParams.get("language");
+    const language = urlLang || (await getRequestLanguage());
     const query = querySchema.parse({
       reportScope: request.nextUrl.searchParams.get("reportScope") ?? undefined,
       q: request.nextUrl.searchParams.get("q") ?? undefined,

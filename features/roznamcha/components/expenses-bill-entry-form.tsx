@@ -205,8 +205,13 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
     });
 
     // Fetch active ledgers for transfer dropdowns
-    apiGet<any>('/api/erp/ledgers?limit=500').then(res => {
-      setLedgers(res?.ledgers?.filter((l: any) => l.is_active) || []);
+    import("@/features/reports/ledger-report/ledger-report-api").then(({ listLedgerReportLedgers }) => {
+      listLedgerReportLedgers({ reportScope: "super_admin", limit: 2000 }).then(res => {
+        if (active) {
+          const l = Array.isArray(res.ledgers) ? res.ledgers : [];
+          setLedgers(l);
+        }
+      });
     });
 
     return () => { active = false; };

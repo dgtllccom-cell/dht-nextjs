@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -169,6 +169,13 @@ function selectedCityBranchName(rows: CityBranchRow[], id: string) {
   return row ? `${row.city_name} - ${row.name} (${row.code})` : "-";
 }
 
+function localizedOption(value: string, lang: SupportedLanguage) {
+  const key = value
+    .replace(/[^a-zA-Z0-9]+(.)/g, (_, chr: string) => chr.toUpperCase())
+    .replace(/^[A-Z]/, (chr) => chr.toLowerCase());
+  const label = getLabel(key, lang);
+  return label === key ? value : label;
+}
 export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: SupportedLanguage; initialAccountId?: string }) {
   const router = useRouter();
 
@@ -244,7 +251,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
       setLoadingAccount(true);
       setMessage("");
       try {
-        const res = await fetch(`/api/erp/accounting/accounts/${initialAccountId}`).then((r) => r.json());
+        const res = await fetch(`/api/erp/accounting/accounts/${initialAccountId}?language=${encodeURIComponent(lang)}`).then((r) => r.json());
         if (cancelled) return;
         if (res && res.ok && res.data) {
           const acc = res.data.account;
@@ -319,9 +326,9 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
     return () => {
       cancelled = true;
     };
-  }, [initialAccountId]);
+  }, [initialAccountId, lang]);
 
-  // Master record links — IDs come from Master Form pickers
+  // Master record links â€” IDs come from Master Form pickers
   const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null);
   const [linkedCustomerName, setLinkedCustomerName] = useState("");
   const [linkedCompanyId, setLinkedCompanyId] = useState<string | null>(null);
@@ -630,11 +637,11 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
 
   return (
     <div className="space-y-6" dir={isRtl ? "rtl" : "ltr"}>
-      {/* ── Page Header ──────────────────────────────────────────────────── */}
+      {/* â”€â”€ Page Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{initialAccountId ? "Edit Account Setup" : getLabel("newAccountReport", lang)}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{initialAccountId ? getLabel("editAccountSetup", lang) : getLabel("newAccountReport", lang)}</h1>
             <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200">
               {getLabel("draft", lang)}
             </span>
@@ -657,7 +664,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
         )}
       </div>
 
-      {/* ── Steps Indicator Bar ────────────────────────────────────────── */}
+      {/* â”€â”€ Steps Indicator Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs font-semibold text-slate-500">
         {[
           { id: 1, label: getLabel("step1Label", lang) },
@@ -695,7 +702,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                 {s.id}
               </span>
               <div className="flex flex-col min-w-0">
-                <span className="text-[10px] text-slate-400 font-normal uppercase tracking-wider">Step {s.id}</span>
+                <span className="text-[10px] text-slate-400 font-normal uppercase tracking-wider">{getLabel("step", lang)} {s.id}</span>
                 <span className="truncate">{s.label}</span>
               </div>
             </button>
@@ -703,14 +710,14 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
         })}
       </div>
 
-      {/* ── Left Column Form + Right Column Preview ──────────────────── */}
+      {/* â”€â”€ Left Column Form + Right Column Preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Side: Step View */}
         <div className="lg:col-span-4 space-y-6">
           {loadingAccount ? (
             <div className="rounded-xl border border-slate-100 bg-white p-10 shadow-sm flex flex-col items-center justify-center space-y-3">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm font-semibold text-slate-500">Loading account details...</p>
+              <p className="text-sm font-semibold text-slate-500">{getLabel("loadingAccountDetails", lang)}</p>
             </div>
           ) : (
             <>
@@ -726,7 +733,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                 <div className="space-y-2">
                   <Label htmlFor="country">{getLabel("country", lang)} *</Label>
                   <select id="country" value={country} onChange={(event) => handleCountryChange(event.target.value)} className={selectClass()}>
-                    <option value="">Select Country</option>
+                    <option value="">{getLabel("selectCountry", lang)}</option>
                     {countries.map((item) => (
                       <option key={item.id} value={item.id}>{item.name} ({item.iso2 ?? "-"})</option>
                     ))}
@@ -735,9 +742,9 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                 <div className="space-y-2">
                   <Label htmlFor="branchType">{getLabel("branchType", lang)} *</Label>
                   <select id="branchType" value={branchType} onChange={(event) => handleBranchTypeChange(event.target.value as BranchType)} disabled={!country} className={selectClass()}>
-                    <option value="">Select Branch Type</option>
-                    <option value="Main">Main Branch</option>
-                    <option value="City">City Branch</option>
+                    <option value="">{getLabel("selectBranchType", lang)}</option>
+                    <option value="Main">{getLabel("mainBranch", lang)}</option>
+                    <option value="City">{getLabel("cityBranch", lang)}</option>
                   </select>
                 </div>
               </div>
@@ -746,7 +753,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                 <div className="space-y-2">
                   <Label htmlFor="branch">{getLabel("selectBranch", lang)} *</Label>
                   <select id="branch" value={branch} onChange={(event) => { setBranch(event.target.value); setMessage(""); }} disabled={!country || !branchType} className={selectClass()}>
-                    <option value="">Select Branch</option>
+                    <option value="">{getLabel("selectBranch", lang)}</option>
                     {branchOptions.map((item) => (
                       <option key={item.id} value={item.id}>
                         {branchType === "Main"
@@ -759,12 +766,12 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                 <div className="space-y-2">
                   <Label htmlFor="accountTitle">{getLabel("accountTitle", lang)} *</Label>
                   <select id="accountTitle" value={accountTitle} onChange={(event) => { setAccountTitle(event.target.value as AccountTitle); setSubType(""); }} className={selectClass()}>
-                    <option value="">Select Account Title</option>
-                    <option value="Customer">Customer Account</option>
-                    <option value="Bank">Bank Account</option>
-                    <option value="Personal">Personal</option>
-                    <option value="Company">Company</option>
-                    <option value="Employee">Employee</option>
+                    <option value="">{getLabel("selectAccountTitle", lang)}</option>
+                    <option value="Customer">{getLabel("customerAccount", lang)}</option>
+                    <option value="Bank">{getLabel("bankAccount", lang)}</option>
+                    <option value="Personal">{getLabel("personal", lang)}</option>
+                    <option value="Company">{getLabel("company", lang)}</option>
+                    <option value="Employee">{getLabel("employee", lang)}</option>
                   </select>
                 </div>
               </div>
@@ -777,20 +784,20 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                       id="subType"
                       value={subType}
                       onChange={(event) => setSubType(event.target.value)}
-                      placeholder="Who does this belong to?"
+                      placeholder={getLabel("whoDoesThisBelongTo", lang)}
                     />
                   ) : (
                     <select id="subType" value={subType} onChange={(event) => setSubType(event.target.value)} disabled={!accountTitle} className={selectClass()}>
-                      <option value="">Select Sub Type</option>
-                      {accountTitle ? subTypes[accountTitle].map((item) => (<option key={item} value={item}>{item}</option>)) : null}
+                      <option value="">{getLabel("selectSubType", lang)}</option>
+                      {accountTitle ? subTypes[accountTitle].map((item) => (<option key={item} value={item}>{localizedOption(item, lang)}</option>)) : null}
                     </select>
                   )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">{getLabel("category", lang)} *</Label>
                   <select id="category" value={category} onChange={(event) => setCategory(event.target.value)} className={selectClass()}>
-                    <option value="">Select Category</option>
-                    {categories.map((item) => (<option key={item} value={item}>{item}</option>))}
+                    <option value="">{getLabel("selectCategory", lang)}</option>
+                    {categories.map((item) => (<option key={item} value={item}>{localizedOption(item, lang)}</option>))}
                   </select>
                 </div>
               </div>
@@ -798,17 +805,17 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="accountCode">{getLabel("accountCodeAuto", lang)}</Label>
-                  <Input id="accountCode" value={accountCode || "Generated on save"} readOnly className="bg-slate-50 font-mono text-xs" />
+                  <Input id="accountCode" value={accountCode || getLabel("generatedOnSave", lang)} readOnly className="bg-slate-50 font-mono text-xs" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="manualReferenceNumber">{getLabel("manualReference", lang)}</Label>
-                  <Input id="manualReferenceNumber" value={manualReferenceNumber} onChange={(event) => setManualReferenceNumber(event.target.value.toUpperCase())} placeholder="e.g. CUST-001" />
+                  <Input id="manualReferenceNumber" value={manualReferenceNumber} onChange={(event) => setManualReferenceNumber(event.target.value.toUpperCase())} placeholder={getLabel("manualReferencePlaceholder", lang)} />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="accountName">{getLabel("accountName", lang)} *</Label>
-                <Input id="accountName" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="e.g. Sales Account" />
+                <Input id="accountName" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder={getLabel("accountNamePlaceholder", lang)} />
               </div>
 
               {/* Contacts List */}
@@ -816,7 +823,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                 <div className="flex items-center justify-between border-b pb-2">
                   <div className="flex items-center gap-2">
                     <Phone className="h-4.5 w-4.5 text-blue-600" />
-                    <h3 className="font-semibold text-slate-800 text-sm">Contacts</h3>
+                    <h3 className="font-semibold text-slate-800 text-sm">{getLabel("contacts", lang)}</h3>
                   </div>
                   <Button
                     type="button"
@@ -825,7 +832,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                     onClick={() => setContacts([...contacts, { type: "Mobile", value: "" }])}
                     className="h-7 text-xs border-blue-200 text-blue-700 hover:bg-blue-50 px-2.5 rounded-md font-semibold"
                   >
-                    + Add Contact
+                    {getLabel("addContact", lang)}
                   </Button>
                 </div>
                 <div className="space-y-3">
@@ -834,7 +841,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                     return (
                       <div key={idx} className="flex gap-2 items-end">
                         <div className="w-1/3 space-y-1">
-                          <Label className="text-[10px] font-semibold text-slate-500">Type</Label>
+                          <Label className="text-[10px] font-semibold text-slate-500">{getLabel("type", lang)}</Label>
                           <select
                             value={isCustom ? "Custom" : contact.type}
                             onChange={(e) => {
@@ -845,16 +852,16 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                             }}
                             className={selectClass() + " h-9 text-xs px-2"}
                           >
-                            <option value="Mobile">Mobile</option>
-                            <option value="WhatsApp">WhatsApp</option>
-                            <option value="Email">Email</option>
-                            <option value="Landline">Landline</option>
-                            <option value="Office">Office</option>
-                            <option value="Custom">+ Custom Type</option>
+                            <option value="Mobile">{getLabel("mobile", lang)}</option>
+                            <option value="WhatsApp">{getLabel("whatsApp", lang)}</option>
+                            <option value="Email">{getLabel("email", lang)}</option>
+                            <option value="Landline">{getLabel("landline", lang)}</option>
+                            <option value="Office">{getLabel("office", lang)}</option>
+                            <option value="Custom">{getLabel("customType", lang)}</option>
                           </select>
                         </div>
                         <div className="flex-1 space-y-1">
-                          <Label className="text-[10px] font-semibold text-slate-500">Contact Value</Label>
+                          <Label className="text-[10px] font-semibold text-slate-500">{getLabel("contactValue", lang)}</Label>
                           <Input
                             value={contact.value}
                             onChange={(e) => {
@@ -867,7 +874,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                                 ? "email@example.com"
                                 : contact.type === "WhatsApp"
                                 ? "+92 300 1234567"
-                                : "Contact Number"
+                                : getLabel("contactNumber", lang)
                             }
                             className="h-9 text-xs font-mono"
                           />
@@ -893,28 +900,28 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button type="button" onClick={() => { if (country && branchType && branch && accountTitle && subType && category && accountName) { setCurrentStep(2); } else { setMessage("Please complete all required (*) fields."); } }} className="bg-primary text-white">
+                <Button type="button" onClick={() => { if (country && branchType && branch && accountTitle && subType && category && accountName) { setCurrentStep(2); } else { setMessage(getLabel("completeRequiredFields", lang)); } }} className="bg-primary text-white">
                   {getLabel("saveNext", lang)}
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Step 2: Customer Details — Master Form Picker */}
+          {/* Step 2: Customer Details â€” Master Form Picker */}
           {currentStep === 2 && (
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
               <div className="flex items-center gap-2.5 border-b pb-3">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">2</span>
-                <h2 className="text-sm font-bold text-slate-900">Step 2: Customer Details</h2>
+                <h2 className="text-sm font-bold text-slate-900">{getLabel("step", lang)} 2: {getLabel("step2Label", lang)}</h2>
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Search and select an existing customer from the <b>Customer Master</b>. Use <b>+ New Customer</b> to create one — it will be saved to the master database and immediately available here and everywhere else in the ERP.
+                {getLabel("customerPickerHelp", lang)}
               </p>
 
-              {/* Master Form Picker — single source of truth */}
+              {/* Master Form Picker â€” single source of truth */}
               <CustomerPicker
-                label="Customer (Master)"
+                label={getLabel("customerMaster", lang)}
                 value={linkedCustomerId ?? ""}
                 onValueChange={(id) => {
                   setLinkedCustomerId(id || null);
@@ -929,47 +936,47 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                     })
                     .catch(() => null);
                 }}
-                placeholder="Search existing customers..."
+                placeholder={getLabel("searchExistingCustomers", lang)}
               />
 
               {linkedCustomerId && (
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-xs">
-                  <span className="text-emerald-700 font-semibold">✓ Linked:</span>
+                  <span className="text-emerald-700 font-semibold">{getLabel("linked", lang)}:</span>
                   <span className="text-emerald-800">{linkedCustomerName || linkedCustomerId}</span>
                   <button
                     type="button"
                     className="ml-auto text-rose-600 hover:underline"
                     onClick={() => { setLinkedCustomerId(null); setLinkedCustomerName(""); }}
                   >
-                    Disconnect
+                    {getLabel("disconnect", lang)}
                   </button>
                 </div>
               )}
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(1)}>Back</Button>
+                <Button variant="outline" onClick={() => setCurrentStep(1)}>{getLabel("back", lang)}</Button>
                 <Button type="button" onClick={() => setCurrentStep(3)} className="bg-primary text-white">
-                  {linkedCustomerId ? "Save & Next" : "Skip & Next"}
+                  {linkedCustomerId ? getLabel("saveNext", lang) : getLabel("skipNext", lang)}
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Step 3: Company Details — Master Form Picker */}
+          {/* Step 3: Company Details â€” Master Form Picker */}
           {currentStep === 3 && (
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
               <div className="flex items-center gap-2.5 border-b pb-3">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">3</span>
-                <h2 className="text-sm font-bold text-slate-900">Step 3: Company Details</h2>
+                <h2 className="text-sm font-bold text-slate-900">{getLabel("step", lang)} 3: {getLabel("step3Label", lang)}</h2>
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Search and select a company from the <b>Company Master</b>. Use <b>+ New Company</b> to create a new one — it will be available immediately throughout the ERP.
+                {getLabel("companyPickerHelp", lang)}
               </p>
 
-              {/* Master Form Picker — single source of truth */}
+              {/* Master Form Picker â€” single source of truth */}
               <CompanyPicker
-                label="Company (Master)"
+                label={getLabel("companyMaster", lang)}
                 value={linkedCompanyId ?? ""}
                 onValueChange={(id) => {
                   setLinkedCompanyId(id || null);
@@ -983,48 +990,48 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                     })
                     .catch(() => null);
                 }}
-                placeholder="Search existing companies..."
+                placeholder={getLabel("searchExistingCompanies", lang)}
                 createButtonPlacement="both"
               />
 
               {linkedCompanyId && (
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-xs">
-                  <span className="text-emerald-700 font-semibold">✓ Linked:</span>
+                  <span className="text-emerald-700 font-semibold">{getLabel("linked", lang)}:</span>
                   <span className="text-emerald-800">{linkedCompanyName || linkedCompanyId}</span>
                   <button
                     type="button"
                     className="ml-auto text-rose-600 hover:underline"
                     onClick={() => { setLinkedCompanyId(null); setLinkedCompanyName(""); }}
                   >
-                    Disconnect
+                    {getLabel("disconnect", lang)}
                   </button>
                 </div>
               )}
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(2)}>Back</Button>
+                <Button variant="outline" onClick={() => setCurrentStep(2)}>{getLabel("back", lang)}</Button>
                 <Button type="button" onClick={() => setCurrentStep(4)} className="bg-primary text-white">
-                  {linkedCompanyId ? "Save & Next" : "Skip & Next"}
+                  {linkedCompanyId ? getLabel("saveNext", lang) : getLabel("skipNext", lang)}
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Step 4: Bank Details — Master Form Picker */}
+          {/* Step 4: Bank Details â€” Master Form Picker */}
           {currentStep === 4 && (
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
               <div className="flex items-center gap-2.5 border-b pb-3">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">4</span>
-                <h2 className="text-sm font-bold text-slate-900">Step 4: Bank Details</h2>
+                <h2 className="text-sm font-bold text-slate-900">{getLabel("step", lang)} 4: {getLabel("step4Label", lang)}</h2>
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Search and select a bank from the <b>Bank Master</b> (banks are registered as companies). Use <b>+ New Bank</b> to create one — it is saved once and reused throughout the entire ERP.
+                {getLabel("bankPickerHelp", lang)}
               </p>
 
-              {/* Master Form Picker — single source of truth */}
+              {/* Master Form Picker â€” single source of truth */}
               <BankPicker
-                label="Bank (Master)"
+                label={getLabel("bankMaster", lang)}
                 value={linkedBankId ?? ""}
                 onValueChange={(id) => {
                   setLinkedBankId(id || null);
@@ -1038,27 +1045,27 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                     })
                     .catch(() => null);
                 }}
-                placeholder="Search existing banks..."
+                placeholder={getLabel("searchExistingBanks", lang)}
               />
 
               {linkedBankId && (
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-xs">
-                  <span className="text-emerald-700 font-semibold">✓ Linked:</span>
+                  <span className="text-emerald-700 font-semibold">{getLabel("linked", lang)}:</span>
                   <span className="text-emerald-800">{linkedBankName || linkedBankId}</span>
                   <button
                     type="button"
                     className="ml-auto text-rose-600 hover:underline"
                     onClick={() => { setLinkedBankId(null); setLinkedBankName(""); }}
                   >
-                    Disconnect
+                    {getLabel("disconnect", lang)}
                   </button>
                 </div>
               )}
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(3)}>Back</Button>
+                <Button variant="outline" onClick={() => setCurrentStep(3)}>{getLabel("back", lang)}</Button>
                 <Button type="button" onClick={() => setCurrentStep(5)} className="bg-primary text-white">
-                  {linkedBankId ? "Save & Next" : "Skip & Next"}
+                  {linkedBankId ? getLabel("saveNext", lang) : getLabel("skipNext", lang)}
                 </Button>
               </div>
             </div>
@@ -1069,28 +1076,28 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
               <div className="flex items-center gap-2.5 border-b pb-3">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">5</span>
-                <h2 className="text-sm font-bold text-slate-900">Step 5: Warehouse Details</h2>
+                <h2 className="text-sm font-bold text-slate-900">{getLabel("step", lang)} 5: {getLabel("step5Label", lang)}</h2>
               </div>
 
               <div className="space-y-4">
                 <p className="text-xs text-muted-foreground">
-                  Search and select a warehouse from the <b>Warehouse Master</b>. Use <b>+ New Warehouse</b> to create a new warehouse that will be instantly available throughout the entire ERP.
+                  {getLabel("warehousePickerHelp", lang)}
                 </p>
 
                 <div className="max-w-md">
                   <WarehousePicker
-                    label="Warehouse (Master)"
+                    label={getLabel("warehouseMaster", lang)}
                     value={linkedWarehouseId ?? ""}
                     onValueChange={(val) => setLinkedWarehouseId(val || null)}
-                    placeholder="Search existing warehouses..."
+                    placeholder={getLabel("searchExistingWarehouses", lang)}
                   />
                 </div>
               </div>
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(4)}>Back</Button>
+                <Button variant="outline" onClick={() => setCurrentStep(4)}>{getLabel("back", lang)}</Button>
                 <Button type="button" onClick={() => setCurrentStep(6)} className="bg-primary text-white">
-                  {linkedWarehouseId ? "Save & Next" : "Skip & Next"}
+                  {linkedWarehouseId ? getLabel("saveNext", lang) : getLabel("skipNext", lang)}
                 </Button>
               </div>
             </div>
@@ -1101,38 +1108,38 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
             <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm space-y-5">
               <div className="flex items-center gap-2.5 border-b pb-3">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">6</span>
-                <h2 className="text-sm font-bold text-slate-900">Step 6: Review & Save</h2>
+                <h2 className="text-sm font-bold text-slate-900">{getLabel("step", lang)} 6: {getLabel("step6Label", lang)}</h2>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 text-xs">
                 <div className="rounded-lg border bg-slate-50/40 p-4 space-y-2">
-                  <h3 className="font-bold text-slate-700 border-b pb-1">Branch Details</h3>
-                  <div><b>Company:</b> {branchInfo?.company || "-"}</div>
-                  <div><b>Branch Name:</b> {branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch)}</div>
-                  <div><b>Branch Code:</b> {branchInfo?.code || "-"}</div>
-                  <div><b>Country:</b> {selectedCountry?.name || "-"}</div>
-                  <div><b>Branch Type:</b> {branchType || "-"}</div>
-                  <div><b>Currency:</b> {branchInfo?.currency || "-"}</div>
+                  <h3 className="font-bold text-slate-700 border-b pb-1">{getLabel("branchDetails", lang)}</h3>
+                  <div><b>{getLabel("company", lang)}:</b> {branchInfo?.company || "-"}</div>
+                  <div><b>{getLabel("branchName", lang)}:</b> {branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch)}</div>
+                  <div><b>{getLabel("branchCode", lang)}:</b> {branchInfo?.code || "-"}</div>
+                  <div><b>{getLabel("country", lang)}:</b> {selectedCountry?.name || "-"}</div>
+                  <div><b>{getLabel("branchType", lang)}:</b> {branchType || "-"}</div>
+                  <div><b>{getLabel("currency", lang)}:</b> {branchInfo?.currency || "-"}</div>
                 </div>
 
                 <div className="rounded-lg border bg-slate-50/40 p-4 space-y-2">
-                  <h3 className="font-bold text-slate-700 border-b pb-1">Account Info</h3>
-                  <div><b>Account Title:</b> {accountTitle || "-"}</div>
-                  <div><b>Sub Type:</b> {subType || "-"}</div>
-                  <div><b>Category:</b> {category || "-"}</div>
-                  <div><b>Account Code (Auto):</b> {accountCode || "AUTO"}</div>
-                  <div><b>Account Name:</b> {accountName || "-"}</div>
-                  <div><b>Manual Reference:</b> {manualReferenceNumber || "-"}</div>
+                  <h3 className="font-bold text-slate-700 border-b pb-1">{getLabel("accountInfo", lang)}</h3>
+                  <div><b>{getLabel("accountTitle", lang)}:</b> {accountTitle || "-"}</div>
+                  <div><b>{getLabel("subType", lang)}:</b> {subType || "-"}</div>
+                  <div><b>{getLabel("category", lang)}:</b> {category || "-"}</div>
+                  <div><b>{getLabel("accountCodeAuto", lang)}:</b> {accountCode || "AUTO"}</div>
+                  <div><b>{getLabel("accountName", lang)}:</b> {accountName || "-"}</div>
+                  <div><b>{getLabel("manualReference", lang)}:</b> {manualReferenceNumber || "-"}</div>
                 </div>
               </div>
 
               {/* Linked Masters Summary */}
               {(linkedCustomerId || linkedCompanyId || linkedBankId) && (
                 <div className="rounded-lg border bg-slate-50/40 p-4 text-xs space-y-2">
-                  <h3 className="font-bold text-slate-700 border-b pb-1">Linked Master Records</h3>
-                  {linkedCustomerId && <div><b>Linked Customer:</b> {linkedCustomerName} <span className="text-slate-400 font-mono">({linkedCustomerId})</span></div>}
-                  {linkedCompanyId && <div><b>Linked Company:</b> {linkedCompanyName} <span className="text-slate-400 font-mono">({linkedCompanyId})</span></div>}
-                  {linkedBankId && <div><b>Linked Bank:</b> {linkedBankName} <span className="text-slate-400 font-mono">({linkedBankId})</span></div>}
+                  <h3 className="font-bold text-slate-700 border-b pb-1">{getLabel("linkedMasterRecords", lang)}</h3>
+                  {linkedCustomerId && <div><b>{getLabel("linkedCustomer", lang)}:</b> {linkedCustomerName} <span className="text-slate-400 font-mono">({linkedCustomerId})</span></div>}
+                  {linkedCompanyId && <div><b>{getLabel("linkedCompany", lang)}:</b> {linkedCompanyName} <span className="text-slate-400 font-mono">({linkedCompanyId})</span></div>}
+                  {linkedBankId && <div><b>{getLabel("linkedBank", lang)}:</b> {linkedBankName} <span className="text-slate-400 font-mono">({linkedBankId})</span></div>}
                 </div>
               )}
 
@@ -1146,9 +1153,9 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               )}
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(5)}>Back</Button>
+                <Button variant="outline" onClick={() => setCurrentStep(5)}>{getLabel("back", lang)}</Button>
                 {/* Save button has been moved to the bottom of the Live Report Panel */}
-                <div className="text-xs text-slate-400 italic">Review details in the right panel and click save below.</div>
+                <div className="text-xs text-slate-400 italic">{getLabel("reviewDetailsHint", lang)}</div>
               </div>
             </div>
           )}
@@ -1160,6 +1167,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
         <div className="lg:col-span-8 h-fit lg:sticky lg:top-24 space-y-4">
           <AccountLiveReportPanel
             accountName={accountName}
+            lang={lang}
             accountCode={accountPreview}
             accountTitle={accountTitle}
             subType={subType}
@@ -1210,12 +1218,12 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               <div className="flex flex-col gap-1">
                 <div className="flex items-center space-x-2">
                   <input type="checkbox" id="simCity" checked={simulateCityAdmin} onChange={e => setSimulateCityAdmin(e.target.checked)} className="rounded border-slate-300 accent-primary" />
-                  <label htmlFor="simCity" className="text-xs font-bold text-slate-600 cursor-pointer">Simulate City Admin (Approval Flow)</label>
+                  <label htmlFor="simCity" className="text-xs font-bold text-slate-600 cursor-pointer">{getLabel("simulateCityAdmin", lang)}</label>
                 </div>
-                {simulateCityAdmin && <p className="text-[10px] text-amber-600 font-semibold max-w-xs">This will save the account as "Pending Approval" for a Super Admin to review.</p>}
+                {simulateCityAdmin && <p className="text-[10px] text-amber-600 font-semibold max-w-xs">{getLabel("pendingApprovalHint", lang)}</p>}
               </div>
-              <Button type="button" size="lg" onClick={saveEntry} disabled={!readyToSave || saving} className="bg-primary hover:bg-primary/90 text-white text-sm px-10 h-12 font-bold tracking-wider rounded-lg shadow-sm">
-                {saving ? "Saving..." : simulateCityAdmin ? "Submit for Approval" : initialAccountId ? "Update Account" : "Create & Save Account"}
+              <Button type="button" size="default" onClick={saveEntry} disabled={!readyToSave || saving} className="bg-primary hover:bg-primary/90 text-white text-sm px-10 h-12 font-bold tracking-wider rounded-lg shadow-sm">
+                {saving ? getLabel("saving", lang) : simulateCityAdmin ? getLabel("submitForApproval", lang) : initialAccountId ? getLabel("updateAccount", lang) : getLabel("createSaveAccount", lang)}
               </Button>
             </div>
           )}
@@ -1226,3 +1234,11 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
     </div>
   );
 }
+
+
+
+
+
+
+
+

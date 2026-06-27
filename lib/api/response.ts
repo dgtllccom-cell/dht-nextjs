@@ -87,7 +87,18 @@ export function apiError(code: string, message: string, status = 400, details?: 
 }
 
 function messageFromError(error: unknown) {
-  return error instanceof Error ? error.message : "Unexpected server error";
+  if (error instanceof Error) {
+    // Log detailed error stack to a local file for debugging
+    try {
+      const cause = (error as any).cause ? `\nCause: ${(error as any).cause.message || (error as any).cause}` : "";
+      require("fs").appendFileSync(
+        require("path").join(process.cwd(), "api-error-log.txt"),
+        `\n[${new Date().toISOString()}] ${error.name}: ${error.message}${cause}\n${error.stack}\n`
+      );
+    } catch (e) {}
+    return error.message;
+  }
+  return typeof error === "string" ? error : "Unexpected server error";
 }
 
 async function logApiErrorForSuperAdmin(code: string, message: string, details?: unknown) {

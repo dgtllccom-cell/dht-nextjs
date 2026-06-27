@@ -74,6 +74,7 @@ export function SearchSelect({
   disabled?: boolean;
   onValueChange: (value: string) => void;
   onOpenChange?: (open: boolean) => void;
+  onSearchValueChange?: (value: string) => void;
   createLabel?: string;
   onCreateNew?: () => void | Promise<void>;
   createButtonPlacement?: "modal" | "trigger" | "both" | "below";
@@ -108,7 +109,10 @@ export function SearchSelect({
   function setOpenSafe(next: boolean) {
     setOpen(next);
     onOpenChange?.(next);
-    if (!next) setQ("");
+    if (!next) {
+      setQ("");
+      onSearchValueChange?.("");
+    }
   }
 
   useEffect(() => {
@@ -151,7 +155,10 @@ export function SearchSelect({
               <input
                 type="text"
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  onSearchValueChange?.(e.target.value);
+                }}
                 placeholder="Search..."
                 className="w-full bg-background border border-input rounded-md pl-8 pr-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-ring text-foreground h-8 bg-white text-slate-900"
                 autoFocus
