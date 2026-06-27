@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n/ui";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
+import { printStore } from "@/lib/store/print-store";
 
 export type PurchaseReportData = {
   id: string;
@@ -764,6 +765,5 @@ export function openPurchaseA4ReportWindow(input: {
 </html>`;
 
   // Use the new PDF Print Preview Modal instead of window.open
-  const { printStore } = require("@/lib/store/print-store");
   printStore.openPrint(html, input.title);
 }
