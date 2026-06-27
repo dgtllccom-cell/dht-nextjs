@@ -4,7 +4,8 @@ import { apiOk, handleApiError } from "@/lib/api/response";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { requireErpSession } from "@/lib/auth/session";
-import { ledgerScopeSchema, uuidSchema } from "@/lib/api/erp-validation";
+import { ledgerScopeSchema, supportedLanguageSchema, uuidSchema } from "@/lib/api/erp-validation";
+import { multilingualService } from "@/lib/services/multilingual-service";
 
 const querySchema = z.object({
   q: z.string().trim().max(200).optional(),
@@ -15,7 +16,8 @@ const querySchema = z.object({
   status: z.enum(["all", "active", "archived"]).default("all"),
   fromDate: z.string().date().optional(),
   toDate: z.string().date().optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(500)
+  limit: z.coerce.number().int().min(1).max(500).default(500),
+  language: supportedLanguageSchema.default("en")
 });
 
 type EnterpriseAccountRow = {
@@ -151,6 +153,39 @@ function latestByDate<T extends { created_at: string }>(rows: T[]) {
   return [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
 }
 
+type TranslationRow = {
+  record_table: string;
+  record_id: string;
+  field_name: string;
+  original_text: string;
+  original_language_code: string;
+  english_text: string | null;
+  arabic_text: string | null;
+  urdu_text: string | null;
+  persian_text: string | null;
+  pashto_text: string | null;
+};
+
+function translationKey(recordTable: string, recordId: string | null | undefined, fieldName: string) {
+  return `${recordTable}:${recordId ?? ""}:${fieldName}`;
+}
+
+function resolveTranslation(row: TranslationRow | null | undefined, language: "en" | "ar" | "ur" | "fa" | "ps", fallback: string) {
+  if (!row) return fallback;
+  return multilingualService.resolveText(
+    {
+      originalText: row.original_text,
+      originalLanguage: row.original_language_code as "en" | "ar" | "ur" | "fa" | "ps",
+      en: row.english_text ?? undefined,
+      ar: row.arabic_text ?? undefined,
+      ur: row.urdu_text ?? undefined,
+      fa: row.persian_text ?? undefined,
+      ps: row.pashto_text ?? undefined
+    },
+    language
+  ) || fallback;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await requireErpSession();
@@ -163,7 +198,8 @@ export async function GET(request: NextRequest) {
       status: request.nextUrl.searchParams.get("status") ?? undefined,
       fromDate: request.nextUrl.searchParams.get("fromDate") ?? undefined,
       toDate: request.nextUrl.searchParams.get("toDate") ?? undefined,
-      limit: request.nextUrl.searchParams.get("limit") ?? undefined
+      limit: request.nextUrl.searchParams.get("limit") ?? undefined,
+      language: request.nextUrl.searchParams.get("language") ?? undefined
     });
     const effectiveQuery = { ...query };
 
@@ -236,6 +272,19 @@ export async function GET(request: NextRequest) {
 
     const accountRows = (accountRes.data ?? []) as EnterpriseAccountRow[];
     const accountIds = accountRows.map((row) => row.id);
+
+    const translationRes = accountIds.length
+      ? await supabase
+          .from("record_translations")
+          .select("record_table, record_id, field_name, original_text, original_language_code, english_text, arabic_text, urdu_text, persian_text, pashto_text")
+          .eq("record_table", "enterprise_accounts")
+          .in("record_id", accountIds)
+          .is("deleted_at", null)
+      : { data: [], error: null };
+    if (translationRes.error) throw new Error(translationRes.error.message);
+    const translationLookup = new Map(
+      ((translationRes.data ?? []) as TranslationRow[]).map((row) => [translationKey(row.record_table, row.record_id, row.field_name), row] as const)
+    );
 
     const [ledgerRes, postingRes, roznamchaLineRes, auditRes] = await Promise.all([
       accountIds.length
@@ -417,6 +466,26 @@ export async function GET(request: NextRequest) {
       const country = account.country_id ? countryLookup.get(account.country_id) ?? null : null;
       const countryBranch = account.country_branch_id ? countryBranchLookup.get(account.country_branch_id) ?? null : null;
       const cityBranch = account.city_branch_id ? cityBranchLookup.get(account.city_branch_id) ?? null : null;
+      const accountName = resolveTranslation(
+        translationLookup.get(translationKey("enterprise_accounts", account.id, "name")),
+        effectiveQuery.language,
+        account.name
+      );
+      const translatedCompanyName = resolveTranslation(
+        translationLookup.get(translationKey("enterprise_accounts", account.id, "company_name")),
+        effectiveQuery.language,
+        ""
+      );
+      const translatedBusinessName = resolveTranslation(
+        translationLookup.get(translationKey("enterprise_accounts", account.id, "business_name")),
+        effectiveQuery.language,
+        ""
+      );
+      const translatedCityName = resolveTranslation(
+        translationLookup.get(translationKey("enterprise_accounts", account.id, "city")),
+        effectiveQuery.language,
+        cityBranch?.city_name ?? "-"
+      );
 
       const branchType =
         account.scope === "super_admin"
@@ -472,7 +541,7 @@ export async function GET(request: NextRequest) {
         branchSerialNumber: account.branch_serial_number ?? "-",
         manualReferenceNumber: account.manual_reference_number ?? null,
         branchAccountSequence: Number(account.branch_account_sequence ?? 0),
-        accountName: account.name,
+        accountName,
         journalCode: linkedLedger?.code ?? account.code,
         ledgerId: linkedLedger?.id ?? null,
         ledgerName: linkedLedger?.name ?? null,
@@ -489,7 +558,7 @@ export async function GET(request: NextRequest) {
         stateName: "-",
         stateCode: "-",
         cityId: account.city_branch_id,
-        cityName: cityBranch?.city_name ?? "-",
+        cityName: translatedCityName,
         cityCode: cityBranch?.code ?? "-",
         currency: account.currency,
         accountCategory: titleCase(account.kind),
@@ -504,7 +573,7 @@ export async function GET(request: NextRequest) {
         journalActivityCount,
         latestJournalNo,
         latestActivityAt,
-        companyName: company?.name ?? profile?.full_name ?? "-",
+        companyName: translatedCompanyName || translatedBusinessName || company?.name || profile?.full_name || "-",
         companyCode: company?.id ? parseIdPrefix(company.id) : "-",
         companyOwner: profile?.full_name ?? "-",
         recentActivityLabel: latestAudit?.action ?? latestMovement?.referenceNo ?? null,
@@ -580,7 +649,7 @@ export async function GET(request: NextRequest) {
       summary,
       workspace: {
         companyId: profile?.default_company_id ?? null,
-        companyName: company?.name ?? profile?.full_name ?? "-",
+        companyName: company?.name || profile?.full_name || "-",
         companyCode: company?.id ? parseIdPrefix(company.id) : "-",
         companyOwner: profile?.full_name ?? "-"
       },

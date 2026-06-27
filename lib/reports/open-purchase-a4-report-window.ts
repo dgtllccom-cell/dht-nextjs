@@ -76,8 +76,6 @@ export function openPurchaseA4ReportWindow(input: {
   lang?: string;
 }) {
   if (typeof window === "undefined") return;
-  const w = window.open("", "_blank");
-  if (!w) return;
 
   const lang = (input.lang || "en") as SupportedLanguage;
   const isRtl = ["ur", "ar", "fa", "ps"].includes(lang);
@@ -762,18 +760,10 @@ export function openPurchaseA4ReportWindow(input: {
       </div>
 
     </div>
-    <script>
-      window.__ERP_A4_AUTOPRINT__ = ${input.autoPrint ? "true" : "false"};
-      window.addEventListener('load', () => {
-        if (window.__ERP_A4_AUTOPRINT__) {
-          setTimeout(() => window.print(), 100);
-        }
-      }, { once: true });
-    </script>
   </body>
 </html>`;
 
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  // Use the new PDF Print Preview Modal instead of window.open
+  const { printStore } = require("@/lib/store/print-store");
+  printStore.openPrint(html, input.title);
 }

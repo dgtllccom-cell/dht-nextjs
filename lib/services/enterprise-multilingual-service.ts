@@ -34,7 +34,7 @@ export type EnterpriseTranslationSaveInput = {
   originalLanguage: SupportedLanguage;
   fields: EnterpriseTranslationField[];
   actorId?: string | null;
-  source?: "auto" | "manual" | "import";
+  source?: "auto" | "manual" | "imported";
 };
 
 export type EnterpriseEventInput = {
@@ -83,8 +83,7 @@ function columnPayload(translations: TranslationMap) {
     urdu_text: translations.ur,
     arabic_text: translations.ar,
     persian_text: translations.fa,
-    pashto_text: translations.ps,
-    language_texts: translations
+    pashto_text: translations.ps
   };
 }
 
@@ -108,9 +107,6 @@ export async function saveEnterpriseRecordTranslations(
       source: input.source ?? "auto",
       corrected_by: input.source === "manual" ? input.actorId ?? null : null,
       corrected_at: input.source === "manual" ? new Date().toISOString() : null,
-      translation_status: "complete",
-      translated_by_engine: "local_dictionary",
-      translated_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 

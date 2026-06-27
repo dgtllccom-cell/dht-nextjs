@@ -164,7 +164,8 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
   async function fetchReport() {
     setLoading(true);
     try {
-      const res = await fetch("/api/erp/accounting/reports/accounts/general?limit=500");
+      const params = new URLSearchParams({ limit: "500", language: lang });
+      const res = await fetch(`/api/erp/accounting/reports/accounts/general?${params.toString()}`);
       const json = await res.json();
       if (json?.ok && json?.data) {
         setRows(json.data.rows ?? []);
@@ -189,7 +190,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
     fetchSessionInfo();
     setPortalNode(document.getElementById("erp-page-actions-slot"));
     setTitlePortalNode(document.getElementById("erp-page-title-slot"));
-  }, []);
+  }, [lang]);
 
   /* Close action menu on outside click */
   useEffect(() => {
@@ -198,7 +199,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  }, [lang]);
 
   /* ── Filter options ───────────────────────────────────────── */
   const uniqueCountries = useMemo(() => [...new Set(rows.map(r => r.countryName).filter(Boolean))].sort(), [rows]);
@@ -677,9 +678,9 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                       <td className="asr-td">
                         <div className="flex items-center justify-center gap-1.5">
                           {(() => {
-                            const safeContacts = Array.isArray(row.contacts) ? row.contacts : (typeof row.contacts === 'string' ? JSON.parse(row.contacts || '[]') : []);
-                            const phones = safeContacts.filter((c: any) => c?.type?.toLowerCase().includes("mobile") || c?.type?.toLowerCase().includes("whatsapp") || c?.type?.toLowerCase().includes("phone") || c?.type?.toLowerCase().includes("landline") || c?.type?.toLowerCase().includes("office"));
-                            const emails = safeContacts.filter((c: any) => c?.type?.toLowerCase().includes("email"));
+                            const safeContacts: Array<{ type: string; value: string }> = Array.isArray(row.contacts) ? row.contacts : (typeof row.contacts === "string" ? JSON.parse(row.contacts || "[]") : []);
+                            const phones = safeContacts.filter((c) => c?.type?.toLowerCase().includes("mobile") || c?.type?.toLowerCase().includes("whatsapp") || c?.type?.toLowerCase().includes("phone") || c?.type?.toLowerCase().includes("landline") || c?.type?.toLowerCase().includes("office"));
+                            const emails = safeContacts.filter((c) => c?.type?.toLowerCase().includes("email"));
                             
                             return (
                               <>
@@ -1180,10 +1181,3 @@ function AsrStyles() {
     `}</style>
   );
 }
-
-
-
-
-
-
-

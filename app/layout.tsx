@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { GoogleTranslateScript } from "@/components/layout/google-translate-script";
+import { PdfPreviewModal } from "@/components/ui/pdf-preview-modal";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <GoogleTranslateScript />
         {children}
+        <PdfPreviewModal />
       </body>
     </html>
   );

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
@@ -157,7 +157,7 @@ function normalizeForSearch(value: string) {
 
 function buildLedgerOption(row: LedgerLookupRow): SearchSelectOption {
   const branch = row.cityBranchName || row.countryBranchName || row.countryName || "";
-  const label = `${row.accountCode || row.ledgerCode} · ${row.accountName || row.ledgerName}${branch ? ` · ${branch}` : ""}`;
+  const label = `${row.accountCode || row.ledgerCode} Â· ${row.accountName || row.ledgerName}${branch ? ` Â· ${branch}` : ""}`;
   const keywords = [
     row.ledgerCode,
     row.ledgerName,
@@ -644,7 +644,7 @@ export function LedgerReportView({
                 className="h-10 w-full md:w-auto text-xs gap-2"
               >
                 <Calendar className="h-4 w-4" />
-                {fromDate} → {toDate}
+                {fromDate} â†’ {toDate}
               </Button>
               {dateDropdownOpen ? (
                 <div className="absolute right-0 md:left-0 mt-2 z-30 w-64 p-3 bg-popover text-popover-foreground rounded-lg border shadow-lg space-y-3 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
@@ -835,7 +835,7 @@ export function LedgerReportView({
             <div>
               <h2 className="text-base font-bold text-slate-100">{t(lang, "ledger.entries_table_title")}</h2>
               <p className="mt-1 text-xs text-slate-400">
-                {t(lang, "ledger.showing_range")} <span className="font-mono text-[11px] text-slate-300">{fromDate} → {toDate}</span>
+                {t(lang, "ledger.showing_range")} <span className="font-mono text-[11px] text-slate-300">{fromDate} â†’ {toDate}</span>
               </p>
             </div>
             <div className="text-xs text-slate-400">
@@ -843,6 +843,7 @@ export function LedgerReportView({
               {t(lang, "ledger.rows")}: <b className="text-slate-900">{displayRows.length}</b>
             </div>
           </div>
+        </div>
         </div>
         <div className="p-0">
           <ReportTable
@@ -945,7 +946,7 @@ export function LedgerReportView({
           setSelectedLedger(null);
         }}
         title={`Ledger: ${selectedLedger?.accountName || selectedLedger?.ledgerName || "Details"}`}
-        subtitle={`Account No: ${selectedLedger?.accountCode || selectedLedger?.ledgerCode || "-"} · Currency: ${selectedLedger?.ledgerCurrency || "-"}`}
+        subtitle={`Account No: ${selectedLedger?.accountCode || selectedLedger?.ledgerCode || "-"} Â· Currency: ${selectedLedger?.ledgerCurrency || "-"}`}
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -1179,4 +1180,5 @@ function TableFooter({ text, page, pageCount, onPrev, onNext, pageSize }: { text
     </div>
   );
 }
+
 

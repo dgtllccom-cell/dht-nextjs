@@ -21,7 +21,6 @@ type TranslationRow = {
   urdu_text: string | null;
   persian_text: string | null;
   pashto_text: string | null;
-  language_texts?: Partial<Record<SupportedLanguage, string>> | null;
   source: string;
 };
 
@@ -49,7 +48,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("record_translations")
       .select(
-        "id, record_table, record_id, field_name, original_text, original_language_code, english_text, arabic_text, urdu_text, persian_text, pashto_text, language_texts, source, created_at, updated_at"
+        "id, record_table, record_id, field_name, original_text, original_language_code, english_text, arabic_text, urdu_text, persian_text, pashto_text, source, created_at, updated_at"
       )
       .is("deleted_at", null)
       .order("updated_at", { ascending: false });
@@ -69,14 +68,12 @@ export async function GET(request: NextRequest) {
     return apiOk({
       translations,
       resolved: translations.map((translation) => {
-        const languageTexts = translation.language_texts ?? {};
         return {
           id: translation.id,
           recordTable: translation.record_table,
           recordId: translation.record_id,
           fieldName: translation.field_name,
           text:
-            languageTexts[language] ||
             multilingualService.resolveText(
               {
                 originalText: translation.original_text,
@@ -144,10 +141,6 @@ export async function POST(request: NextRequest) {
       urdu_text: payload.urduText,
       persian_text: payload.persianText,
       pashto_text: payload.pashtoText,
-      language_texts: translations,
-      translation_status: "complete",
-      translated_by_engine: body.source === "manual" ? "manual" : "local_dictionary",
-      translated_at: new Date().toISOString(),
       source: body.source,
       corrected_by: body.source === "manual" ? session.userId : null,
       corrected_at: body.source === "manual" ? new Date().toISOString() : null,
