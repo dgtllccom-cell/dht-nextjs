@@ -568,7 +568,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           kind: category === "P/S" ? "income" : category === "EX" ? "expense" : "asset",
           currency: branchInfo.currency || selectedCountry?.currency_code || "USD",
           openingBalance: 0,
-          status: simulateCityAdmin ? "pending_approval" : "active",
+          status: "active",
           isControlAccount: accountTitle === "Bank",
           contacts
         });

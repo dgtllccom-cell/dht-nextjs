@@ -161,8 +161,11 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
     }
   }
 
+  const [errorMsg, setErrorMsg] = useState("");
+
   async function fetchReport() {
     setLoading(true);
+    setErrorMsg("");
     try {
       const params = new URLSearchParams({ limit: "500", language: lang });
       const res = await fetch(`/api/erp/accounting/reports/accounts/general?${params.toString()}`);
@@ -174,9 +177,12 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
           companyOwner: json.data.workspace?.companyOwner ?? "—",
         });
         setGeneratedAt(json.data.generatedAt ?? new Date().toISOString());
+      } else {
+        setErrorMsg(json?.error?.message || "Failed to fetch accounts data.");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Account report fetch error:", e);
+      setErrorMsg(e.message || "Unknown error occurred.");
     } finally {
       setLoading(false);
     }
@@ -535,6 +541,12 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                       <Loader2 className="h-4 w-4 animate-spin text-[#1f5eff]" />
                       <span>Loading accounts report…</span>
                     </div>
+                  </td>
+                </tr>
+              ) : errorMsg ? (
+                <tr>
+                  <td colSpan={17} className="asr-empty-cell text-red-500 font-bold">
+                    Error: {errorMsg}
                   </td>
                 </tr>
               ) : filtered.length > 0 ? (

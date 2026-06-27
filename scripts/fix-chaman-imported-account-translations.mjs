@@ -1,4 +1,4 @@
-﻿import fs from "node:fs";
+import fs from "node:fs";
 import postgres from "postgres";
 
 const SOURCE =
@@ -19,6 +19,12 @@ function loadEnv() {
   }
 }
 
+const arabicScriptPattern = /[\u0600-\u06ff]/;
+const arabicScriptMap = {
+  "\u0627": "a", "\u0622": "aa", "\u0628": "b", "\u067e": "p", "\u062a": "t", "\u0679": "t", "\u062b": "s", "\u062c": "j", "\u0686": "ch", "\u062d": "h", "\u062e": "kh", "\u062f": "d", "\u0688": "d", "\u0630": "z", "\u0631": "r", "\u0691": "r", "\u0632": "z", "\u0698": "zh", "\u0633": "s", "\u0634": "sh", "\u0635": "s", "\u0636": "z", "\u0637": "t", "\u0638": "z", "\u0639": "a", "\u063a": "gh", "\u0641": "f", "\u0642": "q", "\u06a9": "k", "\u0643": "k", "\u06af": "g", "\u0644": "l", "\u0645": "m", "\u0646": "n", "\u06ba": "n", "\u0648": "w", "\u0624": "o", "\u06c1": "h", "\u06be": "h", "\u0621": "", "\u06cc": "y", "\u064a": "y", "\u06d2": "e", "\u0626": "y", "\u0629": "h", "\u0649": "a", "\u0623": "a", "\u0625": "i", "\u064e": "", "\u0650": "", "\u064f": "", "\u0651": "", "\u0652": "", "\u060c": ",", "\u06d4": ".", "\u061f": "?"
+};
+function containsArabicScript(value) { return arabicScriptPattern.test(String(value ?? "")); }
+function transliterateArabicScriptToLatin(value) { const text = String(value ?? "").trim(); if (!text) return ""; return Array.from(text).map((char) => arabicScriptMap[char] ?? char).join("").replace(/\s+/g, " ").replace(/\b\w/g, (match) => match.toUpperCase()).trim() || text; }
 function clean(value) {
   const text = String(value ?? "").trim();
   if (!text || text === "0" || text.toLowerCase() === "nil") return null;
@@ -54,13 +60,7 @@ function parseRows() {
 function fiveLanguagePayload(originalText) {
   const text = clean(originalText);
   if (!text) return null;
-  return {
-    en: text,
-    ur: text,
-    ar: text,
-    fa: text,
-    ps: text
-  };
+  return {`r`n    en: containsArabicScript(text) ? transliterateArabicScriptToLatin(text) : text,`r`n    ur: text,`r`n    ar: text,`r`n    fa: text,`r`n    ps: text`r`n  };
 }
 
 async function upsertTranslation(sql, input) {
