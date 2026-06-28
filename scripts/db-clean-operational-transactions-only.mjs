@@ -70,7 +70,12 @@ const operationalDeleteOrder = [
   "shipment_documents",
   "shipping_bl_records",
   "shipping_line_records",
+  "expenses_bill_lines",
+  "expenses_bills",
   "purchase_loading_records",
+  "purchase_order_expenses",
+  "purchase_order_items",
+  "purchase_order_reports",
   "purchase_order_payments",
   "purchase_orders",
   "sales_order_payments",
@@ -89,13 +94,19 @@ const operationalDeleteOrder = [
   "enterprise_ledger_reversals",
   "ledger_opening_balances",
   "ledger_posting_batches",
+  "cash_transactions",
   "transactions",
   "usd_purchase_sales",
   "transaction_serial_sequences"
 ];
 
 const auditEntityTables = [
+  "expenses_bills",
+  "expenses_bill_lines",
   "purchase_orders",
+  "purchase_order_expenses",
+  "purchase_order_items",
+  "purchase_order_reports",
   "purchase_order_payments",
   "purchase_loading_records",
   "sales_orders",

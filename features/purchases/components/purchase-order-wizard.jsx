@@ -571,7 +571,7 @@ export function PurchaseOrderWizard({ session }) {
   const [mainBranches, setMainBranches] = useState([]);
   const [cityBranches, setCityBranches] = useState([]);
   const [scopeConfirmed, setScopeConfirmed] = useState(false);
-  const [dbAccounts, setDbAccounts] = useState(MOCK_ACCOUNTS);
+  const [dbAccounts, setDbAccounts] = useState([]);
 
   const [supplierDetail, setSupplierDetail] = useState(null);
   const [customerDetail, setCustomerDetail] = useState(null);
@@ -5721,4 +5721,3 @@ export function PurchaseOrderWizard({ session }) {
     </div>
   );
 }
-
