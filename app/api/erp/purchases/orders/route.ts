@@ -207,14 +207,10 @@ export async function POST(request: NextRequest) {
     const cityBranchTransactionSerialNumber = effective.cityBranchId ? await nextTransactionSerial(admin, "city_branch", effective.cityBranchId, cityBranchPrefix) : null;
     const purchaseOrderNo = await nextTransactionSerial(admin, "module_purchase", "global", "PUR");
     const paymentStatusRaw = String(body.paymentStatus || "pending").toLowerCase();
-    const form = (body.formData as any)?.form ?? {};
-    const advancePercent = Number(form.advancePercent ?? 10);
     const orderTotal = Number(body.orderTotal || 0);
-    const advanceAmount = ledgerPostingStatus === "posted" ? ((orderTotal * advancePercent) / 100) : 0;
-    const remainingDue = ledgerPostingStatus === "posted" ? Math.max(0, orderTotal - advanceAmount) : orderTotal;
-    const paymentStatus = ledgerPostingStatus === "posted" 
-      ? (remainingDue === 0 ? "completed" : advanceAmount > 0 ? "partial" : "pending") 
-      : (["pending", "partial", "completed", "cancelled"].includes(paymentStatusRaw) ? paymentStatusRaw : "pending");
+    const advanceAmount = 0; // Initialize as 0, paid through payments module
+    const remainingDue = orderTotal;
+    const paymentStatus = ["pending", "partial", "completed", "cancelled"].includes(paymentStatusRaw) ? paymentStatusRaw : "pending";
 
     const payload = {
       country_id: effective.countryId,

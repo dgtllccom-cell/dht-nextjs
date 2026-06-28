@@ -141,18 +141,11 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     // Ledger posting has been removed from Purchase Booking.
     // Booking must remain only in the Purchase Booking Register until transferred and paid.
     
-    // We still update advance calculations if needed
-    if (body.orderTotal !== undefined || body.formData !== undefined) {
-      const orderTotal = body.orderTotal !== undefined ? body.orderTotal : (before as any).order_total;
-      const formData = body.formData !== undefined ? body.formData : (before as any).form_data;
-      const form = formData?.form ?? {};
-      const advancePercent = Number(form.advancePercent ?? 10);
-      const advanceAmount = (Number(orderTotal) * advancePercent) / 100;
-      const remainingDue = Math.max(0, Number(orderTotal) - advanceAmount);
-      
-      patch.advance_paid = advanceAmount;
-      patch.remaining_due = remainingDue;
-      patch.payment_status = remainingDue === 0 ? "completed" : advanceAmount > 0 ? "partial" : "pending";
+    // We do NOT update advance_paid automatically here.
+    // Advance amounts are managed through actual payment records.
+    if (body.orderTotal !== undefined) {
+      // If the order total changes, we should ideally fetch current paid amounts to calculate remaining due.
+      // For now, let's keep it simple and not overwrite advance_paid.
     }
 
     const updated = await requireSupabaseData(
