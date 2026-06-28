@@ -475,7 +475,10 @@ export function openPurchaseA4ReportWindow(input: {
             <div class="box-header">👤 Booking Information</div>
             <table class="info-table">
               <tbody>
-                <tr><td class="lbl">Reference:</td><td class="val font-mono">${escapeHtml(b.purchaseBookingOrderNumber)}</td></tr>
+                <tr><td class="lbl">Reference (Order ID):</td><td class="val font-mono">${escapeHtml(b.purchaseBookingOrderNumber)}</td></tr>
+                <tr><td class="lbl">Super S/N:</td><td class="val font-mono text-blue-700">${escapeHtml((b as any).super_admin_serial_number || (b as any).superAdminSerialNo || (b as any).form_data?.form?.superAdminSerialNo || "-")}</td></tr>
+                <tr><td class="lbl">Cty S/N:</td><td class="val font-mono text-emerald-700">${escapeHtml((b as any).country_transaction_serial_number || (b as any).countrySerialNo || (b as any).form_data?.form?.countrySerialNo || "-")}</td></tr>
+                <tr><td class="lbl">Br. S/N:</td><td class="val font-mono text-amber-700">${escapeHtml((b as any).branch_transaction_serial_number || (b as any).branchSerialNo || (b as any).form_data?.form?.branchSerialNo || "-")}</td></tr>
                 <tr><td class="lbl">Purchase Date:</td><td class="val">${formatDate(b.purchaseDate)}</td></tr>
                 <tr><td class="lbl">Booking Date:</td><td class="val">${formatDate(b.bookingDate)}</td></tr>
                 <tr><td class="lbl">Exchange Rate:</td><td class="val font-mono">${exRateVal} Rs</td></tr>

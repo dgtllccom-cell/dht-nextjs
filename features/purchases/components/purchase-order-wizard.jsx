@@ -1627,6 +1627,27 @@ export function PurchaseOrderWizard() {
     setForm(prev => ({ ...prev, divideType: type, divideWeight: weight }));
   };
 
+  const accountMatchesSearch = (acc, term) => {
+    const q = String(term || "").trim().toLowerCase();
+    if (!q) return true;
+    return [
+      acc.accountCode,
+      acc.accountName,
+      acc.manualReferenceNumber,
+      acc.customerNumber,
+      acc.accountSerialNumber,
+      acc.countrySerialNumber,
+      acc.branchSerialNumber
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(q));
+  };
+
+  const accountMatchesScope = (acc) => {
+    return (!form.countryId || acc.countryId === form.countryId) &&
+      (!form.countryBranchId || acc.countryBranchId === form.countryBranchId) &&
+      (!form.cityBranchId || acc.cityBranchId === form.cityBranchId);
+  };
   const applyAccountMaster = (type, account) => {
     if (!account) return;
     const accountNo = account.accountCode || account.rawAccountCode || account.ledgerCode || account.code || "";
@@ -2116,7 +2137,7 @@ export function PurchaseOrderWizard() {
       setIsTransferred(true);
       setRegisterRefreshKey((key) => key + 1);
       // Navigate to the Purchase Transfer Payment / Journal Report page, pre-selecting this order
-      router.push(`/dashboard/purchase/purchase-booking-journal-report?purchaseOrderNo=${encodeURIComponent(nextOrderNo)}`);
+      router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(nextOrderNo)}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error saving order.";
       setSaveMessage(msg);
@@ -3349,7 +3370,7 @@ export function PurchaseOrderWizard() {
                       {purchaseDropdownOpen && (
                         <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden">
                           <div className="max-h-56 overflow-y-auto space-y-0.5">
-                            {dbAccounts.filter(acc => (!form.countryId || acc.countryId === form.countryId) && (!form.countryBranchId || acc.countryBranchId === form.countryBranchId) && (!form.cityBranchId || acc.cityBranchId === form.cityBranchId) && (acc.accountCode?.toLowerCase().includes(purchaseSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(purchaseSearch.toLowerCase()))).map((acc) => (
+                            {dbAccounts.filter(acc => accountMatchesScope(acc) && accountMatchesSearch(acc, purchaseSearch)).map((acc) => (
                               <button
                                 key={acc.accountCode}
                                 type="button"
@@ -3397,7 +3418,7 @@ export function PurchaseOrderWizard() {
                       {salesDropdownOpen && (
                         <div className="absolute left-0 mt-1 w-full max-w-[340px] rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden">
                           <div className="max-h-56 overflow-y-auto space-y-0.5">
-                            {dbAccounts.filter(acc => (!form.countryId || acc.countryId === form.countryId) && (!form.countryBranchId || acc.countryBranchId === form.countryBranchId) && (!form.cityBranchId || acc.cityBranchId === form.cityBranchId) && (acc.accountCode?.toLowerCase().includes(salesSearch.toLowerCase()) || acc.accountName?.toLowerCase().includes(salesSearch.toLowerCase()))).map((acc) => (
+                            {dbAccounts.filter(acc => accountMatchesScope(acc) && accountMatchesSearch(acc, salesSearch)).map((acc) => (
                               <button
                                 key={acc.accountCode}
                                 type="button"
@@ -5699,3 +5720,4 @@ export function PurchaseOrderWizard() {
     </div>
   );
 }
+

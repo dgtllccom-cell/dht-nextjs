@@ -98,9 +98,9 @@ type CountryTransferSummary = {
   country: string;
   currency: string;
   totalOrders: number;
-  invoiceAmount: number;
-  advancePaid: number;
-  remainingBalance: number;
+  totalBill: number;
+  transferredAmount: number;
+  pendingAmount: number;
 };
 
 function countryTransferSummaries(rows: PurchaseReport[]): CountryTransferSummary[] {
@@ -109,18 +109,36 @@ function countryTransferSummaries(rows: PurchaseReport[]): CountryTransferSummar
     const country = row.countryName || "UNKNOWN";
     const currency = row.currency || "USD";
     const key = `${country.toLowerCase()}::${currency}`;
-    const current = map.get(key) || { key, country, currency, totalOrders: 0, invoiceAmount: 0, advancePaid: 0, remainingBalance: 0 };
+    const current = map.get(key) || { key, country, currency, totalOrders: 0, totalBill: 0, transferredAmount: 0, pendingAmount: 0 };
     
-    const invoiceAmount = Number(row.totalPurchaseAmount || 0);
-    const advancePaid = Number((row as any).advance_paid || 0);
-    const remainingPaid = Number((row as any).remaining_paid || 0);
-    const creditAmount = Number((row as any).credit_amount || 0);
-    const totalPaidLocal = advancePaid + remainingPaid + creditAmount;
+    const isPosted = row.status === "Posted"
+      || (row as any).ledgerPostingStatus === "Posted"
+      || (row as any).ledger_posting_status === "Posted"
+      || (row as any).ledger_posting_status === "posted"
+      || (row as any).journalStatus === "Posted"
+      || (row as any).journalStatus?.toLowerCase() === "posted"
+      || row.form_data?.workflow?.journalStatus === "Posted"
+      || row.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
+      || (row as any).ledger_posting_status === "transferred";
+      
+    // Use finalAmount (local currency) if available, otherwise totalPurchaseAmount (USD)
+    let localCur = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0];
+    let billAmount = Number(row.finalAmount || row.totalPurchaseAmount || 0);
+    
+    if (localCur && localCur !== row.currency) {
+        current.currency = localCur;
+    } else {
+        billAmount = Number(row.totalPurchaseAmount || 0);
+    }
     
     current.totalOrders += 1;
-    current.invoiceAmount += invoiceAmount;
-    current.advancePaid += advancePaid;
-    current.remainingBalance += Math.max(0, invoiceAmount - totalPaidLocal);
+    current.totalBill += billAmount;
+    if (isPosted) {
+        current.transferredAmount += billAmount;
+    } else {
+        current.pendingAmount += billAmount;
+    }
+    
     map.set(key, current);
   });
   return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
@@ -1011,8 +1029,8 @@ export function PurchaseOrderManagementDashboard() {
       // setIsDrawerOpen(false);
       alert("Purchase transfer payment successful. It will not be transferred again.");
       await loadReports();
-      // Redirect to Purchase Payment screen directly after successful transfer
-      // window.location.href = `/dashboard/journal/purchase-order-payment/advance?po_id=${itemToTransfer.id}`;
+      // Redirect to Purchase Transfer Payment screen directly after successful transfer
+      window.location.href = `/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(itemToTransfer.purchaseBookingOrderNumber || itemToTransfer.purchase_order_no || itemToTransfer.purchaseOrderNo || "")}`;
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error transferring booking.");
     } finally {
@@ -1304,16 +1322,16 @@ export function PurchaseOrderManagementDashboard() {
               </div>
               <div className="grid grid-cols-2 gap-2 text-[10px] normal-case">
                 <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
-                  <div className="font-bold uppercase text-slate-400">Invoice</div>
-                  <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{money(card.invoiceAmount, card.currency)}</div>
+                  <div className="font-bold uppercase text-slate-400">Total Bill</div>
+                  <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{money(card.totalBill, card.currency)}</div>
                 </div>
                 <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
-                  <div className="font-bold uppercase text-emerald-600">Advance</div>
-                  <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">{money(card.advancePaid, card.currency)}</div>
+                  <div className="font-bold uppercase text-emerald-600">Transferred</div>
+                  <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">{money(card.transferredAmount, card.currency)}</div>
                 </div>
                 <div className="col-span-2 rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
-                  <div className="font-bold uppercase text-rose-600">Outstanding Balance</div>
-                  <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(card.remainingBalance, card.currency)}</div>
+                  <div className="font-bold uppercase text-rose-600">Pending Transfer</div>
+                  <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(card.pendingAmount, card.currency)}</div>
                 </div>
               </div>
             </div>
@@ -1661,7 +1679,7 @@ export function PurchaseOrderManagementDashboard() {
               <Button
                 type="button"
                 onClick={() => {
-                  window.location.href = `/dashboard/journal/purchase-order-payment/advance?po_id=${selected.id}`;
+                  window.location.href = `/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(selected.purchaseBookingOrderNumber || (selected as any).purchase_order_no || (selected as any).purchaseOrderNo || "")}`;
                 }}
                 className="h-8 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase px-3 shadow-sm border-none flex items-center gap-1.5 ml-2"
               >
@@ -2382,4 +2400,5 @@ export function PurchaseOrderManagementDashboard() {
     </div>
   );
 }
+
 

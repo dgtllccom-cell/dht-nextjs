@@ -648,7 +648,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     const needle = query.trim().toLowerCase();
     const draft = draftFilter.trim().toLowerCase();
     return orders.filter((row) => {
-      if (row.ledger_posting_status?.toLowerCase() !== "posted") return false;
+      const postingStatus = row.ledger_posting_status?.toLowerCase();
+      if (postingStatus !== "posted" && postingStatus !== "transferred") return false;
       if (draft && !(row.payment_status ?? "").toLowerCase().includes(draft)) return false;
       if (countryFilter && rowCountryName(row) !== countryFilter) return false;
       if (branchFilter && rowBranchName(row) !== branchFilter) return false;
@@ -1401,22 +1402,28 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         <div style={{ minHeight: 600, overflowX: "auto", overflowY: "visible" }}>
           <table style={{ width: "100%", minWidth: "1600px", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 12, color: "#1e293b" }}>
             <colgroup>
-              <col style={{ width: "8%" }} />  {/* Order ID */}
-              <col style={{ width: "8%" }} />  {/* Bill & Date */}
-              <col style={{ width: "9%" }} />  {/* Branch & Country */}
-              <col style={{ width: "10%" }} /> {/* Purchase Account */}
-              <col style={{ width: "10%" }} /> {/* Sales Account */}
-              <col style={{ width: "10%" }} /> {/* Goods & Brand */}
-              <col style={{ width: "9%" }} />  {/* Weights & Qty */}
-              <col style={{ width: "11%" }} /> {/* Total & Exchange */}
-              <col style={{ width: "10%" }} /> {/* Advance Details */}
-              <col style={{ width: "10%" }} /> {/* Remaining Balance */}
+              <col style={{ width: "6%" }} />  {/* Order ID */}
+              <col style={{ width: "5%" }} />  {/* Super S/N */}
+              <col style={{ width: "5%" }} />  {/* Cty S/N */}
+              <col style={{ width: "5%" }} />  {/* Br. S/N */}
+              <col style={{ width: "7%" }} />  {/* Bill & Date */}
+              <col style={{ width: "8%" }} />  {/* Branch & Country */}
+              <col style={{ width: "9%" }} /> {/* Purchase Account */}
+              <col style={{ width: "9%" }} /> {/* Sales Account */}
+              <col style={{ width: "9%" }} /> {/* Goods & Brand */}
+              <col style={{ width: "8%" }} />  {/* Weights & Qty */}
+              <col style={{ width: "10%" }} /> {/* Total & Exchange */}
+              <col style={{ width: "9%" }} /> {/* Advance Details */}
+              <col style={{ width: "9%" }} /> {/* Remaining Balance */}
               <col style={{ width: "5%" }} />  {/* Status & Action */}
             </colgroup>
             <thead>
               <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 2 }}>
                 {[
                   { label: "Order ID", className: "text-left" },
+                  { label: "Super S/N", className: "text-left" },
+                  { label: "Cty S/N", className: "text-left" },
+                  { label: "Br. S/N", className: "text-left" },
                   { label: "Bill & Date", className: "text-left" },
                   { label: "Branch & Country", className: "text-left" },
                   { label: "Purchase Account", className: "text-left" },
@@ -1539,6 +1546,18 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           {row.purchase_order_no}
                         </div>
                       </td>
+                      {/* Super S/N */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+                        <div className="font-mono text-[10px] font-bold">{superSerialNo}</div>
+                      </td>
+                      {/* Cty S/N */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+                        <div className="font-mono text-[10px] font-bold">{countrySerialNo}</div>
+                      </td>
+                      {/* Br. S/N */}
+                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+                        <div className="font-mono text-[10px] font-bold">{branchSerialNo}</div>
+                      </td>
                       {/* Bill & Date */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
                         <div className="flex flex-col">
@@ -1634,9 +1653,18 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       </td>
                       {/* Status & Action */}
                       <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="flex flex-col items-center justify-center gap-1.5">
+                          {isPosted ? (
+                            <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
+                              Transferred ✓
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
+                              Pending Transfer
+                            </span>
+                          )}
                           {getStatusBadge(statusText)}
-                          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                          <div className="relative inline-block text-left mt-1" onClick={(e) => e.stopPropagation()}>
                             <button 
                               onClick={() => setOpenDropdownId(openDropdownId === row.id ? null : row.id)}
                               className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-400 focus:outline-none shadow-sm bg-white dark:bg-slate-900"
@@ -2959,3 +2987,4 @@ function InfoRow({ label, value, highlight = false }: { label: string; value: st
     </div>
   );
 }
+

@@ -925,9 +925,10 @@ export function CashEntryForm({
       setLoadingLedgers(true);
       try {
         const res = await listLedgerReportLedgers({
-          reportScope: "country",
+          reportScope: cityBranchId ? "branch" : "country",
           countryId: countryId || null,
-          // Omit branch filters to allow searching and selecting ANY ledger within the selected Country (inter-branch cash entry)
+          countryBranchId: countryBranchId || null,
+          cityBranchId: cityBranchId || null,
           limit: 2000,
           language: lang
         });
@@ -1826,7 +1827,11 @@ export function CashEntryForm({
                   onChange={(e) => setCountryId(e.target.value)}
                   className="bg-transparent border-none p-0 outline-none font-bold text-blue-600 dark:text-blue-400 cursor-pointer appearance-none text-xs hover:underline"
                 >
-                  <option value="" className="text-slate-900">Select Country</option>
+                  <option value="" className="text-slate-900">
+                    {!isSuperAdmin && (!session?.scopes.countryIds || session.scopes.countryIds.length === 0) 
+                      ? "No Country Assigned" 
+                      : "Select Country"}
+                  </option>
                   {countries.map((c) => (
                     <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>
                   ))}

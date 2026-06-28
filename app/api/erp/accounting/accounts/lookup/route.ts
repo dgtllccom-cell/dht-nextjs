@@ -237,6 +237,9 @@ export async function GET(request: NextRequest) {
           session,
           reportScope,
           ledgerId,
+          countryId: query.countryId ?? null,
+          countryBranchId: query.countryBranchId ?? null,
+          cityBranchId: query.cityBranchId ?? null,
           limit: 1,
           language,
           includeAllScopes: true

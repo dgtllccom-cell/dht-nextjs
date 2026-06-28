@@ -369,7 +369,7 @@ export function PurchaseModuleWorkspace({
           <table className="w-full min-w-[1320px] border-collapse text-xs">
             <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600">
               <tr>
-                {["Order ID", "Bill & Date", "Branch & Country", "Purchase Account", "Sales Account", "Goods & Brand", "Weights & Qty", "Total & Exchange", "Advance Details", "Remaining Balance", "Action"].map((head) => (
+                {["Order ID", "Super S/N", "Cty S/N", "Br. S/N", "Bill & Date", "Branch & Country", "Purchase Account", "Sales Account", "Goods & Brand", "Weights & Qty", "Total & Exchange", "Advance Details", "Remaining Balance", "Action"].map((head) => (
                   <th key={head} className="border-b px-3 py-3 text-left font-black">{head}</th>
                 ))}
               </tr>
@@ -380,6 +380,9 @@ export function PurchaseModuleWorkspace({
               ) : rows.length ? rows.map((row) => (
                 <tr key={row.id} className="border-b hover:bg-muted/40">
                   <td className="px-3 py-3 font-mono font-black text-primary">{poNumber(row)}</td>
+                  <td className="px-3 py-3 font-mono text-[9px] font-bold text-teal-600 dark:text-teal-400">{row.super_admin_serial_number || "-"}</td>
+                  <td className="px-3 py-3 font-mono text-[9px] font-bold text-amber-600 dark:text-amber-400">{row.country_transaction_serial_number || "-"}</td>
+                  <td className="px-3 py-3 font-mono text-[9px] font-bold text-sky-600 dark:text-sky-400">{row.branch_transaction_serial_number || "-"}</td>
                   <td className="px-3 py-3"><b>{soNumber(row)}</b><br /><span className="text-muted-foreground">{date(row.created_at)}</span></td>
                   <td className="px-3 py-3"><b>{branch(row)}</b><br /><span className="text-muted-foreground">{country(row)}</span></td>
                   <td className="px-3 py-3"><b>{form(row).purchaseAccountName || supplier(row)}</b><br /><span className="text-muted-foreground">{form(row).purchaseAccountNo || "-"}</span></td>
@@ -392,7 +395,7 @@ export function PurchaseModuleWorkspace({
                   <td className="px-3 py-3"><Button type="button" variant="outline" size="icon" className="h-8 w-8" title="View"><Eye className="h-3.5 w-3.5" /></Button></td>
                 </tr>
               )) : (
-                <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">No live purchase records found for this stage.</td></tr>
+                <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">No live purchase records found for this stage.</td></tr>
               )}
             </tbody>
           </table>

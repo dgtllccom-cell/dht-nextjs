@@ -70,6 +70,34 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       cityBranchId: (before as any)?.city_branch_id ?? null
     });
 
+    // --- ENFORCE TIME LIMITS ON TRANSFERRED ORDERS ---
+    if ((before as any)?.ledger_posting_status === "transferred" || (before as any)?.ledger_posting_status === "posted") {
+      // If this is a transfer request itself, and they had previously successfully edited it, allow the transfer
+      const isReTransferRequest = body.ledgerPostingStatus === "transferred" || body.ledgerPostingStatus === "posted";
+      
+      if (!session.isSuperAdmin && !isReTransferRequest) {
+        // Find transferDate in form_data if available
+        const formDataObj = (before as any)?.form_data || {};
+        const transferAudit = formDataObj?.form?.transferAudit || {};
+        const baseDateStr = transferAudit.transferDate || (before as any)?.created_at;
+        const baseDate = new Date(baseDateStr).getTime();
+        const now = Date.now();
+        const hoursSinceTransfer = (now - baseDate) / (1000 * 60 * 60);
+
+        if (session.roles.includes("country_admin") || session.roles.includes("country_viewer")) {
+          if (hoursSinceTransfer > 24) {
+            return handleApiError(new Error("Country Admin edit time limit (24 hours) for transferred orders has expired."));
+          }
+        } else {
+          // Fallback for branch admin / city branch admin
+          if (hoursSinceTransfer > 12) {
+            return handleApiError(new Error("Branch Admin edit time limit (12 hours) for transferred orders has expired."));
+          }
+        }
+      }
+    }
+    // -------------------------------------------------
+
     const patch: Record<string, unknown> = {};
     if (body.countryId !== undefined) patch.country_id = body.countryId ?? null;
     if (body.countryBranchId !== undefined) patch.country_branch_id = body.countryBranchId ?? null;
@@ -91,7 +119,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (body.formData !== undefined) patch.form_data = body.formData ?? null;
     if (body.ledgerPostingStatus !== undefined) {
       const s = String(body.ledgerPostingStatus).toLowerCase();
-      patch.ledger_posting_status = s === "posted" ? "posted" : s === "cancelled" ? "cancelled" : "draft";
+      patch.ledger_posting_status = s === "posted" ? "posted" : s === "transferred" ? "transferred" : s === "cancelled" ? "cancelled" : "draft";
     }
     if (body.paymentStatus !== undefined) {
       const s = String(body.paymentStatus).toLowerCase();
@@ -99,7 +127,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     }
     
     // Only set as edited if this isn't the transfer status update itself
-    if (body.ledgerPostingStatus !== "Posted" && body.ledgerPostingStatus !== "posted") {
+    if (body.ledgerPostingStatus !== "Posted" && body.ledgerPostingStatus !== "posted" && body.ledgerPostingStatus !== "transferred") {
       patch.is_edited_since_transfer = true;
     }
     
@@ -130,6 +158,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const updated = await requireSupabaseData(
       supabase.from("purchase_orders").update(patch).eq("id", params.id).select("id").single()
     );
+
+    // CASCADE BILL NUMBER TO PAYMENTS
+    if (body.purchaseContractNo !== undefined && body.purchaseContractNo?.trim()) {
+      const adminSupabase = createSupabaseAdminClient() as any;
+      await adminSupabase
+        .from("purchase_order_payments")
+        .update({ reference_no: body.purchaseContractNo.trim() })
+        .eq("purchase_order_id", params.id);
+    }
 
     if (body.items !== undefined) {
       await requireSupabaseData(supabase.from("purchase_order_items").delete().eq("purchase_order_id", params.id));
