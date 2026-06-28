@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { GoogleTranslateScript } from "@/components/layout/google-translate-script";
@@ -7,8 +7,33 @@ import { PdfPreviewModal } from "@/components/ui/pdf-preview-modal";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "DGT Accounts",
-  description: "Business accounting and trading management system"
+  applicationName: "Digital Dock ERP",
+  title: {
+    default: "Digital Dock ERP",
+    template: "%s | Digital Dock ERP"
+  },
+  description: "Multi-country ERP for accounts, ledgers, purchases, sales, roznamcha, stock, and reports.",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icons/digital-dock-icon.svg",
+    apple: "/icons/digital-dock-icon.svg"
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Digital Dock ERP",
+    statusBarStyle: "default"
+  },
+  formatDetection: {
+    telephone: false
+  }
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0f3ea8"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

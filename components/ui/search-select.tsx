@@ -62,6 +62,7 @@ export function SearchSelect({
   disabled,
   onValueChange,
   onOpenChange,
+  onSearchValueChange,
   createLabel = "+ New",
   onCreateNew,
   triggerClassName,

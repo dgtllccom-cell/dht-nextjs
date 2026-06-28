@@ -10,6 +10,9 @@
     "dev:next": "next dev",
     "build": "next build",
     "start": "next start",
+    "mobile:prepare": "next build && npx cap sync",
+    "mobile:android": "next build && npx cap sync android && npx cap open android",
+    "mobile:ios": "next build && npx cap sync ios && npx cap open ios",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "pretest": "node scripts/patch-vite-net-use.cjs",
@@ -28,6 +31,10 @@
     "db:clean-cash": "node inspect-db-scratch.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",

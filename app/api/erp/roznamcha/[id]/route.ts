@@ -160,11 +160,15 @@ export async function DELETE(
     const actorId = session.userId ?? null;
     if (actorId) {
       const claimsJson = JSON.stringify({ sub: actorId, role: "authenticated" });
-      await adminSupabase.rpc("set_config", {
-        setting: "request.jwt.claims",
-        value: claimsJson,
-        is_local: true
-      }).catch(() => null); // best-effort – fallback if set_config not exposed
+      try {
+        await adminSupabase.rpc("set_config", {
+          setting: "request.jwt.claims",
+          value: claimsJson,
+          is_local: true
+        });
+      } catch (e) {
+        // best-effort - fallback if set_config not exposed
+      }
     }
 
     const { data, error } = await adminSupabase.rpc("reverse_roznamcha_entry", {

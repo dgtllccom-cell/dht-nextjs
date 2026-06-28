@@ -824,6 +824,7 @@ export function CashEntryForm({
 
     // Country is fixed. If multiple are assigned, pick the first deterministically.
     if (!countryId && session.scopes.countryIds?.length) {
+      suppressScopeResetRef.current = true;
       setCountryId(session.scopes.countryIds[0]!);
     }
 
@@ -881,14 +882,19 @@ export function CashEntryForm({
       const mains = list.filter((b) => b.is_main);
       if (!cancelled) {
         setMainBranches(mains);
-        if (mains.length === 1) setCountryBranchId(mains[0]!.id);
+        const assignedBranchIds = session?.scopes?.countryBranchIds ?? [];
+        const assignedBranch = assignedBranchIds.length
+          ? mains.find((branch) => assignedBranchIds.includes(branch.id))
+          : null;
+        if (!countryBranchId && assignedBranch) setCountryBranchId(assignedBranch.id);
+        else if (!countryBranchId && mains.length === 1) setCountryBranchId(mains[0]!.id);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [countryId]);
+  }, [countryId, countryBranchId, session]);
 
   // Load city branches for selected main branch.
   useEffect(() => {
@@ -1546,21 +1552,6 @@ export function CashEntryForm({
             customerNumber: selectedCounterLedger?.customerNumber || null,
             countrySerialNumber: selectedCounterLedger?.countrySerialNumber || null,
             branchSerialNumber: selectedCounterLedger?.branchSerialNumber || null
-          },
-          {
-            paymentEntryType: roznamchaBookType === "bank" ? (paymentMode === "DEBIT" ? "bank_deposit" : "bank_cheque") : (paymentMode === "DEBIT" ? "cash_receipt" : "cash_payment"),
-            enterpriseAccountId: selectedCashLedger?.accountId || null,
-            ledgerId: selectedCashLedger?.ledgerId || "",
-            description: finalNarration.trim() ? finalNarration.trim() : undefined,
-            debit: paymentMode === "DEBIT" ? amount : 0,
-            credit: paymentMode === "CREDIT" ? amount : 0,
-            currency: targetAccountCurrency.trim().toUpperCase(),
-            exchangeRate: Number(exchangeRate),
-            accountNumber: selectedCashLedger?.accountCode || selectedCashLedger?.rawAccountCode || null,
-            manualReferenceNumber: selectedCashLedger?.manualReferenceNumber || null,
-            customerNumber: selectedCashLedger?.customerNumber || null,
-            countrySerialNumber: selectedCashLedger?.countrySerialNumber || null,
-            branchSerialNumber: selectedCashLedger?.branchSerialNumber || null
           }
         ]
       };

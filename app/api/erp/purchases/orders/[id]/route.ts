@@ -84,7 +84,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         const now = Date.now();
         const hoursSinceTransfer = (now - baseDate) / (1000 * 60 * 60);
 
-        if (session.roles.includes("country_admin") || session.roles.includes("country_viewer")) {
+        if (session.roles.includes("country_admin") || (session.roles as string[]).includes("country_viewer")) {
           if (hoursSinceTransfer > 24) {
             return handleApiError(new Error("Country Admin edit time limit (24 hours) for transferred orders has expired."));
           }

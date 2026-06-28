@@ -1,7 +1,7 @@
 "use client";
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeDollarSign,
   BarChart3,
@@ -975,7 +975,7 @@ export function PurchaseBookingJournalReportView({
           exchangeRate: Number(String(selected.exchange_rate || 1).replace(/,/g, '')),
           purchaseContractNo: selected.purchaseContractNo || selected.purchaseBookingOrderNumber,
           paymentStatus: "partial",
-          ledgerPostingStatus: "Pending" // Only mark as pending so it can be transferred from Payment screen
+          ledgerPostingStatus: "Transferred" // Mark as transferred so it appears in Purchase Order Payment Journal
         })
       });
 
@@ -987,12 +987,52 @@ export function PurchaseBookingJournalReportView({
       setIsDrawerOpen(false);
       alert(`Booking ${selected.purchaseBookingOrderNumber} has been successfully sent to Purchase Transfer Payment!`);
       setMessage(`Sent ${selected.purchaseBookingOrderNumber} to Purchase Transfer Payment screen.`);
-      // Navigate to Cash Payment page with this order pre-selected
-      router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(selected.purchaseBookingOrderNumber)}`);
+      // Navigate to Purchase Transfer Verification page with this order pre-selected
+      router.push(`/dashboard/purchase/purchase-order/view?id=${encodeURIComponent(selected.id)}`);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error transferring booking.");
     } finally {
       setTransferring(false);
+    }
+  };
+
+  const [accepting, setAccepting] = useState(false);
+  
+  const handleAccept = async () => {
+    if (!selected) return;
+    setAccepting(true);
+    try {
+      const updatedFormData = {
+        ...(selected.form_data || {}),
+        workflow: {
+          ...(selected.form_data?.workflow || {}),
+          confirmationStatus: "Accepted"
+        }
+      };
+
+      const response = await fetch(`/api/erp/purchases/orders/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formData: updatedFormData
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || "Accept failed.");
+      }
+
+      setIsDrawerOpen(false);
+      alert(`Booking ${selected.purchaseBookingOrderNumber} has been Accepted!`);
+      // Update local state without reload to reflect change
+      setReports((prev) => prev.map(r => r.id === selected.id ? { ...r, form_data: updatedFormData } : r));
+      setSelected({ ...selected, form_data: updatedFormData });
+      setIsDrawerOpen(true);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error accepting booking.");
+    } finally {
+      setAccepting(false);
     }
   };
   const [searchText, setSearchText] = useState("");
@@ -1055,7 +1095,9 @@ export function PurchaseBookingJournalReportView({
   useEffect(() => { if (lockedCountryName) setFilters((f) => ({ ...f, country: lockedCountryName })); }, [lockedCountryName]);
   useEffect(() => { if (lockedBranchName) setFilters((f) => ({ ...f, branch: lockedBranchName })); }, [lockedBranchName]);
 
-  async function loadReport(nextFilters = filters) {
+  const lastReportFetchKeyRef = useRef("");
+
+  const loadReport = useCallback(async (nextFilters = filters, options?: { force?: boolean }) => {
     setLoading(true);
     setMessage("");
     try {
@@ -1063,7 +1105,13 @@ export function PurchaseBookingJournalReportView({
       if (nextFilters.fromDate) params.set("dateFrom", nextFilters.fromDate);
       if (nextFilters.toDate) params.set("dateTo", nextFilters.toDate);
       if (nextFilters.bookingNo) params.set("purchaseOrderNo", nextFilters.bookingNo);
-      const response = await fetch(`/api/erp/purchases/booking-journal-report?${params.toString()}`, { cache: "no-store" });
+      const requestKey = params.toString();
+      if (!options?.force && lastReportFetchKeyRef.current === requestKey) {
+        setLoading(false);
+        return;
+      }
+      lastReportFetchKeyRef.current = requestKey;
+      const response = await fetch(`/api/erp/purchases/booking-journal-report?${requestKey}`, { cache: "no-store" });
       const payload = (await response.json().catch(() => ({}))) as ApiPayload;
       if (!response.ok || !payload.ok) {
         const error = typeof payload.error === "string" ? payload.error : payload.error?.message;
@@ -1081,7 +1129,7 @@ export function PurchaseBookingJournalReportView({
     } finally {
       setLoading(false);
     }
-  }
+  }, [filters, isSuperAdmin]);
 
   useEffect(() => {
     const purchaseOrderNo = initialPurchaseOrderFromUrl();
@@ -1575,8 +1623,8 @@ export function PurchaseBookingJournalReportView({
                 || report.audit?.branchCode
                 || (report.branchName ? `${report.branchName.substring(0,3).toUpperCase()}-${codeSuffix}` : "-");
               const salesCode = report.form_data?.form?.salesOrderNo || "-";
-              const purchaseAccCode = report.purchaseAccountNumber || report.form_data?.form?.purchaseAccountNo || report.purchaseAccountCode || "-";
-              const salesAccCode = report.salesAccountNumber || report.form_data?.form?.salesAccountNo || report.salesAccountCode || "-";
+              const purchaseAccCode = report.purchaseAccountNumber || report.form_data?.form?.purchaseAccountNo || (report as any).purchaseAccountCode || "-";
+              const salesAccCode = report.salesAccountNumber || report.form_data?.form?.salesAccountNo || (report as any).salesAccountCode || "-";
               const purchaseAccount = report.purchaseAccountName || report.form_data?.form?.purchaseAccountName || "-";
               const salesAccount = report.salesAccountName || report.form_data?.form?.salesAccountName || "-";
               const invoiceNo = report.form_data?.form?.billNo
@@ -1871,17 +1919,27 @@ export function PurchaseBookingJournalReportView({
                   </button>
                 </div>
               </details>
+              {(!selected || selected?.form_data?.workflow?.confirmationStatus !== "Accepted") && (
+                <Button
+                  type="button"
+                  onClick={handleAccept}
+                  disabled={accepting}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8"
+                >
+                  {accepting ? "Accepting..." : "Accept"}
+                </Button>
+              )}
               <Button
                 type="button"
                 onClick={handleTransfer}
-                disabled={transferring || Boolean(selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted"))}
+                disabled={transferring || Boolean(selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")) || selected?.form_data?.workflow?.confirmationStatus !== "Accepted"}
                 className={
-                  selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted")
+                  selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")
                     ? "bg-slate-350 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed border-slate-300 font-bold text-xs h-8"
                     : "bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8"
                 }
               >
-                {transferring ? "Transferring..." : (selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted")) ? "✓ Transferred" : "Transfer"}
+                {transferring ? "Transferring..." : (selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")) ? "✓ Transferred" : "Transfer"}
               </Button>
             </div>
           }
@@ -2473,8 +2531,8 @@ function DarkTable({ headers, tableGroups, children }: { headers: string[]; tabl
   );
 }
 
-function Td({ children, className = "", center = false, right = false, onClick }: { children: React.ReactNode; className?: string; center?: boolean; right?: boolean; onClick?: (e: React.MouseEvent<HTMLTableCellElement>) => void }) {
-  return <td onClick={onClick} className={`whitespace-nowrap border-r border-slate-200 px-3 py-2.5 last:border-r-0 ${center ? "text-center" : ""} ${right ? "text-right" : ""} ${className}`}>{children}</td>;
+function Td({ children, className = "", center = false, right = false, title, onClick }: { children: React.ReactNode; className?: string; center?: boolean; right?: boolean; title?: string; onClick?: (e: React.MouseEvent<HTMLTableCellElement>) => void }) {
+  return <td onClick={onClick} title={title} className={`whitespace-nowrap border-r border-slate-200 px-3 py-2.5 last:border-r-0 ${center ? "text-center" : ""} ${right ? "text-right" : ""} ${className}`}>{children}</td>;
 }
 
 function StatusBadge({ status }: { status: string }) {

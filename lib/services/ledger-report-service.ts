@@ -267,11 +267,11 @@ export class LedgerReportService {
         : Promise.resolve({ data: [], error: null })
     ]);
 
-    if (accountsRes.error) throw new Error(accountsRes.error.message);
-    if (enterpriseAccountsRes.error) throw new Error(enterpriseAccountsRes.error.message);
-    if (countriesRes.error) throw new Error(countriesRes.error.message);
-    if (countryBranchesRes.error) throw new Error(countryBranchesRes.error.message);
-    if (cityBranchesRes.error) throw new Error(cityBranchesRes.error.message);
+    if (accountsRes.error) throw new Error((accountsRes.error as any).message);
+    if (enterpriseAccountsRes.error) throw new Error((enterpriseAccountsRes.error as any).message);
+    if (countriesRes.error) throw new Error((countriesRes.error as any).message);
+    if (countryBranchesRes.error) throw new Error((countryBranchesRes.error as any).message);
+    if (cityBranchesRes.error) throw new Error((cityBranchesRes.error as any).message);
 
     const accounts = (accountsRes.data ?? []) as Array<{
       id: string;
@@ -292,6 +292,7 @@ export class LedgerReportService {
       name: string;
       kind: string;
       currency: string;
+      contacts: any;
     }>;
     const countries = (countriesRes.data ?? []) as Array<{ id: string; name: string }>;
     const countryBranches = (countryBranchesRes.data ?? []) as Array<{
@@ -321,9 +322,9 @@ export class LedgerReportService {
       cityIds.length ? fetchInChunks("cities", "id, name", cityIds) : Promise.resolve({ data: [], error: null })
     ]);
 
-    if (companiesRes.error) throw new Error(companiesRes.error.message);
-    if (statesRes.error) throw new Error(statesRes.error.message);
-    if (citiesRes.error) throw new Error(citiesRes.error.message);
+    if (companiesRes.error) throw new Error((companiesRes.error as any).message);
+    if (statesRes.error) throw new Error((statesRes.error as any).message);
+    if (citiesRes.error) throw new Error((citiesRes.error as any).message);
 
     const companies = (companiesRes.data ?? []) as Array<{ id: string; name: string }>;
     const states = (statesRes.data ?? []) as Array<{ id: string; name: string }>;

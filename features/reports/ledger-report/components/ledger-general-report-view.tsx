@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
@@ -865,9 +865,9 @@ export function LedgerReportView({
             >
               {loading ? (
                 <tr>
-                  <Td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-500">
                     {t(lang, "ledger.loading")}
-                  </Td>
+                  </td>
                 </tr>
               ) : tableRows.length ? (
               tableRows.map((row, index) => {
@@ -920,9 +920,9 @@ export function LedgerReportView({
               })
             ) : (
               <tr>
-                <Td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-500">
+                <td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-500">
                   {t(lang, "ledger.no_data")}
-                </Td>
+                </td>
               </tr>
             )}
           </ReportTable>

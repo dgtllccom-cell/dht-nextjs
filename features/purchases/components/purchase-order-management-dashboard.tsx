@@ -753,7 +753,7 @@ function downloadCsv(rows: PurchaseReport[]) {
   const body = rows.map((row, index) =>
     [
       String(index + 1),
-      row.form_data?.form?.companyCode || "COM-" + (row.supplier_company_id?.slice(0, 4).toUpperCase() || "DGT"),
+      row.form_data?.form?.companyCode || "COM-" + (row.supplier_company_id?.slice(0, 4)?.toUpperCase() || "DGT"),
       row.audit?.branchCode || "-",
       date(row.bookingDate || row.purchaseDate || row.createdAt),
       row.audit?.userName || "-",

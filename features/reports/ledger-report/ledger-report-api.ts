@@ -1,6 +1,6 @@
 "use client";
 
-import { apiGet } from "@/lib/api/client";
+import { apiFetch, apiGet } from "@/lib/api/client";
 
 export type LedgerReportScope = "super_admin" | "country" | "branch";
 
@@ -79,7 +79,7 @@ export async function listLedgerReportLedgers(params: {
   if (params.limit) qp.set("limit", String(params.limit));
   if (params.language) qp.set("language", params.language);
 
-  return apiGet<{
+  return apiFetch<{
     reportScope: LedgerReportScope;
     filters: {
       scope: string | null;
@@ -89,7 +89,7 @@ export async function listLedgerReportLedgers(params: {
     };
     ledgers: LedgerLookupRow[];
     limit: number;
-  }>(`/api/erp/accounting/reports/ledger/ledgers?${qp.toString()}`);
+  }>(`/api/erp/accounting/reports/ledger/ledgers?${qp.toString()}`, { cache: "no-store" });
 }
 
 export async function getLedgerStatement(params: {
@@ -108,7 +108,7 @@ export async function getLedgerStatement(params: {
   qp.set("toDate", params.toDate);
   if (params.limit) qp.set("limit", String(params.limit));
 
-  return apiGet<{
+  return apiFetch<{
     found: boolean;
     ledgerId: string;
     fromDate: string;

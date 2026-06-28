@@ -14,7 +14,7 @@ export function GoogleTranslateScript() {
         {`
           window.googleTranslateElementInit = function() {
             new window.google.translate.TranslateElement(
-              { pageLanguage: 'en', autoDisplay: false },
+              { pageLanguage: 'auto', autoDisplay: false },
               'google_translate_element'
             );
           }

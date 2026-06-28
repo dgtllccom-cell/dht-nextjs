@@ -3341,6 +3341,60 @@ export function PurchaseOrderWizard({ session }) {
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Country</label>
+                        <select
+                          value={form.countryId || ""}
+                          onChange={(e) => {
+                            const country = countries.find(c => c.id === e.target.value);
+                            setForm(p => ({ 
+                              ...p, 
+                              countryId: e.target.value, 
+                              countryBranchId: "",
+                              cityBranchId: "",
+                              currencyType: country ? country.currency_code : p.currencyType,
+                              purchaseCurrency: country ? country.currency_code : p.purchaseCurrency
+                            }));
+                          }}
+                          disabled={!isSuperAdmin}
+                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 disabled:bg-muted/50 disabled:text-muted-foreground"
+                        >
+                          <option value="">Select Country...</option>
+                          {countries.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name} ({c.currency_code})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Branch</label>
+                        <select
+                          value={form.countryBranchId || ""}
+                          onChange={(e) => setForm(p => ({ ...p, countryBranchId: e.target.value, cityBranchId: "" }))}
+                          disabled={!form.countryId || (!isSuperAdmin && (session?.scopes?.role === "city-standard"))}
+                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 disabled:bg-muted/50 disabled:text-muted-foreground"
+                        >
+                          <option value="">Select Branch...</option>
+                          {mainBranches.filter(b => b.country_id === form.countryId).map((b) => (
+                            <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">City Branch</label>
+                        <select
+                          value={form.cityBranchId || ""}
+                          onChange={(e) => setForm(p => ({ ...p, cityBranchId: e.target.value }))}
+                          disabled={!form.countryBranchId}
+                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 disabled:bg-muted/50 disabled:text-muted-foreground"
+                        >
+                          <option value="">Select City Branch...</option>
+                          {cityBranches.filter(cb => cb.country_branch_id === form.countryBranchId).map((b) => (
+                            <option key={b.id} value={b.id}>{b.city_name || b.name} ({b.code || b.branch_code})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     <div className="relative" ref={purchaseDropdownRef}>
                       <label className="block text-[10px] text-muted-foreground mb-1">Purchase Account (DR)*</label>
                       <div className="relative flex items-center">
