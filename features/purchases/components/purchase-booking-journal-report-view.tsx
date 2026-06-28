@@ -671,10 +671,11 @@ function RowActionsMenu({
         <div className="absolute right-0 z-[100] mt-2 w-56 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-2xl animate-in fade-in slide-in-from-top-1 duration-100">
           <MenuAction
             icon={<Eye />}
-            label="View Details"
+            label="View Details / Bill"
             onClick={() => {
               setOpen(false);
               onSelect();
+              openReportWindow(report, false);
             }}
           />
           {(!isCountryAdmin || isSuperAdmin) && (

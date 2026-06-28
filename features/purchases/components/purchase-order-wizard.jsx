@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
   ChevronLeft,
@@ -421,8 +421,9 @@ function LightStatusBadge({ status }) {
   );
 }
 
-export function PurchaseOrderWizard() {
+export function PurchaseOrderWizard({ session }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("booking"); // "booking" | "goods" | "others" | "reports"
   const [isMounted, setIsMounted] = useState(false);
 
@@ -561,7 +562,7 @@ export function PurchaseOrderWizard() {
   }, []);
 
   // Scoping States
-  const [session, setSession] = useState(null);
+  const [localSession, setLocalSession] = useState(session || null);
   const [countries, setCountries] = useState([]);
   const [allCountries, setAllCountries] = useState([]); // unscoped — for transit pickers
   const [dbGoods, setDbGoods] = useState([]); // goods from master DB
@@ -1008,12 +1009,13 @@ export function PurchaseOrderWizard() {
   useEffect(() => {
     let cancelled = false;
     async function initSession() {
+      if (session) return; // Use prop session if available
       try {
         const response = await fetch("/api/erp/auth/session");
         const payload = await response.json();
         const sessionRes = payload?.data || payload;
         if (!cancelled && sessionRes) {
-          setSession(sessionRes);
+          setLocalSession(sessionRes);
           setForm((prev) => ({
             ...prev,
             userName: sessionRes.user?.fullName || prev.userName,
@@ -1294,11 +1296,10 @@ export function PurchaseOrderWizard() {
 
   // Load existing purchase order if purchaseOrderNo or id is in URL query parameters
   useEffect(() => {
-    if (!session) return;
-    if (typeof window === "undefined") return;
-    const urlParams = new URLSearchParams(window.location.search);
-    const poNo = urlParams.get("purchaseOrderNo");
-    const orderId = urlParams.get("id") || urlParams.get("purchaseOrderId");
+    const activeSession = session || localSession;
+    if (!activeSession) return;
+    const poNo = searchParams.get("purchaseOrderNo");
+    const orderId = searchParams.get("id") || searchParams.get("purchaseOrderId");
     if (!poNo && !orderId) return;
     setIsFormOpen(true);
 
@@ -1322,9 +1323,9 @@ export function PurchaseOrderWizard() {
         } else if (poNo) {
           poData = await lookupPurchaseBookingReport(
             poNo,
-            session.scopes?.countryIds?.[0] || null,
-            session.scopes?.countryBranchIds?.[0] || null,
-            session.scopes?.cityBranchIds?.[0] || null,
+            activeSession.scopes?.countryIds?.[0] || null,
+            activeSession.scopes?.countryBranchIds?.[0] || null,
+            activeSession.scopes?.cityBranchIds?.[0] || null,
             isSuperAdmin
           );
         }
@@ -1396,7 +1397,7 @@ export function PurchaseOrderWizard() {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session, localSession, searchParams]);
 
   // Set initial scope fields for scoped users
   useEffect(() => {
