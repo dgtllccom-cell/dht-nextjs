@@ -87,6 +87,43 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       form_data:             updatedFormData
     };
 
+    // Before updating, post the initial booking ledger entry
+    const purchaseAccountCode = form.purchaseAccountNo;
+    const salesAccountCode = form.salesAccountNo || form.supplierAccountNo;
+
+    if (purchaseAccountCode && salesAccountCode) {
+      const scopeContext = {
+        countryId: (order as any).country_id,
+        countryBranchId: (order as any).country_branch_id,
+        cityBranchId: (order as any).city_branch_id
+      };
+      
+      const debitLedgerId = await getLedgerIdByCode(supabase, purchaseAccountCode, scopeContext);
+      const creditLedgerId = await getLedgerIdByCode(supabase, salesAccountCode, scopeContext);
+
+      if (debitLedgerId && creditLedgerId && debitLedgerId !== creditLedgerId) {
+        const { error: rpcError } = await supabase.rpc("post_purchase_booking_transfer", {
+          p_actor_id: session.userId,
+          p_purchase_order_id: params.id,
+          p_kind: "booking",
+          p_entry_date: new Date().toISOString().split("T")[0],
+          p_amount: totalPurchaseAmount,
+          p_currency_code: (order as any).currency_code || "USD",
+          p_exchange_rate: (order as any).exchange_rate || 1,
+          p_debit_ledger_id: debitLedgerId,
+          p_credit_ledger_id: creditLedgerId,
+          p_reference_no: (order as any).purchase_order_no || null,
+          p_narration: `Initial booking transfer for Purchase Order ${(order as any).purchase_order_no}`
+        });
+        
+        if (rpcError) {
+          console.error("RPC Error during booking transfer posting:", rpcError);
+        } else {
+          patch.ledger_posting_status = "posted";
+        }
+      }
+    }
+
     await requireSupabaseData(
       supabase.from("purchase_orders").update(patch).eq("id", params.id).select("id").single()
     );

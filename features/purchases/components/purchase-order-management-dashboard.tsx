@@ -597,8 +597,9 @@ type LifecycleTab = (typeof lifecycleTabs)[number];
 
 const documentTypes = ["Invoice", "Packing List", "Bill of Lading", "Insurance", "Customs Documents", "Other Attachments"];
 
-function money(value: unknown) {
-  return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function money(value: unknown, currency?: string) {
+  const amount = Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return currency ? `${amount} ${currency}` : amount;
 }
 
 function number(value: unknown) {
@@ -1072,6 +1073,13 @@ export function PurchaseOrderManagementDashboard() {
       if (activeTab !== "Dashboard Overview" && activeTab !== "Stock Management" && lifecycleStage(row) !== activeTab) return false;
       if (activeTab === "Stock Management" && !stockStage(row)) return false;
       return true;
+    }).sort((a, b) => {
+      const isPosted = (r: any) => r.status === "Posted" || r.ledgerPostingStatus === "Posted" || r.ledgerPostingStatus === "transferred" || r.ledger_posting_status === "Posted" || r.ledger_posting_status === "posted" || r.journalStatus === "Posted" || r.journalStatus?.toLowerCase() === "posted" || r.form_data?.workflow?.journalStatus === "Posted" || r.form_data?.workflow?.journalStatus?.toLowerCase() === "posted";
+      const aPosted = isPosted(a);
+      const bPosted = isPosted(b);
+      if (aPosted && !bPosted) return 1;
+      if (!aPosted && bPosted) return -1;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
   }, [activeTab, filters, reports, searchText, lockedCountryName, lockedBranchName]);
 

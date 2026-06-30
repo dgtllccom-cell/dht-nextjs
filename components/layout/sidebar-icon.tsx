@@ -18,7 +18,8 @@ import {
   ScrollText,
   Search,
   Settings2,
-  Users
+  Users,
+  Truck
 } from "lucide-react";
 import type { SidebarIconKey } from "@/lib/navigation/sidebar";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,8 @@ const iconMap: Record<SidebarIconKey, LucideIcon> = {
   mail: Mail,
   bell: Bell,
   palette: Palette,
-  search: Search
+  search: Search,
+  truck: Truck
 };
 
 export function SidebarIcon({ name, className }: { name?: SidebarIconKey; className?: string }) {

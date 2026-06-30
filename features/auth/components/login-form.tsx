@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { Route } from "next";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, Building2, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
 import { t } from "@/lib/i18n/ui";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,59 @@ export function LoginForm({ lang }: { lang: SupportedLanguage }) {
   const [showPassword, setShowPassword] = useState(false);
   const [idFocused, setIdFocused] = useState(false);
   const [pwFocused, setPwFocused] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("super_admin");
   const securityItems = useMemo(() => ["ERP Session", "Role Based Access", "Audit Trail"], []);
+  const roleOptions = useMemo(
+    () => [
+      { key: "super_admin", title: "Super Admin", caption: "Global command center" },
+      { key: "country_admin", title: "Country Admin", caption: "Country branches and reports" },
+      { key: "city_admin", title: "City / Branch Admin", caption: "Branch operations" },
+      { key: "loading_agent", title: "Loading Agent", caption: "Shipment and loading desk" },
+      { key: "authorized_user", title: "Authorized User", caption: "Assigned ERP access" }
+    ],
+    []
+  );
+  const activeRole = roleOptions.find((role) => role.key === selectedRole) ?? roleOptions[0]!;
 
   return (
     <div className="space-y-5">
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+              <UserRound className="h-4 w-4" aria-hidden />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-600 dark:text-slate-300">Login Experience</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">{activeRole.caption}</p>
+            </div>
+          </div>
+          <Building2 className="h-4 w-4 text-slate-400" aria-hidden />
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {roleOptions.map((role) => (
+            <button
+              key={role.key}
+              type="button"
+              onClick={() => setSelectedRole(role.key)}
+              className={cn(
+                "rounded-xl border px-3 py-2 text-left transition-all",
+                selectedRole === role.key
+                  ? "border-blue-500 bg-blue-50 text-blue-800 shadow-sm dark:border-blue-500 dark:bg-blue-950/40 dark:text-blue-200"
+                  : "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-350 dark:hover:border-blue-900"
+              )}
+              aria-pressed={selectedRole === role.key}
+            >
+              <span className="block text-[11px] font-black">{role.title}</span>
+              <span className="mt-0.5 block text-[10px] font-semibold opacity-70">{role.caption}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Use a Route Handler for login to avoid Server Actions Origin/forwarded-host issues in some environments. */}
       <form id="erp-login-form" method="post" action="/api/erp/auth/login?temp=1" className="space-y-4">
+        <input type="hidden" name="loginExperience" value={selectedRole} />
         <div className="space-y-2">
           <label htmlFor="identifier" className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-600 dark:text-slate-350">
             {t(lang, "auth.user_id_or_email")}

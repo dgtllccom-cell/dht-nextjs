@@ -1570,31 +1570,30 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
                   
                   <p className="text-slate-700 font-medium mb-3 pb-2 border-b border-slate-100">
                     This case entry will go to the business Roznamcha.<br />
-                    <span className="text-[10px] text-slate-500 font-noto-urdu" dir="rtl">یہ کیش انٹری بزنس کے روزنامچے میں جائے گی۔</span>
                   </p>
                   
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-3">
                     <div>
-                      <span className="text-slate-500">Journal Serial / جرنل سیریل:</span><br/>
+                      <span className="text-slate-500">Journal Serial:</span><br/>
                       <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1 rounded mt-0.5 inline-block">AUTO</span>
                     </div>
                     <div>
-                      <span className="text-slate-500">Transfer Serial / ٹرانسفر سیریل:</span><br/>
+                      <span className="text-slate-500">Transfer Serial:</span><br/>
                       <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1 rounded mt-0.5 inline-block">TR-{Math.floor(Math.random() * 90000) + 10000}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500">Country Serial / کنٹری سیریل:</span><br/>
+                      <span className="text-slate-500">Country Serial:</span><br/>
                       <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1 rounded mt-0.5 inline-block">CT-{(transferBill.city_branches?.country_id || "CT0001").substring(0,6).toUpperCase()}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500">Branch Serial / برانچ سیریل:</span><br/>
+                      <span className="text-slate-500">Branch Serial:</span><br/>
                       <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1 rounded mt-0.5 inline-block">BR-{(transferBill.branch_id || "BR0001").substring(0,6).toUpperCase()}</span>
                     </div>
                   </div>
 
                   <div className="pt-2 border-t border-slate-100 mt-2 bg-slate-50 p-2 rounded">
                     <p className="flex justify-between items-center">
-                      <span className="font-semibold text-slate-700">Transferred On / ٹرانسفر کی تاریخ:</span> 
+                      <span className="font-semibold text-slate-700">Transferred On:</span> 
                       <span>{new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</span>
                     </p>
                     <p className="flex justify-between items-center mt-1.5">

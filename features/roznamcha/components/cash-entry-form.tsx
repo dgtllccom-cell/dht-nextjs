@@ -318,6 +318,33 @@ export function CashEntryForm({
   const [ledgerRefreshCount, setLedgerRefreshCount] = useState(0);
   const [showPaymentWorkReport, setShowPaymentWorkReport] = useState(true);
 
+  const recentEntriesSummary = useMemo(() => {
+    let totalCredit = 0;
+    let totalDebit = 0;
+
+    recentEntries.forEach(row => {
+      const firstLine = row.roznamcha_lines?.[0];
+      const amountVal = Number(firstLine?.debit || firstLine?.credit || 0);
+      const type = firstLine?.payment_entry_type || "";
+      const isDebit = ["cash_receipt", "bank_deposit", "debit"].includes(type);
+      const isCredit = ["cash_payment", "bank_cheque", "credit"].includes(type);
+
+      if (isDebit) totalDebit += amountVal;
+      else if (isCredit) totalCredit += amountVal;
+    });
+
+    const balance = Math.abs(totalCredit - totalDebit);
+    const balanceType = totalCredit > totalDebit ? "Cr" : (totalDebit > totalCredit ? "Dr" : "-");
+
+    return {
+      count: recentEntries.length,
+      totalCredit,
+      totalDebit,
+      balance,
+      balanceType
+    };
+  }, [recentEntries]);
+
   useEffect(() => {
     if (!countryId) {
       setBranchLocked(false);
@@ -2598,9 +2625,25 @@ export function CashEntryForm({
         {/* Recent Cash Entries Table Card */}
         <Card className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
           <div className="border-b border-slate-200 bg-gradient-to-r from-blue-50 to-white px-4 py-3 dark:border-slate-800 dark:from-slate-900 dark:to-slate-950 flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
-              📋 Recent Cash Entries
-            </h3>
+            <div className="flex items-center gap-6">
+              <h3 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                📋 Recent Cash Entries
+              </h3>
+              <div className="flex items-center gap-3 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+                <span className="bg-white border border-slate-200 shadow-sm dark:bg-slate-900 dark:border-slate-800 px-2.5 py-1 rounded flex gap-1 items-center">
+                  Total Entries: <span className="font-bold text-slate-900 dark:text-slate-100">{recentEntriesSummary.count}</span>
+                </span>
+                <span className="bg-rose-50 border border-rose-100 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300 px-2.5 py-1 rounded flex gap-1 items-center">
+                  Total CR: <span className="font-bold">{fmtAmount(recentEntriesSummary.totalCredit)}</span>
+                </span>
+                <span className="bg-emerald-50 border border-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300 px-2.5 py-1 rounded flex gap-1 items-center">
+                  Total DR: <span className="font-bold">{fmtAmount(recentEntriesSummary.totalDebit)}</span>
+                </span>
+                <span className="bg-blue-50 border border-blue-100 text-blue-700 dark:bg-blue-950/40 dark:border-blue-900 dark:text-blue-300 px-2.5 py-1 rounded flex gap-1 items-center">
+                  Balance: <span className="font-bold">{fmtAmount(recentEntriesSummary.balance)}</span> <span className="text-[9px] uppercase">{recentEntriesSummary.balanceType}</span>
+                </span>
+              </div>
+            </div>
             <div className="flex gap-2">
               {!showPaymentWorkReport && (
                 <Button

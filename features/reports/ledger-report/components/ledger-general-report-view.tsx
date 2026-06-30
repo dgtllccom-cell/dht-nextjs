@@ -3,8 +3,9 @@
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Calendar, Download, Loader2, MoreVertical, Printer, RefreshCcw, Search } from "lucide-react";
+import { ChevronDown, Calendar, Download, Loader2, MoreVertical, Printer, RefreshCcw, Search, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -247,6 +248,11 @@ export function LedgerReportView({
   const [selectedLedger, setSelectedLedger] = useState<GeneralReportRow | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 40;
+  
+  const [actionsSlot, setActionsSlot] = useState<Element | null>(null);
+  useEffect(() => {
+    setActionsSlot(document.getElementById("erp-page-actions-slot"));
+  }, []);
 
   const countryOptions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -450,6 +456,35 @@ export function LedgerReportView({
   const activeLedgers = summary?.activeLedgers ?? rows.filter((row) => row.status === "active").length;
   const inactiveLedgers = summary?.inactiveLedgers ?? rows.filter((row) => row.status === "inactive").length;
 
+  const countrySummaries = useMemo(() => {
+    const map = new Map<string, { country: string; currency: string; activeAccounts: number; totalEntries: number; debit: number; credit: number; balance: number }>();
+    for (const row of displayRows) {
+      const c = row.countryName || "Unknown Country";
+      if (!map.has(c)) {
+        map.set(c, {
+          country: c,
+          currency: row.ledgerCurrency || "",
+          activeAccounts: 0,
+          totalEntries: 0,
+          debit: 0,
+          credit: 0,
+          balance: 0
+        });
+      }
+      const item = map.get(c)!;
+      if (row.status === "active") item.activeAccounts += 1;
+      item.totalEntries += row.entries || 0;
+      item.debit += row.debit || 0;
+      item.credit += row.credit || 0;
+      item.balance += row.balance || 0;
+      if (!item.currency && row.ledgerCurrency) {
+        item.currency = row.ledgerCurrency;
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
+  }, [displayRows]);
+
+
   function openPrint(autoPrint: boolean) {
     openA4ReportWindow({
       title: "Ledger General Report",
@@ -544,16 +579,17 @@ export function LedgerReportView({
 
   return (
     <div className="w-full bg-slate-50/50 dark:bg-background text-foreground animate-in fade-in duration-200">
+      {actionsSlot && createPortal(
+        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setFiltersOpen((v) => !v)}>
+          <Search className="h-4 w-4" aria-hidden />
+          {filtersOpen ? "Hide Filters" : "Search / Filters"}
+        </Button>,
+        actionsSlot
+      )}
       <div className="mx-auto w-full max-w-[1800px] p-4 sm:p-6 lg:p-8 space-y-4">
       <ReportHeader
         title={pageTitle}
         generatedAt={generatedAt}
-        actions={
-          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setFiltersOpen((v) => !v)}>
-            <Search className="h-4 w-4" aria-hidden />
-            {filtersOpen ? "Hide Filters" : "Search / Filters"}
-          </Button>
-        }
       />
 
       {filtersOpen ? (
@@ -760,19 +796,47 @@ export function LedgerReportView({
         </div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Total Entries" value={fmtNumber(summary?.entries ?? 0)} />
-        <StatCard label="Debit" value={fmtNumber(summary?.debit ?? 0)} tone="text-rose-600" />
-        <StatCard label="Credit" value={fmtNumber(summary?.credit ?? 0)} tone="text-emerald-600" />
-        <StatCard label="Balance" value={fmtNumber(summary?.balance ?? 0)} tone="text-slate-950 dark:text-slate-100" />
-        <StatCard label="Active Accounts" value={String(activeLedgers)} tone="text-emerald-600" />
-      </div>
+      {/* Global StatCards Removed as per user request */}
 
-      <section className="mb-3 rounded-xl border border-slate-700 bg-[#0b1730] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.25)] text-slate-200">
-        <div className="space-y-2 border-b border-slate-700 pb-3 mb-4">
+      {countrySummaries.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 mb-4">
+          {countrySummaries.map((card) => (
+            <div key={card.country} className="rounded-xl border border-border bg-card dark:border-slate-700 dark:bg-[#0b1730] p-4 shadow-sm dark:shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-all hover:shadow-md dark:hover:shadow-[0_15px_50px_rgba(0,0,0,0.4)]">
+              <div className="mb-3 flex items-start justify-between gap-2 border-b border-border dark:border-slate-700/50 pb-3">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-wider text-muted-foreground dark:text-slate-400">{card.country}</div>
+                  <div className="text-xs font-black text-blue-600 dark:text-blue-400">{card.currency || "-"}</div>
+                </div>
+                <span className="rounded-full bg-blue-100 border border-blue-200 dark:bg-blue-900/40 dark:border-blue-800/60 px-2.5 py-1 text-[10px] font-black text-blue-700 dark:text-blue-300">{card.activeAccounts} Active</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[10px] normal-case">
+                <div className="rounded-lg bg-slate-50 border border-slate-100 dark:bg-slate-800/50 dark:border-slate-700/50 p-2.5">
+                  <div className="font-bold uppercase text-slate-500 dark:text-slate-400 mb-0.5">Entries</div>
+                  <div className="font-mono text-sm font-black text-slate-700 dark:text-slate-200">{fmtNumber(card.totalEntries).replace(/\.00$/, '')}</div>
+                </div>
+                <div className="rounded-lg bg-emerald-50 border border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/30 p-2.5">
+                  <div className="font-bold uppercase text-emerald-600 dark:text-emerald-500 mb-0.5">Credit</div>
+                  <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-400">{fmtNumber(card.credit)}</div>
+                </div>
+                <div className="rounded-lg bg-rose-50 border border-rose-100 dark:bg-rose-900/20 dark:border-rose-800/30 p-2.5">
+                  <div className="font-bold uppercase text-rose-600 dark:text-rose-500 mb-0.5">Debit</div>
+                  <div className="font-mono text-xs font-black text-rose-700 dark:text-rose-400">{fmtNumber(card.debit)}</div>
+                </div>
+                <div className="rounded-lg bg-blue-50 border border-blue-100 dark:bg-blue-900/20 dark:border-blue-800/30 p-2.5">
+                  <div className="font-bold uppercase text-blue-600 dark:text-blue-400 mb-0.5">Balance</div>
+                  <div className="font-mono text-xs font-black text-blue-700 dark:text-blue-300">{fmtNumber(card.balance)}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <section className="mb-3 rounded-xl border border-border bg-card p-4 shadow-sm dark:border-slate-700 dark:bg-[#0b1730] dark:shadow-[0_20px_80px_rgba(0,0,0,0.25)] text-slate-700 dark:text-slate-200">
+        <div className="space-y-2 border-b border-border dark:border-slate-700 pb-3 mb-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-base font-bold text-slate-100">Account Details</h2>
+              <h2 className="text-base font-bold text-foreground dark:text-slate-100">Account Details</h2>
             </div>
             <span className={badgeClass(selectedLedger?.status === "inactive" ? "inactive" : "active")}>
               {selectedLedger?.status === "inactive" ? "Inactive" : "Active"}
@@ -799,7 +863,7 @@ export function LedgerReportView({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-2 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
+                  className="gap-2 border-input bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   onClick={() => {
                     if (selectedLedger && (selectedLedger.accountCode || selectedLedger.ledgerCode)) {
                       router.push(`/dashboard/ledger/new?account=${encodeURIComponent(selectedLedger.accountCode || selectedLedger.ledgerCode)}`);
@@ -811,39 +875,37 @@ export function LedgerReportView({
                   <Search className="h-4 w-4" aria-hidden />
                   View Ledger
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-2 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800" onClick={() => openPrint(false)}>
+                <Button type="button" variant="outline" size="sm" className="gap-2 border-input bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" onClick={() => openPrint(false)}>
                   <Printer className="h-4 w-4" aria-hidden />
                   Print
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-2 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800" onClick={exportReportCsv}>
+                <Button type="button" variant="outline" size="sm" className="gap-2 border-input bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" onClick={exportReportCsv}>
                   <DownloadActionIcon className="h-4 w-4" aria-hidden />
                   PDF / Excel
                 </Button>
               </div>
 
-              {loadingStatement ? <div className="text-sm text-slate-400">Loading selected account...</div> : null}
+              {loadingStatement ? <div className="text-sm text-muted-foreground dark:text-slate-400">Loading selected account...</div> : null}
             </>
           ) : (
-            <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 text-sm text-slate-400">{t(lang, "ledger.select_account_hint")}</div>
+            <div className="rounded-lg border border-border bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40 p-4 text-sm text-muted-foreground dark:text-slate-400">{t(lang, "ledger.select_account_hint")}</div>
           )}
         </div>
       </section>
 
-      <section className="mb-3 rounded-xl border border-slate-700 bg-[#0b1730] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.25)] text-slate-200">
-        <div className="space-y-2 border-b border-slate-700 pb-3 mb-4">
+      <section className="mb-3 rounded-xl border border-border bg-card p-4 shadow-sm dark:border-slate-700 dark:bg-[#0b1730] dark:shadow-[0_20px_80px_rgba(0,0,0,0.25)] text-slate-700 dark:text-slate-200">
+        <div className="space-y-2 border-b border-border dark:border-slate-700 pb-3 mb-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-base font-bold text-slate-100">{t(lang, "ledger.entries_table_title")}</h2>
-              <p className="mt-1 text-xs text-slate-400">
-                {t(lang, "ledger.showing_range")} <span className="font-mono text-[11px] text-slate-300">{fromDate} â†’ {toDate}</span>
+              <h2 className="text-base font-bold text-foreground dark:text-slate-100">{t(lang, "ledger.entries_table_title")}</h2>
+              <p className="mt-1 text-xs text-muted-foreground dark:text-slate-400">
+                {t(lang, "ledger.showing_range")} <span className="font-mono text-[11px] text-slate-500 dark:text-slate-300">{fromDate} → {toDate}</span>
               </p>
             </div>
-            <div className="text-xs text-slate-400">
-            <div className="text-xs text-slate-500">
-              {t(lang, "ledger.rows")}: <b className="text-slate-900">{displayRows.length}</b>
+            <div className="text-xs text-muted-foreground dark:text-slate-500">
+              {t(lang, "ledger.rows")}: <b className="text-foreground dark:text-slate-200">{tableRows.length}</b>
             </div>
           </div>
-        </div>
         </div>
         <div className="p-0">
           <ReportTable
@@ -865,7 +927,7 @@ export function LedgerReportView({
             >
               {loading ? (
                 <tr>
-                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     {t(lang, "ledger.loading")}
                   </td>
                 </tr>
@@ -876,9 +938,9 @@ export function LedgerReportView({
                   <tr
                     key={row.ledgerId}
                     className={cn(
-                      "cursor-pointer border-b border-slate-100 transition hover:bg-slate-50",
-                      index % 2 === 0 ? "bg-white" : "bg-slate-50/50",
-                      active ? "bg-blue-50" : ""
+                      "cursor-pointer border-b border-border dark:border-slate-700/50 transition hover:bg-slate-50 dark:hover:bg-slate-800/50",
+                      index % 2 === 0 ? "bg-white dark:bg-transparent" : "bg-slate-50/50 dark:bg-slate-900/20",
+                      active ? "bg-blue-50 dark:bg-blue-900/20" : ""
                     )}
                     onClick={() => {
                       if (row.accountCode || row.ledgerCode) {
@@ -889,18 +951,18 @@ export function LedgerReportView({
                       }
                     }}
                   >
-                    <Td className="font-mono text-slate-500">{(page - 1) * pageSize + index + 1}</Td>
+                    <Td className="font-mono text-slate-500 dark:text-slate-400">{(page - 1) * pageSize + index + 1}</Td>
                     <Td>{row.countryName || "-"}</Td>
                     <Td>{buildBranchLabel(row)}</Td>
-                    <Td className="font-mono text-blue-600">{row.accountCode || row.ledgerCode}</Td>
-                    <Td className="font-bold text-slate-800">{row.accountName || row.ledgerName}</Td>
-                    <Td className="text-right tabular-nums text-slate-600">{row.entries}</Td>
-                    <Td className="text-right tabular-nums text-slate-600">{fmtNumber(row.openingBalance ?? 0)}</Td>
-                    <Td className="text-right tabular-nums text-emerald-600">{fmtNumber(row.credit)}</Td>
-                    <Td className="text-right tabular-nums text-rose-600">{fmtNumber(row.debit)}</Td>
-                    <Td className="text-slate-500">{formatDateString(row.createdAt)}</Td>
-                    <Td className="text-slate-500">{formatDateString(row.lastEntryDate)}</Td>
-                    <Td className="text-right tabular-nums font-bold text-slate-900">{fmtNumber(row.balance)}</Td>
+                    <Td className="font-mono text-blue-600 dark:text-blue-400">{row.accountCode || row.ledgerCode}</Td>
+                    <Td className="font-bold text-slate-800 dark:text-slate-200">{row.accountName || row.ledgerName}</Td>
+                    <Td className="text-right tabular-nums text-slate-600 dark:text-slate-400">{row.entries}</Td>
+                    <Td className="text-right tabular-nums text-slate-600 dark:text-slate-400">{fmtNumber(row.openingBalance ?? 0)}</Td>
+                    <Td className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">{fmtNumber(row.credit)}</Td>
+                    <Td className="text-right tabular-nums text-rose-600 dark:text-rose-400">{fmtNumber(row.debit)}</Td>
+                    <Td className="text-slate-500 dark:text-slate-400">{formatDateString(row.createdAt)}</Td>
+                    <Td className="text-slate-500 dark:text-slate-400">{formatDateString(row.lastEntryDate)}</Td>
+                    <Td className="text-right tabular-nums font-bold text-slate-900 dark:text-slate-100">{fmtNumber(row.balance)}</Td>
                     <Td onClick={(e) => e.stopPropagation()}>
                       <Button
                         type="button"
@@ -934,7 +996,6 @@ export function LedgerReportView({
             onNext={() => setPage((p) => Math.min(pageCount, p + 1))} 
             pageSize={pageSize} 
           />
-        </div>
       </section>
 
       <DetailDrawer
@@ -946,35 +1007,8 @@ export function LedgerReportView({
           setSelectedLedger(null);
         }}
         title={`Ledger: ${selectedLedger?.accountName || selectedLedger?.ledgerName || "Details"}`}
-        subtitle={`Account No: ${selectedLedger?.accountCode || selectedLedger?.ledgerCode || "-"} Â· Currency: ${selectedLedger?.ledgerCurrency || "-"}`}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => openPrint(false)}
-            >
-              PDF Export
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={exportReportCsv}
-            >
-              Excel Export
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => openPrint(true)}
-            >
-              Print
-            </Button>
-          </div>
-        }
+        subtitle={`Account No: ${selectedLedger?.accountCode || selectedLedger?.ledgerCode || "-"} · Currency: ${selectedLedger?.ledgerCurrency || "-"}`}
+        actions={<ExportOptions onPrint={openPrint} onExportCsv={exportReportCsv} />}
       >
         {loadingStatement ? (
           <div className="flex items-center justify-center py-8">
@@ -1061,7 +1095,37 @@ export function LedgerReportView({
           <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">{t(lang, "ledger.select_account_hint")}</div>
         )}
       </DetailDrawer>
-      </div>
+    </div>
+  );
+}
+
+function ExportOptions({ onPrint, onExportCsv }: { onPrint: (isPrint: boolean) => void; onExportCsv: () => void }) {
+  const [open, setOpen] = useState(false);
+  
+  if (!open) {
+    return (
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1">
+        Export Options
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    );
+  }
+  
+  return (
+    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-200">
+      <Button variant="outline" size="sm" onClick={() => setOpen(false)} className="px-2 text-muted-foreground hover:text-foreground">
+        <ChevronRight className="h-4 w-4 rotate-180" />
+      </Button>
+      <Button type="button" variant="outline" size="sm" onClick={() => onPrint(false)}>
+        PDF
+      </Button>
+      <Button type="button" variant="outline" size="sm" onClick={onExportCsv}>
+        Excel
+      </Button>
+      <Button type="button" variant="default" size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => onPrint(true)}>
+        <Printer className="mr-2 h-4 w-4" />
+        Print
+      </Button>
     </div>
   );
 }

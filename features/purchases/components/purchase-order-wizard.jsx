@@ -37,7 +37,8 @@ import {
   Settings,
   ListChecks,
   Truck,
-  MessageSquare
+  MessageSquare,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -186,7 +187,7 @@ const DEFAULT_FORM = {
   purchaseReportRemarks: "",
   purchaseInvoiceRemarks: "",
   showRemarksOnA4: true,
-  
+
   // Tab 3 details
   advancePercent: 10,
   advancePaymentDate: new Date().toISOString().slice(0, 10),
@@ -210,7 +211,7 @@ const DEFAULT_FORM = {
   containerNumbers: "",
   vesselName: "",
   sealNumber: "",
-  
+
   // Step 2 Active Item inputs
   goodsName: "",
   size: "",
@@ -316,10 +317,10 @@ function calculateItemTotals(form) {
   const grossWeight = qtyNo * qtyKgs;
   const totalEmptyDeduct = qtyNo * emptyKgs;
   const netWeight = Math.max(0, grossWeight - totalEmptyDeduct);
-  
+
   // Amount in Purchase Currency (Original Amount)
   const originalAmount = (netWeight / divideWeight) * coursePrice;
-  
+
   // Amount in Local Country Currency
   const localAmount = originalAmount * exchangeRate;
 
@@ -501,10 +502,14 @@ export function PurchaseOrderWizard({ session }) {
   }, [goodsEntries]);
 
   const avgRateTon = useMemo(() => avgRateKg * 1000, [avgRateKg]);
-  
+
 
   const [titlePortal, setTitlePortal] = useState(null);
   const [actionsPortal, setActionsPortal] = useState(null);
+  const activeSession = session || localSession;
+  const isSuperAdmin = activeSession?.isSuperAdmin || activeSession?.scopes?.isSuperAdmin || false;
+  const isCountryAdmin = activeSession?.roles?.includes("country_admin") || activeSession?.scopes?.isCountryAdmin || (activeSession?.countryIds?.length > 0) || (activeSession?.scopes?.countryIds?.length > 0) || false;
+
   useEffect(() => {
     if (typeof document !== "undefined") {
       setTitlePortal(document.getElementById("erp-page-title-slot"));
@@ -573,6 +578,30 @@ export function PurchaseOrderWizard({ session }) {
   const [scopeConfirmed, setScopeConfirmed] = useState(false);
   const [dbAccounts, setDbAccounts] = useState([]);
 
+  const mapEnterpriseAccount = (acc) => ({
+    accountCode: acc.code || acc.account_number,
+    accountName: acc.name,
+    cityBranchName: acc.branch_code || "",
+    ledgerCurrency: acc.currency || "USD",
+    customerId: acc.customer_id || acc.customerId || null,
+    companyId: acc.company_id || null,
+    mobile: acc.customers?.mobile || "",
+    whatsapp: acc.customers?.whatsapp || "",
+    kind: acc.kind || "",
+    isControlAccount: acc.is_control_account || false,
+    currentBalance: acc.current_balance || 0,
+    openingBalance: acc.opening_balance || 0,
+    status: acc.status || "active",
+    accountSerialNumber: acc.account_serial_number || "",
+    countrySerialNumber: acc.country_serial_number || "",
+    branchSerialNumber: acc.branch_serial_number || "",
+    manualReferenceNumber: acc.manual_reference_number || "",
+    customerNumber: acc.customer_number || "",
+    countryId: acc.country_id || null,
+    countryBranchId: acc.country_branch_id || null,
+    cityBranchId: acc.city_branch_id || null
+  });
+
   const [supplierDetail, setSupplierDetail] = useState(null);
   const [customerDetail, setCustomerDetail] = useState(null);
   const [purchasePinDropdownOpen, setPurchasePinDropdownOpen] = useState(false);
@@ -632,7 +661,7 @@ export function PurchaseOrderWizard({ session }) {
           {/* Horizontal Cards row */}
           <div className="z-10 bg-card pb-1">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
-              
+
               {/* Card 1: Branch Login Details */}
               <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
                 <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
@@ -1142,6 +1171,30 @@ export function PurchaseOrderWizard({ session }) {
     };
   }, []);
 
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadScopedAccounts() {
+      try {
+        const params = new URLSearchParams({ limit: "500" });
+        if (form.countryId) params.set("countryId", form.countryId);
+        if (form.countryBranchId) params.set("countryBranchId", form.countryBranchId);
+        if (form.cityBranchId) params.set("cityBranchId", form.cityBranchId);
+        const response = await fetch(`/api/erp/accounting/accounts?${params.toString()}`, { cache: "no-store" });
+        const res = await response.json();
+        if (!cancelled && res?.data?.accounts) {
+          setDbAccounts(res.data.accounts.map(mapEnterpriseAccount));
+        }
+      } catch (err) {
+        console.error("Failed to load scoped accounts:", err);
+      }
+    }
+    if (form.countryId || isSuperAdmin) {
+      loadScopedAccounts();
+    }
+    return () => { cancelled = true; };
+  }, [form.countryId, form.countryBranchId, form.cityBranchId, isSuperAdmin]);
+
   // Fetch branches for scoping
   useEffect(() => {
     let cancelled = false;
@@ -1156,7 +1209,7 @@ export function PurchaseOrderWizard({ session }) {
         if (!cancelled && json?.data?.branches) setMainBranches(json.data.branches);
       })
       .catch(() => {});
-      
+
     return () => { cancelled = true; };
   }, [form.countryId]);
 
@@ -1201,9 +1254,6 @@ export function PurchaseOrderWizard({ session }) {
       cancelled = true;
     };
   }, [form.customerId]);
-
-  const isSuperAdmin = session?.scopes?.isSuperAdmin ?? false;
-  const isCountryAdmin = session?.scopes?.isCountryAdmin || session?.roles?.includes("country_admin") || (session?.scopes?.countryIds?.length > 0) || false;
 
   // Derived country options from master data (replaces old COUNTRY_OPTIONS hardcode)
   const masterCountryOptions = useMemo(() => countries, [countries]);
@@ -1258,7 +1308,7 @@ export function PurchaseOrderWizard({ session }) {
   const selectedDbGood = useMemo(() => {
     if (!form.goodsName) return undefined;
     const searchName = form.goodsName.trim().toUpperCase();
-    return dbGoods.find(g => 
+    return dbGoods.find(g =>
       (g.goods_name || g.goodsName || "").trim().toUpperCase() === searchName
     );
   }, [dbGoods, form.goodsName]);
@@ -1296,7 +1346,7 @@ export function PurchaseOrderWizard({ session }) {
 
   // Load existing purchase order if purchaseOrderNo or id is in URL query parameters
   useEffect(() => {
-    const activeSession = session || localSession;
+    // activeSession is defined at the component level now
     if (!activeSession) return;
     const poNo = searchParams.get("purchaseOrderNo");
     const orderId = searchParams.get("id") || searchParams.get("purchaseOrderId");
@@ -1397,7 +1447,12 @@ export function PurchaseOrderWizard({ session }) {
     return () => {
       cancelled = true;
     };
-  }, [session, localSession, searchParams]);
+  }, [
+    searchParams.get("purchaseOrderNo"),
+    searchParams.get("id"),
+    searchParams.get("purchaseOrderId"),
+    !!activeSession
+  ]);
 
   // Set initial scope fields for scoped users
   useEffect(() => {
@@ -1483,11 +1538,11 @@ export function PurchaseOrderWizard({ session }) {
     } else if (form.countryBranchId && mainBranches.length > 0) {
       selectedBranch = mainBranches.find(b => b.id === form.countryBranchId);
     }
-    
+
     if (selectedBranch) {
       const codeBase = selectedBranch.code || "BR";
       const suffix = form.purchaseOrderNo ? form.purchaseOrderNo.split("-").pop() : "0000";
-      
+
       const parts = codeBase.split("-");
       let serialPrefix = codeBase;
       let cityCode = "CITY";
@@ -1497,15 +1552,15 @@ export function PurchaseOrderWizard({ session }) {
       } else if (parts.length === 2) {
         cityCode = parts[1];
       }
-      
+
       const country = transitCountryOptions.find(c => String(c.id) === String(form.countryId));
       const countryPrefix = country ? (country.iso2 || country.name.substring(0, 2).toUpperCase()) : "CT";
-      
+
       setForm(prev => {
         const newCode = `${serialPrefix}-${suffix}`;
         const newName = selectedBranch.name || selectedBranch.city_name || prev.branchName;
         const newBillNo = `${countryPrefix}-${cityCode}-${suffix}`;
-        
+
         if (prev.branchCode === newCode && prev.branchName === newName && prev.billNo === newBillNo && prev.branchCountry === (country?.name || "")) return prev;
         return {
           ...prev,
@@ -1536,11 +1591,11 @@ export function PurchaseOrderWizard({ session }) {
     const countryId = form.countryId;
     let localCurrency = ""; // Do NOT default to PKR unconditionally!
     const activeCountry = transitCountryOptions.find(c => String(c.id) === String(countryId)) || countries.find(c => String(c.id) === String(countryId));
-    
+
     // Determine the active country name or ISO from either the selected country or the user's session scope
     const cName = activeCountry?.name || session?.scopes?.countryName || "";
     const iso = activeCountry?.iso2 || "";
-    
+
     if (cName) {
       const name = cName.toUpperCase();
       if (iso === "AE" || name.includes("UNITED ARAB EMIRATES") || name.includes("DUBAI") || name.includes("UAE")) localCurrency = "AED";
@@ -1652,7 +1707,7 @@ export function PurchaseOrderWizard({ session }) {
   const applyAccountMaster = (type, account) => {
     if (!account) return;
     const accountNo = account.accountCode || account.rawAccountCode || account.ledgerCode || account.code || "";
-    
+
     // Find the rich account from dbAccounts if available to get extra attributes
     const richAccount = dbAccounts.find(
       (a) => (a.accountCode || "").trim().toLowerCase() === accountNo.trim().toLowerCase()
@@ -1797,8 +1852,12 @@ export function PurchaseOrderWizard({ session }) {
     }
 
     const matched = dbAccounts.find(acc =>
-      (acc.accountCode || "").trim().toLowerCase() === val.trim().toLowerCase() ||
-      (acc.accountName || "").trim().toLowerCase() === val.trim().toLowerCase()
+      accountMatchesScope(acc) && (
+        (acc.accountCode || "").trim().toLowerCase() === val.trim().toLowerCase() ||
+        (acc.manualReferenceNumber || "").trim().toLowerCase() === val.trim().toLowerCase() ||
+        (acc.customerNumber || "").trim().toLowerCase() === val.trim().toLowerCase() ||
+        (acc.accountName || "").trim().toLowerCase() === val.trim().toLowerCase()
+      )
     );
 
     if (matched) {
@@ -1815,7 +1874,9 @@ export function PurchaseOrderWizard({ session }) {
   };
 
   const handleAccountLookup = async (type) => {
-    const query = type === "purchase" ? form.purchaseAccountNo : form.salesAccountNo;
+    const query = type === "purchase"
+      ? (purchaseSearch || form.purchaseAccountNo)
+      : (salesSearch || form.salesAccountNo);
     setAccountLookupLoading(type);
     setAccountLookupMessage("");
     try {
@@ -1836,16 +1897,16 @@ export function PurchaseOrderWizard({ session }) {
   };
   const handleAddGoodsEntry = async () => {
     const searchName = form.goodsName?.trim().toUpperCase() || "";
-    const selectedGood = dbGoods.find(g => 
+    const selectedGood = dbGoods.find(g =>
       (g.goods_name || g.goodsName || "").trim().toUpperCase() === searchName
     );
     if (selectedGood) {
       const originCountry = transitCountryOptions.find(c => c.name === form.origin);
       const originCountryId = originCountry?.id || null;
       const variations = selectedGood.variations || selectedGood.goods_variations || [];
-      
-      const exists = variations.some(v => 
-        (v.size || "").trim().toLowerCase() === (form.size || "").trim().toLowerCase() && 
+
+      const exists = variations.some(v =>
+        (v.size || "").trim().toLowerCase() === (form.size || "").trim().toLowerCase() &&
         (v.brand || "").trim().toLowerCase() === (form.brand || "").trim().toLowerCase()
       );
 
@@ -1867,7 +1928,7 @@ export function PurchaseOrderWizard({ session }) {
           if (!res.ok || !payload.ok) {
             throw new Error(payload?.error?.message || payload?.error || "Failed to auto-register variation.");
           }
-          
+
           // Reload goods list to update local state
           const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
           const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
@@ -2097,7 +2158,7 @@ export function PurchaseOrderWizard({ session }) {
       setSavedOrderNo(nextOrderNo);
       setSaveMessage(`Successfully saved Purchase Order: ${nextOrderNo}.`);
       setRegisterRefreshKey((key) => key + 1);
-      
+
       if (shouldClose) {
         setIsFormOpen(false);
         handleReset();
@@ -2137,8 +2198,6 @@ export function PurchaseOrderWizard({ session }) {
       setTransferredData(payload.data || { purchaseOrderNo: nextOrderNo });
       setIsTransferred(true);
       setRegisterRefreshKey((key) => key + 1);
-      // Navigate to the Purchase Transfer Payment / Journal Report page, pre-selecting this order
-      router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(nextOrderNo)}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error saving order.";
       setSaveMessage(msg);
@@ -2153,7 +2212,7 @@ export function PurchaseOrderWizard({ session }) {
     if (!window.confirm("Are you sure you want to permanently delete this booking? All associated ledger transfers will be reverted.")) {
       return;
     }
-    
+
     setSavingOrder(true);
     setSaveMessage("Deleting booking and reverting transfers...");
     try {
@@ -2164,7 +2223,7 @@ export function PurchaseOrderWizard({ session }) {
       if (!response.ok || !payload.ok) {
         throw new Error(payload?.error?.message || payload?.error || "Failed to delete booking.");
       }
-      
+
       alert("Booking successfully deleted and transfers reverted.");
       setRegisterRefreshKey(k => k + 1);
       setIsFormOpen(false);
@@ -2180,7 +2239,7 @@ export function PurchaseOrderWizard({ session }) {
     const firstGoodName = goodsEntries[0]?.goodsName || "Cargo";
     const firstQtyUnit = goodsEntries[0]?.qtyName || "BAGS";
     const rawRemarks = form.remarks || form.orderReportRemarks || "";
-    
+
     const reportData = {
       id: savedOrderId || "new-temp",
       purchaseBookingOrderNumber: form.purchaseOrderNo,
@@ -2540,7 +2599,7 @@ export function PurchaseOrderWizard({ session }) {
       const gName = (g.goods_name || g.goodsName || "").trim().toUpperCase();
       return gName === searchName;
     });
-    
+
     let targetGoodsId = null;
 
     if (!selectedGood) {
@@ -2560,7 +2619,7 @@ export function PurchaseOrderWizard({ session }) {
         const createRes = await fetch("/api/erp/goods", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             goodsName: searchName,
             chsCode: finalCode,
             originalLanguage: "en",
@@ -2575,7 +2634,7 @@ export function PurchaseOrderWizard({ session }) {
           throw new Error(createData?.error?.message || createData?.error || "Failed to create Good in master.");
         }
         targetGoodsId = createData.goodsId || createData.data?.goodsId;
-        
+
         // Skip variation POST since initialVariation was passed, just reload
       } catch (err) {
         setSavingOrder(false);
@@ -2618,7 +2677,7 @@ export function PurchaseOrderWizard({ session }) {
 
       setValue("brand", brand.trim().toUpperCase());
       setValue("size", size.trim().toUpperCase());
-      
+
       const good = goodsData?.find((g) => g.id === targetGoodsId);
       if (good?.origin_country_id) {
         const matching = transitCountryOptions.find(c => c.id === good.origin_country_id);
@@ -2875,7 +2934,7 @@ export function PurchaseOrderWizard({ session }) {
     setSelectedReportId(newReport.id);
     setNewReportForm({ name: "", description: "", notes: "" });
     setIsNewReportModalOpen(false);
-    
+
     // Auto-save the purchase order to persist the new report in form_data
     if (savedOrderId) {
       setTimeout(() => {
@@ -2888,7 +2947,7 @@ export function PurchaseOrderWizard({ session }) {
     if (!selectedReportId) return;
     const currentReportIndex = reportsList.findIndex(r => r.id === selectedReportId);
     if (currentReportIndex === -1) return;
-    
+
     const updatedReports = [...reportsList];
     updatedReports[currentReportIndex] = {
       ...updatedReports[currentReportIndex],
@@ -2930,9 +2989,9 @@ export function PurchaseOrderWizard({ session }) {
                   value={form.countryId}
                   onChange={(e) => {
                     const country = countries.find(c => c.id === e.target.value);
-                    setForm(p => ({ 
-                      ...p, 
-                      countryId: e.target.value, 
+                    setForm(p => ({
+                      ...p,
+                      countryId: e.target.value,
                       countryBranchId: "",
                       cityBranchId: "",
                       currencyType: country ? country.currency_code : p.currencyType,
@@ -2976,9 +3035,9 @@ export function PurchaseOrderWizard({ session }) {
                 </select>
               </div>
             </div>
-            
+
             <div className="pt-4 flex justify-end">
-              <Button 
+              <Button
                 onClick={() => setScopeConfirmed(true)}
                 disabled={!form.countryId || !form.countryBranchId}
                 className="bg-primary text-primary-foreground font-bold h-8 text-xs px-6"
@@ -3028,26 +3087,28 @@ export function PurchaseOrderWizard({ session }) {
 
           {activeTab === "report" && isMounted && document.getElementById("erp-page-actions-slot") && createPortal(
             <>
-              {/* SAVE BOOKING */}
-              <button 
-                type="button" 
-                onClick={() => handleSavePurchaseOrder(false)} 
-                disabled={savingOrder || isTransferred} 
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded text-[11px] font-bold shadow-md transition-colors flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <Save className="h-3.5 w-3.5"/> SAVE BOOKING
-              </button>
+              {!savedOrderId && (
+                <Button
+                  type="button"
+                  onClick={() => handleSavePurchaseOrder(false)}
+                  disabled={savingOrder}
+                  className="h-10 text-[11px] font-black tracking-wider uppercase px-8 bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_4px_14px_0_rgb(5,150,105,0.39)] hover:shadow-[0_6px_20px_rgba(5,150,105,0.23)] hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  {savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4"/>}
+                  {savingOrder ? "ACCEPTING..." : "ACCEPT BOOKING"}
+                </Button>
+              )}
 
-              {/* TRANSFER TO PAYMENT */}
-              <button 
-                type="button" 
-                onClick={() => setTransferConfirmModal(true)} 
-                disabled={savingOrder || !savedOrderId || isTransferred} 
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold shadow-md transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                title={!savedOrderId ? "Please save the booking first before transferring to payment." : ""}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5"/> TRANSFER TO PAYMENT
-              </button>
+              {savedOrderId && !isTransferred && (
+                <Button
+                  type="button"
+                  onClick={() => setTransferConfirmModal(true)}
+                  disabled={savingOrder}
+                  className="h-10 text-[11px] font-black tracking-wider uppercase px-8 bg-blue-600 hover:bg-blue-700 text-white shadow-[0_4px_14px_0_rgb(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  <CheckCircle2 className="h-4 w-4"/> TRANSFER TO PAYMENT
+                </Button>
+              )}
             </>,
             document.getElementById("erp-page-actions-slot")
           )}
@@ -3105,9 +3166,9 @@ export function PurchaseOrderWizard({ session }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[9px] space-y-2">
                         <div className="flex justify-between"><span className="text-slate-500">Payment Term:</span> <span className="font-bold text-slate-800">{form.paymentType || "N/A"}</span></div>
-                        
+
                         <div className="flex justify-between border-t border-slate-200 pt-1">
-                          <span className="text-slate-500">Advance ({form.advancePercent || 0}%):<br/><span className="text-[7px]">Due: {form.advancePaymentDate}</span></span> 
+                          <span className="text-slate-500">Advance ({form.advancePercent || 0}%):<br/><span className="text-[7px]">Due: {form.advancePaymentDate}</span></span>
                           <span className="font-bold text-slate-800 text-right">
                             <span className="block text-emerald-700">{form.currencyType || "USD"} {((reportTotals.grandPrimaryFinal || reportTotals.grandFinal || 0) * (form.advancePercent || 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             <span className="block text-blue-600 mt-0.5">{form.purchaseCurrency || "AED"} {((reportTotals.grandFinal || 0) * (form.advancePercent || 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-[7px] text-slate-400 font-mono">(@ {goodsEntries[0]?.exchangeRate || form.exchangeRate || 1})</span></span>
@@ -3115,7 +3176,7 @@ export function PurchaseOrderWizard({ session }) {
                         </div>
 
                         <div className="flex justify-between border-t border-slate-200 pt-1">
-                          <span className="text-slate-500">Remaining ({100 - (form.advancePercent || 0)}%):<br/><span className="text-[7px]">Due: {form.paymentDate}</span></span> 
+                          <span className="text-slate-500">Remaining ({100 - (form.advancePercent || 0)}%):<br/><span className="text-[7px]">Due: {form.paymentDate}</span></span>
                           <span className="font-bold text-slate-800 text-right">
                             <span className="block text-emerald-700">{form.currencyType || "USD"} {((reportTotals.grandPrimaryFinal || reportTotals.grandFinal || 0) * (100 - (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             <span className="block text-blue-600 mt-0.5">{form.purchaseCurrency || "AED"} {((reportTotals.grandFinal || 0) * (100 - (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-[7px] text-slate-400 font-mono">(@ {goodsEntries[0]?.exchangeRate || form.exchangeRate || 1})</span></span>
@@ -3123,7 +3184,7 @@ export function PurchaseOrderWizard({ session }) {
                         </div>
 
                         <div className="flex justify-between border-t border-slate-200 pt-1">
-                          <span className="text-slate-500">Grand Total:</span> 
+                          <span className="text-slate-500">Grand Total:</span>
                           <span className="font-bold text-right">
                             <span className="block text-emerald-700">{form.currencyType || "USD"} {(reportTotals.grandPrimaryFinal || reportTotals.grandFinal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             <span className="block text-blue-600 mt-0.5">{form.purchaseCurrency || "AED"} {(reportTotals.grandFinal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -3200,7 +3261,7 @@ export function PurchaseOrderWizard({ session }) {
                         + Add New Report
                       </Button>
                     </div>
-                    
+
                     <div className="space-y-3">
                       {reportsList.length === 0 ? (
                         <div className="text-center py-6 text-muted-foreground text-[10px] italic bg-muted/30 rounded border border-border/50">
@@ -3227,7 +3288,7 @@ export function PurchaseOrderWizard({ session }) {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="pt-3 border-t border-border flex flex-col gap-1.5 mt-4">
                     <Button
                       type="button"
@@ -3263,10 +3324,10 @@ export function PurchaseOrderWizard({ session }) {
                             <th className="px-3 py-2.5 text-center">Origin</th>
                             <th className="px-3 py-2.5 text-right">Qty</th>
                             <th className="px-3 py-2.5 text-center">Unit</th>
-                            <th className="px-3 py-2.5 text-right">Price ({form.purchaseCurrency || form.currencyType})</th>
-                            <th className="px-3 py-2.5 text-right">Amount ({form.purchaseCurrency || form.currencyType})</th>
+                            <th className="px-3 py-2.5 text-right">Price ({form.currencyType || "USD"})</th>
+                            <th className="px-3 py-2.5 text-right">Amount ({form.currencyType || "USD"})</th>
                             <th className="px-3 py-2.5 text-center">Ex. Rate</th>
-                            <th className="px-3 py-2.5 text-right bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Amount ({form.currencyType})</th>
+                            <th className="px-3 py-2.5 text-right bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Amount ({form.purchaseCurrency || "AED"})</th>
                             <th className="px-3 py-2.5 text-center w-10">Action</th>
                           </tr>
                         </thead>
@@ -3341,60 +3402,6 @@ export function PurchaseOrderWizard({ session }) {
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Country</label>
-                        <select
-                          value={form.countryId || ""}
-                          onChange={(e) => {
-                            const country = countries.find(c => c.id === e.target.value);
-                            setForm(p => ({ 
-                              ...p, 
-                              countryId: e.target.value, 
-                              countryBranchId: "",
-                              cityBranchId: "",
-                              currencyType: country ? country.currency_code : p.currencyType,
-                              purchaseCurrency: country ? country.currency_code : p.purchaseCurrency
-                            }));
-                          }}
-                          disabled={!isSuperAdmin}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 disabled:bg-muted/50 disabled:text-muted-foreground"
-                        >
-                          <option value="">Select Country...</option>
-                          {countries.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name} ({c.currency_code})</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Branch</label>
-                        <select
-                          value={form.countryBranchId || ""}
-                          onChange={(e) => setForm(p => ({ ...p, countryBranchId: e.target.value, cityBranchId: "" }))}
-                          disabled={!form.countryId || (!isSuperAdmin && (session?.scopes?.role === "city-standard"))}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 disabled:bg-muted/50 disabled:text-muted-foreground"
-                        >
-                          <option value="">Select Branch...</option>
-                          {mainBranches.filter(b => b.country_id === form.countryId).map((b) => (
-                            <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">City Branch</label>
-                        <select
-                          value={form.cityBranchId || ""}
-                          onChange={(e) => setForm(p => ({ ...p, cityBranchId: e.target.value }))}
-                          disabled={!form.countryBranchId}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 disabled:bg-muted/50 disabled:text-muted-foreground"
-                        >
-                          <option value="">Select City Branch...</option>
-                          {cityBranches.filter(cb => cb.country_branch_id === form.countryBranchId).map((b) => (
-                            <option key={b.id} value={b.id}>{b.city_name || b.name} ({b.code || b.branch_code})</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
                     <div className="relative" ref={purchaseDropdownRef}>
                       <label className="block text-[10px] text-muted-foreground mb-1">Purchase Account (DR)*</label>
                       <div className="relative flex items-center">
@@ -3496,24 +3503,6 @@ export function PurchaseOrderWizard({ session }) {
                   <div className="rounded-lg border border-border bg-muted/20 p-3">
                     <div className="grid grid-cols-1 gap-3">
                       <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Purchase Order No</label>
-                        <input
-                          type="text"
-                          value={form.purchaseOrderNo}
-                          onChange={(e) => setValue("purchaseOrderNo", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Sales Order No</label>
-                        <input
-                          type="text"
-                          value={form.salesOrderNo}
-                          onChange={(e) => setValue("salesOrderNo", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-8 font-mono"
-                        />
-                      </div>
-                      <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Contract No</label>
                         <input
                           type="text"
@@ -3523,7 +3512,7 @@ export function PurchaseOrderWizard({ session }) {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Booking Date</label>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Contract / Booking Date</label>
                         <input
                           type="date"
                           value={form.purchaseDate}
@@ -3603,1299 +3592,548 @@ export function PurchaseOrderWizard({ session }) {
               )}
 
               {activeTab === "goods" && (
-                <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4 order-2 w-full mt-4">
+                <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4 order-2 w-full mt-4 animate-in fade-in zoom-in-95 duration-200">
                   <div className="border-b border-border pb-2 mb-3">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-foreground">Goods Entry</h3>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+                      GOODS ENTRY
+                    </h3>
                   </div>
+                  
+                  <div className="grid grid-cols-1 gap-3">
+                    {/* Computed Net KGs */}
+                    <div className="bg-muted/30 p-2 rounded border border-border">
+                      <span className="block text-[9px] font-bold text-muted-foreground uppercase">Net KGs:</span>
+                      <span className="block text-xs font-black text-foreground">
+                        {((Number(form.qtyNo || 0) * Number(form.qtyKgs || 0)) - (Number(form.qtyNo || 0) * Number(form.emptyKgs || 0))).toFixed(2)}
+                      </span>
+                    </div>
 
-                  <div className="bg-muted/60 border border-border rounded p-3 grid grid-cols-1 gap-4 text-[9px]">
-                    
-                    {/* Left Side: Inputs */}
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-1 gap-3">
                     <div>
-                      <span className="block text-muted-foreground">NET KGS:</span>
-                      <strong className="text-foreground font-bold">{currentItemTotals.netWeight.toFixed(2)}</strong>
+                      <label className="block text-[10px] text-muted-foreground mb-1">Origin Country</label>
+                      <select
+                        value={form.origin || ""}
+                        onChange={(e) => setValue("origin", e.target.value)}
+                        className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                      >
+                        <option value="">Select Origin</option>
+                        <option value="United Arab Emirates">United Arab Emirates</option>
+                        <option value="Iran">Iran</option>
+                        <option value="USA">USA</option>
+                        <option value="Vietnam">Vietnam</option>
+                        <option value="Pakistan">Pakistan</option>
+                        <option value="India">India</option>
+                      </select>
                     </div>
-                    <div className="grid grid-cols-1 gap-2">
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Goods Name*</label>
-                        <select
-                          value={form.goodsName}
-                          onChange={(e) => {
-                            if (e.target.value === "__ADD_NEW_GOOD__") {
-                              e.target.value = form.goodsName || "";
-                              setNewGoodModal(true);
-                              return;
+
+                    <div className="relative">
+                      <label className="block text-[10px] text-muted-foreground mb-1">Goods Name*</label>
+                      <SearchableSelect
+                        value={form.goodsName || ""}
+                        onChange={(val) => {
+                          if (val === "__ADD_NEW__") {
+                            setNewGoodForm({ goodsName: "", chsCode: "", size: "", brand: "", originCountryId: "" });
+                            setNewGoodError("");
+                            setNewGoodModal(true);
+                          } else {
+                            setValue("goodsName", val);
+                            const foundGood = dbGoods.find(g => (g.goods_name || g.goodsName) === val);
+                            if (foundGood) {
+                              setValue("hsCode", foundGood.chs_code || foundGood.chsCode || "");
                             }
-                            const chosen = dbGoods.find(g => (g.goods_name || g.goodsName) === e.target.value);
-                            setValue("goodsName", e.target.value);
-                            if (chosen) {
-                              const variations = chosen.variations || chosen.goods_variations || [];
-                              if (variations.length > 0) {
-                                const v = variations[0];
-                                setValue("size", v.size || "");
-                                setValue("brand", v.brand || "");
-                                if (chosen.origin_country_id) {
-                                  const c = transitCountryOptions.find(tc => tc.id === chosen.origin_country_id);
-                                  if (c) setValue("origin", c.name);
-                                } else {
-                                  setValue("origin", "");
-                                }
-                              } else {
-                                setValue("origin", "");
-                                setValue("brand", "");
-                                setValue("size", "");
-                              }
-                            } else {
-                              setValue("origin", "");
-                              setValue("brand", "");
-                              setValue("size", "");
-                            }
-                            if (chosen?.chs_code || chosen?.chsCode) {
-                              setValue("hsCode", chosen.chs_code || chosen.chsCode);
-                            } else if (GOODS_HS_CODES[e.target.value]) {
-                              setValue("hsCode", GOODS_HS_CODES[e.target.value]);
-                            } else {
-                              setValue("hsCode", "");
-                            }
-                          }}
-                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
-                        >
-                          <option value="">Select Good...</option>
-                          {dbGoods.length > 0
-                            ? dbGoods.map((g) => {
-                                const name = g.goods_name || g.goodsName || "";
-                                return <option key={g.id || name} value={name}>{name}</option>;
-                              })
-                            : GOODS_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)
                           }
-                          {form.goodsName && !dbGoods.some(g => (g.goods_name || g.goodsName) === form.goodsName) && (
-                            <option value={form.goodsName}>{form.goodsName}</option>
-                          )}
-                          <option value="__ADD_NEW_GOOD__" className="text-primary font-semibold">+ Add New Good...</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Size Specification</label>
-                        <select
-                          value={form.size}
-                          onChange={(e) => {
-                            if (e.target.value === "__ADD_CUSTOM_SIZE__") {
-                              e.target.value = form.size || "";
-                              if (!form.goodsName) {
-                                alert("Please select a Good first.");
-                                return;
-                              }
-                              const curOrigin = transitCountryOptions.find(c => c.name === form.origin);
-                              setCustomVariationForm({
-                                goodsName: form.goodsName,
-                                brand: form.brand || "",
-                                size: form.size || "",
-                                originCountryId: curOrigin?.id || ""
-                              });
-                              setCustomVariationModal(true);
-                              return;
-                            }
-                            setValue("size", e.target.value);
-                            setValue("brand", "");
-                          }}
-                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
-                        >
-                          <option value="">Select Size</option>
-                          {availableSizes.map((s) => <option key={s} value={s}>{s}</option>)}
-                          {form.size && !availableSizes.some(s => s.trim().toUpperCase() === form.size.trim().toUpperCase()) && (
-                            <option value={form.size.trim().toUpperCase()}>{form.size.trim().toUpperCase()}</option>
-                          )}
-                          <option value="__ADD_CUSTOM_SIZE__" className="text-primary font-semibold">+ Add Custom Size...</option>
-                        </select>
-                      </div>
+                        }}
+                        options={[
+                          ...dbGoods.map(g => ({ label: g.goods_name || g.goodsName, value: g.goods_name || g.goodsName })),
+                          ...GOODS_OPTIONS.filter(go => !dbGoods.some(g => (g.goods_name || g.goodsName) === go)).map(g => ({ label: g, value: g }))
+                        ]}
+                        placeholder="Select Goods"
+                        addOptionLabel="Add New Good"
+                      />
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2">
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Brand</label>
-                        <select
-                          value={form.brand}
-                          onChange={(e) => {
-                            if (e.target.value === "__ADD_CUSTOM_BRAND__") {
-                              e.target.value = form.brand || "";
-                              if (!form.goodsName) {
-                                alert("Please select a Good first.");
-                                return;
-                              }
-                              const curOrigin = transitCountryOptions.find(c => c.name === form.origin);
-                              setCustomVariationForm({
-                                goodsName: form.goodsName,
-                                brand: form.brand || "",
-                                size: form.size || "",
-                                originCountryId: curOrigin?.id || ""
-                              });
-                              setCustomVariationModal(true);
-                              return;
-                            }
-                            setValue("brand", e.target.value);
-                            setValue("size", "");
-                          }}
-                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
-                        >
-                          <option value="">Select Brand</option>
-                          {availableBrands.map((b) => <option key={b} value={b}>{b}</option>)}
-                          {form.brand && !availableBrands.some(b => b.trim().toUpperCase() === form.brand.trim().toUpperCase()) && (
-                            <option value={form.brand.trim().toUpperCase()}>{form.brand.trim().toUpperCase()}</option>
-                          )}
-                          <option value="__ADD_CUSTOM_BRAND__" className="text-primary font-semibold">+ Add Custom Brand...</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Origin Country</label>
-                        <select
-                          value={form.origin}
-                          onChange={(e) => {
-                            if (e.target.value === "__ADD_NEW_COUNTRY__") {
-                              e.target.value = form.origin || "";
-                              setNewCountryModal(true);
-                              return;
-                            }
-                            setValue("origin", e.target.value);
-                            setValue("size", "");
-                            setValue("brand", "");
-                          }}
-                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
-                        >
-                          <option value="">Select Origin</option>
-                          {transitCountryOptions.map((c) => (
-                            <option key={c.id} value={c.name}>{c.name}</option>
-                          ))}
-                          {form.origin && !transitCountryOptions.some(c => c.name === form.origin) && (
-                            <option value={form.origin}>{form.origin}</option>
-                          )}
-                          <option value="__ADD_NEW_COUNTRY__" className="text-primary font-semibold">+ Add New Country...</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">HS Code</label>
                         <input
                           type="text"
-                          value={form.hsCode}
+                          value={form.hsCode || ""}
                           onChange={(e) => setValue("hsCode", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
                         />
                       </div>
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Allot Name / ID</label>
                         <input
                           type="text"
-                          value={form.allotName}
+                          value={form.allotName || ""}
                           onChange={(e) => setValue("allotName", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px]"
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
                         />
                       </div>
                     </div>
 
-                    {/* Numeric Setup Flow */}
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Brand</label>
+                        <select
+                          value={form.brand || ""}
+                          onChange={(e) => setValue("brand", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        >
+                          <option value="">Select Brand</option>
+                          {BRAND_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Size Specification</label>
+                        <select
+                          value={form.size || ""}
+                          onChange={(e) => setValue("size", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        >
+                          <option value="">Select Size</option>
+                          {SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Qty Name</label>
                         <select
-                          value={form.qtyName}
+                          value={form.qtyName || "BAGS"}
                           onChange={(e) => setValue("qtyName", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
                         >
-                          {QTY_TYPE_OPTIONS.map((q) => <option key={q} value={q}>{q}</option>)}
+                          {QTY_TYPE_OPTIONS.map(q => <option key={q} value={q}>{q}</option>)}
                         </select>
                       </div>
-                      
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Quantity No</label>
                         <input
                           type="number"
-                          value={form.qtyNo}
+                          value={form.qtyNo || ""}
                           onChange={(e) => setValue("qtyNo", Number(e.target.value))}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none text-[10px]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">1 Qty KGS</label>
-                        <input
-                          type="number"
-                          value={form.qtyKgs}
-                          onChange={(e) => setValue("qtyKgs", Number(e.target.value))}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none text-[10px]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">1 Empty KGS</label>
-                        <input
-                          type="number"
-                          value={form.emptyKgs}
-                          onChange={(e) => setValue("emptyKgs", Number(e.target.value))}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none text-[10px]"
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">1 Qty KGS</label>
+                        <input
+                          type="number"
+                          value={form.qtyKgs || ""}
+                          onChange={(e) => setValue("qtyKgs", Number(e.target.value))}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">1 Empty KGS</label>
+                        <input
+                          type="number"
+                          value={form.emptyKgs || ""}
+                          onChange={(e) => setValue("emptyKgs", Number(e.target.value))}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Divide Type</label>
                         <select
-                          value={form.divideType}
-                          onChange={handleDivideTypeChange}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          value={form.divideType || "D/KGs"}
+                          onChange={(e) => setValue("divideType", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
                         >
                           <option value="D/KGs">D/KGs</option>
-                          <option value="D/Ton">D/Ton</option>
-                          <option value="D/Bag">D/Bag</option>
+                          <option value="D/LBs">D/LBs</option>
                         </select>
                       </div>
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Divide Weight / Value</label>
                         <input
                           type="number"
-                          value={form.divideWeight}
+                          value={form.divideWeight || 1}
                           onChange={(e) => setValue("divideWeight", Number(e.target.value))}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Price Type</label>
                         <select
-                          value={form.priceType}
+                          value={form.priceType || "P/KGs"}
                           onChange={(e) => setValue("priceType", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
                         >
                           <option value="P/KGs">P/KGs</option>
-                          <option value="P/Ton">P/Ton</option>
-                          <option value="P/Bag">P/Bag</option>
+                          <option value="P/LBs">P/LBs</option>
                         </select>
                       </div>
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Price Rate (C1)</label>
                         <input
                           type="number"
-                          value={form.coursePrice}
+                          value={form.coursePrice || ""}
                           onChange={(e) => setValue("coursePrice", Number(e.target.value))}
-                          className="w-full bg-background border border-input rounded px-2 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
                         />
                       </div>
                     </div>
 
-                      </div>
-                      
-                      <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Quality Report Reference</label>
-                        <input
-                          type="text"
-                          value={form.qualityReport}
-                          onChange={(e) => setValue("qualityReport", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-3 py-1 text-foreground outline-none focus:border-primary text-[10px]"
-                          placeholder="Passed"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Right Side: Currency Box */}
                     <div>
-                      <div className="bg-emerald-500/5 p-3 rounded-lg border border-emerald-500/20 space-y-2 h-full">
-                      <span className="block text-[10px] font-black uppercase text-primary tracking-wider mb-2">Purchase Currency & Conversion</span>
-                      
-                      <div className="grid grid-cols-1 gap-3">
+                      <label className="block text-[10px] text-muted-foreground mb-1">Quality Report Reference</label>
+                      <input
+                        type="text"
+                        value={form.qualityReport || ""}
+                        onChange={(e) => setValue("qualityReport", e.target.value)}
+                        className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        placeholder="Passed"
+                      />
+                    </div>
+
+                    <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-3 rounded-lg border border-emerald-100 dark:border-emerald-900 mt-2">
+                      <h4 className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400 mb-2">Purchase Currency & Conversion</h4>
+                      <div>
+                        <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Pricing Currency</label>
+                        <select
+                          value={form.currencyType || "USD"}
+                          onChange={(e) => setValue("currencyType", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        >
+                          {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div className="mt-2">
+                        <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Exchange Rate to {form.purchaseCurrency || "AED"}</label>
+                        <input
+                          type="number"
+                          value={form.exchangeRate || 1}
+                          onChange={(e) => setValue("exchangeRate", Number(e.target.value))}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="pt-2 border-t border-border mt-2">
+                      <Button
+                        type="button"
+                        onClick={handleAddGoodsEntry}
+                        disabled={!form.goodsName || !form.qtyNo || !form.coursePrice}
+                        className="w-full font-bold h-8 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        Add Good
+                      </Button>
+                    </div>
+
+                    <div className="flex justify-between gap-2 pt-2 border-t border-border mt-2">
+                      <Button type="button" variant="outline" onClick={() => setActiveTab("booking")} className="font-bold text-[10px] h-8 px-6 text-slate-600">Back</Button>
+                      <Button type="button" onClick={() => setActiveTab("others")} className="font-bold text-[10px] h-8 px-6 bg-primary text-primary-foreground">Next</Button>
+                    </div>
+                  </div>
+                </fieldset>
+              )}
+
+              {activeTab === "others" && (
+                <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4 order-2 w-full mt-4 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="border-b border-border pb-2 mb-3">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+                      STEP 3: OTHER DETAILS
+                    </h3>
+                  </div>
+
+                  {/* Shipping & Loading */}
+                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-3 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1 mb-2">
+                      <h4 className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-200">Shipping & Loading Details</h4>
+                      <span className="text-[10px] font-bold text-primary uppercase bg-primary/10 px-2 py-0.5 rounded">
+                        Mode: {form.shippingMode || "Not Selected"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Loading Side */}
+                      <div className="space-y-3 p-3 border border-border rounded-lg bg-background">
                         <div>
-                          <label className="block text-[10px] text-muted-foreground mb-1">Pricing Currency</label>
-                          <select
-                            value={form.currencyType || ""}
-                            onChange={(e) => setValue("currencyType", e.target.value)}
-                            className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px] font-bold"
-                          >
-                            <option value="">Select</option>
-                            {["USD", "AED", "PKR", "INR", "AFN"].map((c) => <option key={c} value={c}>{c}</option>)}
-                          </select>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="block text-[10px] font-bold text-muted-foreground uppercase">Country Loading</label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewPortForm({ portName: "", countryName: form.loadingCountry || "", transportType: form.shippingMode?.toLowerCase().includes("air") ? "air" : form.shippingMode?.toLowerCase().includes("road") ? "road" : "sea", side: "loading" });
+                                setNewPortModal(true);
+                              }}
+                              className="text-[9px] text-primary hover:underline font-bold"
+                            >
+                              + New Port
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            list="transit-country-list"
+                            value={form.loadingCountry || ""}
+                            onChange={(e) => setValue("loadingCountry", e.target.value)}
+                            placeholder="Select or Type Country"
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          />
                         </div>
                         <div>
-                          <label className="block text-[10px] text-muted-foreground mb-1">Ledger Currency (Branch)*</label>
+                          <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase">Loading Port</label>
                           <input
-                            value={form.purchaseCurrency || ""}
-                            disabled
-                            className="w-full bg-muted/40 border border-input rounded px-2 py-1 text-emerald-700 dark:text-emerald-400 font-bold outline-none text-[10px]"
+                            type="text"
+                            list={`port-list-${form.loadingCountry?.replace(/[^a-zA-Z0-9]/g, '')}`}
+                            value={form.loadingPort || form.loadingBorder || form.airportName || ""}
+                            onChange={(e) => setValue("loadingPort", e.target.value)}
+                            placeholder="Select or Type Port"
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase">Loading Date</label>
+                          <input
+                            type="date"
+                            value={form.loadingDate || ""}
+                            onChange={(e) => setValue("loadingDate", e.target.value)}
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
                           />
                         </div>
                       </div>
 
-                      <div className="pt-1">
-                        <label className="block text-[10px] text-muted-foreground mb-1">Exchange Rate*</label>
+                      {/* Destination Side */}
+                      <div className="space-y-3 p-3 border border-border rounded-lg bg-background">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="block text-[10px] font-bold text-muted-foreground uppercase">Destination Country</label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewPortForm({ portName: "", countryName: form.receivedCountry || "", transportType: form.shippingMode?.toLowerCase().includes("air") ? "air" : form.shippingMode?.toLowerCase().includes("road") ? "road" : "sea", side: "received" });
+                                setNewPortModal(true);
+                              }}
+                              className="text-[9px] text-primary hover:underline font-bold"
+                            >
+                              + New Port
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            list="transit-country-list"
+                            value={form.receivedCountry || ""}
+                            onChange={(e) => setValue("receivedCountry", e.target.value)}
+                            placeholder="Select or Type Country"
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase">Destination Port</label>
+                          <input
+                            type="text"
+                            list={`port-list-${form.receivedCountry?.replace(/[^a-zA-Z0-9]/g, '')}`}
+                            value={form.receivedPort || form.receivedBorder || form.receivedPortName || ""}
+                            onChange={(e) => setValue("receivedPort", e.target.value)}
+                            placeholder="Select or Type Port"
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase">Expected Receive Date</label>
+                          <input
+                            type="date"
+                            value={form.receivedDate || ""}
+                            onChange={(e) => setValue("receivedDate", e.target.value)}
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Datalists for dropdown/autocomplete functionality */}
+                    <datalist id="transit-country-list">
+                      {transitCountryOptions.map(c => <option key={c.id} value={c.name} />)}
+                    </datalist>
+                    
+                    {/* Common Ports Datalists */}
+                    <datalist id="port-list-UnitedArabEmirates">
+                      <option value="Jebel Ali Port" />
+                      <option value="Port Rashid" />
+                      <option value="Zayed Port" />
+                      <option value="Khalifa Port" />
+                      <option value="Sharjah Port" />
+                      <option value="Khor Fakkan" />
+                    </datalist>
+                    <datalist id="port-list-Iran">
+                      <option value="Bandar Abbas" />
+                      <option value="Bandar Imam Khomeini" />
+                      <option value="Chabahar Port" />
+                      <option value="Bushehr Port" />
+                    </datalist>
+                    <datalist id="port-list-USA">
+                      <option value="Port of Los Angeles" />
+                      <option value="Port of Long Beach" />
+                      <option value="Port of New York" />
+                      <option value="Port of Houston" />
+                      <option value="Port of Savannah" />
+                    </datalist>
+                    <datalist id="port-list-Vietnam">
+                      <option value="Saigon Port" />
+                      <option value="Hai Phong Port" />
+                      <option value="Da Nang Port" />
+                      <option value="Quy Nhon Port" />
+                    </datalist>
+                    <datalist id="port-list-Pakistan">
+                      <option value="Karachi Port" />
+                      <option value="Port Qasim" />
+                      <option value="Gwadar Port" />
+                    </datalist>
+                    <datalist id="port-list-India">
+                      <option value="Nhava Sheva (JNPT)" />
+                      <option value="Mundra Port" />
+                      <option value="Chennai Port" />
+                      <option value="Kolkata Port" />
+                      <option value="Cochin Port" />
+                    </datalist>
+                  </div>
+
+                  {/* Transport & Containers */}
+                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-3 space-y-3">
+                    <h4 className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 pb-1 mb-2">Transport & Container Details</h4>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Container Count</label>
                         <input
                           type="number"
-                          step="0.0001"
-                          value={form.exchangeRate}
-                          onChange={(e) => setValue("exchangeRate", parseFloat(e.target.value) || 1)}
-                          className="w-full bg-background border border-input rounded px-2 py-1 text-foreground outline-none focus:border-primary text-[10px] font-bold"
+                          value={form.containerCount || 1}
+                          onChange={(e) => setValue("containerCount", Number(e.target.value))}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Container Size</label>
+                        <select
+                          value={form.containerSize || "40 FT"}
+                          onChange={(e) => setValue("containerSize", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        >
+                          {CONTAINER_TYPES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Vessel / Airline Name</label>
+                        <input
+                          type="text"
+                          value={form.vesselName || form.airlineName || ""}
+                          onChange={(e) => setValue("vesselName", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Transport Agent</label>
+                        <input
+                          type="text"
+                          value={form.transportAgent || ""}
+                          onChange={(e) => setValue("transportAgent", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Details */}
+                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-3 space-y-3">
+                    <h4 className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 pb-1 mb-2">Payment Conditions</h4>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Payment Type</label>
+                        <select
+                          value={form.paymentType || "Advance Payment"}
+                          onChange={(e) => setValue("paymentType", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        >
+                          {PAYMENT_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Advance Percent (%)</label>
+                        <input
+                          type="number"
+                          value={form.advancePercent || 10}
+                          onChange={(e) => setValue("advancePercent", Number(e.target.value))}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
                         />
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Advance Payment Date</label>
+                        <input
+                          type="date"
+                          value={form.advancePaymentDate || ""}
+                          onChange={(e) => setValue("advancePaymentDate", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">Final Payment Date</label>
+                        <input
+                          type="date"
+                          value={form.paymentDate || ""}
+                          onChange={(e) => setValue("paymentDate", e.target.value)}
+                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                        />
                       </div>
                     </div>
 
-                  <div className="pt-3 border-t border-border flex items-center justify-between gap-4">
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        onClick={handleAddGoodsEntry}
-                        disabled={isTransferred && !session?.scopes?.isSuperAdmin}
-                        className="font-black text-[10px] px-6 h-8 shadow bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        + Add to List
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          const keysToClear = ["goodsName", "size", "brand", "origin", "hsCode", "qtyNo", "qtyKgs", "emptyKgs", "divideWeight", "coursePrice", "qualityReport", "allotName"];
-                          keysToClear.forEach(k => setValue(k, ""));
-                        }}
-                        className="font-bold text-[10px] px-4 h-8"
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setActiveTab("booking")}
-                        className="font-bold text-[10px] px-6 h-8"
-                      >
-                        Back
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={() => setActiveTab("others")}
-                        className="font-bold text-[10px] px-6 h-8 bg-primary text-primary-foreground"
-                      >
-                        Next
-                      </Button>
+                    <div>
+                      <label className="block text-[10px] text-muted-foreground mb-1">Remarks & Narration</label>
+                      <textarea
+                        value={form.remarks || ""}
+                        onChange={(e) => setValue("remarks", e.target.value)}
+                        className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] h-16 resize-none"
+                        placeholder="Add any remarks or narration here..."
+                      />
                     </div>
                   </div>
 
-
+                  <div className="flex justify-between gap-2 pt-2 border-t border-border mt-2">
+                    <Button type="button" variant="outline" onClick={() => setActiveTab("goods")} className="font-bold text-[10px] h-8 px-6 text-slate-600">Back</Button>
+                    <Button type="button" onClick={() => setActiveTab("reports_tab")} className="font-bold text-[10px] h-8 px-6 bg-primary text-primary-foreground">Next</Button>
+                  </div>
                 </fieldset>
               )}
 
-              {/* TAB 3: DETAILS (OTHERS) */}
-              {activeTab === "others" && (
-                <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-4 order-2 w-full mt-4">
-                  <div className="border-b border-border pb-2 mb-3">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-foreground">Details & Reports</h3>
-                    <p className="text-[10px] text-muted-foreground">Secondary details and database submission</p>
-                  </div>
-
-                  <div className="space-y-3">
-                    {/* Payment Details & reactive calculations */}
-                    <div className="bg-muted/40 p-3 rounded-lg border border-border space-y-3 mb-3">
-                      <div className="flex justify-between items-center border-b border-border/60 pb-1.5">
-                        <span className="text-[10px] font-black uppercase text-primary tracking-wider">Payment Terms Info</span>
-                        <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">{form.paymentType}</span>
-                      </div>
-
-                      {form.paymentType === "Advance Payment" ? (
-                        <div className="space-y-3">
-                          {/* Single Advance Percentage Selector */}
-                          <div className="bg-background/80 border border-border/60 rounded-lg p-2.5 space-y-2">
-                            <label className="block text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
-                              Advance Payment Percentage (%)
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="range"
-                                min="0"
-                                max="100"
-                                value={form.advancePercent || 0}
-                                onChange={(e) => setValue("advancePercent", Number(e.target.value))}
-                                className="flex-1 h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                              />
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={form.advancePercent || 0}
-                                onChange={(e) => setValue("advancePercent", Math.min(100, Math.max(0, Number(e.target.value))))}
-                                className="w-10 bg-background border border-input rounded px-1 py-0.5 text-center text-[10px] font-bold font-mono"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Mandatory Advance Date Input & Payment Date Input */}
-                          <div className="grid grid-cols-2 gap-2.5">
-                            <div>
-                              <label className="block text-[9px] text-primary font-black uppercase tracking-wider mb-0.5">
-                                Advance Date*
-                              </label>
-                              <input
-                                type="date"
-                                value={form.advancePaymentDate || ""}
-                                onChange={(e) => setValue("advancePaymentDate", e.target.value)}
-                                className="w-full bg-background border border-primary/40 focus:border-primary rounded px-2 py-1 text-foreground text-[10px] outline-none font-mono"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">
-                                Payment Date
-                              </label>
-                              <input
-                                type="date"
-                                value={form.paymentDate || ""}
-                                onChange={(e) => setValue("paymentDate", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none font-mono"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Days / Mode / Method Report Details */}
-                          <div>
-                            <label className="block text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">
-                              Days & Method Details (Schedule Report)
-                            </label>
-                            <textarea
-                              rows={2}
-                              value={form.paymentDaysAndMethodDetails || ""}
-                              onChange={(e) => setValue("paymentDaysAndMethodDetails", e.target.value)}
-                              className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none resize-none"
-                              placeholder="e.g. Pay within 7 days via wire transfer..."
-                            />
-                          </div>
-
-                          {/* Calculations under the single percentage */}
-                          <div className="grid grid-cols-1 gap-2.5 pt-1.5 border-t border-border/40">
-                            {/* Purchase Side */}
-                            <div className="border border-border/60 rounded-lg p-2.5 bg-background/50 space-y-1.5">
-                              <span className="block text-[8px] font-black uppercase text-primary/85 tracking-wider">
-                                Purchase Currency ({form.purchaseCurrency || form.currencyType || "-"})
-                              </span>
-                              <div className="grid grid-cols-3 gap-1 text-[9px] leading-tight text-center font-medium">
-                                <div>
-                                  <span className="text-muted-foreground block text-[7px] uppercase">Total</span>
-                                  <strong className="text-foreground block font-mono">
-                                    {currencySymbol(form.purchaseCurrency || form.currencyType)}
-                                    {(reportTotals.grandFinal / Number(form.exchangeRate || 1)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span className="text-primary block text-[7px] uppercase font-bold">Advance Paid</span>
-                                  <strong className="text-primary block font-mono font-bold">
-                                    {currencySymbol(form.purchaseCurrency || form.currencyType)}
-                                    {(((reportTotals.grandFinal / Number(form.exchangeRate || 1)) * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground block text-[7px] uppercase">Remaining</span>
-                                  <strong className="text-foreground block font-mono">
-                                    {currencySymbol(form.purchaseCurrency || form.currencyType)}
-                                    {((reportTotals.grandFinal / Number(form.exchangeRate || 1)) * (1 - (form.advancePercent || 0) / 100)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </strong>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Sales Side */}
-                            <div className="border border-border/60 rounded-lg p-2.5 bg-background/50 space-y-1.5">
-                              <span className="block text-[8px] font-black uppercase text-emerald-600 dark:text-emerald-500 tracking-wider">
-                                Final Exchanged Currency ({form.salesAccountCurrency || "PKR"})
-                              </span>
-                              <div className="grid grid-cols-3 gap-1 text-[9px] leading-tight text-center font-medium">
-                                <div>
-                                  <span className="text-muted-foreground block text-[7px] uppercase">Total</span>
-                                  <strong className="text-foreground block font-mono">
-                                    {currencySymbol(form.salesAccountCurrency || goodsEntries[0]?.secondaryCurrency || form.secondaryCurrency)}
-                                    {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span className="text-emerald-600 dark:text-emerald-500 block text-[7px] uppercase font-bold">Advance Recd</span>
-                                  <strong className="text-emerald-600 dark:text-emerald-400 block font-mono font-bold">
-                                    {currencySymbol(form.salesAccountCurrency || goodsEntries[0]?.secondaryCurrency || form.secondaryCurrency)}
-                                    {((reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground block text-[7px] uppercase">Remaining</span>
-                                  <strong className="text-foreground block font-mono">
-                                    {currencySymbol(form.salesAccountCurrency || goodsEntries[0]?.secondaryCurrency || form.secondaryCurrency)}
-                                    {(reportTotals.grandFinal - (reportTotals.grandFinal * (form.advancePercent || 0)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </strong>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="pt-3 border-t border-border/40">
-                            <Button
-                              type="button"
-                              onClick={() => setShowTransferScreen(true)}
-                              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] h-8 uppercase tracking-wider"
-                            >
-                              Open Purchase Transfer Payment Screen
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-muted-foreground italic py-1">
-                          No advance calculations configured for this payment condition ({form.paymentType}).
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Dynamic Loading Details */}
-                    <div className="bg-muted/40 p-3 rounded-lg border border-border space-y-3 mb-3">
-                      <div className="flex justify-between items-center border-b border-border/60 pb-1.5">
-                        <span className="text-[10px] font-black uppercase text-primary tracking-wider">Loading & Transit Rules</span>
-                        <span className="text-[9px] bg-indigo-500/10 text-indigo-600 px-1.5 py-0.5 rounded font-bold font-mono">{form.shippingMode}</span>
-                      </div>
-
-                      {form.shippingMode === "By Sea" && (
-                        <div className="space-y-2 text-[10px]">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
-                              <SearchableSelect
-                                value={form.loadingCountry || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    setNewCountryModal(true);
-                                    return;
-                                  }
-                                  setValue("loadingCountry", val);
-                                }}
-                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
-                                placeholder="Select Country"
-                                addOptionLabel="Add New Country..."
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Port</label>
-                              <SearchableSelect
-                                value={form.loadingPort || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    if (!form.loadingCountry) {
-                                      alert("Please select Loading Country first.");
-                                      return;
-                                    }
-                                    setNewPortForm({
-                                      portName: "",
-                                      countryName: form.loadingCountry,
-                                      transportType: "sea",
-                                      side: "loading"
-                                    });
-                                    setNewPortModal(true);
-                                    return;
-                                  }
-                                  setValue("loadingPort", val);
-                                }}
-                                options={seaLoadingPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
-                                placeholder="Select Port"
-                                addOptionLabel={form.loadingCountry ? "Add New Port..." : undefined}
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Date</label>
-                              <input
-                                type="date"
-                                value={form.loadingDate || ""}
-                                onChange={(e) => setValue("loadingDate", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
-                              <SearchableSelect
-                                value={form.receivedCountry || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    setNewCountryModal(true);
-                                    return;
-                                  }
-                                  setValue("receivedCountry", val);
-                                }}
-                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
-                                placeholder="Select Country"
-                                addOptionLabel="Add New Country..."
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Port</label>
-                              <SearchableSelect
-                                value={form.receivedPort || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    if (!form.receivedCountry) {
-                                      alert("Please select Received Country first.");
-                                      return;
-                                    }
-                                    setNewPortForm({
-                                      portName: "",
-                                      countryName: form.receivedCountry,
-                                      transportType: "sea",
-                                      side: "received"
-                                    });
-                                    setNewPortModal(true);
-                                    return;
-                                  }
-                                  setValue("receivedPort", val);
-                                }}
-                                options={seaReceivedPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
-                                placeholder="Select Port"
-                                addOptionLabel={form.receivedCountry ? "Add New Port..." : undefined}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Date</label>
-                              <input
-                                type="date"
-                                value={form.receivedDate || ""}
-                                onChange={(e) => setValue("receivedDate", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2 border-t border-border/40 pt-2 mt-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Container Size</label>
-                              <select
-                                value={form.containerSize || "40 FT"}
-                                onChange={(e) => setValue("containerSize", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              >
-                                {CONTAINER_TYPES.map(ct => (
-                                  <option key={ct} value={ct}>{ct}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Container Name / Number(s)</label>
-                              <input
-                                type="text"
-                                value={form.containerNumbers || ""}
-                                onChange={(e) => setValue("containerNumbers", e.target.value)}
-                                placeholder="e.g. CONT-001"
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.shippingMode === "By Road" && (
-                        <div className="space-y-2 text-[10px]">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
-                              <SearchableSelect
-                                value={form.loadingCountry || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    setNewCountryModal(true);
-                                    return;
-                                  }
-                                  setValue("loadingCountry", val);
-                                }}
-                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
-                                placeholder="Select Country"
-                                addOptionLabel="Add New Country..."
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Border</label>
-                              <SearchableSelect
-                                value={form.loadingBorder || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    if (!form.loadingCountry) {
-                                      alert("Please select Loading Country first.");
-                                      return;
-                                    }
-                                    setNewPortForm({
-                                      portName: "",
-                                      countryName: form.loadingCountry,
-                                      transportType: "road",
-                                      side: "loading"
-                                    });
-                                    setNewPortModal(true);
-                                    return;
-                                  }
-                                  setValue("loadingBorder", val);
-                                }}
-                                options={roadLoadingPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
-                                placeholder="Select Border"
-                                addOptionLabel={form.loadingCountry ? "Add New Border..." : undefined}
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Date</label>
-                              <input
-                                type="date"
-                                value={form.loadingDate || ""}
-                                onChange={(e) => setValue("loadingDate", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
-                              <SearchableSelect
-                                value={form.receivedCountry || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    setNewCountryModal(true);
-                                    return;
-                                  }
-                                  setValue("receivedCountry", val);
-                                }}
-                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
-                                placeholder="Select Country"
-                                addOptionLabel="Add New Country..."
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Border</label>
-                              <SearchableSelect
-                                value={form.receivedBorder || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    if (!form.receivedCountry) {
-                                      alert("Please select Received Country first.");
-                                      return;
-                                    }
-                                    setNewPortForm({
-                                      portName: "",
-                                      countryName: form.receivedCountry,
-                                      transportType: "road",
-                                      side: "received"
-                                    });
-                                    setNewPortModal(true);
-                                    return;
-                                  }
-                                  setValue("receivedBorder", val);
-                                }}
-                                options={roadReceivedPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
-                                placeholder="Select Border"
-                                addOptionLabel={form.receivedCountry ? "Add New Border..." : undefined}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Date</label>
-                              <input
-                                type="date"
-                                value={form.receivedDate || ""}
-                                onChange={(e) => setValue("receivedDate", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.shippingMode === "By Air" && (
-                        <div className="space-y-2 text-[10px]">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Country</label>
-                              <SearchableSelect
-                                value={form.loadingCountry || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    setNewCountryModal(true);
-                                    return;
-                                  }
-                                  setValue("loadingCountry", val);
-                                }}
-                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
-                                placeholder="Select Country"
-                                addOptionLabel="Add New Country..."
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Airport Name</label>
-                              <SearchableSelect
-                                value={form.airportName || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    if (!form.loadingCountry) {
-                                      alert("Please select Loading Country first.");
-                                      return;
-                                    }
-                                    setNewPortForm({
-                                      portName: "",
-                                      countryName: form.loadingCountry,
-                                      transportType: "air",
-                                      side: "loading"
-                                    });
-                                    setNewPortModal(true);
-                                    return;
-                                  }
-                                  setValue("airportName", val);
-                                }}
-                                options={airLoadingPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
-                                placeholder="Select Airport"
-                                addOptionLabel={form.loadingCountry ? "Add New Airport..." : undefined}
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Airline Name</label>
-                              <input
-                                type="text"
-                                value={form.airlineName || ""}
-                                onChange={(e) => setValue("airlineName", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                                placeholder="e.g. Emirates"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Loading Date</label>
-                              <input
-                                type="date"
-                                value={form.loadingDate || ""}
-                                onChange={(e) => setValue("loadingDate", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Country</label>
-                              <SearchableSelect
-                                value={form.receivedCountry || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    setNewCountryModal(true);
-                                    return;
-                                  }
-                                  setValue("receivedCountry", val);
-                                }}
-                                options={transitCountryOptions.map((c) => ({ label: c.name, value: c.name }))}
-                                placeholder="Select Country"
-                                addOptionLabel="Add New Country..."
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Airport Name</label>
-                              <SearchableSelect
-                                value={form.receivedPortName || ""}
-                                onChange={(val) => {
-                                  if (val === "__ADD_NEW__") {
-                                    if (!form.receivedCountry) {
-                                      alert("Please select Received Country first.");
-                                      return;
-                                    }
-                                    setNewPortForm({
-                                      portName: "",
-                                      countryName: form.receivedCountry,
-                                      transportType: "air",
-                                      side: "received"
-                                    });
-                                    setNewPortModal(true);
-                                    return;
-                                  }
-                                  setValue("receivedPortName", val);
-                                }}
-                                options={airReceivedPorts.map((p) => ({ label: p.port_name, value: p.port_name }))}
-                                placeholder="Select Airport"
-                                addOptionLabel={form.receivedCountry ? "Add New Airport..." : undefined}
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Received Agent / Transporter Name</label>
-                              <input
-                                type="text"
-                                value={form.receivedAgentName || ""}
-                                onChange={(e) => setValue("receivedAgentName", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                                placeholder="e.g. DHL Air Express"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] text-muted-foreground mb-0.5">Carrier / Agent Name</label>
-                              <input
-                                type="text"
-                                value={form.transportAgent || ""}
-                                onChange={(e) => setValue("transportAgent", e.target.value)}
-                                className="w-full bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none"
-                                placeholder="e.g. DHL Air Express"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                  </div>
-
-                  <div className="pt-3 border-t border-border flex flex-col gap-1.5">
-                    <Button
-                      type="button"
-                      onClick={() => setActiveTab("reports_tab")}
-                      className="w-full font-bold h-7.5 text-[10px] py-1 shadow uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Next Step (Reports)
-                    </Button>
-                    <div className="flex gap-1.5">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setActiveTab("goods")}
-                        className="flex-1 font-bold h-7.5 text-[10px] py-1"
-                      >
-                        Back
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleReset}
-                        className="flex-1 font-bold h-7.5 text-[10px] py-1 uppercase"
-                      >
-                        + Add New
-                      </Button>
+              {activeTab === "reports_tab" && (
+                <div className="space-y-4 order-2 w-full mt-4 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center space-y-3">
+                    <h3 className="text-[11px] font-black uppercase text-slate-800">
+                      Step 4: Review Reports
+                    </h3>
+                    <p className="text-[9px] text-slate-500 font-semibold">
+                      Review all generated reports and notes before final verification.
+                    </p>
+                    <div className="flex justify-between gap-2 pt-2 border-t border-slate-200 mt-2">
+                      <Button type="button" variant="outline" onClick={() => setActiveTab("others")} className="font-bold text-[10px] h-8 px-6 text-slate-600">Back</Button>
+                      <Button type="button" onClick={() => setActiveTab("report")} className="font-bold text-[10px] h-8 px-6 bg-primary text-primary-foreground">Next</Button>
                     </div>
                   </div>
-                </fieldset>
-              )}              {/* activeTab === "reports_tab" removed from inside main column */}
-          {/* Feedback messages */}
-          {saveMessage && (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 p-3 font-bold flex gap-2 items-center text-[10px]">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              <span>{saveMessage}</span>
-            </div>
-          )}
-
-          {accountLookupMessage && (
-            <div className="rounded-lg border border-border bg-muted/40 text-muted-foreground p-3 text-[10px] leading-relaxed">
-              {accountLookupMessage}
-            </div>
-          )}
+                </div>
+              )}
             </main>
           </div>
-            )
-          )}
+        )
+      )}
 
-        {activeTab === "report" && (
-          <div className="order-3 w-full animate-in fade-in duration-500 relative flex flex-col items-center pb-20">
-            
-            {/* Custom Verification Screen Header Removed (Buttons moved to global header) */}
-
-            {/* A4 Report Wrapper */}
-            <div className={`flex-1 flex flex-col items-center transition-all duration-300 pr-[400px]`}>
-              
-              {/* Report Controls (Hidden in Print) */}
-              <div className="w-full max-w-[850px] mb-4 flex items-center justify-between bg-white p-3 rounded shadow-sm border border-slate-200 print:hidden">
-                <div className="flex items-center gap-3">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Report Type:</label>
-                  <select 
-                    value={previewType}
-                    onChange={(e) => setPreviewType(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded focus:ring-blue-500 focus:border-blue-500 block p-2 font-semibold"
-                  >
-                    <option value="booking_report">Booking Report</option>
-                    <option value="contract">Purchase Contract</option>
-                    <option value="invoice">Proforma Invoice</option>
-                  </select>
-                </div>
-                {/* Print Report button removed as per user request to avoid duplicate */}
-              </div>
-
-              <div className="bg-white text-slate-900 w-full max-w-[850px] shadow-2xl border border-slate-200 p-8 sm:p-12 relative print:shadow-none print:border-none print:p-0">
-                
-                {/* Header */}
-                <div className="flex items-center gap-4 mb-4 border-b-2 border-slate-900 pb-4">
-                  <div className="h-12 w-12 rounded-full border border-slate-300 flex items-center justify-center bg-slate-50 shrink-0">
-                    <Globe2 className="h-7 w-7 text-blue-900" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Demi Trading Co.</h1>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Global Trade, Trusted Partner</p>
-                  </div>
-                </div>
-
-                {/* Dark Blue Title Bar */}
-                <div className="bg-[#0f172a] text-white flex justify-between items-center px-4 py-2 mb-6">
-                  <div className="text-[9px] text-slate-300 font-mono">Report No: PTVR-20250617-799430</div>
-                  <h2 className="text-xs font-black uppercase tracking-[0.1em]">
-                    {previewType === "contract" ? "Purchase Contract" : previewType === "invoice" ? "Proforma Invoice" : "Purchase Transfer Verification Report"}
-                  </h2>
-                  <div className="flex gap-4 text-[9px] text-slate-300 font-mono">
-                    <span>Report Date: 17/06/2025</span>
-                    <span>Time: 11:30 AM</span>
-                  </div>
-                </div>
-
-                {/* Status & Checklist */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="col-span-1 border border-emerald-500 bg-emerald-50/50 p-3 rounded flex flex-col justify-center">
-                    <span className="text-[9px] font-bold text-emerald-700 uppercase mb-1">Transfer Status</span>
-                    <div className="flex items-center gap-1.5 text-emerald-600">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <strong className="text-[11px] uppercase tracking-wide">Approved & Ready for Transfer</strong>
-                    </div>
-                  </div>
-                  <div className="col-span-2 border border-slate-200 p-3 rounded">
-                    <span className="text-[9px] font-bold text-slate-600 uppercase mb-2 block border-b border-slate-100 pb-1">Transfer Check List (All Validations Passed)</span>
-                    <div className="grid grid-cols-2 gap-y-1.5 text-[9px] text-slate-700 font-semibold">
-                      <div className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-500" /> Accounts Ledger Linked & Balance Available</div>
-                      <div className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-500" /> Supplier Purchase Account is Credit Account 16</div>
-                      <div className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-500" /> Goods Details Valid</div>
-                      <div className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-500" /> L/C / Advance / Payment Pending Amount</div>
-                      <div className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-500" /> Stock Availability (Current & Incoming Container)</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Info Blocks */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div className="border border-slate-200 rounded p-3">
-                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
-                      <FileText className="h-3.5 w-3.5 text-slate-500" />
-                      <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Booking Information</span>
-                    </div>
-                    <div className="space-y-1.5 text-[9px]">
-                      <div className="flex justify-between"><span className="text-slate-500">Booking Reference:</span> <span className="font-semibold text-slate-900 font-mono">{form.purchaseOrderNo}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Purchase Date:</span> <span className="font-semibold text-slate-900">{form.purchaseDate}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Booking Date:</span> <span className="font-semibold text-slate-900">{form.purchaseDate}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Booking User:</span> <span className="font-semibold text-slate-900 uppercase">ADMIN</span></div>
-                    </div>
-                  </div>
-
-                  <div className="border border-slate-200 rounded p-3">
-                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
-                      <User className="h-3.5 w-3.5 text-slate-500" />
-                      <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Purchaser & Supplier (DR)</span>
-                    </div>
-                    <div className="space-y-1.5 text-[9px]">
-                      <div className="flex justify-between"><span className="text-slate-500">Supplier Name:</span> <span className="font-semibold text-slate-900 truncate max-w-[150px]">{form.purchaseAccountName || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Contact / Phone:</span> <span className="font-semibold text-slate-900">{form.purchaseAccountMobile || form.purchaseAccountWhatsapp || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Account No:</span> <span className="font-semibold text-slate-900 font-mono">{form.purchaseAccountNo || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span> <span className="font-semibold text-slate-900">{form.purchaseAccountBranch || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Country:</span> <span className="font-semibold text-slate-900">{form.origin || "N/A"}</span></div>
-                    </div>
-                  </div>
-
-                  <div className="border border-slate-200 rounded p-3">
-                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
-                      <Building2 className="h-3.5 w-3.5 text-slate-500" />
-                      <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Sales & Customer (CR)</span>
-                    </div>
-                    <div className="space-y-1.5 text-[9px]">
-                      <div className="flex justify-between"><span className="text-slate-500">Customer Name:</span> <span className="font-semibold text-slate-900 truncate max-w-[150px]">{form.salesAccountName || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Contact / Phone:</span> <span className="font-semibold text-slate-900">{form.salesAccountMobile || form.salesAccountWhatsapp || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Account No:</span> <span className="font-semibold text-slate-900 font-mono">{form.salesAccountNo || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span> <span className="font-semibold text-slate-900">{form.salesAccountBranch || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Country:</span> <span className="font-semibold text-slate-900">{form.branchCountry || "N/A"}</span></div>
-                    </div>
-                  </div>
-
-                  <div className="border border-slate-200 rounded p-3">
-                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
-                      <Ship className="h-3.5 w-3.5 text-slate-500" />
-                      <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Logistics & Loading</span>
-                    </div>
-                    <div className="space-y-1.5 text-[9px]">
-                      <div className="flex justify-between"><span className="text-slate-500">Transport:</span> <span className="font-semibold text-slate-900 uppercase">{form.transportType || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Loading Point:</span> <span className="font-semibold text-slate-900">{form.loadingPort || form.loadingBorder || form.airportName || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Discharge Point:</span> <span className="font-semibold text-slate-900">{form.receivedPort || form.receivedBorder || form.receivedPortName || "N/A"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Vessel/Containers:</span> <span className="font-semibold text-slate-900 truncate max-w-[150px]">{form.vesselName ? `${form.vesselName} (${form.containerCount}x${form.containerSize})` : "N/A"}</span></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Goods Details */}
-                <div className="mb-6">
-                  <div className="bg-[#0f172a] text-white px-3 py-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider mb-2">
-                    <Package className="h-3.5 w-3.5 text-slate-300" /> Goods Details
-                  </div>
-                  <table className="w-full text-[9px] border-collapse mb-2">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-500 border-y border-slate-200 uppercase">
-                        <th className="py-2 px-2 text-center w-8">SR.</th>
-                        <th className="py-2 px-2 text-left">Goods Name</th>
-                        <th className="py-2 px-2 text-center">Brand</th>
-                        <th className="py-2 px-2 text-center">Size</th>
-                        <th className="py-2 px-2 text-center">Origin</th>
-                        <th className="py-2 px-2 text-right">Qty (Box)</th>
-                        <th className="py-2 px-2 text-right">Qty (KGs)</th>
-                        <th className="py-2 px-2 text-right">Gross Wt</th>
-                        <th className="py-2 px-2 text-right text-emerald-700 font-bold">Net Wt</th>
-                        <th className="py-2 px-2 text-right">Rate / KG</th>
-                        <th className="py-2 px-2 text-right">Amount ({form.currencyType || "USD"})</th>
-                        <th className="py-2 px-2 text-center">Ex. Rate</th>
-                        <th className="py-2 px-2 text-right text-emerald-700 font-bold">Final ({form.purchaseCurrency})</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                      {goodsEntries.map((g, i) => (
-                        <tr key={i}>
-                          <td className="py-2 px-2 text-center">{i + 1}</td>
-                          <td className="py-2 px-2 text-slate-900 font-bold">{g.goodsName}</td>
-                          <td className="py-2 px-2 text-center">{g.brand}</td>
-                          <td className="py-2 px-2 text-center">{g.size}</td>
-                          <td className="py-2 px-2 text-center">{g.origin}</td>
-                          <td className="py-2 px-2 text-right font-mono">{g.qtyNo} {g.qtyName}</td>
-                          <td className="py-2 px-2 text-right font-mono">{g.qtyKgs} KG</td>
-                          <td className="py-2 px-2 text-right font-mono">{(g.grossWeight || 0).toLocaleString("en-US")} KG</td>
-                          <td className="py-2 px-2 text-right font-mono text-emerald-700 font-bold">{(g.netWeight || 0).toLocaleString("en-US")} KG</td>
-                          <td className="py-2 px-2 text-right font-mono">{g.coursePrice.toFixed(2)}</td>
-                          <td className="py-2 px-2 text-right font-mono">{(g.totalAmount || 0).toLocaleString("en-US")}</td>
-                          <td className="py-2 px-2 text-center font-mono">{g.exchangeRate}</td>
-                          <td className="py-2 px-2 text-right font-mono text-emerald-700 font-bold">{(g.finalAmount || 0).toLocaleString("en-US")}</td>
-                        </tr>
-                      ))}
-                      {goodsEntries.length === 0 && (
-                        <tr>
-                          <td colSpan={13} className="py-4 text-center text-slate-400 italic">No goods added yet.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-slate-200 bg-slate-50 text-[10px]">
-                        <td colSpan={5} className="py-2 px-2 text-right text-slate-500 font-bold uppercase">Totals:</td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">{reportTotals.totalQty} {goodsEntries[0]?.qtyName || "BOXES"}</td>
-                        <td className="py-2 px-2"></td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">{(reportTotals?.totalGross || 0).toLocaleString("en-US")} KG</td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{(reportTotals?.totalNet || 0).toLocaleString("en-US")} KG</td>
-                        <td className="py-2 px-2"></td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-blue-700">{(reportTotals?.grandPrimaryFinal || 0).toLocaleString("en-US")}</td>
-                        <td className="py-2 px-2"></td>
-                        <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{form.purchaseCurrency} {(reportTotals?.grandFinal || 0).toLocaleString("en-US")}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                  </div>
-
-                  {/* Payment & Accounting Info Grid */}
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="border border-slate-200 rounded p-3">
-                      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
-                        <FileText className="h-3.5 w-3.5 text-slate-500" />
-                        <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Payment Information</span>
-                      </div>
-                      <div className="space-y-1.5 text-[9px]">
-                        <div className="flex justify-between"><span className="text-slate-500">Payment Term:</span> <span className="font-semibold text-slate-900">{form.paymentType || "Advance Payment"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Advance Percent / Date:</span> <span className="font-semibold text-slate-900">{form.advancePercent}% / {form.advancePaymentDate}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Advance Amount:</span> <span className="font-semibold text-slate-900">{form.purchaseCurrency} {((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100).toLocaleString("en-US")}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Remaining Balance / Date:</span> <span className="font-semibold text-slate-900">{100 - (form.advancePercent || 0)}% / {form.paymentDate}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Remaining Amount:</span> <span className="font-semibold text-rose-600">{form.purchaseCurrency} {((reportTotals?.grandFinal || 0) - ((reportTotals?.grandFinal || 0) * (form.advancePercent || 0) / 100)).toLocaleString("en-US")}</span></div>
-                        <div className="flex justify-between items-center"><span className="text-slate-500">Payment Status:</span> <span className="bg-rose-500 text-white text-[8px] px-1.5 py-0.5 rounded font-black uppercase">PENDING</span></div>
-                      </div>
-                    </div>
-                    <div className="border border-slate-200 rounded p-3">
-                      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
-                        <FileText className="h-3.5 w-3.5 text-slate-500" />
-                        <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Accounting Information</span>
-                      </div>
-                      <div className="space-y-1.5 text-[9px]">
-                        <div className="flex justify-between"><span className="text-slate-500">Journal Entry Number:</span> <span className="font-semibold text-slate-900">Pending Posting</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Debit Account (Purchase):</span> <span className="font-semibold text-slate-900 truncate max-w-[120px]" title={form.purchaseAccountNo}>{form.purchaseAccountNo || "N/A"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Debit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString("en-US")} {form.purchaseCurrency}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Credit Account (Sales):</span> <span className="font-semibold text-slate-900 truncate max-w-[120px]" title={form.salesAccountNo}>{form.salesAccountNo || "N/A"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Credit Amount:</span> <span className="font-semibold text-slate-900">{(reportTotals?.grandFinal || 0).toLocaleString("en-US")} {form.purchaseCurrency}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Total Quantity:</span> <span className="font-semibold text-slate-900">{reportTotals?.totalQty || 0} {goodsEntries[0]?.qtyName || "BOXES"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Net Weight:</span> <span className="font-semibold text-slate-900">{(reportTotals?.totalNet || 0).toLocaleString("en-US")} Kg</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Gross Weight:</span> <span className="font-semibold text-slate-900">{(reportTotals?.totalGross || 0).toLocaleString("en-US")} Kg</span></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Remarks / Notes */}
-                  <div className="mb-8">
-                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1.5 mb-2">
-                      <FileText className="h-3.5 w-3.5 text-slate-500" />
-                      <span className="text-[9px] font-bold text-slate-700 uppercase tracking-wider">Remarks / Notes</span>
-                    </div>
-                    <div className="space-y-4 text-[9px]">
-                      <div>
-                        <span className="text-slate-500 block mb-1">User Remarks (Report):</span>
-                        <p className="font-semibold text-slate-900 whitespace-pre-wrap">{form.orderReportRemarks || "No remarks provided."}</p>
-                      </div>
-                      {reportsList.length > 0 && (
-                        <div className="space-y-3 pt-2 border-t border-dashed border-slate-200">
-                          <span className="text-slate-500 block mb-1 font-bold">Verification Notes / Saved Reports:</span>
-                          {reportsList.map((report, idx) => (
-                            <div key={report.id} className="border border-slate-200 rounded p-3 bg-slate-50">
-                              <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
-                                <span className="font-bold text-slate-800 text-[10px]">Note #{idx + 1}: {report.name}</span>
-                                <span className="text-slate-500 font-mono">{formatShortDate(report.createdAt)}</span>
-                              </div>
-                              <p className="font-semibold text-slate-900 whitespace-pre-wrap">{report.description}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-slate-500 block mb-1 border-t border-slate-200 pt-2 mt-2">System Notes:</span>
-                        <p className="font-semibold text-slate-900">Goods & accounts verified. Ready to transfer.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Footer Signatures */}
-                  <div className="flex justify-between items-end mt-12 pt-4 border-t border-slate-200 text-[9px] text-slate-500">
-                    <div>
-                      This is a system generated print out of Demi Trading Co. accounting ledger.<br/>
-                      Double-entry transaction posting has been validated.
-                    </div>
-                    <div className="text-center">
-                      <div className="border-b border-slate-400 w-32 mb-1"></div>
-                      Prepared By<br/><strong className="text-slate-900 uppercase">{form.userName || "ADMIN"}</strong>
-                    </div>
-                    <div className="text-center">
-                      <div className="border-b border-slate-400 w-32 mb-1"></div>
-                      Authorized By<br/><strong className="text-slate-900 uppercase">Branch Manager</strong>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            
-            {/* VERIFICATION DETAILS SIDEBAR */}
-            <div className="absolute right-0 top-0 bottom-0 w-[450px] bg-white border-l border-slate-200 shadow-2xl z-40 flex flex-col animate-in slide-in-from-right duration-300">
-              <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur">
-                <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-blue-600" /> Verification Details</h3>
-                <div className="relative group">
-                  <button className="p-1 hover:bg-slate-200 rounded text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 shadow-xl rounded py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 origin-top-right">
-                    <button type="button" onClick={() => setIsNewReportModalOpen(true)} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-[10px] font-bold text-slate-700 flex items-center gap-2 transition-colors">
-                      <FileText className="h-3.5 w-3.5" /> Add Report
-                    </button>
-                    <button type="button" onClick={() => handleSavePurchaseOrder(false)} disabled={savingOrder} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-[10px] font-bold text-emerald-600 flex items-center gap-2 transition-colors disabled:opacity-50">
-                      <Save className="h-3.5 w-3.5" /> Save Report
-                    </button>
-                    <button type="button" onClick={() => setTransferConfirmModal(true)} disabled={savingOrder} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-[10px] font-bold text-blue-600 flex items-center gap-2 transition-colors disabled:opacity-50">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Post Transfer
-                    </button>
-                  </div>
-                </div>
-              </div>
+      {activeTab === "report" && (
               <div className="flex-1 overflow-y-auto p-4 space-y-5">
 
                   {/* Transfer / Journal Status Block */}
@@ -4908,7 +4146,7 @@ export function PurchaseOrderWizard({ session }) {
                       <p className="text-[9px] text-emerald-700 font-semibold mb-3 leading-relaxed">
                         This bill has been automatically transferred and posted to the business journal (Roznamcha). All associated ledger accounts have been updated.
                       </p>
-                      
+
                       <div className="space-y-1.5 text-[9px] font-mono bg-white/60 p-2 rounded border border-emerald-100/50">
                         <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">General Serial No:</span> <span className="font-bold text-emerald-900">{form.generalSerialNumber || `GSN-${new Date().getFullYear()}-0001`}</span></div>
                         <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Roznamcha (Journal) No:</span> <span className="font-bold text-emerald-900">{form.journalNumber || `JRN-${new Date().getFullYear()}-8821`}</span></div>
@@ -4944,7 +4182,7 @@ export function PurchaseOrderWizard({ session }) {
                           <span>Currency: <strong className="text-slate-700">{form.purchaseCurrency || form.purchaseAccountCurrency || "-"}</strong></span>
                           <span>Contact: <strong className="text-slate-700">{form.purchaseAccountMobile || form.purchaseAccountWhatsapp || "-"}</strong></span>
                         </div>
-                        
+
                         <div className="flex justify-between items-center mb-1 border-t border-slate-200 pt-3"><span className="font-bold text-emerald-700 uppercase text-[8px] bg-emerald-100 px-1.5 py-0.5 rounded">Sales Account (CR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.salesAccountNo || "N/A"}</span></div>
                         <div className="font-bold text-slate-900 mb-1 truncate text-[10px]" title={form.salesAccountName}>{form.salesAccountName || "N/A"}</div>
                         <div className="flex justify-between items-center text-[8px] text-slate-500 mb-0.5">
@@ -4955,7 +4193,7 @@ export function PurchaseOrderWizard({ session }) {
                           <span>Currency: <strong className="text-slate-700">{form.salesAccountCurrency || "-"}</strong></span>
                           <span>Contact: <strong className="text-slate-700">{form.salesAccountMobile || form.salesAccountWhatsapp || "-"}</strong></span>
                         </div>
-                        
+
                         <div className="border-t border-slate-200 pt-3 mt-3 space-y-1.5">
                           <div className="flex justify-between items-center"><span className="text-slate-500 font-bold uppercase text-[8px]">Transfer Date:</span> <span className="font-bold text-slate-900 font-mono">{form.purchaseDate}</span></div>
                           <div className="flex justify-between items-center"><span className="text-slate-500 font-bold uppercase text-[8px]">Transferred To:</span> <span className="font-black text-blue-600 uppercase">Purchase Accounts</span></div>
@@ -4963,7 +4201,7 @@ export function PurchaseOrderWizard({ session }) {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* User Info */}
                   <div>
                     <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">User & Session Information</h4>
@@ -4978,14 +4216,14 @@ export function PurchaseOrderWizard({ session }) {
                   {/* Remarks Input */}
                   <div>
                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 block border-b border-slate-100 pb-1">Remarks (Report)</span>
-                    <textarea 
-                      value={form.orderReportRemarks} 
+                    <textarea
+                      value={form.orderReportRemarks}
                       onChange={(e) => handleTextChange("orderReportRemarks", e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-900 outline-none focus:border-blue-500 resize-none h-20 text-[9px] font-semibold"
                       placeholder="Type verification or audit remarks here..."
                     />
                   </div>
-                  
+
                   {/* Saved Reports */}
                   {reportsList.length > 0 && (
                     <div>
@@ -5006,11 +4244,8 @@ export function PurchaseOrderWizard({ session }) {
                       </div>
                     </div>
                   )}
-
-                </div>
-              </div>
-            </div>
-          )}
+        </div>
+      )}
 
       {previewModalOpen && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in duration-200">
@@ -5026,7 +4261,7 @@ export function PurchaseOrderWizard({ session }) {
             </div>
             <div className="flex-1 overflow-y-auto p-8 bg-slate-100/50 flex justify-center custom-scrollbar">
               <div className="w-[210mm] min-h-[297mm] bg-white shadow-xl border border-slate-200 p-8 transform scale-[0.9] origin-top print:scale-100 print:shadow-none print:m-0 print:border-none print:p-0">
-                
+
                 {/* Header */}
                 <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
                   <h1 className="text-2xl font-black uppercase text-slate-900 tracking-widest">Purchase Booking Order</h1>
@@ -5475,7 +4710,7 @@ export function PurchaseOrderWizard({ session }) {
                   {createAccountError}
                 </div>
               )}
-              
+
               <div>
                 <label className="block text-[10px] text-muted-foreground mb-1">Account Name *</label>
                 <input
@@ -5539,7 +4774,7 @@ export function PurchaseOrderWizard({ session }) {
                   </label>
                 </div>
               </div>
-              
+
               <p className="text-[9px] text-muted-foreground/60">
                 This account will be created under the selected country and branch scoping, and auto-selected.
               </p>
@@ -5657,7 +4892,7 @@ export function PurchaseOrderWizard({ session }) {
                   {createCompanyError}
                 </div>
               )}
-              
+
               <div>
                 <label className="block text-[10px] text-muted-foreground mb-1">Company Name *</label>
                 <input
@@ -5692,7 +4927,7 @@ export function PurchaseOrderWizard({ session }) {
                   ))}
                 </select>
               </div>
-              
+
               <p className="text-[9px] text-muted-foreground/60">
                 This company will be saved to the master company registry and auto-selected for the current account.
               </p>
@@ -5730,12 +4965,12 @@ export function PurchaseOrderWizard({ session }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-5 text-xs text-slate-800 bg-slate-50/50">
               <div className="flex items-start gap-3 bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100">
                 <CheckSquare className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
                 <p className="font-semibold leading-relaxed">
-                  You are about to transfer this Purchase Booking to the <strong>Purchase Transfer Payment</strong> module. 
+                  You are about to transfer this Purchase Booking to the <strong>Purchase Transfer Payment</strong> module.
                   <br/><br/>
                   <em>Note: No accounting entries (Roznamcha, Ledger) will be posted at this stage. Entries will only be posted when the payment is officially processed.</em>
                 </p>
@@ -5752,14 +4987,14 @@ export function PurchaseOrderWizard({ session }) {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-slate-100 border-t border-slate-200 p-4 flex justify-end gap-3 rounded-b-xl">
               <Button type="button" variant="outline" className="font-bold border-slate-300 text-slate-600" onClick={() => setTransferConfirmModal(false)}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 type="button"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 shadow-md transition-all uppercase tracking-wider" 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 shadow-md transition-all uppercase tracking-wider"
                 disabled={savingOrder}
                 onClick={() => {
                   setTransferConfirmModal(false);

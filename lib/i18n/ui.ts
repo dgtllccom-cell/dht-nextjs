@@ -27,9 +27,12 @@ export type UiKey =
   | "nav.journal"
   | "nav.purchase_order_payment"
   | "nav.purchase_order_payment_advance"
+  | "nav.purchase_order_payment_advance_completed"
   | "nav.purchase_order_payment_remaining"
   | "nav.purchase_order_payment_charges"
   | "nav.purchase_order_payment_history"
+  | "nav.final_payments"
+  | "nav.final_payments_advance_nil"
   | "nav.purchase_order_management"
   | "nav.new_purchase_order"
   | "nav.booking_purchase_orders"
@@ -373,9 +376,12 @@ const en: Dict = {
   "nav.journal": "Journal",
   "nav.purchase_order_payment": "Purchase Order Payment",
   "nav.purchase_order_payment_advance": "Advance Payment",
+  "nav.purchase_order_payment_advance_completed": "Completed Advance",
   "nav.purchase_order_payment_remaining": "Remaining Payment",
   "nav.purchase_order_payment_charges": "Credit Payment",
   "nav.purchase_order_payment_history": "Payment History",
+  "nav.final_payments": "Final Payments",
+  "nav.final_payments_advance_nil": "Advance Payment Nil Receipt",
   "nav.purchase_order_management": "Purchase Order Management",
   "nav.new_purchase_order": "New Purchase Booking Order",
   "nav.booking_purchase_orders": "Booking Purchase Orders",
@@ -705,9 +711,12 @@ const ur: Dict = {
   "nav.journal": "روزنامچہ",
   "nav.purchase_order_payment": "پرچیز آرڈر پیمنٹ",
   "nav.purchase_order_payment_advance": "ایڈوانس پیمنٹ",
+  "nav.purchase_order_payment_advance_completed": "ایڈوانس مکمل",
   "nav.purchase_order_payment_remaining": "بقایا پیمنٹ",
   "nav.purchase_order_payment_charges": "کریڈٹ پیمنٹ",
   "nav.purchase_order_payment_history": "پیمنٹ ہسٹری",
+  "nav.final_payments": "فائنل پیمنٹس",
+  "nav.final_payments_advance_nil": "ایڈوانس پیمنٹ نل رسید",
   "nav.purchase_order_management": "Purchase Order Management",
   "nav.new_purchase_order": "New Purchase Booking Order",
   "nav.booking_purchase_orders": "Booking Purchase Orders",
@@ -998,6 +1007,7 @@ const ar: Dict = {
   "nav.journal": "دفتر اليومية",
   "nav.purchase_order_payment": "دفع أمر الشراء",
   "nav.purchase_order_payment_advance": "الدفع المقدم",
+  "nav.purchase_order_payment_advance_completed": "اكتمل الدفع المقدم",
   "nav.purchase_order_payment_remaining": "الدفع المتبقي",
   "nav.purchase_order_payment_charges": "الدفع الآجل",
   "nav.purchase_order_payment_history": "سجل المدفوعات",
@@ -1291,6 +1301,7 @@ const fa: Dict = {
   "nav.journal": "دفتر روزنامه",
   "nav.purchase_order_payment": "پرداخت سفارش خرید",
   "nav.purchase_order_payment_advance": "پیش پرداخت",
+  "nav.purchase_order_payment_advance_completed": "پیش پرداخت تکمیل شد",
   "nav.purchase_order_payment_remaining": "مابقی پرداخت",
   "nav.purchase_order_payment_charges": "پرداخت اعتباری",
   "nav.purchase_order_payment_history": "تاریخچه پرداخت",

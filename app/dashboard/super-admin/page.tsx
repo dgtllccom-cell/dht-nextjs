@@ -248,14 +248,13 @@ function ColorStatCard({
   palette: typeof CARD_PALETTE[0];
 }) {
   return (
-    <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${palette.gradient} p-5 shadow-lg`}>
-      <div className={`absolute -right-3 -top-3 h-20 w-20 rounded-full opacity-20 ${palette.badge} blur-xl`} />
+    <div className={`relative overflow-hidden rounded-xl bg-card border border-border p-5 shadow-sm transition-all hover:shadow-md dark:bg-slate-900/50`}>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-white/70">{label}</p>
-          <p className="mt-2 text-3xl font-black text-white">{value}</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+          <p className="mt-2 text-2xl font-black text-foreground">{value}</p>
         </div>
-        <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ${palette.icon}`}>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500`}>
           <Icon className="h-5 w-5" />
         </div>
       </div>

@@ -540,6 +540,7 @@ export function openPurchaseA4ReportWindow(input: {
         </div>
 
         <!-- Special Instructions Remarks -->
+          <!-- Special Instructions Remarks -->
         ${(b.form_data?.form?.showRemarksOnA4 !== false) ? `
         <div class="border-box">
           <div class="box-header">📝 Special Remarks & Narration Instructions</div>
@@ -548,33 +549,6 @@ export function openPurchaseA4ReportWindow(input: {
           </div>
         </div>
         ` : ""}
-
-        ${commonFooterHtml}
-      </div>
-
-
-      <!-- SHEET 2: TOTALING REPORT -->
-      <div class="sheet">
-        <!-- Branding Header -->
-        <div class="brand-header">
-          <div class="brand-logo-title">
-            <div class="brand-logo-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px;">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-              </svg>
-            </div>
-            <div>
-              <div class="brand-name">DAMAN BUSINESS GROUP</div>
-              <div class="brand-tagline">Enterprise ERP / Logistics Platform</div>
-            </div>
-          </div>
-          <div class="doc-title-sec">
-            <h2 class="doc-title">TOTALING REPORT</h2>
-            <div class="doc-serial">Serial: PO-${escapeHtml(b.purchaseBookingOrderNumber)}</div>
-          </div>
-        </div>
-
-        ${commonSessionHtml}
 
         <!-- Detailed Goods Specification List Table -->
         <div class="border-box">
@@ -649,33 +623,6 @@ export function openPurchaseA4ReportWindow(input: {
             <div class="aggregate-val font-mono" style="color: #059669;">${formatMoney(totalAmountPkr)}</div>
           </div>
         </div>
-
-        ${commonFooterHtml}
-      </div>
-
-
-      <!-- SHEET 3: PAYMENT VOUCHER -->
-      <div class="sheet">
-        <!-- Branding Header -->
-        <div class="brand-header">
-          <div class="brand-logo-title">
-            <div class="brand-logo-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px;">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-              </svg>
-            </div>
-            <div>
-              <div class="brand-name">DAMAN BUSINESS GROUP</div>
-              <div class="brand-tagline">Enterprise ERP / Logistics Platform</div>
-            </div>
-          </div>
-          <div class="doc-title-sec">
-            <h2 class="doc-title">PAYMENT VOUCHER</h2>
-            <div class="doc-serial">Serial: PO-${escapeHtml(b.purchaseBookingOrderNumber)}</div>
-          </div>
-        </div>
-
-        ${commonSessionHtml}
 
         <!-- General Ledger Double Entry details -->
         <div class="border-box">

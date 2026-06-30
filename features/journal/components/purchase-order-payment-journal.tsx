@@ -23,7 +23,8 @@ import {
   FileText,
   CheckCircle,
   XCircle,
-  WalletCards
+  WalletCards,
+  Edit3
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,8 +35,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { openPurchaseA4ReportWindow, type PurchaseReportData } from "@/lib/reports/open-purchase-a4-report-window";
+import { PaymentEditModal } from "./payment-edit-modal";
 
-type PaymentMode = "advance" | "remaining" | "credit" | "charges" | "history";
+type PaymentMode = "advance" | "advance_completed" | "remaining" | "credit" | "charges" | "history";
 
 type PurchaseOrderRow = {
   id: string;
@@ -65,6 +67,195 @@ type PurchaseOrderRow = {
   created_at: string | null;
   form_data?: any;
 };
+
+function handlePrintReceipt(payment: any, orderRow: any, ledgers: any[], localCurrency: string, autoPrint = true) {
+  const drLedger = ledgers.find((l) => (l.id || l.account_id) === payment.debit_ledger_id);
+  const crLedger = ledgers.find((l) => (l.id || l.account_id) === payment.credit_ledger_id);
+  const drLabel = drLedger ? (drLedger.account_name || drLedger.name) : "-";
+  const crLabel = crLedger ? (crLedger.account_name || crLedger.name) : "-";
+  const re = payment.roznamcha_entries || {};
+  const form = orderRow?.form_data?.form || {};
+  
+  const companyName = "DAMAAN BUSINESS GROUP";
+  const receiptTitle = "PAYMENT RECEIPT";
+  const receiptNo = payment.reference_no || re.super_admin_serial_number || "N/A";
+  const printDate = new Date().toLocaleString();
+  const paymentDate = new Date(payment.entry_date || payment.created_at).toLocaleDateString();
+  const purchaseDate = form.orderDate ? new Date(form.orderDate).toLocaleDateString() : "N/A";
+  const poNo = orderRow?.purchase_order_no || "N/A";
+  const contractNo = orderRow?.purchase_contract_no || "N/A";
+  const vendorName = form.vendorName || "N/A";
+  
+  const paymentAmt = Number(payment.amount || 0);
+  const paymentExRate = Number(payment.exchange_rate || 1);
+  const currency = payment.currency_code || localCurrency.toUpperCase();
+  
+  const prevPaid = Number(payment.previous_balance_paid || 0);
+  const totalPaid = prevPaid + paymentAmt;
+  
+  const goodsTotal = orderRow?.form_data?.goodsEntries?.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) || Number(form.subTotal || 0);
+  const freight = Number(form.freightCharges || 0);
+  const discount = Number(form.discount || 0);
+  const grandTotalFC = Number(orderRow?.order_total || form.totalAmount || 0);
+  const poExRate = Number(orderRow?.exchange_rate || 1);
+  const outstanding = Math.max(0, grandTotalFC - totalPaid);
+  
+  let displayNarration = payment.narration || "-";
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>${receiptTitle} - ${receiptNo}</title>
+      <style>
+        @page { size: A4; margin: 15mm; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
+        .container { width: 100%; max-width: 800px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px; }
+        .header-left h1 { margin: 0; font-size: 26px; color: #1e3a8a; letter-spacing: 1px; text-transform: uppercase; font-weight: 900; }
+        .header-left p { margin: 4px 0 0; font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; }
+        .header-right { text-align: right; }
+        .header-right h2 { margin: 0; font-size: 20px; color: #334155; font-weight: 800; }
+        .header-right p { margin: 4px 0 0; font-size: 11px; font-weight: bold; color: #1e293b; }
+        .section-title { background: #f1f5f9; padding: 6px 10px; font-weight: 800; font-size: 11px; border: 1px solid #cbd5e1; border-left: 4px solid #1e3a8a; margin: 20px 0 10px; text-transform: uppercase; color: #0f172a; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; font-size: 11px; }
+        th { background: #f8fafc; font-weight: 700; color: #475569; width: 25%; }
+        .text-right { text-align: right; }
+        .font-bold { font-weight: bold; }
+        .summary-box { display: flex; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; margin-top: 15px; }
+        .summary-item { flex: 1; padding: 12px; text-align: center; background: #f8fafc; border-right: 1px solid #cbd5e1; }
+        .summary-item:last-child { border-right: none; }
+        .summary-item .lbl { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+        .summary-item .val { font-size: 16px; font-weight: 900; margin-top: 5px; color: #0f172a; }
+        .summary-item.highlight { background: #eff6ff; }
+        .summary-item.highlight .lbl { color: #1d4ed8; }
+        .summary-item.highlight .val { color: #1e40af; }
+        .footer { margin-top: 50px; display: flex; justify-content: space-between; page-break-inside: avoid; }
+        .sig-block { width: 22%; text-align: center; }
+        .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-top: 50px; }
+        .stamp-box { width: 90px; height: 90px; border: 2px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-weight: 900; margin: 0 auto; border-radius: 50%; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .sys-gen { text-align: center; font-size: 9px; color: #94a3b8; margin-top: 30px; font-style: italic; border-top: 1px dashed #cbd5e1; padding-top: 10px; }
+        .qr-placeholder { width: 60px; height: 60px; background: #f1f5f9; border: 1px solid #cbd5e1; float: right; margin-left: 15px; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #94a3b8; text-align: center; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="header-left">
+            <h1>${companyName}</h1>
+            <p>Purchase Payment Receipt</p>
+          </div>
+          <div class="header-right">
+            <h2>RECEIPT</h2>
+            <p>No: ${receiptNo}</p>
+            <p style="font-weight: normal; color: #64748b; font-size: 10px;">Printed: ${printDate}</p>
+          </div>
+        </div>
+
+        <div class="section-title">Purchase & Vendor Details</div>
+        <table>
+          <tr>
+            <th>Purchase Order No</th><td><strong>${poNo}</strong></td>
+            <th>Contract / GRN No</th><td>${contractNo}</td>
+          </tr>
+          <tr>
+            <th>Supplier Name</th><td colspan="3"><strong>${vendorName}</strong></td>
+          </tr>
+          <tr>
+            <th>Purchase Date</th><td>${purchaseDate}</td>
+            <th>Currency</th><td><strong>${currency}</strong></td>
+        </table>
+
+        <div class="section-title">Purchase Financial Summary</div>
+        <table>
+          <tr>
+            <th>Goods Total Amount</th><td class="text-right">${Number(goodsTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <th>Discount</th><td class="text-right">${Number(discount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <th>Freight Charges</th><td class="text-right">${Number(freight).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <th>Grand Total (${currency})</th><td class="text-right font-bold">${Number(grandTotalFC).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+          </tr>
+        </table>
+
+        <div class="section-title">Accounting & Audit Trail</div>
+        <table>
+          <tr>
+            <th>Debit Ledger (Dr)</th><td colspan="3">${drLabel}</td>
+          </tr>
+          <tr>
+            <th>Credit Ledger (Cr)</th><td colspan="3">${crLabel}</td>
+          </tr>
+          <tr>
+            <th>Payment Date</th><td>${paymentDate}</td>
+            <th>Posted By</th><td>${re.profiles?.full_name ? re.profiles.full_name.toUpperCase() : "SUPER ADMIN"}</td>
+          </tr>
+          <tr>
+            <th>Reference No</th><td>${payment.reference_no || "-"}</td>
+            <th>Journal Serial</th><td>${re.super_admin_serial_number || "-"}</td>
+          </tr>
+          <tr>
+            <th>Remarks</th><td colspan="3">${displayNarration || "-"}</td>
+          </tr>
+        </table>
+
+        <div class="section-title">Payment Summary</div>
+        <div class="summary-box">
+          <div class="summary-item">
+            <div class="lbl">Previously Paid</div>
+            <div class="val">${Number(prevPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div class="summary-item highlight">
+            <div class="lbl">Current Payment</div>
+            <div class="val">${Number(paymentAmt).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div class="summary-item">
+            <div class="lbl">Total Paid to Date</div>
+            <div class="val">${Number(totalPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div class="summary-item">
+            <div class="lbl" style="color: #be123c;">Remaining Balance</div>
+            <div class="val" style="color: #be123c;">${Number(outstanding).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div class="sig-block">
+            <div class="sig-line">Prepared By</div>
+          </div>
+          <div class="sig-block" style="width: auto;">
+            <div class="stamp-box">COMPANY<br/>STAMP</div>
+          </div>
+          <div class="sig-block">
+            <div class="sig-line">Authorized Signatory</div>
+          </div>
+          <div class="sig-block">
+            <div class="sig-line">Receiver Signature</div>
+          </div>
+        </div>
+        
+        <div class="sys-gen">
+          <div class="qr-placeholder">VERIFY<br/>QR</div>
+          *** THIS IS A SYSTEM GENERATED DOCUMENT ***<br/>
+          UUID: ${payment.id || "N/A"} | Exchange Rate Applied: ${paymentExRate.toFixed(4)}
+        </div>
+      </div>
+      <script>
+        window.onload = function() { 
+          if (${autoPrint}) { window.print(); window.close(); }
+        }
+      </script>
+    </body>
+    </html>
+  `;
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  }
+}
 
 type OrdersPayload = {
   orders?: PurchaseOrderRow[];
@@ -333,28 +524,34 @@ function statusClass(status: string | null | undefined) {
 }
 
 function exportRows(rows: PurchaseOrderRow[], mode: PaymentMode) {
-  const headers = ["PO Number", "Contract", "Date", "Currency", "Order Total", "Advance", "Remaining", "Credit", "Payment Status", "Journal Status"];
-  const body = rows.map((row) =>
-    [
-      row.purchase_order_no,
-      row.purchase_contract_no ?? "-",
-      date(row.created_at),
-      row.currency_code ?? "-",
-      money(row.order_total),
-      money(row.advance_paid),
-      money(row.remaining_due),
-      money(row.credit_amount),
-      row.payment_status ?? "Pending",
-      row.ledger_posting_status ?? "Pending"
-    ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-  );
-  const blob = new Blob([[headers.join(","), ...body].join("\n")], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `purchase-order-${modeLabels[mode].toLowerCase().replace(/\s+/g, "-")}.csv`;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  try {
+    const headers = ["PO Number", "Contract", "Date", "Currency", "Order Total", "Advance", "Remaining", "Credit", "Payment Status", "Journal Status"];
+    const body = rows.map((row) =>
+      [
+        row.purchase_order_no,
+        row.purchase_contract_no ?? "-",
+        date(row.created_at),
+        row.currency_code ?? "-",
+        money(row.order_total),
+        money(row.advance_paid),
+        money(row.remaining_due),
+        money(row.credit_amount),
+        row.payment_status ?? "Pending",
+        row.ledger_posting_status ?? "Pending"
+      ].map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")
+    );
+    const blob = new Blob([[headers.join(","), ...body].join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    const modeLabel = modeLabels[mode] || String(mode);
+    anchor.download = `purchase-order-${modeLabel.toLowerCase().replace(/\s+/g, "-")}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Failed to export rows:", error);
+    alert("Failed to export to CSV. Please try again.");
+  }
 }
 
 const SAVED_BANKS_KEY = "erp_saved_banks_v1";
@@ -400,12 +597,28 @@ function writeLocalBankList(key: string, values: SavedBankItem[]) {
   }
 }
 
+function ledgerId(row: any): string | undefined {
+  return row?.id ?? row?.ledgerId;
+}
+
+function ledgerCode(row: any): string {
+  return String(row?.code ?? row?.ledgerCode ?? row?.accountCode ?? "");
+}
+
+function ledgerName(row: any): string {
+  return String(row?.name ?? row?.ledgerName ?? row?.accountName ?? "");
+}
+
+function ledgerCurrency(row: any): string {
+  return String(row?.currency ?? row?.ledgerCurrency ?? "");
+}
+
 function toLedgerOption(row: any): SearchSelectOption {
-  const account = row.name || "";
-  const accountNo = row.code || "";
+  const account = ledgerName(row);
+  const accountNo = ledgerCode(row);
   const label = `${accountNo} - ${account}`;
   const keywords = [accountNo, account].filter(Boolean).join(" ");
-  return { value: row.id, label, keywords };
+  return { value: ledgerId(row) || "", label, keywords };
 }
 
 function getInitialPurchaseOrderNo(): string {
@@ -425,6 +638,153 @@ function FieldBlock({ label, required, children, className }: { label: string; r
   );
 }
 
+function NestedRowActions({ payment, row, ledgers, localCurrency }: any) {
+  function handleAction(fn: () => void) {
+    fn();
+    const details = document.activeElement?.closest("details");
+    if (details) (details as HTMLDetailsElement).open = false;
+  }
+  return (
+    <details className="relative">
+      <summary className="flex h-7 w-8 cursor-pointer list-none items-center justify-center rounded border border-indigo-200 bg-indigo-50 text-indigo-600 transition hover:bg-indigo-100 [&::-webkit-details-marker]:hidden mx-auto" aria-label="Payment actions" title="Actions">
+        <MoreVertical className="h-4 w-4" />
+      </summary>
+      <div className="absolute right-0 z-30 mt-1 w-36 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
+        <MenuAction icon={<Eye />} label="View Details" onClick={() => handleAction(() => handlePrintReceipt(payment, row, ledgers, localCurrency, false))} />
+        <MenuAction icon={<Edit3 />} label="Edit" onClick={() => handleAction(() => window.dispatchEvent(new CustomEvent("open-edit-payment", { detail: { payment, row } })))} />
+        <MenuAction icon={<Printer />} label="Print Receipt" onClick={() => handleAction(() => handlePrintReceipt(payment, row, ledgers, localCurrency, true))} />
+      </div>
+    </details>
+  );
+}
+
+function NestedPaymentHistory({ row, ledgers, baseCurrency }: { row: any, ledgers: any[], baseCurrency: string }) {
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchPayments() {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/erp/purchases/orders/${row.id}/payments`);
+        const body = await response.json();
+        if (body?.ok && body.data?.payments && !cancelled) {
+          setPayments(body.data.payments);
+        }
+      } catch (err) {
+        console.error("Failed to load nested payments:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    fetchPayments();
+    return () => { cancelled = true; };
+  }, [row.id]);
+
+  const form = row.form_data?.form || {};
+  const totalPrice = row.form_data?.goodsEntries?.length
+    ? row.form_data.goodsEntries.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
+    : Number(form.totalAmount || 0);
+  const advancePercent = Number(form.advancePercent || 0);
+  const totalRequiredFC = (totalPrice * advancePercent) / 100;
+  
+    let currentBalance = totalRequiredFC;
+    let accumulatedPaid = 0;
+    const reversed = [...payments].reverse();
+    const historyWithBalance = reversed.map((p: any) => {
+      const amt = Number(p.amount || 0);
+      currentBalance -= amt;
+      const prevPaid = accumulatedPaid;
+      accumulatedPaid += amt;
+      return { ...p, remaining_balance: currentBalance, previous_balance_paid: prevPaid };
+    }).reverse();
+  
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+            ➕ Traceable Payment History (Nested Journal Entries)
+          </h4>
+          {loading && (
+            <span className="text-[10px] font-semibold text-slate-400 animate-pulse">Loading history...</span>
+          )}
+        </div>
+        {payments.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 dark:bg-slate-900 border-b font-bold text-slate-600 uppercase text-[10px] tracking-wider">
+                  <th className="px-5 py-3 border-r">Journal Serial</th>
+                  <th className="px-5 py-3 border-r">Country Serial</th>
+                  <th className="px-5 py-3 border-r">Branch Serial</th>
+                  <th className="px-5 py-3 border-r">Date</th>
+                  <th className="px-5 py-3 border-r">User Name</th>
+                  <th className="px-5 py-3 border-r">Debit Account (DR) - Supplier Payable</th>
+                  <th className="px-5 py-3 border-r">Credit Account (CR) - Payment Source</th>
+                  <th className="px-5 py-3 border-r">Narration</th>
+                  <th className="px-5 py-3 text-right border-r">Credit Payment (Paid)</th>
+                  <th className="px-5 py-3 text-right border-r">Remaining (Advance)</th>
+                  <th className="px-5 py-3 text-center w-28">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyWithBalance.map((p) => {
+                  const drLedger = ledgers.find((l) => ledgerId(l) === p.debit_ledger_id);
+                  const crLedger = ledgers.find((l) => ledgerId(l) === p.credit_ledger_id);
+                  const drLabel = drLedger ? ledgerName(drLedger) : "-";
+                  const crLabel = crLedger ? ledgerName(crLedger) : "-";
+                  const localCurrency = (ledgerCurrency(drLedger) || ledgerCurrency(crLedger) || baseCurrency).toUpperCase();
+                  const re = p.roznamcha_entries || {};
+  
+                  return (
+                    <tr key={p.id} className="border-b border-indigo-100/50 hover:bg-indigo-50/40 transition">
+                      <td className="px-5 py-3 border-r font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">{re.super_admin_serial_number || "—"}</td>
+                      <td className="px-5 py-3 border-r font-mono text-xs">{re.country_transaction_serial_number || "—"}</td>
+                      <td className="px-5 py-3 border-r font-mono text-xs">{re.branch_transaction_serial_number || "—"}</td>
+                      <td className="px-5 py-3 border-r text-xs">{date(p.entry_date || p.created_at)}</td>
+                      <td className="px-5 py-3 border-r whitespace-nowrap text-xs font-bold text-slate-700 dark:text-slate-300">
+                        {re.profiles?.full_name ? re.profiles.full_name.toUpperCase() : "SUPER ADMIN"}
+                      </td>
+                      <td className="px-5 py-3 border-r font-semibold text-indigo-600 text-xs" title={drLabel}><span className="font-black text-indigo-800 text-xs mr-1">DR</span>{drLabel}</td>
+                      <td className="px-5 py-3 border-r font-semibold text-violet-600 text-xs" title={crLabel}><span className="font-black text-violet-800 text-xs mr-1">CR</span>{crLabel}</td>
+                      <td className="px-5 py-3 border-r text-slate-500 max-w-[200px] truncate text-xs" title={p.narration}>{p.narration || "—"}</td>
+                      <td className="px-5 py-3 text-right font-mono font-bold text-emerald-600 whitespace-nowrap border-r">
+                        <div className="text-sm">{money(p.amount, p.currency_code || "USD")}</div>
+                        {p.currency_code && p.currency_code !== localCurrency && (
+                          <div className="flex flex-col items-end mt-1.5">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded mb-0.5">Rate: {Number(p.exchange_rate || 1).toFixed(2)}</span>
+                            <span className="text-xs text-emerald-800 dark:text-emerald-400">{money(p.amount * (p.exchange_rate || 1), localCurrency)}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-right font-mono font-black text-rose-600 whitespace-nowrap border-r align-top">
+                        <div className="text-sm">{money(p.remaining_balance, p.currency_code || "USD")}</div>
+                        {p.currency_code && p.currency_code !== localCurrency && (
+                          <div className="flex flex-col items-end mt-1.5">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded opacity-0 mb-0.5">-</span>
+                            <span className="text-xs text-rose-800 dark:text-rose-400">{money(p.remaining_balance * (p.exchange_rate || 1), localCurrency)}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-center align-middle">
+                        <NestedRowActions payment={p} row={row} ledgers={ledgers} localCurrency={localCurrency} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400 italic py-2">
+            {loading ? "Loading payments..." : "No payments posted for this purchase order yet."}
+          </p>
+        )}
+      </div>
+    );
+}
+
 export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
   const router = useRouter();
   const activeMode: PaymentMode = mode === "charges" ? "credit" : mode;
@@ -437,7 +797,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" });
       }
-    }, 100);
+    }, 250);
   };
   const [query, setQuery] = useState("");
   const [draftFilter, setDraftFilter] = useState("");
@@ -450,9 +810,46 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [session, setSession] = useState<any>(null);
   const [reportNow, setReportNow] = useState<{ date: string; time: string } | null>(null);
 
+  // Super Admin Filtering for Source Ledger
+  const [saCountryId, setSaCountryId] = useState<string>("");
+  const [saBranchId, setSaBranchId] = useState<string>("");
+  const [saCountries, setSaCountries] = useState<any[]>([]);
+  const [saBranches, setSaBranches] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSaFilters() {
+      try {
+        const [cRes, bRes] = await Promise.all([
+          fetch("/api/erp/locations/countries").then(r => r.json()),
+          fetch("/api/erp/locations/city-branches?limit=1000").then(r => r.json())
+        ]);
+        if (!cancelled) {
+          if (cRes.ok) setSaCountries(cRes.data || []);
+          if (bRes.ok) setSaBranches(bRes.data?.data || bRes.data || []);
+        }
+      } catch (err) {
+        console.error("Failed to load SA filters", err);
+      }
+    }
+    loadSaFilters();
+    return () => { cancelled = true; };
+  }, []);
+
   // Redesign state hooks
   const [viewingRow, setViewingRow] = useState<PurchaseOrderRow | null>(null);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  
+  // Edit Payment State
+  const [editingPayment, setEditingPayment] = useState<{payment: any, row: any} | null>(null);
+
+  useEffect(() => {
+    const handleOpenEdit = (e: any) => {
+      setEditingPayment(e.detail);
+    };
+    window.addEventListener("open-edit-payment", handleOpenEdit);
+    return () => window.removeEventListener("open-edit-payment", handleOpenEdit);
+  }, []);
 
   const handleOpenA4PDF = (row: PurchaseOrderRow, autoPrint = false) => {
     const form = row.form_data?.form || {};
@@ -580,15 +977,27 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }, []);
 
   const [ledgers, setLedgers] = useState<any[]>([]);
+  const isSuperAdmin = useMemo(() => session ? (session.scopes?.isSuperAdmin || session.roles?.includes("super_admin")) : true, [session]);
+  const selectedOrderForLedger = useMemo(
+    () => selectedId ? orders.find((row) => row.id === selectedId) ?? null : null,
+    [orders, selectedId]
+  );
 
   useEffect(() => {
     let cancelled = false;
     async function fetchLedgers() {
       try {
         const { listLedgerReportLedgers } = await import("@/features/reports/ledger-report/ledger-report-api");
+        const scopedCountryId = isSuperAdmin && saCountryId ? saCountryId : (selectedOrderForLedger?.country_id ?? null);
+        const scopedCountryBranchId = selectedOrderForLedger?.country_branch_id ?? null;
+        const scopedCityBranchId = isSuperAdmin && saBranchId ? saBranchId : (selectedOrderForLedger?.city_branch_id ?? null);
+        
         const res = await listLedgerReportLedgers({
-          reportScope: "super_admin",
-          limit: 2000
+          reportScope: isSuperAdmin ? "super_admin" : scopedCityBranchId ? "branch" : "country",
+          countryId: scopedCountryId,
+          countryBranchId: isSuperAdmin ? null : scopedCountryBranchId,
+          cityBranchId: scopedCityBranchId,
+          limit: 1000
         });
         if (!cancelled) {
           setLedgers(Array.isArray(res.ledgers) ? res.ledgers : []);
@@ -599,9 +1008,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     }
     fetchLedgers();
     return () => { cancelled = true; };
-  }, []);
-
-  const isSuperAdmin = useMemo(() => session ? (session.scopes?.isSuperAdmin || session.roles?.includes("super_admin")) : true, [session]);
+  }, [isSuperAdmin, saCountryId, saBranchId, selectedOrderForLedger?.country_id, selectedOrderForLedger?.country_branch_id, selectedOrderForLedger?.city_branch_id]);
 
   async function loadOrders() {
     setLoading(true);
@@ -677,11 +1084,25 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         
         if (advancePercent > 0 && remainingAdvance <= 0.01) return false; // Already cleared required advance
 
+      } else if (activeMode === "advance_completed") {
+        if (advancePercent === 0) return false;
+        if (remainingAdvance > 0.01) return false; // Not yet cleared
+        if (paidAdvance <= 0) return false; // Not paid anything
       } else if (activeMode === "remaining") {
         if (remainingDue <= 0.01) return false; // Already cleared
-        // Should only appear in Remaining after Loading is done
-        const isLoaded = row.form_data?.workflow?.containerStatus === "Loaded" || row.form_data?.workflow?.containerStatus === "loaded";
-        if (!isLoaded) return false;
+        // Remaining payments should appear as soon as any loading/container movement exists.
+        // This supports partial flow: 2 paid/loaded containers move forward while 8 remain payable.
+        const workflow = row.form_data?.workflow || {};
+        const containerStatus = String(workflow.containerStatus || "").toLowerCase();
+        const loadedContainers = Number(workflow.loadedContainers || workflow.paidContainers || 0);
+        const remainingContainers = Number(workflow.remainingContainers || 0);
+        const hasContainerMovement =
+          loadedContainers > 0 ||
+          remainingContainers > 0 ||
+          containerStatus.includes("loaded") ||
+          containerStatus.includes("loading") ||
+          containerStatus.includes("partial");
+        if (!hasContainerMovement) return false;
       } else if (activeMode === "credit") {
         if (isCreditPaid) return false; // Already cleared
       } else if (activeMode === "history") {
@@ -724,23 +1145,19 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const orderTotalUsd = Number(selected?.order_total || 0);
   const advancePct = Number(selectedForm.advancePercent || 0);
 
-  const supplierLedger = useMemo(() => {
-    return ledgers.find((l) => l.code === selectedForm.salesAccountNo);
-  }, [ledgers, selectedForm.salesAccountNo]);
-
   const cashLedger = useMemo(() => {
-    return ledgers.find((l) => l.code === "CASH-001") ||
-           ledgers.find((l) => l.code?.toLowerCase().includes("cash") || l.name?.toLowerCase().includes("cash")) ||
-           ledgers.find((l) => l.code?.toLowerCase().includes("bank") || l.name?.toLowerCase().includes("bank")) ||
+    return ledgers.find((l) => ledgerCode(l) === "CASH-001") ||
+           ledgers.find((l) => ledgerCode(l).toLowerCase().includes("cash") || ledgerName(l).toLowerCase().includes("cash")) ||
+           ledgers.find((l) => ledgerCode(l).toLowerCase().includes("bank") || ledgerName(l).toLowerCase().includes("bank")) ||
            ledgers[0];
   }, [ledgers]);
 
   // Set default paymentSourceLedgerId and sync Category & Type once cashLedger is loaded
   useEffect(() => {
     if (cashLedger && !paymentSourceLedgerId) {
-      setPaymentSourceLedgerId(cashLedger.id);
-      const name = String(cashLedger.name || "").toLowerCase();
-      const code = String(cashLedger.code || "").toLowerCase();
+      setPaymentSourceLedgerId(ledgerId(cashLedger) || "");
+      const name = ledgerName(cashLedger).toLowerCase();
+      const code = ledgerCode(cashLedger).toLowerCase();
       if (name.includes("cash") || code.includes("cash")) {
         setPaymentType("cash");
         setRoznamchaType("Cash Book No.");
@@ -752,31 +1169,32 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }, [cashLedger, paymentSourceLedgerId]);
 
   const selectedSourceLedger = useMemo(() => {
-    return ledgers.find((l) => l.id === paymentSourceLedgerId) || cashLedger || null;
+    return ledgers.find((l) => ledgerId(l) === paymentSourceLedgerId) || cashLedger || null;
   }, [ledgers, paymentSourceLedgerId, cashLedger]);
 
   const sourceBalanceText = useMemo(() => {
     if (!selectedSourceLedger) return "—";
     const bal = Number(selectedSourceLedger.current_balance ?? 0);
-    return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedSourceLedger.currency || "PKR"}`;
+    return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${ledgerCurrency(selectedSourceLedger) || "PKR"}`;
   }, [selectedSourceLedger]);
 
-  const purchaseLedger = useMemo(() => {
-    return ledgers.find((l) => l.code === selectedForm.purchaseAccountNo);
-  }, [ledgers, selectedForm.purchaseAccountNo]);
+  const salesLedger = useMemo(() => {
+    const code = selectedForm.salesAccountNumber || selectedForm.salesAccountNo;
+    return ledgers.find((l) => ledgerCode(l) === code);
+  }, [ledgers, selectedForm.salesAccountNumber, selectedForm.salesAccountNo]);
 
   const doubleEntry = useMemo(() => {
     return {
-      debitName: selectedForm.salesAccountName || "Supplier Payable Account",
-      debitCode: selectedForm.salesAccountNo || "-",
+      debitName: selectedForm.salesAccountName || selectedForm.supplierName || "Sales Account",
+      debitCode: selectedForm.salesAccountNumber || selectedForm.salesAccountNo || "-",
       debitBranch: selectedForm.salesAccountBranch || "-",
-      creditName: selectedSourceLedger?.name || "General Cash Account",
-      creditCode: selectedSourceLedger?.code || "CASH-001",
+      creditName: ledgerName(selectedSourceLedger) || "General Cash Account",
+      creditCode: ledgerCode(selectedSourceLedger) || "CASH-001",
       creditBranch: "-",
-      debitLedgerId: supplierLedger?.id,
-      creditLedgerId: selectedSourceLedger?.id
+      debitLedgerId: ledgerId(salesLedger) || selectedForm.salesAccountId || selectedForm.supplierId,
+      creditLedgerId: ledgerId(selectedSourceLedger)
     };
-  }, [selectedForm, selectedSourceLedger, supplierLedger]);
+  }, [selectedForm, selectedSourceLedger, salesLedger]);
 
   const baseCurrency = useMemo(() => {
     // 1. Prioritize explicitly selected local/ledger currency from the form
@@ -827,13 +1245,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const countryCards = useMemo(() => countryPaymentSummaries(filtered), [filtered]);
 
   const isLocalCurrency = currency.trim().toUpperCase() === baseCurrency;
-  const showCalcPanel =
-    Boolean(currency) &&
-    Boolean(exchangeRate) &&
-    !isLocalCurrency &&
-    Boolean(calcAmount) &&
-    !Number.isNaN(Number(calcAmount)) &&
-    ["USD", "AED", "AFN", "INR", "IRR", "PKR"].includes(currency.toUpperCase());
+  const showCalcPanel = !isLocalCurrency;
 
   const calcFinal = useMemo(() => {
     if (!showCalcPanel) return null;
@@ -1136,8 +1548,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     type: "credit",
                     debitAccount: selectedForm.salesAccountNo || "-",
                     debitAccountName: selectedForm.salesAccountName || "Supplier Payable Account",
-                    creditAccount: selectedSourceLedger?.code || "CASH-001",
-                    creditAccountName: selectedSourceLedger?.name || "General Cash Account",
+                    creditAccount: ledgerCode(selectedSourceLedger) || "CASH-001",
+                    creditAccountName: ledgerName(selectedSourceLedger) || "General Cash Account",
                     amount: Number(amount),
                     currency,
                     date: paymentDate,
@@ -1170,11 +1582,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }
 
   const pageTitle = activeMode === "advance" ? "Purchase Order Advance Payment"
+    : activeMode === "advance_completed" ? "Advance Payment Nil Receipt"
     : activeMode === "remaining" ? "Purchase Order Remaining Payment"
     : activeMode === "credit" ? "Purchase Order Credit Payment"
     : "Purchase Order Payment History";
 
   const pageDescription = activeMode === "advance" ? "Manage advance payments made against purchase orders."
+    : activeMode === "advance_completed" ? "View final bills with completed advance payments."
     : activeMode === "remaining" ? "Manage remaining payments made against purchase orders."
     : activeMode === "credit" ? "Manage credit payments made against purchase orders."
     : "Trace and audit historical payments made against purchase orders.";
@@ -1652,7 +2066,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         </div>
                       </td>
                       {/* Status & Action */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center">
                         <div className="flex flex-col items-center justify-center gap-1.5">
                           {isPosted ? (
                             <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
@@ -1695,67 +2109,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     </tr>
                     {isExpanded && (
                       <tr onClick={(e) => e.stopPropagation()} style={{ background: "#f8fafc" }}>
-                        <td colSpan={11} className="p-4 border-b border-slate-100 dark:border-slate-800">
-                          {/* Nested Payments Traceability Sub-table */}
-                          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
-                            <div className="mb-3 flex items-center justify-between">
-                              <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
-                                ➕ Traceable Payment History (Nested Journal Entries)
-                              </h4>
-                              {loadingPayments && (
-                                <span className="text-[10px] font-semibold text-slate-400 animate-pulse">Loading history...</span>
-                              )}
-                            </div>
-                            {selectedOrderPayments.length > 0 ? (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse" style={{ fontSize: 11 }}>
-                                  <thead>
-                                    <tr className="bg-slate-100 dark:bg-slate-900 border-b font-bold text-slate-600 uppercase text-[9px] tracking-wider">
-                                      <th className="p-2 border-r">Journal Serial</th>
-                                      <th className="p-2 border-r">Country Serial</th>
-                                      <th className="p-2 border-r">Branch Serial</th>
-                                      <th className="p-2 border-r">Date</th>
-                                      <th className="p-2 border-r">Debit Account (DR) - Supplier Payable</th>
-                                      <th className="p-2 border-r">Credit Account (CR) - Payment Source</th>
-                                      <th className="p-2 border-r">Narration</th>
-                                      <th className="p-2 text-right">Amount</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {selectedOrderPayments.map((p) => {
-                                      const drLabel = getLedgerLabel(p.debit_ledger_id);
-                                      const crLabel = getLedgerLabel(p.credit_ledger_id);
-                                      const re = p.roznamcha_entries || {};
-
-                                      const drLedger = ledgers.find((l) => l.id === p.debit_ledger_id);
-                                      const crLedger = ledgers.find((l) => l.id === p.credit_ledger_id);
-                                      const localCurrency = (drLedger?.ledgerCurrency || drLedger?.currency || crLedger?.ledgerCurrency || crLedger?.currency || "PKR").toUpperCase();
-
-                                      return (
-                                        <tr key={p.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-800 dark:text-slate-200">
-                                          <td className="p-2 border-r font-mono font-bold text-slate-900 dark:text-slate-100">{re.super_admin_serial_number || "—"}</td>
-                                          <td className="p-2 border-r font-mono">{re.country_transaction_serial_number || "—"}</td>
-                                          <td className="p-2 border-r font-mono">{re.branch_transaction_serial_number || "—"}</td>
-                                          <td className="p-2 border-r">{date(p.entry_date)}</td>
-                                          <td className="p-2 border-r font-semibold text-indigo-600" title={drLabel}><span className="font-black text-indigo-800 text-[10px] mr-1">DR</span>{drLabel}</td>
-                                          <td className="p-2 border-r font-semibold text-violet-600" title={crLabel}><span className="font-black text-violet-800 text-[10px] mr-1">CR</span>{crLabel}</td>
-                                          <td className="p-2 border-r text-slate-500 max-w-[320px] truncate" title={p.narration}>{p.narration || "—"}</td>
-                                          <td className="p-2 text-right font-mono font-bold text-emerald-600 whitespace-nowrap">
-                                            <div>{money(p.amount / (p.exchange_rate || 1), p.currency_code || "USD")}</div>
-                                            {p.currency_code && p.currency_code !== localCurrency && (
-                                              <div className="text-[9px] text-slate-400 font-normal mt-0.5">{money(p.amount, localCurrency)}</div>
-                                            )}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <p className="text-xs text-slate-400 italic py-2">No payments posted for this purchase order yet.</p>
-                            )}
-                          </div>
+                        <td colSpan={14} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                          <NestedPaymentHistory row={row} ledgers={ledgers} baseCurrency={baseCurrency} />
                         </td>
                       </tr>
                     )}
@@ -1765,7 +2120,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               {!pageRows.length && !loading && (
                 <tr>
                   <td
-                    colSpan={11}
+                    colSpan={14}
                     style={{ padding: "60px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}
                   >
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
@@ -1778,7 +2133,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               )}
               {loading && (
                 <tr>
-                  <td colSpan={11} style={{ padding: "60px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                  <td colSpan={14} style={{ padding: "60px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
                     Loading records…
                   </td>
                 </tr>
@@ -1851,22 +2206,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </div>
       </section>
 
-
-
-      {/* ── Ledger Cash Entry Panel ─────────────────────────── */}
+      {/* ── Ledger Cash Entry Panel (Modal) ─────────────────────────── */}
       {selected && (
-        <section id="ledger-cash-entry-section" className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden scroll-mt-6">
-          <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-gradient-to-r from-indigo-500/5 to-violet-500/5">
-            <div className="grid h-10 w-10 place-items-center rounded-lg bg-indigo-500/10 text-indigo-600">
-              <Landmark className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-black uppercase tracking-wider text-foreground">Ledger Cash Entry</h2>
-              <p className="text-xs text-muted-foreground">Process Debit or Credit payment for PO <span className="font-bold text-primary">{selected.purchase_order_no}</span></p>
-            </div>
-          </div>
-
-          <div className="p-5 space-y-6">
+        <SimpleModal
+          title={`Payment Entry - PO ${selected.purchase_order_no}`}
+          onClose={() => setSelectedId(null)}
+          className="max-w-[98vw] xl:max-w-[1600px] w-full shadow-2xl"
+        >
+          <div className="space-y-6">
             {/* Already Transferred / Overpaid Warning Banner */}
             {(() => {
               const form = selected.form_data?.form || {};
@@ -1918,12 +2265,22 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 <div>
                   <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Total Value</span>
                   <span className="font-extrabold text-slate-900 dark:text-slate-100">{money(selected.order_total, selected.currency_code ?? "USD")}</span>
+                  {selected.currency_code && selected.currency_code !== baseCurrency && (
+                    <span className="block text-[10px] font-bold text-slate-500 mt-0.5">
+                      {money(selected.order_total * (selected.exchange_rate || 1), baseCurrency)}
+                    </span>
+                  )}
                 </div>
                 {activeMode === "advance" && (
                   <>
                     <div>
                       <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Paid Advance</span>
                       <span className="font-extrabold text-emerald-600">{money(selected.advance_paid, selected.currency_code ?? "USD")}</span>
+                      {selected.currency_code && selected.currency_code !== baseCurrency && (
+                        <span className="block text-[10px] font-bold text-emerald-700/70 mt-0.5">
+                          {money((selected.advance_paid || 0) * (selected.exchange_rate || 1), baseCurrency)}
+                        </span>
+                      )}
                     </div>
                     <div>
                       <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Remaining Advance</span>
@@ -1936,7 +2293,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         const requiredAdvanceBC = (totalPrice * advancePercent) / 100;
                         const paidAdvanceBC = Number(selected.advance_paid || 0) / (selected.exchange_rate || 1);
                         const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
-                        return <span className="font-extrabold text-rose-600">{money(remainingAdvanceBC, selected.currency_code ?? "USD")}</span>;
+                        return (
+                          <>
+                            <span className="font-extrabold text-rose-600">{money(remainingAdvanceBC, selected.currency_code ?? "USD")}</span>
+                            {selected.currency_code && selected.currency_code !== baseCurrency && (
+                              <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
+                                {money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)}
+                              </span>
+                            )}
+                          </>
+                        );
                       })()}
                     </div>
                   </>
@@ -1945,6 +2311,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   <div>
                     <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Remaining Due</span>
                     <span className="font-extrabold text-rose-600">{money(selected.remaining_due, selected.currency_code ?? "USD")}</span>
+                    {selected.currency_code && selected.currency_code !== baseCurrency && (
+                      <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
+                        {money((selected.remaining_due || 0) * (selected.exchange_rate || 1), baseCurrency)}
+                      </span>
+                    )}
                   </div>
                 )}
                 <div>
@@ -1956,9 +2327,45 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
             {/* Split Layout grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left Column: Input Form (Col Span 7) */}
-              <div className="lg:col-span-7 space-y-5">
+              {/* Left Column: Input Form (Col Span 5) */}
+              <div className="lg:col-span-5 space-y-4">
                 {/* Payment Input Form */}
+                {isSuperAdmin && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FieldBlock label="Country (Super Admin)" required={false}>
+                      <select
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                        value={saCountryId}
+                        onChange={(e) => {
+                          setSaCountryId(e.target.value);
+                          setSaBranchId("");
+                          setPaymentSourceLedgerId("");
+                        }}
+                      >
+                        <option value="">-- All Countries --</option>
+                        {saCountries.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </FieldBlock>
+                    <FieldBlock label="Branch (Super Admin)" required={false}>
+                      <select
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                        value={saBranchId}
+                        onChange={(e) => {
+                          setSaBranchId(e.target.value);
+                          setPaymentSourceLedgerId("");
+                        }}
+                        disabled={!saCountryId}
+                      >
+                        <option value="">-- All Branches --</option>
+                        {saBranches.filter(b => b.country_id === saCountryId || b.country_id === undefined).map(b => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                    </FieldBlock>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FieldBlock label="Payment Source Account" required>
                     <SearchSelect
@@ -1970,10 +2377,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       onValueChange={(val) => {
                         setPaymentSourceLedgerId(val);
                         // Sync account -> Category & Type
-                        const led = ledgers.find((l) => l.id === val);
+                        const led = ledgers.find((l) => ledgerId(l) === val);
                         if (led) {
-                          const name = String(led.name || "").toLowerCase();
-                          const code = String(led.code || "").toLowerCase();
+                          const name = ledgerName(led).toLowerCase();
+                          const code = ledgerCode(led).toLowerCase();
                           if (name.includes("cash") || code.includes("cash")) {
                             setPaymentType("cash");
                             setRoznamchaType("Cash Book No.");
@@ -2001,12 +2408,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         setRoznamchaType(val);
                         if (val === "Cash Book No.") {
                           setPaymentType("cash");
-                          const cashLed = ledgers.find((l) => String(l.name || "").toLowerCase().includes("cash") || String(l.code || "").toLowerCase().includes("cash"));
-                          if (cashLed) setPaymentSourceLedgerId(cashLed.id);
+                          const cashLed = ledgers.find((l) => ledgerName(l).toLowerCase().includes("cash") || ledgerCode(l).toLowerCase().includes("cash"));
+                          if (cashLed) setPaymentSourceLedgerId(ledgerId(cashLed) || "");
                         } else if (val === "Roznamcha Book No.") {
                           setPaymentType("bank");
-                          const bankLed = ledgers.find((l) => String(l.name || "").toLowerCase().includes("bank") || String(l.code || "").toLowerCase().includes("bank"));
-                          if (bankLed) setPaymentSourceLedgerId(bankLed.id);
+                          const bankLed = ledgers.find((l) => ledgerName(l).toLowerCase().includes("bank") || ledgerCode(l).toLowerCase().includes("bank"));
+                          if (bankLed) setPaymentSourceLedgerId(ledgerId(bankLed) || "");
                         }
                       }}
                     >
@@ -2050,12 +2457,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         // Sync Category -> Type and Source Account
                         if (value === "cash") {
                           setRoznamchaType("Cash Book No.");
-                          const cashLed = ledgers.find((l) => String(l.name || "").toLowerCase().includes("cash") || String(l.code || "").toLowerCase().includes("cash"));
-                          if (cashLed) setPaymentSourceLedgerId(cashLed.id);
+                          const cashLed = ledgers.find((l) => ledgerName(l).toLowerCase().includes("cash") || ledgerCode(l).toLowerCase().includes("cash"));
+                          if (cashLed) setPaymentSourceLedgerId(ledgerId(cashLed) || "");
                         } else if (value === "bank") {
                           setRoznamchaType("Roznamcha Book No.");
-                          const bankLed = ledgers.find((l) => String(l.name || "").toLowerCase().includes("bank") || String(l.code || "").toLowerCase().includes("bank"));
-                          if (bankLed) setPaymentSourceLedgerId(bankLed.id);
+                          const bankLed = ledgers.find((l) => ledgerName(l).toLowerCase().includes("bank") || ledgerCode(l).toLowerCase().includes("bank"));
+                          if (bankLed) setPaymentSourceLedgerId(ledgerId(bankLed) || "");
                         }
                       }}
                     >
@@ -2069,12 +2476,18 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </FieldBlock>
 
                   <FieldBlock label="Currency" required>
-                    <input
-                      className="h-9 w-full rounded-md border border-input bg-muted/40 px-3 text-xs font-semibold text-muted-foreground outline-none"
+                    <select
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
                       value={currency}
-                      disabled
-                      title="Currency is locked to your local country base currency."
-                    />
+                      onChange={(e) => setCurrency(e.target.value)}
+                    >
+                      <option value="USD">USD</option>
+                      <option value="AED">AED</option>
+                      <option value="PKR">PKR</option>
+                      <option value="INR">INR</option>
+                      <option value="AFN">AFN</option>
+                      <option value="IRR">IRR</option>
+                    </select>
                   </FieldBlock>
                 </div>
 
@@ -2243,6 +2656,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
 
 
+
+
                 {/* Currency Rate / Calculations */}
                 {currency && showCalcPanel && (
                   <div className="rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/20">
@@ -2250,10 +2665,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       Transaction Conversion Details (Local Calculation) ({currency} ➔ {baseCurrency})
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
-                      <FieldBlock label="Quantity / Amount">
+                      <FieldBlock label={`Foreign Amount (${currency})`} required>
                         <Input className="h-9 text-xs font-semibold" value={calcAmount} onChange={(e) => setCalcAmount(e.target.value)} type="number" step="0.0001" min="0" placeholder="e.g. 100" />
                       </FieldBlock>
-                      <FieldBlock label="Transaction Rate">
+                      <FieldBlock label="Exchange Rate" required>
                         <Input className="h-9 text-xs font-semibold" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} type="number" step="0.0001" min="0" disabled={isLocalCurrency} />
                       </FieldBlock>
                       <FieldBlock label="Operation">
@@ -2331,8 +2746,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     </div>
                     <div><span className="font-bold text-foreground">Amount: </span>{amount ? money(amount, baseCurrency) : "—"}</div>
                     {selected && (
-                      <div>
-                        <span className="font-bold text-foreground font-semibold">Remaining Bill Balance (Baqaya): </span>
+                      <div className="mt-1">
                         {(() => {
                           const form = selected.form_data?.form || {};
                           const totalPrice = (selected as any).form_data?.goodsEntries?.length
@@ -2346,15 +2760,29 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                           if (activeMode === "advance") {
                             return (
-                              <span className="font-extrabold text-rose-600">
-                                {money(remainingAdvanceBC, selected.currency_code ?? "USD")} ({money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)})
-                              </span>
+                              <div className="flex flex-col gap-1">
+                                <div>
+                                  <span className="font-bold text-foreground">Remaining Advance to Pay: </span>
+                                  <span className="font-extrabold text-rose-600">
+                                    {money(remainingAdvanceBC, selected.currency_code ?? "USD")} ({money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)})
+                                  </span>
+                                </div>
+                                <div className="text-[10px]">
+                                  <span className="font-bold text-muted-foreground">Total Remaining Bill: </span>
+                                  <span className="font-bold text-slate-500">
+                                    {money(remainingDue / (selected.exchange_rate || 1), selected.currency_code ?? "USD")} ({money(remainingDue, baseCurrency)})
+                                  </span>
+                                </div>
+                              </div>
                             );
                           } else {
                             return (
-                              <span className="font-extrabold text-rose-600">
-                                {money(remainingDue / (selected.exchange_rate || 1), selected.currency_code ?? "USD")} ({money(remainingDue, baseCurrency)})
-                              </span>
+                              <div>
+                                <span className="font-bold text-foreground">Remaining Bill Balance (Baqaya): </span>
+                                <span className="font-extrabold text-rose-600">
+                                  {money(remainingDue / (selected.exchange_rate || 1), selected.currency_code ?? "USD")} ({money(remainingDue, baseCurrency)})
+                                </span>
+                              </div>
                             );
                           }
                         })()}
@@ -2389,9 +2817,96 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 )}
               </div>
 
-              {/* Right Column: Double-entry Ledger Preview (Col Span 5) */}
-              <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-4">
-                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+              {/* Right Column: Double-entry Ledger Preview & History (Col Span 7) */}
+              <div className="lg:col-span-7 space-y-4 lg:sticky lg:top-4">
+                {/* Past Transactions Table */}
+                {selectedOrderPayments.length > 0 && (() => {
+                  const form = (selected as any).form_data?.form || {};
+                  const totalPrice = (selected as any).form_data?.goodsEntries?.length
+                    ? (selected as any).form_data.goodsEntries.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
+                    : Number(form.totalAmount || 0);
+                  const advancePercent = Number(form.advancePercent || 0);
+                  const totalRequiredFC = (totalPrice * advancePercent) / 100;
+                  
+                  // Compute running balance
+                  let currentBalance = totalRequiredFC;
+                  let accumulatedPaid = 0;
+                  const reversed = [...selectedOrderPayments].reverse();
+                  const historyWithBalance = reversed.map(p => {
+                    const amt = Number(p.amount || 0);
+                    currentBalance -= amt;
+                    const prevPaid = accumulatedPaid;
+                    accumulatedPaid += amt;
+                    return { ...p, remaining_balance: currentBalance, previous_balance_paid: prevPaid };
+                  }).reverse();
+
+                  return (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden dark:bg-slate-900/50 dark:border-slate-800">
+                      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-950">
+                        <h3 className="text-[11px] font-black tracking-wider uppercase text-slate-800 dark:text-slate-200">
+                          Payment Transactions History
+                        </h3>
+                        <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
+                          {selectedOrderPayments.length} Entries
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-100/50 text-[10px] uppercase font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                            <tr>
+                              <th className="px-3 py-2 border-b dark:border-slate-800">Date</th>
+                              <th className="px-3 py-2 border-b dark:border-slate-800">Ref / Accounts</th>
+                              <th className="px-3 py-2 border-b dark:border-slate-800 text-right">Paid</th>
+                              <th className="px-3 py-2 border-b dark:border-slate-800 text-right">Remaining (Advance)</th>
+                              <th className="px-3 py-2 border-b dark:border-slate-800 text-center w-20">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {historyWithBalance.map((payment: any) => {
+                              const drLedger = ledgers.find((l) => ledgerId(l) === payment.debit_ledger_id);
+                              const crLedger = ledgers.find((l) => ledgerId(l) === payment.credit_ledger_id);
+                              const re = payment.roznamcha_entries || {};
+                              
+                              return (
+                                <tr key={payment.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                                  <td className="px-3 py-2 font-medium whitespace-nowrap text-slate-700 dark:text-slate-300 align-top">
+                                    {date(payment.entry_date || payment.created_at)}
+                                  </td>
+                                  <td className="px-3 py-2 align-top">
+                                    <div className="text-[9px] font-mono font-bold text-slate-500 truncate max-w-[120px] mb-1">{re.super_admin_serial_number || "—"}</div>
+                                    <div className="text-[10px] font-mono text-slate-800 dark:text-slate-200 truncate max-w-[120px] mb-1">Ref: {payment.reference_no || "-"}</div>
+                                    <div className="text-[9px] font-bold text-indigo-500 truncate max-w-[120px] mb-1" title={payment.branchName || "Main Branch"}>Branch: {payment.branchName || "Main Branch"}</div>
+                                    <div className="text-indigo-600 dark:text-indigo-400 font-medium text-[9px] truncate max-w-[120px]" title={drLedger ? ledgerName(drLedger) : "-"}>Dr (Purchase): {drLedger ? ledgerName(drLedger) : "-"}</div>
+                                    <div className="text-violet-600 dark:text-violet-400 font-medium text-[9px] truncate max-w-[120px]" title={crLedger ? ledgerName(crLedger) : "-"}>Cr (Payment): {crLedger ? ledgerName(crLedger) : "-"}</div>
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-bold text-emerald-600 whitespace-nowrap align-top">
+                                    <div>{money(payment.amount, payment.currency_code)}</div>
+                                    <div className="flex flex-col items-end mt-1">
+                                      <span className="text-[8px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded mb-0.5">Rate: {Number(payment.exchange_rate || 1).toFixed(4)}</span>
+                                      <span className="text-[9px] text-emerald-800 dark:text-emerald-400">Final: {money(payment.amount * (payment.exchange_rate || 1), baseCurrency)}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-black text-rose-600 whitespace-nowrap align-top">
+                                    <div>{money(payment.remaining_balance, payment.currency_code)}</div>
+                                    <div className="flex flex-col items-end mt-1">
+                                      <span className="text-[8px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded opacity-0 mb-0.5">-</span>
+                                      <span className="text-[9px] text-rose-800 dark:text-rose-400">Final: {money(payment.remaining_balance * (payment.exchange_rate || 1), baseCurrency)}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2 text-center align-top">
+                                    <NestedRowActions payment={payment} row={selected} ledgers={ledgers} localCurrency={baseCurrency} />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mt-4 block">
                   Double-Entry Journal Posting Preview
                 </div>
                 <div className="overflow-x-auto rounded-xl border border-border bg-white dark:bg-slate-950">
@@ -2458,7 +2973,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                 </>
                               );
                             } else {
-                              const crCurrency = selectedSourceLedger?.currency || currency;
+                              const crCurrency = ledgerCurrency(selectedSourceLedger) || currency;
                               return (
                                 <>
                                   {money(amount / Number(exchangeRate || 1), crCurrency)}
@@ -2499,7 +3014,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               </div>
             </div>
           </div>
-        </section>
+        </SimpleModal>
       )}
 
 
@@ -2794,6 +3309,22 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             );
           })()}
         </SimpleModal>
+      )}
+
+      {editingPayment && (
+        <PaymentEditModal
+          open={!!editingPayment}
+          onOpenChange={(open) => !open && setEditingPayment(null)}
+          payment={editingPayment.payment}
+          row={editingPayment.row}
+          session={session}
+          ledgers={ledgers}
+          baseCurrency={baseCurrency}
+          onSuccess={() => {
+            const el = document.getElementById("refresh-btn");
+            if (el) el.click();
+          }}
+        />
       )}
     </div>
   );

@@ -4,9 +4,36 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, Link2, MoreVertical, Printer, RefreshCcw, Search, Ship } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ErpPageActions } from "@/components/layout/erp-page-actions";
 import { cn } from "@/lib/utils";
 
 type LoadingStatus = "draft" | "pending" | "loaded" | "received" | "cancelled";
+
+function CustomDropdown({ recordId }: { recordId: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative inline-block text-left">
+      <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => setOpen(!open)}>
+        <MoreVertical className="h-4 w-4" />
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-50 mt-2 w-48 rounded-md bg-popover shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border dark:border-border">
+            <div className="py-1">
+              <button className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => setOpen(false)}>Edit</button>
+              <button className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => setOpen(false)}>Load</button>
+              <button className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => {
+                setOpen(false);
+                window.open(`/dashboard/purchase/purchase-loading-records/${recordId}`, "_self");
+              }}>View</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 type LoadingRecord = {
   id: string;
@@ -25,6 +52,7 @@ type LoadingRecord = {
   countries?: { name?: string | null; iso2?: string | null } | null;
   country_branches?: { name?: string | null; code?: string | null } | null;
   city_branches?: { name?: string | null; code?: string | null; city_name?: string | null } | null;
+  purchase_orders?: { form_data?: any } | null;
 };
 
 type ApiPayload = {
@@ -163,24 +191,41 @@ export function PurchaseLoadingRecordsView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] px-5 py-6">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs font-black uppercase tracking-[0.35em] text-primary">Purchase</div>
-          <h1 className="mt-1 text-2xl font-black tracking-tight">Purchase Loading Records</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Standalone loading records, filters, reports, and container activity. Purchase Order linking is optional.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => void loadRecords()} disabled={loading}>
-            <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
-            Refresh
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="h-4 w-4" />
-            Print
-          </Button>
-          <Button type="button" variant="outline" size="icon" aria-label="More actions">
-            <MoreVertical className="h-4 w-4" />
+    <div className="w-full px-5 py-6">
+      <ErpPageActions>
+        <Button type="button" variant="outline" size="sm" onClick={() => void loadRecords()} disabled={loading}>
+          <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
+          Refresh
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
+          <Printer className="h-4 w-4" />
+          Print
+        </Button>
+        <Button type="button" variant="outline" size="icon" aria-label="More actions">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </ErpPageActions>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search container / loading no / PO"
+              className="h-9 w-64 rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <select value={status} onChange={(event) => setStatus(event.target.value as "all" | LoadingStatus)} className="h-9 rounded-md border bg-background px-3 text-sm">
+            {statusOptions.map((option) => (
+              <option key={option} value={option}>
+                {option === "all" ? "All Status" : option}
+              </option>
+            ))}
+          </select>
+          <Button type="button" size="sm" onClick={() => void loadRecords()} disabled={loading}>
+            Apply
           </Button>
         </div>
       </div>
@@ -203,42 +248,19 @@ export function PurchaseLoadingRecordsView() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="space-y-4">
         <Card>
           <CardContent className="p-0">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
-              <div>
-                <h2 className="text-base font-black">Loading Records Report</h2>
-                <p className="text-xs text-muted-foreground">Independent from Purchase Booking Order unless explicitly linked.</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search container / loading no / PO"
-                    className="h-9 w-64 rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-                <select value={status} onChange={(event) => setStatus(event.target.value as "all" | LoadingStatus)} className="h-9 rounded-md border bg-background px-3 text-sm">
-                  {statusOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option === "all" ? "All Status" : option}
-                    </option>
-                  ))}
-                </select>
-                <Button type="button" size="sm" onClick={() => void loadRecords()} disabled={loading}>
-                  Apply
-                </Button>
-              </div>
+            <div className="border-b p-4">
+              <h2 className="text-base font-black">Loading Records Report</h2>
+              <p className="text-xs text-muted-foreground">Independent from Purchase Booking Order unless explicitly linked.</p>
             </div>
 
-            <div className="overflow-auto">
-              <table className="w-full min-w-[1100px] border-collapse text-sm">
+            <div className="overflow-auto pb-4">
+              <table className="w-full min-w-[2000px] border-collapse text-sm">
                 <thead>
                   <tr className="bg-slate-950 text-left text-xs uppercase tracking-wide text-white">
-                    {["SR#", "Loading No", "Container", "Type", "Status", "Loaded Date/Time", "Loading Location", "Receiving Location", "PO Link", "Carrier", "Action"].map((head) => (
+                    {["SR#", "Loading No", "Purchase Booking No.", "Sales Account", "Account Detail", "Goods Name", "Goods Details", "Quantity", "Net Weight", "Gross Weight", "Purchase Total Currency", "Advance Currency", "Loading Country", "Loading Date", "Loading Port", "Received Country", "Received Date", "Received Port", "Action"].map((head) => (
                       <th key={head} className="whitespace-nowrap px-3 py-3 font-black">
                         {head}
                       </th>
@@ -248,89 +270,75 @@ export function PurchaseLoadingRecordsView() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">
+                      <td colSpan={19} className="px-3 py-8 text-center text-muted-foreground">
                         Loading records...
                       </td>
                     </tr>
                   ) : filteredRecords.length ? (
-                    filteredRecords.map((record, index) => (
-                      <tr key={record.id} className="border-b hover:bg-muted/40">
-                        <td className="whitespace-nowrap px-3 py-2">{String(index + 1).padStart(2, "0")}</td>
-                        <td className="whitespace-nowrap px-3 py-2 font-bold text-primary">{record.loading_record_no}</td>
-                        <td className="whitespace-nowrap px-3 py-2">{record.container_number}</td>
-                        <td className="whitespace-nowrap px-3 py-2">{record.container_type ?? "-"}</td>
-                        <td className="whitespace-nowrap px-3 py-2">
-                          <StatusPill status={record.loading_status} />
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2">{record.loaded_at ? new Date(record.loaded_at).toLocaleString() : "-"}</td>
-                        <td className="whitespace-nowrap px-3 py-2">{record.loading_location ?? "-"}</td>
-                        <td className="whitespace-nowrap px-3 py-2">{record.receiving_location ?? "-"}</td>
-                        <td className="whitespace-nowrap px-3 py-2">{record.purchase_order_no ? <span className="inline-flex items-center gap-1"><Link2 className="h-3.5 w-3.5" />{record.purchase_order_no}</span> : "Standalone"}</td>
-                        <td className="whitespace-nowrap px-3 py-2">{record.carrier_name ?? "-"}</td>
-                        <td className="whitespace-nowrap px-3 py-2">
-                          <Button type="button" variant="outline" size="sm">
-                            View
-                          </Button>
-                        </td>
-                      </tr>
-                    ))
+                    filteredRecords.map((record, index) => {
+                      const poData = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders)?.form_data || {};
+                      const form = poData.form || {};
+                      
+                      // Supplier
+                      const supplierName = form.supplierName || form.vendorName || poData.supplier?.accountName || "-";
+                      const accountDetail = form.supplierDetails || poData.accountDetail || "-";
+                      
+                      // Goods
+                      const goods = poData.goodsEntries || [];
+                      const goodsName = goods.map((g: any) => g.goodsName || g.item_name).filter(Boolean).join(", ") || form.itemName || "-";
+                      const goodsDetails = goods.map((g: any) => g.brand || g.size || g.item_details).filter(Boolean).join(", ") || form.itemDetails || "-";
+                      const totalQty = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || g.quantity || 0), 0) : Number(form.quantity || 0);
+                      const totalNet = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
+                      const totalGross = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
+                      
+                      // Financial
+                      const totalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || g.totalAmount || 0), 0) : Number(form.totalAmount || form.finalAmount || 0);
+                      const currency = form.secondaryCurrency?.split(" ")?.[0] || form.currency || "-";
+                      const advanceCurrency = form.advanceAmount ? `${form.advanceAmount} ${currency}` : "-";
+                      
+                      // Logistics
+                      const loadingCountry = form.loadingCountry || form.originCountry || "-";
+                      const loadingPort = form.loadingPort || form.exitPort || "-";
+                      const loadingDateVal = form.loadingDate || "-";
+                      const receivingCountry = form.receivedCountry || form.destinationCountry || "-";
+                      const receivingPort = form.receivedPort || form.destinationPort || "-";
+                      const receivingDateVal = form.receivedDate || form.arrivalDate || "-";
+
+                      return (
+                        <tr key={record.id} className="border-b hover:bg-muted/40">
+                          <td className="whitespace-nowrap px-3 py-2">{String(index + 1).padStart(2, "0")}</td>
+                          <td className="whitespace-nowrap px-3 py-2 font-bold text-primary">{record.loading_record_no}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{record.purchase_order_no ? <span className="inline-flex items-center gap-1"><Link2 className="h-3.5 w-3.5" />{record.purchase_order_no}</span> : "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{supplierName || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{accountDetail || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{goodsName || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{goodsDetails || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{totalQty || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{totalNet || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{totalGross || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{totalAmt ? `${totalAmt} ${currency}` : "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{advanceCurrency || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{loadingCountry || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{record.loaded_at ? new Date(record.loaded_at).toLocaleDateString() : (loadingDateVal || "-")}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{record.loading_location || loadingPort || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{receivingCountry || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{receivingDateVal || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{record.receiving_location || receivingPort || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            <CustomDropdown recordId={record.id} />
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">
+                      <td colSpan={19} className="px-3 py-8 text-center text-muted-foreground">
                         No loading records found.
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="xl:sticky xl:top-4">
-          <CardContent className="space-y-4 p-4">
-            <div className="flex items-center gap-2">
-              <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
-                <Ship className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-black">New Loading Record</h2>
-                <p className="text-xs text-muted-foreground">Create standalone loading entry.</p>
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={form.linkPurchaseOrder}
-                onChange={(event) => setForm((previous) => ({ ...previous, linkPurchaseOrder: event.target.checked, purchaseOrderNo: event.target.checked ? previous.purchaseOrderNo : "" }))}
-              />
-              Explicitly link to Purchase Order
-            </label>
-
-            {form.linkPurchaseOrder ? (
-              <Field label="Purchase Order No" value={form.purchaseOrderNo} onChange={(value) => setForm((previous) => ({ ...previous, purchaseOrderNo: value }))} placeholder="Optional PO number" />
-            ) : null}
-
-            <Field label="Container Number" value={form.containerNumber} onChange={(value) => setForm((previous) => ({ ...previous, containerNumber: value }))} placeholder="e.g. CONT-7788" />
-            <SelectField label="Container Type" value={form.containerType} options={containerTypes} onChange={(value) => setForm((previous) => ({ ...previous, containerType: value }))} />
-            <SelectField label="Loading Status" value={form.loadingStatus} options={statusOptions.filter((option) => option !== "all")} onChange={(value) => setForm((previous) => ({ ...previous, loadingStatus: value as LoadingStatus }))} />
-            <Field label="Loaded Date / Time" type="datetime-local" value={form.loadedAt} onChange={(value) => setForm((previous) => ({ ...previous, loadedAt: value }))} />
-            <Field label="Loading Location" value={form.loadingLocation} onChange={(value) => setForm((previous) => ({ ...previous, loadingLocation: value }))} />
-            <Field label="Receiving Location" value={form.receivingLocation} onChange={(value) => setForm((previous) => ({ ...previous, receivingLocation: value }))} />
-            <Field label="Carrier Name" value={form.carrierName} onChange={(value) => setForm((previous) => ({ ...previous, carrierName: value }))} />
-            <Field label="Remarks" value={form.remarks} onChange={(value) => setForm((previous) => ({ ...previous, remarks: value }))} />
-
-            <Button type="button" className="w-full" onClick={() => void saveRecord()} disabled={saving || !form.containerNumber.trim()}>
-              {saving ? "Saving..." : "Save Loading Record"}
-            </Button>
-
-            <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
-              <div className="mb-2 flex items-center gap-2 font-black text-foreground">
-                <FileText className="h-4 w-4" />
-                Module Rule
-              </div>
-              Purchase Loading Records are standalone. Purchase Order linking remains off unless the user selects it manually.
             </div>
           </CardContent>
         </Card>

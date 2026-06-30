@@ -19,7 +19,8 @@ export type SidebarIconKey =
   | "mail"
   | "bell"
   | "palette"
-  | "search";
+  | "search"
+  | "truck";
 
 export type SidebarNode = {
   key: string;
@@ -82,43 +83,6 @@ export const sidebarTree: SidebarNode[] = [
     ]
   },
   {
-    key: "search-portal",
-    labelKey: "nav.search_portal",
-    iconKey: "search",
-    href: "/dashboard/search" as Route
-  },
-  {
-    key: "branch",
-    labelKey: "nav.branch_menu",
-    iconKey: "building-2",
-    children: [
-      {
-        key: "branch-super-admin-entry",
-        labelKey: "nav.super_admin_branch",
-        href: "/dashboard/new-entry/branches/super-admin" as Route,
-        roles: ["super_admin"]
-      },
-      {
-        key: "branch-country-entry",
-        labelKey: "nav.country_branch",
-        href: "/dashboard/new-entry/branch-entry/country-branch" as Route,
-        roles: ["super_admin", "country_admin", "country_user"]
-      },
-      {
-        key: "branch-city-entry",
-        labelKey: "nav.city_branch",
-        href: "/dashboard/new-entry/branch-entry/city-branch" as Route,
-        roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin"]
-      },
-      {
-        key: "branch-general-report",
-        labelKey: "nav.branch_general_report",
-        href: "/dashboard/branch-management/general-report" as Route,
-        roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
-      }
-    ]
-  },
-  {
     key: "new-entry",
     labelKey: "nav.new_entry",
     iconKey: "list-plus",
@@ -142,32 +106,63 @@ export const sidebarTree: SidebarNode[] = [
             roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "auditor_viewer"]
           }
         ]
-      }
-    ]
-  },
-  {
-    key: "accounts",
-    labelKey: "nav.accounts",
-    iconKey: "book-open",
-    href: "/dashboard/accounts" as Route,
-    children: [
+      },
       {
-        key: "accounts-general-report",
-        labelKey: "nav.new_account_general_report",
+        key: "branch",
+        labelKey: "nav.branch_menu",
+        iconKey: "building-2",
+        children: [
+          {
+            key: "branch-super-admin-entry",
+            labelKey: "nav.super_admin_branch",
+            href: "/dashboard/new-entry/branches/super-admin" as Route,
+            roles: ["super_admin"]
+          },
+          {
+            key: "branch-country-entry",
+            labelKey: "nav.country_branch",
+            href: "/dashboard/new-entry/branch-entry/country-branch" as Route,
+            roles: ["super_admin", "country_admin", "country_user"]
+          },
+          {
+            key: "branch-city-entry",
+            labelKey: "nav.city_branch",
+            href: "/dashboard/new-entry/branch-entry/city-branch" as Route,
+            roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin"]
+          },
+          {
+            key: "branch-general-report",
+            labelKey: "nav.branch_general_report",
+            href: "/dashboard/branch-management/general-report" as Route,
+            roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+          }
+        ]
+      },
+      {
+        key: "accounts",
+        labelKey: "nav.accounts",
+        iconKey: "book-open",
         href: "/dashboard/accounts" as Route,
-        roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
-      },
-      {
-        key: "accounts-setup-report",
-        labelKey: "nav.account_setup_report",
-        href: "/dashboard/accounts/setup-report" as Route,
-        roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
-      },
-      {
-        key: "accounts-new",
-        labelKey: "nav.new_account",
-        href: "/dashboard/accounts/setup" as Route,
-        roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant"]
+        children: [
+          {
+            key: "accounts-general-report",
+            labelKey: "nav.new_account_general_report",
+            href: "/dashboard/accounts" as Route,
+            roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
+          },
+          {
+            key: "accounts-setup-report",
+            labelKey: "nav.account_setup_report",
+            href: "/dashboard/accounts/setup-report" as Route,
+            roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
+          },
+          {
+            key: "accounts-new",
+            labelKey: "nav.new_account",
+            href: "/dashboard/accounts/setup" as Route,
+            roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant"]
+          }
+        ]
       }
     ]
   },
@@ -240,6 +235,20 @@ export const sidebarTree: SidebarNode[] = [
             ]
           },
           {
+            key: "final-payments",
+            labelKey: "nav.final_payments",
+            iconKey: "banknote",
+            roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"],
+            children: [
+              {
+                key: "final-payments-advance-nil",
+                labelKey: "nav.final_payments_advance_nil",
+                href: "/dashboard/journal/final-payments/advance-nil" as Route,
+                roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+              }
+            ]
+          },
+          {
             key: "roznamcha",
             labelKey: "nav.roznamcha",
             iconKey: "scroll-text",
@@ -279,58 +288,65 @@ export const sidebarTree: SidebarNode[] = [
         ]
       },
   {
-    key: "shipping-line",
-    labelKey: "nav.shipping_line",
-    iconKey: "file-text",
+    key: "logistics",
+    labelKey: "nav.logistics" as any,
+    iconKey: "truck",
     children: [
       {
-        key: "shipping-shipment-details",
-        labelKey: "nav.shipment_details",
-        href: "/dashboard/shipping-line/shipment-details" as Route,
-        roles: ["super_admin"]
+        key: "shipping-line",
+        labelKey: "nav.shipping_line",
+        iconKey: "file-text",
+        children: [
+          {
+            key: "shipping-shipment-details",
+            labelKey: "nav.shipment_details",
+            href: "/dashboard/shipping-line/shipment-details" as Route,
+            roles: ["super_admin"]
+          },
+          {
+            key: "shipping-shipment-report",
+            labelKey: "nav.shipment_report",
+            href: "/dashboard/shipping-line/shipment-report" as Route,
+            roles: ["super_admin"]
+          },
+          {
+            key: "shipping-purchase-loading-records",
+            labelKey: "nav.purchase_loading_records",
+            href: "/dashboard/purchase/purchase-loading-records" as Route,
+            roles: ["super_admin"]
+          },
+          {
+            key: "shipping-agent",
+            labelKey: "nav.shipping_agent_entry",
+            href: "/dashboard/shipping-line/agent-entry" as Route,
+            roles: ["super_admin"]
+          }
+        ]
       },
       {
-        key: "shipping-shipment-report",
-        labelKey: "nav.shipment_report",
-        href: "/dashboard/shipping-line/shipment-report" as Route,
-        roles: ["super_admin"]
-      },
-      {
-        key: "shipping-purchase-loading-records",
-        labelKey: "nav.purchase_loading_records",
-        href: "/dashboard/purchase/purchase-loading-records" as Route,
-        roles: ["super_admin"]
-      },
-      {
-        key: "shipping-agent",
-        labelKey: "nav.shipping_agent_entry",
-        href: "/dashboard/shipping-line/agent-entry" as Route,
-        roles: ["super_admin"]
-      }
-    ]
-  },
-  {
-    key: "clearing-agent",
-    labelKey: "nav.clearing_agent",
-    iconKey: "clipboard-list",
-    children: [
-      {
-        key: "clearing-custom",
-        labelKey: "nav.agent_custom_entry",
-        href: "/dashboard/clearing-agent/agent-custom-entry" as Route,
-        roles: ["super_admin"]
-      },
-      {
-        key: "clearing-bill",
-        labelKey: "nav.clearing_bill_entry",
-        href: "/dashboard/clearing-agent/bill-entry" as Route,
-        roles: ["super_admin"]
-      },
-      {
-        key: "clearing-payment-bill",
-        labelKey: "nav.payment_bill_entry",
-        href: "/dashboard/clearing-agent/payment-bill-entry" as Route,
-        roles: ["super_admin"]
+        key: "clearing-agent",
+        labelKey: "nav.clearing_agent",
+        iconKey: "clipboard-list",
+        children: [
+          {
+            key: "clearing-custom",
+            labelKey: "nav.agent_custom_entry",
+            href: "/dashboard/clearing-agent/agent-custom-entry" as Route,
+            roles: ["super_admin"]
+          },
+          {
+            key: "clearing-bill",
+            labelKey: "nav.clearing_bill_entry",
+            href: "/dashboard/clearing-agent/bill-entry" as Route,
+            roles: ["super_admin"]
+          },
+          {
+            key: "clearing-payment-bill",
+            labelKey: "nav.payment_bill_entry",
+            href: "/dashboard/clearing-agent/payment-bill-entry" as Route,
+            roles: ["super_admin"]
+          }
+        ]
       }
     ]
   },

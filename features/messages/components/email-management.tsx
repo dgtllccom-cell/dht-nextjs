@@ -489,6 +489,69 @@ export function EmailManagementWorkspace({ channel }: { channel: EmailChannel })
         <MetricCard icon={Globe2} label="Providers" value={summary.providers} />
       </section>
 
+      <section className="grid gap-4 lg:grid-cols-4">
+        <Card className="border-blue-200/70 bg-blue-50/40 shadow-sm dark:border-blue-900/60 dark:bg-blue-950/20">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-700 dark:text-blue-300">SMTP / Email</p>
+                <h3 className="mt-1 text-sm font-black text-slate-950 dark:text-white">Outbound Mail Control</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-350">Messages are saved to ERP audit and email tables; SMTP provider can be connected per country/branch.</p>
+              </div>
+              <Mail className="h-5 w-5 text-blue-600" aria-hidden />
+            </div>
+            <button type="button" onClick={openCompose} className="mt-4 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:bg-slate-950 dark:text-blue-300">
+              Compose Email
+            </button>
+          </CardContent>
+        </Card>
+        <Card className="border-emerald-200/70 bg-emerald-50/40 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/20">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">WhatsApp</p>
+                <h3 className="mt-1 text-sm font-black text-slate-950 dark:text-white">Message Templates</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-350">WhatsApp communication uses the same ERP history and branch visibility rules.</p>
+              </div>
+              <MessageSquareText className="h-5 w-5 text-emerald-600" aria-hidden />
+            </div>
+            <button type="button" onClick={() => { setProvider("WhatsApp"); setComposeProvider("WhatsApp"); setComposeSubject("WhatsApp Customer Message"); setComposeBody("Dear Customer,\n\n"); setComposeOpen(true); }} className="mt-4 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:bg-slate-950 dark:text-emerald-300">
+              New WhatsApp Message
+            </button>
+          </CardContent>
+        </Card>
+        <Card className="border-orange-200/70 bg-orange-50/40 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/20">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-700 dark:text-orange-300">Templates</p>
+                <h3 className="mt-1 text-sm font-black text-slate-950 dark:text-white">Professional Replies</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-350">Purchase, payment, stock alert, approval, and customer follow-up templates are ready for compose.</p>
+              </div>
+              <FilePlus2 className="h-5 w-5 text-orange-600" aria-hidden />
+            </div>
+            <button type="button" onClick={() => { setComposeSubject("ERP Notification"); setComposeBody("Dear Customer\\n\\nYour ERP record has been updated.\\n\\nRegards,"); setComposeLabels("ERP, Template"); setComposeOpen(true); }} className="mt-4 w-full rounded-lg border border-orange-200 bg-white px-3 py-2 text-xs font-black text-orange-700 hover:bg-orange-50 dark:border-orange-900 dark:bg-slate-950 dark:text-orange-300">
+              Use Template
+            </button>
+          </CardContent>
+        </Card>
+        <Card className="border-purple-200/70 bg-purple-50/40 shadow-sm dark:border-purple-900/60 dark:bg-purple-950/20">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-700 dark:text-purple-300">Audit Trail</p>
+                <h3 className="mt-1 text-sm font-black text-slate-950 dark:text-white">Communication History</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-350">Every sent/draft message stays linked with country, branch, user, module, and document history.</p>
+              </div>
+              <ShieldAlert className="h-5 w-5 text-purple-600" aria-hidden />
+            </div>
+            <div className="mt-4 rounded-lg border border-purple-200 bg-white px-3 py-2 text-xs font-black text-purple-700 dark:border-purple-900 dark:bg-slate-950 dark:text-purple-300">
+              {summary.totalMessages} logged records
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
       {error ? (
         <Card className="border-red-200 bg-red-50/60">
           <CardContent className="p-4 text-sm text-red-700">{error}</CardContent>
@@ -620,7 +683,7 @@ export function EmailManagementWorkspace({ channel }: { channel: EmailChannel })
                           <div className="min-w-0">
                             <div className="truncate text-sm font-semibold text-foreground">{row.subject}</div>
                             <div className="truncate text-xs text-muted-foreground">
-                              {row.senderName} · {row.companyName}
+                              {row.senderName} - {row.companyName}
                             </div>
                           </div>
                           <div className="shrink-0 text-right text-xs text-muted-foreground">{formatDateTime(row.createdAt)}</div>
@@ -655,7 +718,7 @@ export function EmailManagementWorkspace({ channel }: { channel: EmailChannel })
                       <h2 className="truncate text-lg font-semibold text-foreground">{selected.subject}</h2>
                       {selected.isUnread ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">Unread</span> : null}
                     </div>
-                    <p className="text-sm text-muted-foreground">{selected.senderName} · {selected.companyName} · {selected.branchName}</p>
+                    <p className="text-sm text-muted-foreground">{selected.senderName} - {selected.companyName} - {selected.branchName}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={printWorkspace}>
@@ -683,7 +746,7 @@ export function EmailManagementWorkspace({ channel }: { channel: EmailChannel })
                     <InfoBlock label="CC" value={selected.ccSummary} />
                     <InfoBlock label="Date" value={formatDateTime(selected.createdAt)} />
                     <InfoBlock label="Company" value={selected.companyName} />
-                    <InfoBlock label="Branch" value={`${selected.branchName} · ${selected.branchType}`} />
+                    <InfoBlock label="Branch" value={`${selected.branchName} - ${selected.branchType}`} />
                   </div>
                 </div>
 

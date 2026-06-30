@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     const order = await requireSupabaseData(
       supabase
         .from("purchase_orders")
-        .select("id, country_id, country_branch_id, city_branch_id")
+        .select("id, country_id, country_branch_id, city_branch_id, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
         .eq("id", params.id)
         .is("deleted_at", null)
         .maybeSingle()
@@ -45,7 +45,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
             id,
             super_admin_serial_number,
             country_transaction_serial_number,
-            branch_transaction_serial_number
+            branch_transaction_serial_number,
+            profiles!roznamcha_entries_created_by_fkey ( full_name )
           )
         `)
         .eq("purchase_order_id", params.id)
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const order = await requireSupabaseData(
       supabase
         .from("purchase_orders")
-        .select("id, country_id, country_branch_id, city_branch_id")
+        .select("id, country_id, country_branch_id, city_branch_id, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
         .eq("id", params.id)
         .is("deleted_at", null)
         .maybeSingle()
@@ -88,6 +89,42 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       cityBranchId: (order as any)?.city_branch_id ?? null
     });
 
+    const orderRow = order as any;
+    const orderTotal = Number(orderRow.order_total || 0);
+    const advancePaid = Number(orderRow.advance_paid || 0);
+    const remainingPaid = Number(orderRow.remaining_paid || 0);
+    const creditAmount = Number(orderRow.credit_amount || 0);
+    const remainingDue = Math.max(0, Number(orderRow.remaining_due ?? (orderTotal - advancePaid - remainingPaid - creditAmount)));
+    const form = orderRow.form_data?.form || {};
+    const goodsEntries = Array.isArray(orderRow.form_data?.goodsEntries) ? orderRow.form_data.goodsEntries : [];
+    const formTotal = goodsEntries.length
+      ? goodsEntries.reduce((sum: number, item: any) => sum + Number(item.totalAmount || item.finalAmount || 0), 0)
+      : Number(form.totalAmount || orderTotal || 0);
+    const advancePercent = Number(form.advancePercent || 0);
+    const requiredAdvance = advancePercent > 0 ? (formTotal * advancePercent) / 100 : 0;
+    const remainingAdvance = Math.max(0, requiredAdvance - advancePaid);
+    const tolerance = 0.01;
+
+    if (body.debitLedgerId === body.creditLedgerId) {
+      throw new Error("Debit and credit ledgers must be different for purchase payment posting.");
+    }
+
+    if (body.kind === "advance" && advancePercent > 0) {
+      if (remainingAdvance <= tolerance) {
+        throw new Error("Advance payment is already completed for this purchase order. Duplicate posting is not allowed.");
+      }
+      if (body.amount > remainingAdvance + tolerance) {
+        throw new Error(`Advance payment amount cannot exceed remaining advance balance (${remainingAdvance.toFixed(2)}).`);
+      }
+    }
+
+    if ((body.kind === "remaining" || body.kind === "credit") && remainingDue <= tolerance) {
+      throw new Error("This purchase order has no remaining payable balance. Duplicate posting is not allowed.");
+    }
+
+    if ((body.kind === "remaining" || body.kind === "credit") && body.amount > remainingDue + tolerance) {
+      throw new Error(`Payment amount cannot exceed remaining payable balance (${remainingDue.toFixed(2)}).`);
+    }
     // Transaction-safe posting via RPC using the security definer wrapper post_purchase_booking_transfer.
     // This wrapper sets config('request.jwt.claims', ...) so audit log triggers find auth.uid().
     const { data, error } = await supabase.rpc("post_purchase_booking_transfer", {
@@ -139,11 +176,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       if (orderError) throw orderError;
 
       if (updatedOrder) {
-        const form = (updatedOrder.form_data as any)?.form ?? {};
+        const updated = updatedOrder as any;
+        const form = updated.form_data?.form ?? {};
         const advancePercent = Number(form.advancePercent ?? 10);
-        const orderTotal = Number(updatedOrder.order_total || 0);
+        const orderTotal = Number(updated.order_total || 0);
         const requiredAdvance = (orderTotal * advancePercent) / 100;
-        const advancePaid = Number(updatedOrder.advance_paid || 0);
+        const advancePaid = Number(updated.advance_paid || 0);
 
         const isAdvanceCompleted = requiredAdvance > 0 && advancePaid >= requiredAdvance;
 
@@ -159,7 +197,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           if (loadingCheckError) throw loadingCheckError;
 
           if (!existingLoading) {
-            const containerNumber = String(form.containerNo || form.containerNumber || `CONT-${updatedOrder.purchase_order_no}`).trim();
+            const containerNumber = String(form.containerNo || form.containerNumber || `CONT-${updated.purchase_order_no}`).trim();
             const containerType = form.containerType || null;
             
             const randomCode = (prefix: string) => {
@@ -174,11 +212,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
             const plrNo = randomCode("PLR");
 
             const loadingPayload = {
-              country_id: updatedOrder.country_id,
-              country_branch_id: updatedOrder.country_branch_id,
-              city_branch_id: updatedOrder.city_branch_id,
-              purchase_order_id: updatedOrder.id,
-              purchase_order_no: updatedOrder.purchase_order_no,
+              country_id: updated.country_id,
+              country_branch_id: updated.country_branch_id,
+              city_branch_id: updated.city_branch_id,
+              purchase_order_id: updated.id,
+              purchase_order_no: updated.purchase_order_no,
               loading_record_no: plrNo,
               container_number: containerNumber,
               container_type: containerType,
@@ -187,8 +225,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
               receiving_location: form.receivedPort || form.exitPort || null,
               shipment_status: "pending",
               carrier_name: form.vesselName || form.shipName || null,
-              remarks: `Automatically moved to loading module after 100% advance completion of PO ${updatedOrder.purchase_order_no}`,
-              report_payload: updatedOrder.form_data ?? {},
+              remarks: `Automatically moved to loading module after 100% advance completion of PO ${updated.purchase_order_no}`,
+              report_payload: updated.form_data ?? {},
               created_by: session.userId
             };
 

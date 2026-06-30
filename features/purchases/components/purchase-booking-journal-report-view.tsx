@@ -389,89 +389,94 @@ function makeContainers(report: PurchaseReport | null): ContainerRow[] {
 }
 
 function exportCsv(rows: PurchaseReport[], fileName: string) {
-  const headers = [
-    "P#",
-    "Date",
-    "Branch",
-    "Allot",
-    "Good Name",
-    "ORIGIN",
-    "Warehouse",
-    "Invoice No.",
-    "Seller Acc.",
-    "Qty",
-    "KGs",
-    "P.TYPE",
-    "D.Terms",
-    "Route",
-    "Loading",
-    "Loading Date",
-    "Receiving",
-    "Receiving Date"
-  ];
-  const csvRows = rows.map((row, index) => {
-    const pNum = `P#${rows.length - index}`;
-    
-    const goods = row.form_data?.goodsEntries || [];
-    const allot = goods.map((g: any) => g.allotName).filter(Boolean).join("; ") || row.form_data?.form?.allotName || "N/A";
-    const goodName = goods.map((g: any) => g.goodsName).filter(Boolean).join("; ") || row.productName || "N/A";
-    const origin = goods.map((g: any) => g.origin).filter(Boolean).join("; ") || "N/A";
-    const warehouse = goods.map((g: any) => g.warehouse).filter(Boolean).join("; ") || "N/A";
-    const invoiceNo = row.form_data?.form?.billNo || row.form_data?.form?.invoiceNo || row.form_data?.form?.purchaseContractNo || row.purchaseContractNo || "N/A";
-    const sellerAcc = row.form_data?.form?.purchaseAccountName || row.supplierName || "-";
-    
-    const qty = goods.length > 0 ? goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0) : "N/A";
-    const kgs = goods.length > 0 ? goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || g.grossWeight || 0), 0) : "N/A";
+  try {
+    const headers = [
+      "P#",
+      "Date",
+      "Branch",
+      "Allot",
+      "Good Name",
+      "ORIGIN",
+      "Warehouse",
+      "Invoice No.",
+      "Seller Acc.",
+      "Qty",
+      "KGs",
+      "P.TYPE",
+      "D.Terms",
+      "Route",
+      "Loading",
+      "Loading Date",
+      "Receiving",
+      "Receiving Date"
+    ];
+    const csvRows = rows.map((row, index) => {
+      const pNum = `P#${rows.length - index}`;
+      
+      const goods = row.form_data?.goodsEntries || [];
+      const allot = goods.map((g: any) => g.allotName).filter(Boolean).join("; ") || row.form_data?.form?.allotName || "N/A";
+      const goodName = goods.map((g: any) => g.goodsName).filter(Boolean).join("; ") || row.productName || "N/A";
+      const origin = goods.map((g: any) => g.origin).filter(Boolean).join("; ") || "N/A";
+      const warehouse = goods.map((g: any) => g.warehouse).filter(Boolean).join("; ") || "N/A";
+      const invoiceNo = row.form_data?.form?.billNo || row.form_data?.form?.invoiceNo || row.form_data?.form?.purchaseContractNo || row.purchaseContractNo || "N/A";
+      const sellerAcc = row.form_data?.form?.purchaseAccountName || row.supplierName || "-";
+      
+      const qty = goods.length > 0 ? goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0) : "N/A";
+      const kgs = goods.length > 0 ? goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || g.grossWeight || 0), 0) : "N/A";
 
-    const dateStr = formatShortDate(row.purchaseDate);
-    const branch = row.branchName || row.form_data?.form?.branchCode || "-";
+      const dateStr = formatShortDate(row.purchaseDate);
+      const branch = row.branchName || row.form_data?.form?.branchCode || "-";
 
-    const pTypeRaw = row.form_data?.form?.paymentType || row.paymentStatus || "";
-    let pType = "N/A";
-    if (pTypeRaw.toLowerCase().includes("advance")) pType = "Advance";
-    else if (pTypeRaw.toLowerCase().includes("credit")) pType = "Credit";
-    else if (pTypeRaw.toLowerCase().includes("full") || pTypeRaw.toLowerCase().includes("final")) pType = "Full";
-    else if (pTypeRaw) pType = pTypeRaw;
+      const pTypeRaw = String(row.form_data?.form?.paymentType || row.paymentStatus || "");
+      let pType = "N/A";
+      if (pTypeRaw.toLowerCase().includes("advance")) pType = "Advance";
+      else if (pTypeRaw.toLowerCase().includes("credit")) pType = "Credit";
+      else if (pTypeRaw.toLowerCase().includes("full") || pTypeRaw.toLowerCase().includes("final")) pType = "Full";
+      else if (pTypeRaw) pType = pTypeRaw;
 
-    const dTerms = row.form_data?.form?.deliveryTerms || row.form_data?.form?.dTerms || row.form_data?.form?.incoterms || row.form_data?.form?.transportAgent || row.form_data?.form?.paymentDaysAndMethodDetails || "N/A";
-    
-    const routeRaw = row.form_data?.form?.shippingMode || row.form_data?.form?.shippingType || row.form_data?.form?.shipmentType || "";
-    const route = routeRaw.replace(/^By\s+/i, "") || "N/A";
+      const dTerms = row.form_data?.form?.deliveryTerms || row.form_data?.form?.dTerms || row.form_data?.form?.incoterms || row.form_data?.form?.transportAgent || row.form_data?.form?.paymentDaysAndMethodDetails || "N/A";
+      
+      const routeRaw = String(row.form_data?.form?.shippingMode || row.form_data?.form?.shippingType || row.form_data?.form?.shipmentType || "");
+      const route = routeRaw.replace(/^By\s+/i, "") || "N/A";
 
-    const loadingLoc = row.form_data?.form?.loadingCountry || "N/A";
-    const loadingDate = formatIsoDate(row.form_data?.form?.loadingDate);
-    const receivingLoc = row.form_data?.form?.receivedCountry || "N/A";
-    const receivingDate = formatIsoDate(row.form_data?.form?.receivedDate);
+      const loadingLoc = row.form_data?.form?.loadingCountry || "N/A";
+      const loadingDate = formatIsoDate(row.form_data?.form?.loadingDate);
+      const receivingLoc = row.form_data?.form?.receivedCountry || "N/A";
+      const receivingDate = formatIsoDate(row.form_data?.form?.receivedDate);
 
-    return [
-      pNum,
-      dateStr,
-      branch,
-      allot,
-      goodName,
-      origin,
-      warehouse,
-      invoiceNo,
-      sellerAcc,
-      qty,
-      kgs,
-      pType,
-      dTerms,
-      route,
-      loadingLoc,
-      loadingDate,
-      receivingLoc,
-      receivingDate
-    ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",");
-  });
+      return [
+        pNum,
+        dateStr,
+        branch,
+        allot,
+        goodName,
+        origin,
+        warehouse,
+        invoiceNo,
+        sellerAcc,
+        qty,
+        kgs,
+        pType,
+        dTerms,
+        route,
+        loadingLoc,
+        loadingDate,
+        receivingLoc,
+        receivingDate
+      ].map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",");
+    });
 
-  const blob = new Blob([[headers.join(","), ...csvRows].join("\n")], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  URL.revokeObjectURL(url);
+    const blob = new Blob([[headers.join(","), ...csvRows].join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Failed to export rows:", error);
+    alert("Failed to export to CSV. Please try again.");
+  }
 }
 
 function printReport() {
@@ -511,7 +516,7 @@ function ReportToolbar({
   onSearchChange: (value: string) => void;
   onToggleFilters: () => void;
   onReset: () => void;
-  onExport: () => void;
+  onExport?: () => void;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
@@ -623,8 +628,16 @@ function ReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[]; onExpor
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
         <MenuAction icon={<Eye />} label="Plate View" onClick={() => undefined} />
-        <MenuAction icon={<DownloadActionIcon />} label="Download" onClick={onExport} />
-        <MenuAction icon={<FileSpreadsheet />} label="Export Excel" onClick={onExport} />
+        <MenuAction 
+          icon={<DownloadActionIcon />} 
+          label="Download" 
+          onClick={onExport ? onExport : () => exportCsv(rows, "purchase-booking-register.csv")} 
+        />
+        <MenuAction 
+          icon={<FileSpreadsheet />} 
+          label="Export Excel" 
+          onClick={onExport ? onExport : () => exportCsv(rows, "purchase-booking-register.csv")} 
+        />
         <MenuAction icon={<DownloadActionIcon />} label="Export PDF" onClick={printReport} />
         <MenuAction icon={<Printer />} label="Print" onClick={printReport} />
         <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">{rows.length} report rows selected</div>
