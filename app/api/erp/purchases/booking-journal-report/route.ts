@@ -181,14 +181,20 @@ export async function GET(request: NextRequest) {
       requestQuery = requestQuery.lte("created_at", `${bufferedDateStr}T23:59:59.999Z`);
     }
 
-    if (query.countryId) requestQuery = requestQuery.eq("country_id", query.countryId);
-    else if (!session.isSuperAdmin) requestQuery = requestQuery.in("country_id", session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]);
-
-    if (query.countryBranchId) requestQuery = requestQuery.eq("country_branch_id", query.countryBranchId);
-    else if (!session.isSuperAdmin && session.countryBranchIds.length) requestQuery = requestQuery.in("country_branch_id", session.countryBranchIds);
-
-    if (query.cityBranchId) requestQuery = requestQuery.eq("city_branch_id", query.cityBranchId);
-    else if (!session.isSuperAdmin && session.cityBranchIds.length) requestQuery = requestQuery.in("city_branch_id", session.cityBranchIds);
+    // Enforce strict scope isolation: city branch first, then main branch, then country.
+    if (query.cityBranchId) {
+      requestQuery = requestQuery.eq("city_branch_id", query.cityBranchId);
+    } else if (!session.isSuperAdmin && session.cityBranchIds.length) {
+      requestQuery = requestQuery.in("city_branch_id", session.cityBranchIds);
+    } else if (query.countryBranchId) {
+      requestQuery = requestQuery.eq("country_branch_id", query.countryBranchId);
+    } else if (!session.isSuperAdmin && session.countryBranchIds.length) {
+      requestQuery = requestQuery.in("country_branch_id", session.countryBranchIds);
+    } else if (query.countryId) {
+      requestQuery = requestQuery.eq("country_id", query.countryId);
+    } else if (!session.isSuperAdmin) {
+      requestQuery = requestQuery.in("country_id", session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]);
+    }
 
     const { data, error } = await withTimeout<any>(requestQuery.limit(query.limit), "purchase booking journal report");
     if (error) {

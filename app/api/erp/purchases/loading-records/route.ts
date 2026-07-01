@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
     if (query.status) recordsQuery = recordsQuery.eq("loading_status", query.status);
     if (query.q) {
       const term = query.q.replace(/[%_]/g, "");
-      recordsQuery = recordsQuery.or(`loading_record_no.ilike.%${term}%,container_number.ilike.%${term}%,purchase_order_no.ilike.%${term}%,loading_location.ilike.%${term}%,receiving_location.ilike.%${term}%`);
+      recordsQuery = recordsQuery.or(`loading_record_no.ilike."%${term}%",container_number.ilike."%${term}%",purchase_order_no.ilike."%${term}%",loading_location.ilike."%${term}%",receiving_location.ilike."%${term}%"`);
     }
 
     const { data, error } = await recordsQuery.limit(query.limit);

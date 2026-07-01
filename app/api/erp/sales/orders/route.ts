@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     if (params.get("q")) {
       const term = String(params.get("q")).replace(/[%_]/g, "");
-      query = query.or(`sales_order_no.ilike.%${term}%,account_number.ilike.%${term}%,manual_reference_number.ilike.%${term}%,customer_number.ilike.%${term}%,customer_name.ilike.%${term}%`);
+      query = query.or(`sales_order_no.ilike."%${term}%",account_number.ilike."%${term}%",manual_reference_number.ilike."%${term}%",customer_number.ilike."%${term}%",customer_name.ilike."%${term}%"`);
     }
     if (cityBranchId) query = query.eq("city_branch_id", cityBranchId);
     else if (!session.isSuperAdmin && session.cityBranchIds.length) query = query.in("city_branch_id", session.cityBranchIds);

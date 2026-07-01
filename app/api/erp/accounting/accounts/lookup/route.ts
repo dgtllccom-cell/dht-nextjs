@@ -70,7 +70,7 @@ async function findLedgerIdsFromAccountMaster(query: string, limit: number) {
     const { data: customers, error } = await supabase
       .from("customers")
       .select("id")
-      .or(`mobile.eq.${value},whatsapp.eq.${value},mobile.ilike.%${value}%,whatsapp.ilike.%${value}%`)
+      .or(`mobile.eq."${value}",whatsapp.eq."${value}",mobile.ilike."%${value}%",whatsapp.ilike."%${value}%"`)
       .is("deleted_at", null)
       .limit(limit);
     if (error) return { data: [], error };

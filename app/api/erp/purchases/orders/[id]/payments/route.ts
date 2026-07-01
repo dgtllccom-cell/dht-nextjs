@@ -109,11 +109,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       throw new Error("Debit and credit ledgers must be different for purchase payment posting.");
     }
 
+    const bodyAmountUSD = body.amount / (body.exchangeRate || 1);
+
     if (body.kind === "advance" && advancePercent > 0) {
       if (remainingAdvance <= tolerance) {
         throw new Error("Advance payment is already completed for this purchase order. Duplicate posting is not allowed.");
       }
-      if (body.amount > remainingAdvance + tolerance) {
+      if (bodyAmountUSD > remainingAdvance + tolerance) {
         throw new Error(`Advance payment amount cannot exceed remaining advance balance (${remainingAdvance.toFixed(2)}).`);
       }
     }
@@ -122,7 +124,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       throw new Error("This purchase order has no remaining payable balance. Duplicate posting is not allowed.");
     }
 
-    if ((body.kind === "remaining" || body.kind === "credit") && body.amount > remainingDue + tolerance) {
+    if ((body.kind === "remaining" || body.kind === "credit") && bodyAmountUSD > remainingDue + tolerance) {
       throw new Error(`Payment amount cannot exceed remaining payable balance (${remainingDue.toFixed(2)}).`);
     }
     // Transaction-safe posting via RPC using the security definer wrapper post_purchase_booking_transfer.

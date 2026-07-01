@@ -346,7 +346,7 @@ async function getLedgerIdByCode(supabase: any, code: string) {
   const { data: account } = await supabase
     .from("enterprise_accounts")
     .select("id, code, account_number, manual_reference_number, customer_number")
-    .or(`code.eq.${lookup},account_number.eq.${lookup},manual_reference_number.eq.${lookup},customer_number.eq.${lookup}`)
+    .or(`code.eq."${lookup}",account_number.eq."${lookup}",manual_reference_number.eq."${lookup}",customer_number.eq."${lookup}"`)
     .is("deleted_at", null)
     .maybeSingle();
 

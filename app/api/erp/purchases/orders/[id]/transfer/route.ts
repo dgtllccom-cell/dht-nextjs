@@ -101,27 +101,38 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       const debitLedgerId = await getLedgerIdByCode(supabase, purchaseAccountCode, scopeContext);
       const creditLedgerId = await getLedgerIdByCode(supabase, salesAccountCode, scopeContext);
 
-      if (debitLedgerId && creditLedgerId && debitLedgerId !== creditLedgerId) {
-        const { error: rpcError } = await supabase.rpc("post_purchase_booking_transfer", {
-          p_actor_id: session.userId,
-          p_purchase_order_id: params.id,
-          p_kind: "booking",
-          p_entry_date: new Date().toISOString().split("T")[0],
-          p_amount: totalPurchaseAmount,
-          p_currency_code: (order as any).currency_code || "USD",
-          p_exchange_rate: (order as any).exchange_rate || 1,
-          p_debit_ledger_id: debitLedgerId,
-          p_credit_ledger_id: creditLedgerId,
-          p_reference_no: (order as any).purchase_order_no || null,
-          p_narration: `Initial booking transfer for Purchase Order ${(order as any).purchase_order_no}`
-        });
-        
-        if (rpcError) {
-          console.error("RPC Error during booking transfer posting:", rpcError);
-        } else {
-          patch.ledger_posting_status = "posted";
-        }
+      if (!debitLedgerId) {
+        throw new Error(`Could not find a valid debit ledger for Purchase Account Code: ${purchaseAccountCode}`);
       }
+      if (!creditLedgerId) {
+        throw new Error(`Could not find a valid credit ledger for Sales/Supplier Account Code: ${salesAccountCode}`);
+      }
+      if (debitLedgerId === creditLedgerId) {
+        throw new Error("Debit and credit ledgers cannot be the same.");
+      }
+
+      const { error: rpcError } = await adminSupabase.rpc("post_purchase_booking_transfer", {
+        p_actor_id: session.userId,
+        p_purchase_order_id: params.id,
+        p_kind: "booking",
+        p_entry_date: new Date().toISOString().split("T")[0],
+        p_amount: totalPurchaseAmount,
+        p_currency_code: (order as any).currency_code || "USD",
+        p_exchange_rate: (order as any).exchange_rate || 1,
+        p_debit_ledger_id: debitLedgerId,
+        p_credit_ledger_id: creditLedgerId,
+        p_reference_no: (order as any).purchase_order_no || null,
+        p_narration: `Initial booking transfer for Purchase Order ${(order as any).purchase_order_no}`
+      });
+      
+      if (rpcError) {
+        console.error("RPC Error during booking transfer posting:", rpcError);
+        throw new Error(`Ledger posting failed: ${rpcError.message}`);
+      } else {
+        patch.ledger_posting_status = "posted";
+      }
+    } else {
+      throw new Error("Purchase Account and Sales/Supplier Account are required for transferring.");
     }
 
     await requireSupabaseData(

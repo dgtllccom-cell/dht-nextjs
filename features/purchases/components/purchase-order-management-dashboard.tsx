@@ -1579,16 +1579,18 @@ export function PurchaseOrderManagementDashboard() {
                       {/* Actions */}
                       <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(row.id)}&purchaseOrderNo=${encodeURIComponent(row.purchaseBookingOrderNumber || "")}`);
-                            }}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
-                            title="Edit Booking"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
+                          {(!isPosted || isSuperAdmin) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(row.id)}&purchaseOrderNo=${encodeURIComponent(row.purchaseBookingOrderNumber || "")}`);
+                              }}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
+                              title="Edit Booking"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {

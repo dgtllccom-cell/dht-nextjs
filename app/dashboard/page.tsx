@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Banknote, Database, GitBranch, ReceiptText, ShieldCheck, Ship, ShoppingCart, TrendingUp, Users } from "lucide-react";
+import { ArrowRight, Banknote, Database, GitBranch, ReceiptText, ShieldCheck, Ship, ShoppingCart, TrendingUp, Users, BarChart } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/layout/stat-card";
@@ -303,6 +303,30 @@ export default async function DashboardPage() {
                 </tbody>
               </table>
             </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Enterprise Reporting Hub Banner */}
+      <section>
+        <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-primary/20 hover:border-primary/40 transition-colors">
+          <CardContent className="p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <div className="rounded-xl bg-primary/10 p-3 text-primary">
+                <BarChart className="h-8 w-8" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold tracking-tight text-foreground">Enterprise Reporting Hub</h3>
+                <p className="mt-1 text-sm text-muted-foreground max-w-xl">
+                  Access comprehensive Audit Trail Logs, Approval Workflows, Financial Analytics, and custom general reports all in one place.
+                </p>
+              </div>
+            </div>
+            <Button asChild size="lg" className="shrink-0 shadow-lg shadow-primary/20 w-full sm:w-auto">
+              <Link href="/dashboard/reports">
+                Open Reports Hub <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </section>

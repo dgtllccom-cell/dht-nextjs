@@ -1472,7 +1472,28 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       return;
     }
 
-    if ((activeMode === "advance" || activeMode === "remaining") && (!doubleEntry.debitLedgerId || !doubleEntry.creditLedgerId)) {
+    let finalDebitLedgerId = doubleEntry.debitLedgerId;
+    let finalCreditLedgerId = doubleEntry.creditLedgerId;
+
+    if (!finalDebitLedgerId && selected) {
+      const selectedForm = selected.form_data?.form || {};
+      const code = selectedForm.salesAccountNumber || selectedForm.salesAccountNo;
+      if (code) {
+        setProcessingPayment(true);
+        try {
+          const res = await fetch(`/api/erp/accounting/accounts/lookup?q=${encodeURIComponent(code)}&limit=1`);
+          const payload = await res.json();
+          if (res.ok && payload.ok && payload.data?.found) {
+            finalDebitLedgerId = payload.data.account.ledgerId || payload.data.account.id;
+          }
+        } catch (e) {
+          console.error("Failed to resolve missing ledger", e);
+        }
+        setProcessingPayment(false);
+      }
+    }
+
+    if ((activeMode === "advance" || activeMode === "remaining") && (!finalDebitLedgerId || !finalCreditLedgerId)) {
       setPaymentError("Unable to resolve supplier or cash account ledgers. Please check your accounting setup.");
       return;
     }
@@ -1532,8 +1553,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   amount: Number(amount),
                   currencyCode: currency,
                   exchangeRate: Number(exchangeRate || 1),
-                  debitLedgerId: doubleEntry.debitLedgerId,
-                  creditLedgerId: doubleEntry.creditLedgerId,
+                  debitLedgerId: finalDebitLedgerId,
+                  creditLedgerId: finalCreditLedgerId,
                   referenceNo: typeDetails.refNo || selected.purchase_contract_no || undefined,
                   narration: finalNarration.trim() || `PO ${selected.purchase_order_no} – ${activeMode === "advance" ? "Advance" : "Remaining"} Payment`
                 }

@@ -70,30 +70,13 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       cityBranchId: (before as any)?.city_branch_id ?? null
     });
 
-    // --- ENFORCE TIME LIMITS ON TRANSFERRED ORDERS ---
+    // --- ENFORCE STRICT LOCK ON TRANSFERRED ORDERS ---
     if ((before as any)?.ledger_posting_status === "transferred" || (before as any)?.ledger_posting_status === "posted") {
       // If this is a transfer request itself, and they had previously successfully edited it, allow the transfer
       const isReTransferRequest = body.ledgerPostingStatus === "transferred" || body.ledgerPostingStatus === "posted";
       
       if (!session.isSuperAdmin && !isReTransferRequest) {
-        // Find transferDate in form_data if available
-        const formDataObj = (before as any)?.form_data || {};
-        const transferAudit = formDataObj?.form?.transferAudit || {};
-        const baseDateStr = transferAudit.transferDate || (before as any)?.created_at;
-        const baseDate = new Date(baseDateStr).getTime();
-        const now = Date.now();
-        const hoursSinceTransfer = (now - baseDate) / (1000 * 60 * 60);
-
-        if (session.roles.includes("country_admin") || (session.roles as string[]).includes("country_viewer")) {
-          if (hoursSinceTransfer > 24) {
-            return handleApiError(new Error("Country Admin edit time limit (24 hours) for transferred orders has expired."));
-          }
-        } else {
-          // Fallback for branch admin / city branch admin
-          if (hoursSinceTransfer > 12) {
-            return handleApiError(new Error("Branch Admin edit time limit (12 hours) for transferred orders has expired."));
-          }
-        }
+        return handleApiError(new Error("Bill is transferred/posted and locked. Admin approval is required to edit or reverse."));
       }
     }
     // -------------------------------------------------
@@ -247,7 +230,7 @@ async function getLedgerIdByCode(supabase: any, code: string, input?: any) {
   let accountQuery = supabase
     .from("enterprise_accounts")
     .select("id, code, account_number, manual_reference_number, customer_number, name")
-    .or(`code.eq.${lookup},account_number.eq.${lookup},manual_reference_number.eq.${lookup},customer_number.eq.${lookup}`)
+    .or(`code.eq."${lookup}",account_number.eq."${lookup}",manual_reference_number.eq."${lookup}",customer_number.eq."${lookup}"`)
     .is("deleted_at", null)
     .limit(1);
 

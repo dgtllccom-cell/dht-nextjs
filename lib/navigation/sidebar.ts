@@ -498,6 +498,13 @@ export const sidebarTree: SidebarNode[] = [
     href: "/dashboard/reports" as Route,
     children: [
       {
+        key: "reports-general",
+        labelKey: "Enterprise Reporting Hub" as any,
+        iconKey: "bar-chart",
+        href: "/dashboard/reports" as Route,
+        roles: ["super_admin", "auditor_viewer", "country_admin", "main_branch_admin"]
+      },
+      {
         key: "reports-other",
         labelKey: "nav.other_reports",
         iconKey: "bar-chart",

@@ -346,7 +346,8 @@ export function PurchaseTransferErpReportView({
             size="sm"
             variant="ghost"
             onClick={() => router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(d.id)}&purchaseOrderNo=${encodeURIComponent(d.purchaseBookingOrderNumber)}`)}
-            className="h-8 text-white hover:bg-white/10 gap-1.5 px-2.5"
+            disabled={d.ledger_posting_status === "posted" || d.ledger_posting_status === "transferred"}
+            className="h-8 text-white hover:bg-white/10 gap-1.5 px-2.5 disabled:opacity-50"
           >
             <PenLine className="h-3.5 w-3.5" />
             <span className="text-[10px] font-bold uppercase hidden sm:inline">Edit Booking</span>

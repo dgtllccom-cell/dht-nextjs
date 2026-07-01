@@ -175,7 +175,7 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
   let countryBranchIds = uniqueStrings(assignments.map((assignment) => assignment.countryBranchId));
   let cityBranchIds = uniqueStrings(assignments.map((assignment) => assignment.cityBranchId));
 
-  if (!roles.includes("super_admin") && countryIds.length > 0) {
+  if (!roles.includes("super_admin") && countryIds.length > 0 && (roles.includes("country_admin") || roles.includes("main_branch_admin") || roles.includes("country_user"))) {
     const [countryBranchesRes, cityBranchesRes] = await Promise.all([
       supabase
         .from("country_branches")
