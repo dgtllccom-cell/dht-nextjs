@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, Link2, MoreVertical, Printer, RefreshCcw, Search, Ship } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";`r`nimport { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErpPageActions } from "@/components/layout/erp-page-actions";
 import { cn } from "@/lib/utils";
@@ -10,31 +10,22 @@ import { cn } from "@/lib/utils";
 type LoadingStatus = "draft" | "pending" | "loaded" | "received" | "cancelled";
 
 function CustomDropdown({ recordId }: { recordId: string }) {
-  const [open, setOpen] = useState(false);
   return (
-    <div className="relative inline-block text-left">
-      <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => setOpen(!open)}>
-        <MoreVertical className="h-4 w-4" />
-      </Button>
-      {open && (
+    <ViewportActionMenu
+      ariaLabel="Loading record actions"
+      buttonClassName="grid h-8 w-8 place-items-center rounded-md border border-input bg-background text-foreground hover:bg-muted"
+      trigger={<MoreVertical className="h-4 w-4" />}
+    >
+      {(close) => (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-50 mt-2 w-48 rounded-md bg-popover shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border dark:border-border">
-            <div className="py-1">
-              <button className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => setOpen(false)}>Edit</button>
-              <button className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => setOpen(false)}>Load</button>
-              <button className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => {
-                setOpen(false);
-                window.open(`/dashboard/purchase/purchase-loading-records/${recordId}`, "_self");
-              }}>View</button>
-            </div>
-          </div>
+          <button className="block w-full rounded-lg px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => close()}>Edit</button>
+          <button className="block w-full rounded-lg px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => close()}>Load</button>
+          <button className="block w-full rounded-lg px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => { close(); window.open(`/dashboard/purchase/purchase-loading-records/${recordId}`, "_self"); }}>View</button>
         </>
       )}
-    </div>
+    </ViewportActionMenu>
   );
 }
-
 type LoadingRecord = {
   id: string;
   loading_record_no: string;
@@ -191,7 +182,7 @@ export function PurchaseLoadingRecordsView() {
   }
 
   return (
-    <div className="w-full px-5 py-6">
+    <div className="w-full max-w-none px-2 py-4 sm:px-4">
       <ErpPageActions>
         <Button type="button" variant="outline" size="sm" onClick={() => void loadRecords()} disabled={loading}>
           <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
@@ -256,11 +247,11 @@ export function PurchaseLoadingRecordsView() {
               <p className="text-xs text-muted-foreground">Independent from Purchase Booking Order unless explicitly linked.</p>
             </div>
 
-            <div className="overflow-auto pb-4">
-              <table className="w-full min-w-[2000px] border-collapse text-sm">
+            <div className="overflow-x-auto pb-4">
+              <table className="w-max min-w-full border-collapse text-sm">
                 <thead>
                   <tr className="bg-slate-950 text-left text-xs uppercase tracking-wide text-white">
-                    {["SR#", "Loading No", "Purchase Booking No.", "Sales Account", "Account Detail", "Goods Name", "Goods Details", "Quantity", "Net Weight", "Gross Weight", "Purchase Total Currency", "Advance Currency", "Loading Country", "Loading Date", "Loading Port", "Received Country", "Received Date", "Received Port", "Action"].map((head) => (
+                    {["SR#", "Organization", "Loading No", "Purchase Booking No.", "Sales Account", "Account Detail", "Goods Name", "Goods Details", "Quantity", "Net Weight", "Gross Weight", "Purchase Total Currency", "Advance Currency", "Transport Information", "Action"].map((head) => (
                       <th key={head} className="whitespace-nowrap px-3 py-3 font-black">
                         {head}
                       </th>
@@ -270,7 +261,7 @@ export function PurchaseLoadingRecordsView() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={19} className="px-3 py-8 text-center text-muted-foreground">
+                      <td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">
                         Loading records...
                       </td>
                     </tr>
@@ -302,12 +293,12 @@ export function PurchaseLoadingRecordsView() {
                       const loadingDateVal = form.loadingDate || "-";
                       const receivingCountry = form.receivedCountry || form.destinationCountry || "-";
                       const receivingPort = form.receivedPort || form.destinationPort || "-";
-                      const receivingDateVal = form.receivedDate || form.arrivalDate || "-";
+                      const receivingDateVal = form.receivedDate || form.arrivalDate || "-";`r`n                      const countryLabel = `${record.countries?.name || form.branchCountry || "-"}${record.countries?.iso2 ? ` (${record.countries.iso2})` : ""}`;`r`n                      const cityLabel = `${record.city_branches?.city_name || form.cityName || "-"}${record.city_branches?.code ? ` (${record.city_branches.code})` : ""}`;`r`n                      const branchLabel = `${record.country_branches?.name || form.branchName || "-"}${record.country_branches?.code ? ` (${record.country_branches.code})` : ""}`;`r`n                      const adminLabel = form.userName || form.userId || "-";
 
                       return (
                         <tr key={record.id} className="border-b hover:bg-muted/40">
                           <td className="whitespace-nowrap px-3 py-2">{String(index + 1).padStart(2, "0")}</td>
-                          <td className="whitespace-nowrap px-3 py-2 font-bold text-primary">{record.loading_record_no}</td>
+                          <td className="min-w-[260px] px-3 py-2 text-[11px] leading-relaxed"><div className="font-black text-foreground">{countryLabel}</div><div>{cityLabel}</div><div>{branchLabel}</div><div className="text-muted-foreground">Created By: {adminLabel}</div></td>`r`n                          <td className="whitespace-nowrap px-3 py-2 font-bold text-primary">{record.loading_record_no}</td>
                           <td className="whitespace-nowrap px-3 py-2">{record.purchase_order_no ? <span className="inline-flex items-center gap-1"><Link2 className="h-3.5 w-3.5" />{record.purchase_order_no}</span> : "-"}</td>
                           <td className="whitespace-nowrap px-3 py-2">{supplierName || "-"}</td>
                           <td className="whitespace-nowrap px-3 py-2">{accountDetail || "-"}</td>
@@ -318,12 +309,14 @@ export function PurchaseLoadingRecordsView() {
                           <td className="whitespace-nowrap px-3 py-2">{totalGross || "-"}</td>
                           <td className="whitespace-nowrap px-3 py-2">{totalAmt ? `${totalAmt} ${currency}` : "-"}</td>
                           <td className="whitespace-nowrap px-3 py-2">{advanceCurrency || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{loadingCountry || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{record.loaded_at ? new Date(record.loaded_at).toLocaleDateString() : (loadingDateVal || "-")}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{record.loading_location || loadingPort || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{receivingCountry || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{receivingDateVal || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{record.receiving_location || receivingPort || "-"}</td>
+                          <td className="min-w-[300px] px-3 py-2 text-[11px] leading-relaxed">
+                            <div><span className="font-black">Loading:</span> {loadingCountry || "-"} / {record.loading_location || loadingPort || "-"}</div>
+                            <div><span className="font-black">Loaded:</span> {record.loaded_at ? new Date(record.loaded_at).toLocaleDateString() : (loadingDateVal || "-")}</div>
+                            <div><span className="font-black">Destination:</span> {receivingCountry || "-"} / {record.receiving_location || receivingPort || "-"}</div>
+                            <div><span className="font-black">Receiving:</span> {receivingDateVal || "-"}</div>
+                            <div><span className="font-black">Shipping:</span> {record.carrier_name || form.shippingMethod || form.shippingLine || "-"}</div>
+                            <div><span className="font-black">Vessel / Container:</span> {record.container_number || form.containerNumber || "-"} / {record.container_type || "-"}</div>
+                          </td>
                           <td className="whitespace-nowrap px-3 py-2">
                             <CustomDropdown recordId={record.id} />
                           </td>
@@ -332,7 +325,7 @@ export function PurchaseLoadingRecordsView() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={19} className="px-3 py-8 text-center text-muted-foreground">
+                      <td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">
                         No loading records found.
                       </td>
                     </tr>
