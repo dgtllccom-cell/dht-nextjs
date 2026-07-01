@@ -29,10 +29,12 @@ import {
   Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
+import { openProformaInvoiceWindow } from "@/lib/reports/open-proforma-invoice-window";
 import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-window";
 import { cn } from "@/lib/utils";
 
@@ -622,27 +624,22 @@ function ScopePill({ label, value }: { label: string; value: string | number }) 
 
 function ReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[]; onExport: () => void }) {
   return (
-    <details className="relative">
-      <summary className="flex h-9 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-input bg-background text-foreground transition hover:bg-muted [&::-webkit-details-marker]:hidden" aria-label="Report actions" title="Report actions">
-        <MoreVertical className="h-4 w-4" />
-      </summary>
-      <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
-        <MenuAction icon={<Eye />} label="Plate View" onClick={() => undefined} />
-        <MenuAction 
-          icon={<DownloadActionIcon />} 
-          label="Download" 
-          onClick={onExport ? onExport : () => exportCsv(rows, "purchase-booking-register.csv")} 
-        />
-        <MenuAction 
-          icon={<FileSpreadsheet />} 
-          label="Export Excel" 
-          onClick={onExport ? onExport : () => exportCsv(rows, "purchase-booking-register.csv")} 
-        />
-        <MenuAction icon={<DownloadActionIcon />} label="Export PDF" onClick={printReport} />
-        <MenuAction icon={<Printer />} label="Print" onClick={printReport} />
-        <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">{rows.length} report rows selected</div>
-      </div>
-    </details>
+    <ViewportActionMenu
+      ariaLabel="Report actions"
+      buttonClassName="flex h-9 w-10 items-center justify-center rounded-lg border border-input bg-background text-foreground transition hover:bg-muted"
+      trigger={<MoreVertical className="h-4 w-4" />}
+    >
+      {(close) => (
+        <>
+          <MenuAction icon={<Eye />} label="Plate View" onClick={() => close()} />
+          <MenuAction icon={<DownloadActionIcon />} label="Download" onClick={() => { close(); onExport ? onExport() : exportCsv(rows, "purchase-booking-register.csv"); }} />
+          <MenuAction icon={<FileSpreadsheet />} label="Export Excel" onClick={() => { close(); onExport ? onExport() : exportCsv(rows, "purchase-booking-register.csv"); }} />
+          <MenuAction icon={<DownloadActionIcon />} label="Export PDF" onClick={() => { close(); printReport(); }} />
+          <MenuAction icon={<Printer />} label="Print" onClick={() => { close(); printReport(); }} />
+          <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">{rows.length} report rows selected</div>
+        </>
+      )}
+    </ViewportActionMenu>
   );
 }
 
@@ -660,52 +657,25 @@ function RowActionsMenu({
   isBranchAdmin: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleOutsideClick = () => setOpen(false);
-    document.addEventListener("click", handleOutsideClick);
-    return () => document.removeEventListener("click", handleOutsideClick);
-  }, [open]);
 
   return (
-    <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted focus:outline-none"
-        aria-label="Row actions"
-        title="Row actions"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
-      {open && (
-        <div className="absolute right-0 z-[100] mt-2 w-56 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-2xl animate-in fade-in slide-in-from-top-1 duration-100">
-          <MenuAction
-            icon={<Eye />}
-            label="View Details / Bill"
-            onClick={() => {
-              setOpen(false);
-              onSelect();
-              openReportWindow(report, false);
-            }}
-          />
+    <ViewportActionMenu
+      ariaLabel="Row actions"
+      buttonClassName="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted focus:outline-none"
+      trigger={<MoreVertical className="h-4 w-4" />}
+      menuClassName="animate-in fade-in slide-in-from-top-1 duration-100"
+    >
+      {(close) => (
+        <>
+          <MenuAction icon={<Eye />} label="View Details / Bill" onClick={() => { close(); onSelect(); openReportWindow(report, false); }} />
           {(!isCountryAdmin || isSuperAdmin) && (
             <>
+              <MenuAction icon={<Edit3 />} label="Edit Booking" onClick={() => { close(); router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`); }} />
               <MenuAction
-                icon={<Edit3 />}
-                label="Edit Booking"
-                onClick={() => {
-                  setOpen(false);
-                  router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
-                }}
-              />
-              <MenuAction
-                icon={<span className="text-red-500"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>}
+                icon={<span className="text-red-500"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1-0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>}
                 label="Delete Booking"
                 onClick={async () => {
-                  setOpen(false);
+                  close();
                   if (window.confirm("Are you sure you want to permanently delete this booking? All associated ledger transfers will be reverted.")) {
                     try {
                       const response = await fetch(`/api/erp/purchases/orders/${report.id}`, { method: "DELETE" });
@@ -721,58 +691,16 @@ function RowActionsMenu({
               />
             </>
           )}
-          <MenuAction
-            icon={<FileText />}
-            label="Open Report Preview"
-            onClick={() => {
-              setOpen(false);
-              openReportWindow(report, false);
-            }}
-          />
-          <MenuAction
-            icon={<Printer />}
-            label="Print / PDF"
-            onClick={() => {
-              setOpen(false);
-              openReportWindow(report, true);
-            }}
-          />
+          <MenuAction icon={<FileText />} label="Open Report Preview" onClick={() => { close(); openReportWindow(report, false); }} />
+          <MenuAction icon={<Printer />} label="Print / PDF" onClick={() => { close(); openReportWindow(report, true); }} />
           <div className="border-t border-border my-1" />
-          <MenuAction
-            icon={<FileText />}
-            label="Generate Purchase Contract"
-            onClick={() => {
-              setOpen(false);
-              openTradeDocumentWindow("contract", report);
-            }}
-          />
-          <MenuAction
-            icon={<ClipboardList />}
-            label="Generate Proforma Invoice"
-            onClick={() => {
-              setOpen(false);
-              openTradeDocumentWindow("proforma", report);
-            }}
-          />
-          <MenuAction
-            icon={<Printer />}
-            label="Generate Commercial Invoice"
-            onClick={() => {
-              setOpen(false);
-              openTradeDocumentWindow("commercial", report);
-            }}
-          />
-          <MenuAction
-            icon={<Boxes />}
-            label="Generate Packing List"
-            onClick={() => {
-              setOpen(false);
-              openTradeDocumentWindow("packing", report);
-            }}
-          />
-        </div>
+          <MenuAction icon={<FileText />} label="Generate Purchase Contract" onClick={() => { close(); openTradeDocumentWindow("contract", report); }} />
+          <MenuAction icon={<ClipboardList />} label="Generate Proforma Invoice" onClick={() => { close(); openTradeDocumentWindow("proforma", report); }} />
+          <MenuAction icon={<Printer />} label="Generate Commercial Invoice" onClick={() => { close(); openTradeDocumentWindow("commercial", report); }} />
+          <MenuAction icon={<Boxes />} label="Generate Packing List" onClick={() => { close(); openTradeDocumentWindow("packing", report); }} />
+        </>
       )}
-    </div>
+    </ViewportActionMenu>
   );
 }
 
@@ -953,10 +881,7 @@ export function PurchaseBookingJournalReportView({
     if (!selected) return;
     
     const form = selected.form_data?.form || {};
-    if (!form.cityBranchId) {
-      alert("یہ عمل نامکمل ہے۔ برائے مہربانی ٹرانسفر سے پہلے سٹی برانچ منتخب کریں۔\n\n(City Branch is missing. Please select a City Branch before transferring to the journal.)");
-      return;
-    }
+    // City branch is inherently tied to the user's scope or booking record. No need to require frontend selection.
 
     setTransferring(true);
     try {
@@ -987,8 +912,7 @@ export function PurchaseBookingJournalReportView({
           currencyCode: String(selected.currency || "USD").substring(0, 3).toUpperCase(),
           exchangeRate: Number(String(selected.exchange_rate || 1).replace(/,/g, '')),
           purchaseContractNo: selected.purchaseContractNo || selected.purchaseBookingOrderNumber,
-          paymentStatus: "partial",
-          ledgerPostingStatus: "Transferred" // Mark as transferred so it appears in Purchase Order Payment Journal
+          paymentStatus: "pending"
         })
       });
 
@@ -997,11 +921,22 @@ export function PurchaseBookingJournalReportView({
         throw new Error(payload?.error?.message || payload?.error || "Transfer failed.");
       }
 
+      // Hit the transfer API to actually mark as transferred and post the initial booking ledger entry
+      const transferResponse = await fetch(`/api/erp/purchases/orders/${selected.id}/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+
+      const transferPayload = await transferResponse.json().catch(() => ({}));
+      if (!transferResponse.ok || !transferPayload.ok) {
+        throw new Error(transferPayload?.error?.message || transferPayload?.error || "Roznamcha/Ledger Transfer failed.");
+      }
+
       setIsDrawerOpen(false);
-      alert(`Booking ${selected.purchaseBookingOrderNumber} has been successfully sent to Purchase Transfer Payment!`);
       setMessage(`Sent ${selected.purchaseBookingOrderNumber} to Purchase Transfer Payment screen.`);
-      // Navigate to Purchase Transfer Verification page with this order pre-selected
-      router.push(`/dashboard/purchase/purchase-order/view?id=${encodeURIComponent(selected.id)}`);
+      // Navigate directly to the payment section
+      router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(selected.purchaseBookingOrderNumber || "")}`);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error transferring booking.");
     } finally {
@@ -1037,7 +972,6 @@ export function PurchaseBookingJournalReportView({
       }
 
       setIsDrawerOpen(false);
-      alert(`Booking ${selected.purchaseBookingOrderNumber} has been Accepted!`);
       // Update local state without reload to reflect change
       setReports((prev) => prev.map(r => r.id === selected.id ? { ...r, form_data: updatedFormData } : r));
       setSelected({ ...selected, form_data: updatedFormData });
@@ -1707,6 +1641,9 @@ export function PurchaseBookingJournalReportView({
                 || (report as any).ledgerPostingStatus === "Posted"
                 || (report as any).ledger_posting_status === "Posted"
                 || (report as any).ledger_posting_status === "posted"
+                || (report as any).ledgerPostingStatus === "Transferred"
+                || (report as any).ledger_posting_status === "Transferred"
+                || (report as any).ledger_posting_status === "transferred"
                 || report.journalStatus === "Posted"
                 || report.journalStatus?.toLowerCase() === "posted"
                 || report.form_data?.workflow?.journalStatus === "Posted"
@@ -1945,9 +1882,9 @@ export function PurchaseBookingJournalReportView({
               <Button
                 type="button"
                 onClick={handleTransfer}
-                disabled={transferring || Boolean(selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")) || selected?.form_data?.workflow?.confirmationStatus !== "Accepted"}
+                disabled={transferring || Boolean(selected && (selected.status === "Posted" || selected.ledger_posting_status === "posted" || selected.ledger_posting_status === "Transferred" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")) || selected?.form_data?.workflow?.confirmationStatus !== "Accepted"}
                 className={
-                  selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")
+                  selected && (selected.status === "Posted" || selected.ledger_posting_status === "posted" || selected.ledger_posting_status === "Transferred" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")
                     ? "bg-slate-350 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed border-slate-300 font-bold text-xs h-8"
                     : "bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8"
                 }
@@ -2516,8 +2453,8 @@ function SummaryCard({ icon, label, value, accent }: { icon: React.ReactNode; la
 
 function DarkTable({ headers, tableGroups, children }: { headers: string[]; tableGroups: {label: string, span: number, cls: string}[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm max-h-[calc(100vh-320px)] min-h-[350px]">
-      <table className="min-w-[4200px] border-collapse text-xs text-slate-800">
+    <div className="overflow-x-auto overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm max-h-[calc(100vh-300px)] min-h-[420px]">
+      <table className="w-max min-w-full border-collapse text-xs text-slate-800">
         <thead className="sticky top-0 z-10 border-b border-slate-200">
           {/* Group header row */}
           <tr>

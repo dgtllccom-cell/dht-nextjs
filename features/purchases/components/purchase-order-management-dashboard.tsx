@@ -33,9 +33,11 @@ import {
   Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
+import { openProformaInvoiceWindow } from "@/lib/reports/open-proforma-invoice-window";
 import { DetailDrawer } from "@/components/ui/detail-drawer";
 
 type PurchaseReport = {
@@ -816,43 +818,51 @@ function SelectFilter({ label, value, options, onChange }: { label: string; valu
 
 function PurchaseReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[]; onExport: () => void }) {
   return (
-    <details className="relative">
-      <summary className="flex h-9 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 [&::-webkit-details-marker]:hidden" aria-label="Report actions" title="Report actions">
-        <MoreVertical className="h-4 w-4" />
-      </summary>
-      <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-slate-200 bg-white p-1 text-sm text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
-        <ActionItem icon={<Eye />} label="Plate View" onClick={() => undefined} />
-        <ActionItem icon={<DownloadActionIcon />} label="Download" onClick={onExport} />
-        <ActionItem icon={<FileSpreadsheet />} label="Export Excel" onClick={onExport} />
-        <ActionItem icon={<DownloadActionIcon />} label="Export PDF" onClick={() => window.print()} />
-        <ActionItem icon={<Printer />} label="Print" onClick={() => window.print()} />
-        <div className="border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-800">{rows.length} rows</div>
-      </div>
-    </details>
+    <ViewportActionMenu
+      ariaLabel="Report actions"
+      buttonClassName="flex h-9 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900"
+      trigger={<MoreVertical className="h-4 w-4" />}
+      menuClassName="border-slate-200 bg-white text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+    >
+      {(close) => (
+        <>
+          <ActionItem icon={<Eye />} label="Plate View" onClick={() => close()} />
+          <ActionItem icon={<DownloadActionIcon />} label="Download" onClick={() => { close(); onExport(); }} />
+          <ActionItem icon={<FileSpreadsheet />} label="Export Excel" onClick={() => { close(); onExport(); }} />
+          <ActionItem icon={<DownloadActionIcon />} label="Export PDF" onClick={() => { close(); window.print(); }} />
+          <ActionItem icon={<Printer />} label="Print" onClick={() => { close(); window.print(); }} />
+          <div className="border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-800">{rows.length} rows</div>
+        </>
+      )}
+    </ViewportActionMenu>
   );
 }
 
 function PurchaseRowActionsMenu({ onSelect, onEdit, onPrint, onExportPdf }: { onSelect: () => void; onEdit: () => void; onPrint: () => void; onExportPdf: () => void }) {
   return (
-    <details className="relative inline-block">
-      <summary className="grid h-8 w-8 cursor-pointer list-none place-items-center rounded-lg border border-slate-200 bg-background hover:bg-muted dark:border-slate-800 [&::-webkit-details-marker]:hidden" aria-label="Row actions" title="Row actions">
-        <MoreVertical className="h-4 w-4" />
-      </summary>
-      <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-1 text-sm text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
-        <ActionItem icon={<Eye />} label="View Details" onClick={onSelect} />
-        <ActionItem icon={<Edit3 />} label="Edit" onClick={onEdit} />
-        <ActionItem icon={<Landmark />} label="Journal" onClick={onSelect} />
-        <ActionItem icon={<WalletCards />} label="Payment History" onClick={onSelect} />
-        <ActionItem icon={<Container />} label="Container Details" onClick={onSelect} />
-        <ActionItem icon={<FileText />} label="Documents" onClick={onSelect} />
-        <ActionItem icon={<ClipboardList />} label="Timeline" onClick={onSelect} />
-        <ActionItem icon={<Printer />} label="Print" onClick={onPrint} />
-        <ActionItem icon={<DownloadActionIcon />} label="Export PDF" onClick={onExportPdf} />
-      </div>
-    </details>
+    <ViewportActionMenu
+      ariaLabel="Row actions"
+      buttonClassName="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-background hover:bg-muted dark:border-slate-800"
+      trigger={<MoreVertical className="h-4 w-4" />}
+      menuClassName="border-slate-200 bg-white text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+    >
+      {(close) => (
+        <>
+          <ActionItem icon={<Eye />} label="View Details" onClick={() => { close(); onSelect(); }} />
+          <ActionItem icon={<Edit3 />} label="Edit" onClick={() => { close(); onEdit(); }} />
+          <ActionItem icon={<Landmark />} label="Journal" onClick={() => { close(); onSelect(); }} />
+          <ActionItem icon={<WalletCards />} label="Payment History" onClick={() => { close(); onSelect(); }} />
+          <ActionItem icon={<Container />} label="Container Details" onClick={() => { close(); onSelect(); }} />
+          <ActionItem icon={<FileText />} label="Documents" onClick={() => { close(); onSelect(); }} />
+          <ActionItem icon={<ClipboardList />} label="Timeline" onClick={() => { close(); onSelect(); }} />
+          <ActionItem icon={<Printer />} label="Print" onClick={() => { close(); onPrint(); }} />
+          <ActionItem icon={<DownloadActionIcon />} label="Export PDF" onClick={() => { close(); onExportPdf(); }} />
+          <ActionItem icon={<FileText />} label="Proforma Invoice" onClick={() => { close(); onExportPdf(); }} />
+        </>
+      )}
+    </ViewportActionMenu>
   );
 }
-
 function ActionItem({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900">
@@ -959,7 +969,7 @@ export function PurchaseOrderManagementDashboard() {
     setLoading(true);
     setWarning("");
     try {
-      const response = await fetch("/api/erp/purchases/booking-journal-report?limit=200", { cache: "no-store" });
+      const response = await fetch("/api/erp/purchases/booking-journal-report?limit=1000", { cache: "no-store" });
       const body = await response.json();
       const payload = (body?.ok ? body.data : body) as ApiPayload;
       const rows = payload?.reports || [];
@@ -1005,7 +1015,6 @@ export function PurchaseOrderManagementDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           formData: updatedFormData,
-          ledgerPostingStatus: "transferred",
           paymentStatus: "pending"
         })
       });
@@ -1028,7 +1037,6 @@ export function PurchaseOrderManagementDashboard() {
       }
 
       // setIsDrawerOpen(false);
-      alert("Purchase transfer payment successful. It will not be transferred again.");
       await loadReports();
       // Redirect to Purchase Transfer Payment screen directly after successful transfer
       window.location.href = `/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(itemToTransfer.purchaseBookingOrderNumber || itemToTransfer.purchase_order_no || itemToTransfer.purchaseOrderNo || "")}`;
@@ -1039,7 +1047,20 @@ export function PurchaseOrderManagementDashboard() {
     }
   };
 
-  useEffect(() => { void loadReports(); }, []);
+  useEffect(() => {
+    void loadReports();
+    const refresh = () => void loadReports();
+    window.addEventListener("focus", refresh);
+    window.addEventListener("erp:purchase-order-saved", refresh);
+    window.addEventListener("erp:purchase-transfer-saved", refresh);
+    window.addEventListener("erp:purchase-loading-saved", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("erp:purchase-order-saved", refresh);
+      window.removeEventListener("erp:purchase-transfer-saved", refresh);
+      window.removeEventListener("erp:purchase-loading-saved", refresh);
+    };
+  }, []);
 
   const options = useMemo(() => ({
     countries: unique(reports.map((row) => row.countryName)),
@@ -1281,7 +1302,7 @@ export function PurchaseOrderManagementDashboard() {
   );
 
   return (
-    <div className="space-y-4 text-slate-900 dark:text-slate-100 max-w-none mx-auto p-4 bg-slate-50/30 rounded-2xl">
+    <div className="w-full max-w-none space-y-4 px-2 py-3 text-slate-900 dark:text-slate-100 sm:px-4">
       {titlePortal && createPortal(pageHeaderContent, titlePortal)}
       {actionsPortal && createPortal(pageActionsContent, actionsPortal)}
       
@@ -1352,7 +1373,7 @@ export function PurchaseOrderManagementDashboard() {
       </div>
 
       {/* REPORT-3: SEARCH & TRANSACTION REPORT */}
-      <section className="bg-white border border-slate-200 dark:border-slate-800 dark:bg-slate-950 p-6 rounded-2xl shadow-sm space-y-6">
+      <section className="w-full rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950 sm:p-4 space-y-4">
         <div className="flex flex-col items-center justify-center text-center w-full py-3 border-b border-slate-100 dark:border-slate-800/60">
           <h2 className="text-sm font-black tracking-widest text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 justify-center">
             <SlidersHorizontal className="h-4 w-4 text-blue-600 dark:text-blue-500" />
@@ -1397,8 +1418,8 @@ export function PurchaseOrderManagementDashboard() {
 
         {/* 37-Column ERP Table */}
         <div className="overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-          <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[350px]">
-            <table className="min-w-[4200px] text-xs text-left border-collapse">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] min-h-[420px]">
+            <table className="w-max min-w-full text-xs text-left border-collapse">
               <thead className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
                 {/* Group header row */}
                 <tr>
@@ -1497,6 +1518,9 @@ export function PurchaseOrderManagementDashboard() {
                     || (row as any).ledgerPostingStatus === "Posted"
                     || (row as any).ledger_posting_status === "Posted"
                     || (row as any).ledger_posting_status === "posted"
+                    || (row as any).ledgerPostingStatus === "Transferred"
+                    || (row as any).ledger_posting_status === "Transferred"
+                    || (row as any).ledger_posting_status === "transferred"
                     || (row as any).journalStatus === "Posted"
                     || (row as any).journalStatus?.toLowerCase() === "posted"
                     || row.form_data?.workflow?.journalStatus === "Posted"
@@ -1675,7 +1699,7 @@ export function PurchaseOrderManagementDashboard() {
 
               <Button
                 type="button"
-                onClick={handleTransfer}
+                onClick={() => handleTransfer()}
                 disabled={transferring || Boolean(selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted"))}
                 className={
                   selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted")
@@ -1724,6 +1748,17 @@ export function PurchaseOrderManagementDashboard() {
                       >
                         <FileText className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                         Generate Contract
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMoreActionsDropdownOpen(false);
+                          openProformaInvoiceWindow({ purchaseData: selected });
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900"
+                      >
+                        <Printer className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                        Proforma Invoice
                       </button>
                       <button
                         type="button"

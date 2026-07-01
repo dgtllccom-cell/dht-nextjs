@@ -318,7 +318,7 @@ function rowBranchName(row: PurchaseOrderRow) {
 
 function rowCurrency(row: PurchaseOrderRow) {
   const form = rowForm(row);
-  const explicit = normalizeCurrency(form.purchaseCurrency || form.baseCurrency || row.currency_code || form.currency || form.purchaseAccountCurrency, "");
+  const explicit = normalizeCurrency(form.purchaseCurrency || form.baseCurrency || form.currencyType || form.currency || row.currency_code || form.purchaseAccountCurrency, "");
   if (explicit) return explicit;
   const country = rowCountryName(row).toLowerCase();
   return COUNTRY_CURRENCY[country] || "USD";
@@ -667,7 +667,7 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency }: { row: any, ledger
     async function fetchPayments() {
       setLoading(true);
       try {
-        const response = await fetch(`/api/erp/purchases/orders/${row.id}/payments`);
+        const response = await fetch(`/api/erp/purchases/orders/${row.id}/payments`, { credentials: "include" });
         const body = await response.json();
         if (body?.ok && body.data?.payments && !cancelled) {
           setPayments(body.data.payments);
@@ -948,7 +948,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     async function fetchPayments() {
       setLoadingPayments(true);
       try {
-        const response = await fetch(`/api/erp/purchases/orders/${selectedId}/payments`);
+        const response = await fetch(`/api/erp/purchases/orders/${selectedId}/payments`, { credentials: "include" });
         const body = await response.json();
         if (body?.ok && body.data?.payments && !cancelled) {
           setSelectedOrderPayments(body.data.payments);
@@ -967,7 +967,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     let cancelled = false;
     async function fetchSession() {
       try {
-        const response = await fetch("/api/erp/auth/session");
+        const response = await fetch("/api/erp/auth/session", { credentials: "include" });
         const body = await response.json();
         if (body?.ok && !cancelled) setSession(body.data);
       } catch (err) { console.error("Session load error:", err); }
@@ -1014,7 +1014,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/erp/purchases/orders?limit=200", { cache: "no-store" });
+      const response = await fetch("/api/erp/purchases/orders?limit=200", { cache: "no-store", credentials: "include" });
       const body = await response.json();
       if (!response.ok || body?.ok === false) throw new Error(body?.error?.message ?? body?.message ?? "Unable to load purchase orders.");
       const payload = (body?.data ?? body) as OrdersPayload;
@@ -1481,7 +1481,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       if (code) {
         setProcessingPayment(true);
         try {
-          const res = await fetch(`/api/erp/accounting/accounts/lookup?q=${encodeURIComponent(code)}&limit=1`);
+          const res = await fetch(`/api/erp/accounting/accounts/lookup?q=${encodeURIComponent(code)}&limit=1`, { credentials: "include" });
           const payload = await res.json();
           if (res.ok && payload.ok && payload.data?.found) {
             finalDebitLedgerId = payload.data.account.ledgerId || payload.data.account.id;
@@ -1962,7 +1962,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   return `${led.code} - ${led.name}`;
                 };
 
-                const isPosted = row.ledger_posting_status === "Posted" || row.ledger_posting_status === "posted";
+                const isPosted = row.ledger_posting_status === "Posted" 
+                  || row.ledger_posting_status === "posted"
+                  || row.ledger_posting_status === "Transferred"
+                  || row.ledger_posting_status === "transferred";
                 const getRowColor = () => {
                   return isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
                 };
@@ -2050,7 +2053,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
                         <div className="flex flex-col items-end gap-1 font-mono">
                           <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
-                            {money(totalAmountBC, row.currency_code ?? "USD")}
+                            {money(totalAmountBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
                           </span>
                           <span className="text-[10px] text-slate-500 font-semibold">
                             {money(totalAmountLocal, rowLocalCurrency)}
@@ -2065,13 +2068,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         <div className="flex flex-col items-end gap-1 font-mono">
                           <span className="text-[9px] text-slate-500 uppercase font-semibold">Req ({advancePercent}%)</span>
                           <span className="font-bold text-[10px] text-slate-700 dark:text-slate-300">
-                            {money(requiredAdvanceBC, row.currency_code ?? "USD")}
+                            {money(requiredAdvanceBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
                           </span>
                           <span className="text-[9px] text-slate-500">
                             {money(requiredAdvance, rowLocalCurrency)}
                           </span>
                           <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-                            Paid: {money(paidAdvanceBC, row.currency_code ?? "USD")}
+                            Paid: {money(paidAdvanceBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
                           </span>
                         </div>
                       </td>
@@ -2079,7 +2082,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
                         <div className="flex flex-col items-end gap-1 font-mono">
                           <span className="font-black text-[11px] text-indigo-600 dark:text-indigo-400">
-                            {money(balanceAmountBC, row.currency_code ?? "USD")}
+                            {money(balanceAmountBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
                           </span>
                           <span className="text-[10px] font-bold text-indigo-500/80 dark:text-indigo-400/80">
                             {money(balanceAmountLocal, rowLocalCurrency)}
@@ -2285,7 +2288,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
                 <div>
                   <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Total Value</span>
-                  <span className="font-extrabold text-slate-900 dark:text-slate-100">{money(selected.order_total, selected.currency_code ?? "USD")}</span>
+                  <span className="font-extrabold text-slate-900 dark:text-slate-100">{money(selected.order_total, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
                   {selected.currency_code && selected.currency_code !== baseCurrency && (
                     <span className="block text-[10px] font-bold text-slate-500 mt-0.5">
                       {money(selected.order_total * (selected.exchange_rate || 1), baseCurrency)}
@@ -2296,7 +2299,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   <>
                     <div>
                       <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Paid Advance</span>
-                      <span className="font-extrabold text-emerald-600">{money(selected.advance_paid, selected.currency_code ?? "USD")}</span>
+                      <span className="font-extrabold text-emerald-600">{money(selected.advance_paid, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
                       {selected.currency_code && selected.currency_code !== baseCurrency && (
                         <span className="block text-[10px] font-bold text-emerald-700/70 mt-0.5">
                           {money((selected.advance_paid || 0) * (selected.exchange_rate || 1), baseCurrency)}
@@ -2316,7 +2319,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
                         return (
                           <>
-                            <span className="font-extrabold text-rose-600">{money(remainingAdvanceBC, selected.currency_code ?? "USD")}</span>
+                            <span className="font-extrabold text-rose-600">{money(remainingAdvanceBC, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
                             {selected.currency_code && selected.currency_code !== baseCurrency && (
                               <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
                                 {money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)}
@@ -2331,7 +2334,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 {activeMode === "remaining" && (
                   <div>
                     <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Remaining Due</span>
-                    <span className="font-extrabold text-rose-600">{money(selected.remaining_due, selected.currency_code ?? "USD")}</span>
+                    <span className="font-extrabold text-rose-600">{money(selected.remaining_due, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
                     {selected.currency_code && selected.currency_code !== baseCurrency && (
                       <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
                         {money((selected.remaining_due || 0) * (selected.exchange_rate || 1), baseCurrency)}

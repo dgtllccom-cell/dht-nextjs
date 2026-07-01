@@ -358,7 +358,7 @@ export function PurchaseTransferErpReportView({
             type="button"
             size="sm"
             onClick={handleTransferPayment}
-            disabled={transferring || d.ledger_posting_status === "posted"}
+            disabled={transferring || (d.ledger_posting_status === "posted" && !d.is_edited_since_transfer)}
             className="h-8 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[10px] uppercase tracking-wide px-3 shadow-md gap-1.5 border-none disabled:opacity-50"
           >
             <WalletCards className="h-3.5 w-3.5" />
