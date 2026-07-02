@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiOk, handleApiError } from "@/lib/api/response";
 import { uuidSchema } from "@/lib/api/erp-validation";
@@ -19,8 +19,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const supabase = await createApiSupabaseClient();
     // The admin client is needed for RPC calls that use auth.uid() inside
-    // SECURITY DEFINER functions (post_purchase_order_payment → post_roznamcha_entry
-    // → assert_enterprise_scope_access → write_erp_audit_log).
+    // SECURITY DEFINER functions (post_purchase_order_payment â†’ post_roznamcha_entry
+    // â†’ assert_enterprise_scope_access â†’ write_erp_audit_log).
     // The service-role key bypasses RLS but does NOT set auth.uid(); we must
     // inject the session user's UUID via set_config so auth.uid() returns a
     // non-null value inside PL/pgSQL.
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       cityBranchId: (order as any)?.city_branch_id ?? null
     });
 
-    // ── Prevent Duplicate Transfers ────────────────────────────────
+    // â”€â”€ Prevent Duplicate Transfers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if ((order as any).ledger_posting_status === "transferred" || (order as any).ledger_posting_status === "posted") {
       return handleApiError(new Error("This booking has already been transferred to Payment and cannot be transferred again."));
     }
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     
     const advancePaid = 0;
 
-    // ── Update Order Status to "transferred" ────────────────────────────────
+    // â”€â”€ Update Order Status to "transferred" â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Per rules: "Transfer to Purchase Transfer Payment" does not post to Ledger.
     const remainingDue = Math.max(0, totalPurchaseAmount - advancePaid);
     const paymentStatus = remainingDue === 0 ? "completed" : advancePaid > 0 ? "partial" : "pending";
@@ -87,73 +87,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       form_data:             updatedFormData
     };
 
-    // Before updating, post the initial booking ledger entry
-    const purchaseAccountCode = form.purchaseAccountNo;
-    const salesAccountCode = form.salesAccountNo || form.supplierAccountNo;
-
-    if (purchaseAccountCode && salesAccountCode) {
-      const scopeContext = {
-        countryId: (order as any).country_id,
-        countryBranchId: (order as any).country_branch_id,
-        cityBranchId: (order as any).city_branch_id
-      };
-      
-      const debitLedgerId = await getLedgerIdByCode(supabase, purchaseAccountCode, scopeContext);
-      const creditLedgerId = await getLedgerIdByCode(supabase, salesAccountCode, scopeContext);
-
-      if (!debitLedgerId) {
-        throw new Error(`Could not find a valid debit ledger for Purchase Account Code: ${purchaseAccountCode}`);
-      }
-      if (!creditLedgerId) {
-        throw new Error(`Could not find a valid credit ledger for Sales/Supplier Account Code: ${salesAccountCode}`);
-      }
-      if (debitLedgerId === creditLedgerId) {
-        throw new Error("Debit and credit ledgers cannot be the same.");
-      }
-
-      // Fetch a super admin ID to bypass strict ledger scope checking for automated transfers
-      const { data: superAdmins } = await adminSupabase
-        .from("user_role_assignments")
-        .select("user_id")
-        .eq("role", "super_admin")
-        .eq("is_active", true)
-        .limit(1);
-      
-      const actorId = superAdmins?.[0]?.user_id || session.userId;
-
-      const { data: paymentId, error: rpcError } = await adminSupabase.rpc("post_purchase_booking_transfer", {
-        p_actor_id: actorId,
-        p_purchase_order_id: params.id,
-        p_kind: "booking",
-        p_entry_date: new Date().toISOString().split("T")[0],
-        p_amount: totalPurchaseAmount,
-        p_currency_code: (order as any).currency_code || "USD",
-        p_exchange_rate: (order as any).exchange_rate || 1,
-        p_debit_ledger_id: debitLedgerId,
-        p_credit_ledger_id: creditLedgerId,
-        p_reference_no: (order as any).purchase_order_no || null,
-        p_narration: `Initial booking transfer for Purchase Order ${(order as any).purchase_order_no} (Dr: ${purchaseAccountCode} / Cr: ${salesAccountCode})`
-      });
-      
-      if (rpcError) {
-        console.error("RPC Error during booking transfer posting:", rpcError);
-        throw new Error(`Ledger posting failed: ${rpcError.message}`);
-      } else {
-        patch.ledger_posting_status = "posted";
-        
-        // Restore the original creator to preserve audit trails
-        if (actorId !== session.userId && paymentId) {
-          await adminSupabase.from("purchase_order_payments").update({ created_by: session.userId }).eq("id", paymentId);
-          const { data: paymentRecord } = await adminSupabase.from("purchase_order_payments").select("roznamcha_entry_id").eq("id", paymentId).maybeSingle();
-          if (paymentRecord?.roznamcha_entry_id) {
-             await adminSupabase.from("roznamcha_entries").update({ created_by: session.userId }).eq("id", paymentRecord.roznamcha_entry_id);
-          }
-        }
-      }
-    } else {
-      throw new Error("Purchase Account and Sales/Supplier Account are required for transferring.");
+    // Transfer only moves the accepted booking into Purchase Transfer Payment.
+    // Actual accounting is posted from the payment screen so the system creates
+    // the Purchase Payment, Business Roznamcha, Journal and Ledger entries once.
+    if (!form.purchaseAccountNo) {
+      throw new Error("Purchase Account is required before transferring to payment.");
     }
-
     await requireSupabaseData(
       supabase.from("purchase_orders").update(patch).eq("id", params.id).select("id").single()
     );
@@ -180,7 +119,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
 }
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ScopeContext {
   countryId:       string | null;
@@ -188,13 +127,13 @@ interface ScopeContext {
   cityBranchId:    string | null;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Resolve a ledger ID from an account code.
  * Tries multiple lookup strategies in priority order:
  * 1. Direct ledger.code match (scope-aware first)
- * 2. Enterprise account lookup → linked ledger (scope-aware)
+ * 2. Enterprise account lookup â†’ linked ledger (scope-aware)
  * 3. Direct ledger match (any scope fallback)
  * 4. Enterprise linked ledger (any scope fallback)
  */
@@ -214,7 +153,7 @@ async function getLedgerIdByCode(
       .eq("is_active", true)
       .is("deleted_at", null);
 
-  // 1. Direct ledger code match — scope-specific first
+  // 1. Direct ledger code match â€” scope-specific first
   if (scope?.cityBranchId) {
     const { data } = await ledgerBase()
       .eq("code", lookup)
@@ -250,7 +189,7 @@ async function getLedgerIdByCode(
     .maybeSingle();
 
   if (account?.id) {
-    // 3. Find ledger linked to this enterprise account — scope-specific first
+    // 3. Find ledger linked to this enterprise account â€” scope-specific first
     if (scope?.cityBranchId) {
       const { data } = await supabase
         .from("ledgers")
@@ -286,7 +225,7 @@ async function getLedgerIdByCode(
     }
   }
 
-  // 4. Direct ledger code match — any scope (fallback)
+  // 4. Direct ledger code match â€” any scope (fallback)
   const { data: anyLedger } = await ledgerBase()
     .eq("code", lookup)
     .limit(1)
@@ -498,4 +437,5 @@ export async function revertAllOrderPayments(orderId: string, supabase: any, adm
       .eq("id", payment.roznamcha_entry_id);
   }
 }
+
 

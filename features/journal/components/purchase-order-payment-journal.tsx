@@ -736,7 +736,8 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
                   <tr key={p.id} className="border-b border-indigo-100/50 hover:bg-indigo-50/40 transition">
                     <td className="px-4 py-3 border-r font-mono text-slate-900 dark:text-slate-100 text-[10px] align-top space-y-1">
                       <div><span className="text-muted-foreground font-semibold">Admin:</span> <span className="font-bold">{re.super_admin_serial_number || "—"}</span></div>
-                      <div><span className="text-muted-foreground font-semibold">Country:</span> <span className="font-bold">{re.country_serial_number || "—"}</span></div>
+                      <div><span className="text-muted-foreground font-semibold">Country:</span> <span className="font-bold">{re.country_transaction_serial_number || "-"}</span></div>
+                      <div><span className="text-muted-foreground font-semibold">Branch:</span> <span className="font-bold">{re.branch_transaction_serial_number || "-"}</span></div>
                     </td>
                     <td className="px-4 py-3 border-r text-xs align-top space-y-1">
                       <div className="font-bold text-slate-800 dark:text-slate-200">{p.users?.full_name || row.form_data?.form?.userName || "Admin"}</div>
@@ -3580,5 +3581,4 @@ function InfoRow({ label, value, highlight = false }: { label: string; value: st
     </div>
   );
 }
-
 

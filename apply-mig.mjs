@@ -1,8 +1,8 @@
 import fs from 'fs';
 import postgres from 'postgres';
 
-// We use port 5432 for direct connection required for migrations instead of pooler port 6543
-const dbUrl = "postgresql://postgres.csesvyxxjivnkkozgopt:Gulistan%409090@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres";
+// Use the pooler URL from .env.local
+const dbUrl = "postgresql://postgres.csesvyxxjivnkkozgopt:Gulistan%409090@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres";
 
 async function applyMigration() {
   console.log("Connecting to database...");

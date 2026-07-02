@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiCreated, apiOk, handleApiError } from "@/lib/api/response";
 import { purchaseOrderPaymentPostSchema, uuidSchema } from "@/lib/api/erp-validation";
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     const order = await requireSupabaseData(
       supabase
         .from("purchase_orders")
-        .select("id, country_id, country_branch_id, city_branch_id, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
+        .select("id, purchase_order_no, country_id, country_branch_id, city_branch_id, currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
         .eq("id", params.id)
         .is("deleted_at", null)
         .maybeSingle()
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const order = await requireSupabaseData(
       supabase
         .from("purchase_orders")
-        .select("id, country_id, country_branch_id, city_branch_id, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
+        .select("id, purchase_order_no, country_id, country_branch_id, city_branch_id, currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
         .eq("id", params.id)
         .is("deleted_at", null)
         .maybeSingle()
@@ -163,6 +163,88 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }
 
     const paymentId = data as string;
+
+    const paymentRecord = await requireSupabaseData(
+      supabase
+        .from("purchase_order_payments")
+        .select("id, purchase_order_id, kind, amount, currency_code, exchange_rate, debit_ledger_id, credit_ledger_id, roznamcha_entry_id, status, source_module, source_transaction_type, source_reference_no, original_currency_code, currency_name, base_currency_amount")
+        .eq("id", paymentId)
+        .eq("purchase_order_id", params.id)
+        .is("deleted_at", null)
+        .maybeSingle()
+    ) as any;
+
+    if (!paymentRecord?.roznamcha_entry_id) {
+      throw new Error("Purchase payment was created but the linked Journal/Roznamcha entry is missing.");
+    }
+
+    const journalRecord = await requireSupabaseData(
+      supabase
+        .from("roznamcha_entries")
+        .select("id, source_module, source_transaction_type, source_transaction_id, source_reference_no, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, original_currency_code, currency_name, base_currency_amount")
+        .eq("id", paymentRecord.roznamcha_entry_id)
+        .maybeSingle()
+    ) as any;
+
+    const journalLines = await requireSupabaseData(
+      supabase
+        .from("roznamcha_lines")
+        .select("id, ledger_id, debit, credit, currency, usd_rate, usd_amount")
+        .eq("roznamcha_entry_id", paymentRecord.roznamcha_entry_id)
+    ) as any[];
+
+    const debitLine = (journalLines || []).find((line) => line.ledger_id === body.debitLedgerId && Number(line.debit || 0) > 0);
+    const creditLine = (journalLines || []).find((line) => line.ledger_id === body.creditLedgerId && Number(line.credit || 0) > 0);
+
+    if (!debitLine || !creditLine) {
+      throw new Error("Purchase payment posted, but Debit/Credit ledger lines were not created correctly.");
+    }
+
+    if (!journalRecord?.super_admin_serial_number || !journalRecord?.country_transaction_serial_number || !journalRecord?.branch_transaction_serial_number) {
+      throw new Error("Purchase payment posted, but Journal serial traceability is incomplete.");
+    }
+
+    const postedWorkflow = {
+      ...(orderRow.form_data?.workflow || {}),
+      invoiceStatus: "available",
+      paymentStatus: "posted",
+      journalStatus: "posted",
+      ledgerStatus: "posted",
+      currentStep: "payment_posted",
+      lastPaymentId: paymentId,
+      lastRoznamchaEntryId: paymentRecord.roznamcha_entry_id,
+      lastPaymentPostedAt: new Date().toISOString(),
+      sourceModule: "purchase",
+      sourceTransactionType: paymentRecord.source_transaction_type || (body.kind === "booking" ? "purchase_booking_transfer" : "purchase_payment")
+    };
+
+    await requireSupabaseData(
+      supabase
+        .from("purchase_orders")
+        .update({
+          form_data: {
+            ...(orderRow.form_data || {}),
+            workflow: postedWorkflow,
+            lastPaymentTrace: {
+              paymentId,
+              roznamchaEntryId: paymentRecord.roznamcha_entry_id,
+              debitLedgerId: body.debitLedgerId,
+              creditLedgerId: body.creditLedgerId,
+              originalCurrencyCode: paymentRecord.original_currency_code || body.currencyCode,
+              currencyName: paymentRecord.currency_name || body.currencyCode,
+              exchangeRate: paymentRecord.exchange_rate || body.exchangeRate,
+              baseCurrencyAmount: paymentRecord.base_currency_amount,
+              superAdminSerialNumber: journalRecord.super_admin_serial_number,
+              countryTransactionSerialNumber: journalRecord.country_transaction_serial_number,
+              branchTransactionSerialNumber: journalRecord.branch_transaction_serial_number
+            }
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", params.id)
+        .select("id")
+        .single()
+    );
 
     await writeAuditLog({
       action: "post_payment",
@@ -268,3 +350,4 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return handleApiError(error);
   }
 }
+
