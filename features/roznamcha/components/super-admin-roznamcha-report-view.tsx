@@ -612,8 +612,10 @@ export function SuperAdminRoznamchaReportView({
   // Custom header popover states and refs
   const [dateOpen, setDateOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const dateRef = useMemo(() => ({ current: null as HTMLDivElement | null }), []);
   const exchangeRef = useMemo(() => ({ current: null as HTMLDivElement | null }), []);
+  const filtersRef = useMemo(() => ({ current: null as HTMLDivElement | null }), []);
   
   // Filters State
   const [draftFilters, setDraftFilters] = useState<FilterState>(() => ({
@@ -1082,6 +1084,7 @@ export function SuperAdminRoznamchaReportView({
         setRowMenuOpenId(null);
         setDateOpen(false);
         setExchangeOpen(false);
+        setFiltersOpen(false);
       }
     }
     function onMouseDown(e: MouseEvent) {
@@ -1102,8 +1105,11 @@ export function SuperAdminRoznamchaReportView({
       if (exchangeRef.current && !exchangeRef.current.contains(e.target as Node)) {
         setExchangeOpen(false);
       }
+      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) {
+        setFiltersOpen(false);
+      }
     }
-    if (menuOpen || reportRibbonOpen || rowMenuOpenId || dateOpen || exchangeOpen) {
+    if (menuOpen || reportRibbonOpen || rowMenuOpenId || dateOpen || exchangeOpen || filtersOpen) {
       document.addEventListener("keydown", onKeyDown);
       document.addEventListener("mousedown", onMouseDown);
       return () => {
@@ -1111,7 +1117,7 @@ export function SuperAdminRoznamchaReportView({
         document.removeEventListener("mousedown", onMouseDown);
       };
     }
-  }, [menuOpen, reportRibbonOpen, rowMenuOpenId, dateOpen, exchangeOpen, dateRef, exchangeRef]);
+  }, [menuOpen, reportRibbonOpen, rowMenuOpenId, dateOpen, exchangeOpen, filtersOpen, dateRef, exchangeRef, filtersRef]);
 
   const selectedCountryLabel = appliedFilters.countryId === "all"
     ? "All"
@@ -1215,64 +1221,97 @@ export function SuperAdminRoznamchaReportView({
             )}
           </div>
 
-          {/* 2. Country Dropdown */}
-          <SearchSelect
-            label=""
-            value={draftFilters.countryId}
-            placeholder="Countries: All"
-            options={[{ value: "all", label: "Countries: All" }, ...countryOptions]}
-            disabled={loading || !sessionInfo?.scopes.isSuperAdmin}
-            onValueChange={(val) => {
-              setDraftFilters((cur) => ({ ...cur, countryId: val, branchId: "all" }));
-              setAppliedFilters((cur) => ({ ...cur, countryId: val, branchId: "all" }));
-            }}
-            triggerClassName="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm outline-none focus:border-blue-500 w-[110px]"
-          />
-
-          {/* 3. Branch Dropdown */}
-          <SearchSelect
-            label=""
-            value={draftFilters.branchId}
-            placeholder="Branch: All"
-            options={[{ value: "all", label: "Branch: All" }, ...filteredBranchOptions]}
-            disabled={loading}
-            onValueChange={(val) => {
-              setDraftFilters((cur) => ({ ...cur, branchId: val }));
-              setAppliedFilters((cur) => ({ ...cur, branchId: val }));
-            }}
-            triggerClassName="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm outline-none focus:border-blue-500 w-[110px]"
-          />
-
-          {/* 4. Voucher Type Dropdown */}
-          <SearchSelect
-            label=""
-            value={draftFilters.voucherType}
-            placeholder="Voucher: All"
-            options={[{ value: "all", label: "Voucher: All" }, ...voucherTypeOptions]}
-            disabled={loading}
-            onValueChange={(val) => {
-              setDraftFilters((cur) => ({ ...cur, voucherType: val }));
-              setAppliedFilters((cur) => ({ ...cur, voucherType: val }));
-            }}
-            triggerClassName="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm outline-none focus:border-blue-500 w-[100px]"
-          />
-
-          {/* 5. Account / Party Search Input */}
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
-            <Input
-              className="h-7 pl-6 text-[10px] rounded-md border-slate-200 bg-white w-[130px]"
-              value={draftFilters.partySearch}
-              onChange={(e) => {
-                const val = e.target.value;
-                setDraftFilters((cur) => ({ ...cur, partySearch: val }));
-                setAppliedFilters((cur) => ({ ...cur, partySearch: val }));
-              }}
-              placeholder="Search name / A/C"
-            />
+          <div className="relative" ref={(el) => { filtersRef.current = el; }}>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className="h-7 rounded-md border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-700 shadow-sm flex items-center gap-2 hover:bg-slate-50 outline-none"
+            >
+              <Filter className="h-3 w-3" />
+              <span>Filters</span>
+            </button>
+            {filtersOpen && (
+              <div className="absolute right-0 mt-1 w-64 rounded-xl bg-white border border-slate-200 shadow-2xl z-[80] p-4 space-y-3 text-left">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-slate-500 font-bold">Country</Label>
+                  <SearchSelect
+                    label=""
+                    value={draftFilters.countryId}
+                    placeholder="All Countries"
+                    options={[{ value: "all", label: "All Countries" }, ...countryOptions]}
+                    disabled={loading || !sessionInfo?.scopes.isSuperAdmin}
+                    onValueChange={(val) => {
+                      setDraftFilters((cur) => ({ ...cur, countryId: val, branchId: "all" }));
+                      setAppliedFilters((cur) => ({ ...cur, countryId: val, branchId: "all" }));
+                    }}
+                    triggerClassName="h-8 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-700 outline-none w-full"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-slate-500 font-bold">Branch</Label>
+                  <SearchSelect
+                    label=""
+                    value={draftFilters.branchId}
+                    placeholder="All Branches"
+                    options={[{ value: "all", label: "All Branches" }, ...filteredBranchOptions]}
+                    disabled={loading}
+                    onValueChange={(val) => {
+                      setDraftFilters((cur) => ({ ...cur, branchId: val }));
+                      setAppliedFilters((cur) => ({ ...cur, branchId: val }));
+                    }}
+                    triggerClassName="h-8 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-700 outline-none w-full"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-slate-500 font-bold">Voucher Type</Label>
+                  <SearchSelect
+                    label=""
+                    value={draftFilters.voucherType}
+                    placeholder="All Vouchers"
+                    options={[{ value: "all", label: "All Vouchers" }, ...voucherTypeOptions]}
+                    disabled={loading}
+                    onValueChange={(val) => {
+                      setDraftFilters((cur) => ({ ...cur, voucherType: val }));
+                      setAppliedFilters((cur) => ({ ...cur, voucherType: val }));
+                    }}
+                    triggerClassName="h-8 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-700 outline-none w-full"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-slate-500 font-bold">Account / Party</Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      className="h-8 pl-7 text-[10px] rounded-md border-slate-200 bg-white w-full"
+                      value={draftFilters.partySearch}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDraftFilters((cur) => ({ ...cur, partySearch: val }));
+                        setAppliedFilters((cur) => ({ ...cur, partySearch: val }));
+                      }}
+                      placeholder="Search name / A/C"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] font-bold rounded-lg flex-1 border-slate-200 text-slate-700 bg-white hover:bg-slate-50"
+                    onClick={() => {
+                      resetFilters();
+                      setFiltersOpen(false);
+                    }}
+                  >
+                    Reset All
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* 6. Exchange Rates Dropdown Popover */}
+          
+          {/* Exchange Rates Dropdown Popover */}
           <div className="relative" ref={(el) => { exchangeRef.current = el; }}>
             <button
               type="button"
@@ -1367,18 +1406,6 @@ export function SuperAdminRoznamchaReportView({
             )}
           </div>
 
-          {/* 7. Print Button */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => openSelectedReport(true, "journal")}
-            className="h-7 rounded-md bg-white text-[10px] font-bold border-slate-200 hover:bg-slate-50 shadow-sm"
-          >
-            <Printer className="mr-1 h-3 w-3" />
-            Print
-          </Button>
-
           {/* 8. Action Menu Dropdown */}
           <div id="roznamcha-actions-menu" className="relative">
             <Button
@@ -1442,30 +1469,51 @@ export function SuperAdminRoznamchaReportView({
 
   return (
     <div className="w-full max-w-none space-y-5 bg-[#f8fafc] px-4 py-4 text-[13px] md:px-6 xl:px-8">
-      {portalNode ? createPortal(filtersContent, portalNode) : null}
+      {portalNode ? createPortal(
+        <div className="filters-portal-container flex items-center gap-2">
+          {filtersContent}
+        </div>
+      , portalNode) : null}
       {titlePortalNode ? createPortal(titleContent, titlePortalNode) : null}
+      
+      <style>{`
+        .erp-page-actions-container > button, 
+        .erp-page-actions-container > div > button:not(.filters-portal-container button) {
+          display: none !important;
+        }
+      `}</style>
 
-      {/* KPI Cards (Top Level) */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
-        <SummaryCard 
-          title="Total Debit" 
-          value={appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalDebitSum)}` : `USD ${fmtNumber(totalDebitSum)}`} 
-          tone="red" 
-        />
-        <SummaryCard 
-          title="Total Credit" 
-          value={appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalCreditSum)}` : `USD ${fmtNumber(totalCreditSum)}`} 
-          tone="green" 
-        />
-        <SummaryCard 
-          title="Total Balance" 
-          value={appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}` : `USD ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}`} 
-          tone="slate" 
-        />
-        <SummaryCard title="Total Transactions" value={String(visibleRows.length)} tone="blue" />
-        <SummaryCard title="Active Branches" value={String(branchesIncludedCount)} tone="amber" />
-        <SummaryCard title="Active Countries" value={String(new Set(visibleRows.map((row) => row.countryId || row.countryName).filter(Boolean)).size)} tone="blue" />
-        <SummaryCard title="Exchange Rate" value={showUsd ? "USD Enabled" : "Local Currency"} tone="slate" />
+      {/* Grouped Report KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-3">
+        {/* Financial Summary */}
+        <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="bg-slate-900 px-4 py-2 text-white font-bold text-xs uppercase tracking-wider">Financial Summary</div>
+          <CardContent className="p-4 space-y-3">
+             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Total Debit</span><span className="font-black text-rose-600">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalDebitSum)}` : `USD ${fmtNumber(totalDebitSum)}`}</span></div>
+             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Total Credit</span><span className="font-black text-emerald-600">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalCreditSum)}` : `USD ${fmtNumber(totalCreditSum)}`}</span></div>
+             <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs font-bold text-slate-500 uppercase">Balance</span><span className="text-lg font-black text-slate-900">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}` : `USD ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}`}</span></div>
+          </CardContent>
+        </Card>
+
+        {/* Overview Metrics */}
+        <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="bg-slate-900 px-4 py-2 text-white font-bold text-xs uppercase tracking-wider">Overview Metrics</div>
+          <CardContent className="p-4 space-y-3">
+             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Total Transactions</span><span className="font-black text-slate-900">{visibleRows.length}</span></div>
+             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Active Branches</span><span className="font-black text-slate-900">{branchesIncludedCount}</span></div>
+             <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs font-bold text-slate-500 uppercase">Exchange Rate Mode</span><span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{showUsd ? "USD Enabled" : "Local Currency"}</span></div>
+          </CardContent>
+        </Card>
+
+        {/* Session Info */}
+        <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="bg-slate-900 px-4 py-2 text-white font-bold text-xs uppercase tracking-wider">Session Info</div>
+          <CardContent className="p-4 space-y-3">
+             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">User</span><span className="font-black text-slate-900">{clientSession?.user?.name || "-"}</span></div>
+             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Country</span><span className="font-black text-slate-900">{selectedCountryLabel}</span></div>
+             <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs font-bold text-slate-500 uppercase">Branch</span><span className="text-xs font-black text-slate-900 truncate max-w-[120px]">{selectedBranchLabel}</span></div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Middle Layout based on role */}
@@ -2035,8 +2083,4 @@ function MenuAction({
 function MenuDivider() {
   return <div className="my-1 border-t border-slate-100" />;
 }
-
-
-
-
 

@@ -703,7 +703,7 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
       <div className="mb-3 flex items-center justify-between">
         <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
-          ➕ Traceable Payment History (Nested Journal Entries)
+          Ã¢Å¾â€¢ Traceable Payment History (Nested Journal Entries)
         </h4>
         {loading && (
           <span className="text-[10px] font-semibold text-slate-400 animate-pulse">Loading history...</span>
@@ -735,7 +735,7 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
                 return (
                   <tr key={p.id} className="border-b border-indigo-100/50 hover:bg-indigo-50/40 transition">
                     <td className="px-4 py-3 border-r font-mono text-slate-900 dark:text-slate-100 text-[10px] align-top space-y-1">
-                      <div><span className="text-muted-foreground font-semibold">Admin:</span> <span className="font-bold">{re.super_admin_serial_number || "—"}</span></div>
+                      <div><span className="text-muted-foreground font-semibold">Admin:</span> <span className="font-bold">{re.super_admin_serial_number || "Ã¢â‚¬â€"}</span></div>
                       <div><span className="text-muted-foreground font-semibold">Country:</span> <span className="font-bold">{re.country_transaction_serial_number || "-"}</span></div>
                       <div><span className="text-muted-foreground font-semibold">Branch:</span> <span className="font-bold">{re.branch_transaction_serial_number || "-"}</span></div>
                     </td>
@@ -1059,7 +1059,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     const draft = draftFilter.trim().toLowerCase();
     return orders.filter((row) => {
       const postingStatus = row.ledger_posting_status?.toLowerCase();
-      if (postingStatus !== "posted" && postingStatus !== "transferred") return false;
+      const workflowTransferStatus = row.form_data?.workflow?.transferStatus?.toLowerCase();
+      const hasTransferAudit = Boolean(row.form_data?.form?.transferAudit);
+      const isEligibleForPayment = postingStatus === "posted" || postingStatus === "transferred" || workflowTransferStatus === "transferred" || hasTransferAudit;
+      if (!isEligibleForPayment) return false;
       if (draft && !(row.payment_status ?? "").toLowerCase().includes(draft)) return false;
       if (countryFilter && rowCountryName(row) !== countryFilter) return false;
       if (branchFilter && rowBranchName(row) !== branchFilter) return false;
@@ -1176,28 +1179,28 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }, [ledgers, paymentSourceLedgerId, cashLedger]);
 
   const sourceBalanceText = useMemo(() => {
-    if (!selectedSourceLedger) return "—";
+    if (!selectedSourceLedger) return "Ã¢â‚¬â€";
     const bal = Number(selectedSourceLedger.current_balance ?? 0);
     return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${ledgerCurrency(selectedSourceLedger) || "PKR"}`;
   }, [selectedSourceLedger]);
 
-  const salesLedger = useMemo(() => {
-    const code = selectedForm.salesAccountNumber || selectedForm.salesAccountNo;
+  const purchaseLedger = useMemo(() => {
+    const code = selectedForm.purchaseAccountNumber || selectedForm.purchaseAccountNo;
     return ledgers.find((l) => ledgerCode(l) === code);
-  }, [ledgers, selectedForm.salesAccountNumber, selectedForm.salesAccountNo]);
+  }, [ledgers, selectedForm.purchaseAccountNumber, selectedForm.purchaseAccountNo]);
 
   const doubleEntry = useMemo(() => {
     return {
-      debitName: selectedForm.salesAccountName || selectedForm.supplierName || "Sales Account",
-      debitCode: selectedForm.salesAccountNumber || selectedForm.salesAccountNo || "-",
-      debitBranch: selectedForm.salesAccountBranch || "-",
-      creditName: ledgerName(selectedSourceLedger) || "General Cash Account",
+      debitName: selectedForm.purchaseAccountName || selectedForm.buyerName || "Purchase Account",
+      debitCode: selectedForm.purchaseAccountNumber || selectedForm.purchaseAccountNo || "-",
+      debitBranch: selectedForm.purchaseAccountBranch || "-",
+      creditName: ledgerName(selectedSourceLedger) || "General Cash/Bank Account",
       creditCode: ledgerCode(selectedSourceLedger) || "CASH-001",
       creditBranch: "-",
-      debitLedgerId: ledgerId(salesLedger) || selectedForm.salesAccountId || selectedForm.supplierId,
+      debitLedgerId: ledgerId(purchaseLedger) || selectedForm.purchaseAccountId || selectedForm.buyerId,
       creditLedgerId: ledgerId(selectedSourceLedger)
     };
-  }, [selectedForm, selectedSourceLedger, salesLedger]);
+  }, [selectedForm, selectedSourceLedger, purchaseLedger]);
 
   const baseCurrency = useMemo(() => {
     // 1. Prioritize explicitly selected local/ledger currency from the form
@@ -1363,7 +1366,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
       // 4. Add Calculation Details
       if (showCalcPanel && calcAmount && exchangeRate && calcFinal !== null) {
-        const opSymbol = calcOp === "mul" ? "×" : "÷";
+        const opSymbol = calcOp === "mul" ? "Ãƒâ€”" : "ÃƒÂ·";
         systemLines.push(`Calculation: ${Number(calcAmount).toLocaleString()} ${currency.toUpperCase()} ${opSymbol} ${Number(exchangeRate).toLocaleString()} = ${calcFinal.toFixed(2)} ${baseCurrency}`);
       }
 
@@ -1484,7 +1487,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
     if (!finalDebitLedgerId && selected) {
       const selectedForm = selected.form_data?.form || {};
-      const code = selectedForm.salesAccountNumber || selectedForm.salesAccountNo;
+      const code = selectedForm.purchaseAccountNumber || selectedForm.purchaseAccountNo;
       if (code) {
         setProcessingPayment(true);
         try {
@@ -1537,7 +1540,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       
       let auditTrail = "";
       if (showCalcPanel && calcFinal !== null) {
-        const opSymbol = calcOp === "mul" ? "×" : "÷";
+        const opSymbol = calcOp === "mul" ? "Ãƒâ€”" : "ÃƒÂ·";
         auditTrail = `[Audit Trail - Qty: ${calcAmount} | Currency: ${currency.toUpperCase()} | Rate: ${exchangeRate} | Op: ${opSymbol} | Converted: ${amount.toFixed(2)} ${baseCurrency}]`;
       } else {
         auditTrail = `[Audit Trail - Final Amount: ${amount.toFixed(2)} ${baseCurrency} (Local Currency Entry)]`;
@@ -1563,7 +1566,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   debitLedgerId: finalDebitLedgerId,
                   creditLedgerId: finalCreditLedgerId,
                   referenceNo: typeDetails.refNo || selected.purchase_contract_no || undefined,
-                  narration: finalNarration.trim() || `PO ${selected.purchase_order_no} – ${activeMode === "advance" ? "Advance" : "Remaining"} Payment`
+                  narration: finalNarration.trim() || `PO ${selected.purchase_order_no} Ã¢â‚¬â€œ ${activeMode === "advance" ? "Advance" : "Remaining"} Payment`
                 }
               : {
                   paymentStatus: "credit_posted",
@@ -1581,7 +1584,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     amount: Number(amount),
                     currency,
                     date: paymentDate,
-                    narration: finalNarration.trim() || `PO ${selected.purchase_order_no} – Sales Credit Payment`
+                    narration: finalNarration.trim() || `PO ${selected.purchase_order_no} Ã¢â‚¬â€œ Sales Credit Payment`
                   }
                 }
           )
@@ -1592,7 +1595,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       if (!response.ok || !payload.ok) {
         throw new Error(payload?.error?.message || payload?.error || "Payment posting failed.");
       }
-      setPaymentSuccess(`✅ Payment posted successfully for PO ${selected.purchase_order_no}.`);
+      setPaymentSuccess(`Ã¢Å“â€¦ Payment posted successfully for PO ${selected.purchase_order_no}.`);
       
       // Reset Roznamcha fields
       setCalcAmount("");
@@ -1798,7 +1801,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </div>
       )}
 
-      {/* ── Report Section ──────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Report Section Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
         {/* Table Header */}
         <div className="flex flex-col items-center justify-center text-center w-full py-4 border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-950">
@@ -1965,7 +1968,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                 const getLedgerLabel = (id: string) => {
                   const led = ledgers.find((l) => l.id === id);
-                  if (!led) return "—";
+                  if (!led) return "Ã¢â‚¬â€";
                   return `${led.code} - ${led.name}`;
                 };
 
@@ -2103,7 +2106,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                             <>
                               {isPosted ? (
                                 <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
-                                  Transferred ✓
+                                  Transferred Ã¢Å“â€œ
                                 </span>
                               ) : (
                                 <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
@@ -2136,7 +2139,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Current Status</span>
                                       {isPosted ? (
                                         <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
-                                          Transferred ✓
+                                          Transferred Ã¢Å“â€œ
                                         </span>
                                       ) : (
                                         <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
@@ -2205,7 +2208,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               {loading && (
                 <tr>
                   <td colSpan={14} style={{ padding: "60px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
-                    Loading records…
+                    Loading recordsÃ¢â‚¬Â¦
                   </td>
                 </tr>
               )}
@@ -2246,7 +2249,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               )}
               aria-label="Previous page"
             >
-              <span className="text-xs">‹</span>
+              <span className="text-xs">Ã¢â‚¬Â¹</span>
             </button>
             {Array.from({ length: Math.ceil(filtered.length / pageSize) }).slice(0, 5).map((_, idx) => (
               <button
@@ -2271,13 +2274,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               )}
               aria-label="Next page"
             >
-              <span className="text-xs">›</span>
+              <span className="text-xs">Ã¢â‚¬Âº</span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* ── Ledger Cash Entry Panel (Modal) ─────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Ledger Cash Entry Panel (Modal) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {selected && (
         <SimpleModal
           title={`Payment Entry - PO ${selected.purchase_order_no}`}
@@ -2725,7 +2728,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 {currency && showCalcPanel && (
                   <div className="rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/20">
                     <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                      Transaction Conversion Details (Local Calculation) ({currency} ➔ {baseCurrency})
+                      Transaction Conversion Details (Local Calculation) ({currency} Ã¢Å¾â€ {baseCurrency})
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
                       <FieldBlock label={`Foreign Amount (${currency})`} required>
@@ -2785,7 +2788,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       Transaction Entry Preview
                     </span>
                     <div className="h-9 flex items-center px-3 rounded-lg border border-indigo-400/40 bg-indigo-500/10 text-indigo-600 font-bold text-xs uppercase truncate">
-                      🔵 Balanced entry — Dr: {doubleEntry.debitCode} / Cr: {doubleEntry.creditCode}
+                      Ã°Å¸â€Âµ Balanced entry Ã¢â‚¬â€ Dr: {doubleEntry.debitCode} / Cr: {doubleEntry.creditCode}
                     </div>
                   </div>
                 </div>
@@ -2807,7 +2810,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       <span className="font-bold text-foreground">Posting: </span>
                       <><span className="font-bold text-indigo-600">DR</span> {doubleEntry.debitName} ({doubleEntry.debitCode}) / <span className="font-bold text-violet-600">CR</span> {doubleEntry.creditName} ({doubleEntry.creditCode})</>
                     </div>
-                    <div><span className="font-bold text-foreground">Amount: </span>{amount ? money(amount, baseCurrency) : "—"}</div>
+                    <div><span className="font-bold text-foreground">Amount: </span>{amount ? money(amount, baseCurrency) : "Ã¢â‚¬â€"}</div>
                     {selected && (
                       <div className="mt-1">
                         {(() => {
@@ -2875,7 +2878,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 )}
                 {paymentError && (
                   <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                    ❌ {paymentError}
+                    Ã¢ÂÅ’ {paymentError}
                   </div>
                 )}
               </div>
@@ -2936,7 +2939,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     {date(payment.entry_date || payment.created_at)}
                                   </td>
                                   <td className="px-3 py-2 align-top">
-                                    <div className="text-[9px] font-mono font-bold text-slate-500 truncate max-w-[120px] mb-1">{re.super_admin_serial_number || "—"}</div>
+                                    <div className="text-[9px] font-mono font-bold text-slate-500 truncate max-w-[120px] mb-1">{re.super_admin_serial_number || "Ã¢â‚¬â€"}</div>
                                     <div className="text-[10px] font-mono text-slate-800 dark:text-slate-200 truncate max-w-[120px] mb-1">Ref: {payment.reference_no || "-"}</div>
                                     <div className="text-[9px] font-bold text-indigo-500 truncate max-w-[120px] mb-1" title={payment.branchName || "Main Branch"}>Branch: {payment.branchName || "Main Branch"}</div>
                                     <div className="text-indigo-600 dark:text-indigo-400 font-medium text-[9px] truncate max-w-[120px]" title={drLedger ? ledgerName(drLedger) : "-"}>Dr (Purchase): {drLedger ? ledgerName(drLedger) : "-"}</div>
@@ -2979,7 +2982,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         <th className="px-3 py-2.5 text-left">Type</th>
                         <th className="px-3 py-2.5 text-left">Account</th>
                         <th className="px-3 py-2.5 text-right">Amount ({currency})</th>
-                        <th className="px-2 py-2.5 text-center">✓</th>
+                        <th className="px-2 py-2.5 text-center">Ã¢Å“â€œ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2996,7 +2999,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           </div>
                         </td>
                         <td className="px-3 py-3 text-right font-mono font-bold text-indigo-600 whitespace-nowrap">
-                          {amount ? money(amount / Number(exchangeRate || 1), currency) : <span className="text-muted-foreground">—</span>}
+                          {amount ? money(amount / Number(exchangeRate || 1), currency) : <span className="text-muted-foreground">Ã¢â‚¬â€</span>}
                           <span className="block text-[9px] text-muted-foreground font-normal">{money(amount, baseCurrency)}</span>
                         </td>
                         <td className="px-2 py-3 text-center">
@@ -3022,7 +3025,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         </td>
                         <td className="px-3 py-3 text-right font-mono font-bold text-violet-600 whitespace-nowrap">
                           {(() => {
-                            if (!amount) return <span className="text-muted-foreground">—</span>;
+                            if (!amount) return <span className="text-muted-foreground">Ã¢â‚¬â€</span>;
                             const isCrLocal = !selectedSourceLedger || selectedSourceLedger.currency?.toUpperCase() === baseCurrency;
                             if (isCrLocal) {
                               return (
