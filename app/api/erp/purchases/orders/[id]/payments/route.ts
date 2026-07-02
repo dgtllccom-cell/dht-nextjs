@@ -122,7 +122,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     if (body.kind === "advance" && advancePercent > 0) {
       if (remainingAdvanceUSD <= tolerance) {
-        throw new Error("Advance payment is already completed for this purchase order. Duplicate posting is not allowed.");
+        throw new Error(`Advance payment is already fully paid (Required: ${requiredAdvanceUSD.toFixed(2)}, Paid: ${advancePaidUSD.toFixed(2)}). Duplicate posting is not allowed.`);
       }
       if (bodyAmountUSD > remainingAdvanceUSD + tolerance) {
         throw new Error(`Advance payment amount cannot exceed remaining advance balance (${remainingAdvanceUSD.toFixed(2)}).`);

@@ -659,7 +659,7 @@ function NestedRowActions({ payment, row, ledgers, localCurrency }: any) {
   );
 }
 
-function NestedPaymentHistory({ row, ledgers, baseCurrency }: { row: any, ledgers: any[], baseCurrency: string }) {
+function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row: any, ledgers: any[], baseCurrency: string, activeMode: string }) {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -688,107 +688,109 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency }: { row: any, ledger
     ? row.form_data.goodsEntries.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
     : Number(form.totalAmount || 0);
   const advancePercent = Number(form.advancePercent || 0);
-  const totalRequiredFC = (totalPrice * advancePercent) / 100;
+  const totalRequiredAdvanceFC = (totalPrice * advancePercent) / 100;
   
-    let currentBalance = totalRequiredFC;
-    let accumulatedPaid = 0;
-    
-    // Filter out the initial booking liability transfer so it only shows actual payments
-    const filteredPayments = payments.filter((p: any) => !p.narration?.toLowerCase().includes("initial booking transfer"));
-    
-    const reversed = [...filteredPayments].reverse();
-    const historyWithBalance = reversed.map((p: any) => {
-      const amtUSD = Number(p.amount || 0) / Number(p.exchange_rate || 1);
-      currentBalance -= amtUSD;
-      const prevPaid = accumulatedPaid;
-      accumulatedPaid += amtUSD;
-      return { ...p, remaining_balance: currentBalance, previous_balance_paid: prevPaid, amount_usd: amtUSD };
-    }).reverse();
+  // Starting balance depends on whether we're viewing advance or remaining
+  const startingBalance = activeMode === "remaining" 
+    ? Math.max(0, totalPrice - totalRequiredAdvanceFC)
+    : totalRequiredAdvanceFC;
   
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
-        <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
-            ➕ Traceable Payment History (Nested Journal Entries)
-          </h4>
-          {loading && (
-            <span className="text-[10px] font-semibold text-slate-400 animate-pulse">Loading history...</span>
-          )}
-        </div>
-        {payments.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-100 dark:bg-slate-900 border-b font-bold text-slate-600 uppercase text-[10px] tracking-wider">
-                  <th className="px-5 py-3 border-r">Journal Serials</th>
-                  <th className="px-5 py-3 border-r">User & Date</th>
-                  <th className="px-5 py-3 border-r">Total Purchase</th>
-                  <th className="px-5 py-3 border-r">Ledger Postings (DR / CR)</th>
-                  <th className="px-5 py-3 border-r">Narration</th>
-                  <th className="px-5 py-3 text-right border-r">Advance Paid</th>
-                  <th className="px-5 py-3 text-right border-r">Remaining (Advance)</th>
-                  <th className="px-5 py-3 text-center w-28">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyWithBalance.map((p) => {
-                  const drLedger = ledgers.find((l) => ledgerId(l) === p.debit_ledger_id);
-                  const crLedger = ledgers.find((l) => ledgerId(l) === p.credit_ledger_id);
-                  const drLabel = drLedger ? ledgerName(drLedger) : "-";
-                  const crLabel = crLedger ? ledgerName(crLedger) : "-";
-                  const localCurrency = (ledgerCurrency(drLedger) || ledgerCurrency(crLedger) || baseCurrency).toUpperCase();
-                  const re = p.roznamcha_entries || {};
+  let currentBalance = startingBalance;
+  let accumulatedPaid = 0;
   
-                  return (
-                    <tr key={p.id} className="border-b border-indigo-100/50 hover:bg-indigo-50/40 transition">
-                      <td className="px-5 py-3 border-r font-mono text-slate-900 dark:text-slate-100 text-[10px] align-top space-y-1">
-                        <div><span className="text-muted-foreground font-semibold">Admin:</span> <span className="font-bold">{re.super_admin_serial_number || "—"}</span></div>
-                        <div><span className="text-muted-foreground font-semibold">Country:</span> <span className="font-bold">{re.country_serial_number || "—"}</span></div>
-                        <div><span className="text-muted-foreground font-semibold">Branch:</span> <span className="font-bold">{re.branch_serial_number || "—"}</span></div>
-                      </td>
-                      <td className="px-5 py-3 border-r text-xs align-top space-y-1">
-                        <div className="font-bold text-slate-800 dark:text-slate-200">{p.users?.full_name || row.form_data?.form?.userName || "Admin"}</div>
-                        <div className="text-muted-foreground">{date(p.entry_date || p.created_at)}</div>
-                      </td>
-                      <td className="px-5 py-3 border-r text-xs align-top space-y-1">
-                        <div className="font-bold text-slate-700 dark:text-slate-300">{money(totalPrice, row.currency_code || "USD")}</div>
-                        <div className="text-[10px] text-muted-foreground">Req Adv: {money(totalRequiredFC, row.currency_code || "USD")}</div>
-                      </td>
-                      <td className="px-5 py-3 border-r text-xs align-top">
-                        <div className="font-semibold text-indigo-600 mb-1.5" title={drLabel}><span className="font-black text-indigo-800 text-xs mr-1">DR:</span>{drLabel}</div>
-                        <div className="font-semibold text-violet-600" title={crLabel}><span className="font-black text-violet-800 text-xs mr-1">CR:</span>{crLabel}</div>
-                      </td>
-                      <td className="px-5 py-3 border-r text-slate-500 max-w-[200px] text-xs align-top" title={p.narration}>{p.narration || "—"}</td>
-                      <td className="px-5 py-3 text-right font-mono font-bold text-emerald-600 whitespace-nowrap border-r align-top">
-                        <div className="text-sm">{money(p.amount_usd, p.currency_code || "USD")}</div>
-                        <div className="flex flex-col items-end mt-1.5">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded mb-0.5">Rate: {Number(p.exchange_rate || 1).toFixed(2)}</span>
-                          <span className="text-xs text-emerald-800 dark:text-emerald-400">Final: {money(p.amount, localCurrency)}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-right font-mono font-black text-rose-600 whitespace-nowrap border-r align-top">
-                        <div className="text-sm">{money(p.remaining_balance, p.currency_code || "USD")}</div>
-                        <div className="flex flex-col items-end mt-1.5">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded opacity-0 mb-0.5">-</span>
-                          <span className="text-xs text-rose-800 dark:text-rose-400">Final: {money(p.remaining_balance * (p.exchange_rate || 1), localCurrency)}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-center align-top">
-                        <NestedRowActions payment={p} row={row} ledgers={ledgers} localCurrency={localCurrency} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-xs text-slate-400 italic py-2">
-            {loading ? "Loading payments..." : "No payments posted for this purchase order yet."}
-          </p>
+  // Filter out the initial booking liability transfer so it only shows actual payments
+  const filteredPayments = payments.filter((p: any) => !p.narration?.toLowerCase().includes("initial booking transfer"));
+  
+  // Payments come newest first, reverse them to calculate step-by-step oldest first
+  const reversed = [...filteredPayments].reverse();
+  const historyWithBalance = reversed.map((p: any) => {
+    const amtUSD = Number(p.amount || 0) / Number(p.exchange_rate || 1);
+    currentBalance -= amtUSD;
+    const prevPaid = accumulatedPaid;
+    accumulatedPaid += amtUSD;
+    return { ...p, remaining_balance: currentBalance, previous_balance_paid: prevPaid, amount_usd: amtUSD };
+  }).reverse();
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+          ➕ Traceable Payment History (Nested Journal Entries)
+        </h4>
+        {loading && (
+          <span className="text-[10px] font-semibold text-slate-400 animate-pulse">Loading history...</span>
         )}
       </div>
-    );
+      {payments.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-100 dark:bg-slate-900 border-b font-bold text-slate-600 uppercase text-[10px] tracking-wider">
+                <th className="px-4 py-3 border-r">Journal Serials</th>
+                <th className="px-4 py-3 border-r">User & Date</th>
+                <th className="px-4 py-3 text-right border-r">Paid (Foreign)</th>
+                <th className="px-4 py-3 text-center border-r">Exchange Rate</th>
+                <th className="px-4 py-3 text-right border-r">Paid (Local)</th>
+                <th className="px-4 py-3 text-right border-r">Remaining Balance</th>
+                <th className="px-4 py-3 border-r">Ledger Postings</th>
+                <th className="px-4 py-3 text-center w-28">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historyWithBalance.map((p) => {
+                const drLedger = ledgers.find((l) => ledgerId(l) === p.debit_ledger_id);
+                const crLedger = ledgers.find((l) => ledgerId(l) === p.credit_ledger_id);
+                const drLabel = drLedger ? ledgerName(drLedger) : "-";
+                const crLabel = crLedger ? ledgerName(crLedger) : "-";
+                const localCurrency = (ledgerCurrency(drLedger) || ledgerCurrency(crLedger) || baseCurrency).toUpperCase();
+                const re = p.roznamcha_entries || {};
+
+                return (
+                  <tr key={p.id} className="border-b border-indigo-100/50 hover:bg-indigo-50/40 transition">
+                    <td className="px-4 py-3 border-r font-mono text-slate-900 dark:text-slate-100 text-[10px] align-top space-y-1">
+                      <div><span className="text-muted-foreground font-semibold">Admin:</span> <span className="font-bold">{re.super_admin_serial_number || "—"}</span></div>
+                      <div><span className="text-muted-foreground font-semibold">Country:</span> <span className="font-bold">{re.country_serial_number || "—"}</span></div>
+                    </td>
+                    <td className="px-4 py-3 border-r text-xs align-top space-y-1">
+                      <div className="font-bold text-slate-800 dark:text-slate-200">{p.users?.full_name || row.form_data?.form?.userName || "Admin"}</div>
+                      <div className="text-muted-foreground">{date(p.entry_date || p.created_at)}</div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono font-bold text-emerald-600 whitespace-nowrap border-r align-top">
+                      <div className="text-sm">{money(p.amount_usd, p.currency_code || "USD")}</div>
+                    </td>
+                    <td className="px-4 py-3 text-center font-mono text-slate-600 whitespace-nowrap border-r align-top">
+                      <div className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[11px] font-bold inline-block">
+                        {Number(p.exchange_rate || 1).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap border-r align-top">
+                      <div className="text-sm">{money(p.amount, localCurrency)}</div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono font-black whitespace-nowrap border-r align-top">
+                      <div className={cn("text-sm", p.remaining_balance < 0 ? "text-rose-600" : "text-indigo-600")}>
+                        {money(p.remaining_balance, p.currency_code || "USD")}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 border-r text-[10px] align-top">
+                      <div className="font-semibold text-indigo-600 mb-1 leading-tight" title={drLabel}><span className="font-black text-indigo-800 mr-1">DR:</span>{drLabel}</div>
+                      <div className="font-semibold text-violet-600 leading-tight" title={crLabel}><span className="font-black text-violet-800 mr-1">CR:</span>{crLabel}</div>
+                    </td>
+                    <td className="px-4 py-3 text-center align-top">
+                      <NestedRowActions payment={p} row={row} ledgers={ledgers} localCurrency={localCurrency} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 italic py-2">
+          {loading ? "Loading payments..." : "No payments posted for this purchase order yet."}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
@@ -2140,7 +2142,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     {isExpanded && (
                       <tr onClick={(e) => e.stopPropagation()} style={{ background: "#f8fafc" }}>
                         <td colSpan={14} className="p-4 border-b border-slate-100 dark:border-slate-800">
-                          <NestedPaymentHistory row={row} ledgers={ledgers} baseCurrency={baseCurrency} />
+                          <NestedPaymentHistory row={row} ledgers={ledgers} baseCurrency={baseCurrency} activeMode={activeMode} />
                         </td>
                       </tr>
                     )}
