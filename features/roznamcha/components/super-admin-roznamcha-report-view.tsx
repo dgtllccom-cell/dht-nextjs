@@ -223,8 +223,8 @@ function getPrimaryLine(lines: RoznamchaLineRow[]): RoznamchaLineRow | null {
 function buildAccountPartyLabel(lines: RoznamchaLineRow[]) {
   const primary = getPrimaryLine(lines);
   if (!primary) return "-";
-  if (primary.accounts) return `${primary.accounts.code} · ${primary.accounts.name}`;
-  if (primary.ledgers) return `${primary.ledgers.code} · ${primary.ledgers.name}`;
+  if (primary.accounts) return `${primary.accounts.code} - ${primary.accounts.name}`;
+  if (primary.ledgers) return `${primary.ledgers.code} - ${primary.ledgers.name}`;
   return safeText(primary.description);
 }
 
@@ -333,7 +333,7 @@ function buildSearchText(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]) {
 }
 
 function toBaseRow(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]): SuperAdminRoznamchaRow {
-  // Isolate the primary (counterparty) line – index 0 per API insertion order.
+  // Isolate the primary (counterparty) line - index 0 per API insertion order.
   // The cash/bank line (index 1) is the balancing entry and should NOT be shown
   // in the report summary row to avoid duplicate debit/credit display.
   const primaryLine = getPrimaryLine(lines);
@@ -414,9 +414,9 @@ function lineToRow(
   const currency = line.currency ?? entry.countries?.currency_code ?? "-";
 
   const accountParty = line.accounts 
-    ? `${line.accounts.code} · ${line.accounts.name}`
+    ? `${line.accounts.code} - ${line.accounts.name}`
     : line.ledgers 
-      ? `${line.ledgers.code} · ${line.ledgers.name}`
+      ? `${line.ledgers.code} - ${line.ledgers.name}`
       : safeText(line.description || entry.narration);
 
   const primaryLedgerId = line.ledger_id;
@@ -1006,8 +1006,8 @@ export function SuperAdminRoznamchaReportView({
         label: `Line ${index + 1}`,
         value: [
           line.payment_entry_type,
-          line.ledgers ? `${line.ledgers.code} · ${line.ledgers.name}` : "",
-          line.accounts ? `${line.accounts.code} · ${line.accounts.name}` : "",
+          line.ledgers ? `${line.ledgers.code} - ${line.ledgers.name}` : "",
+          line.accounts ? `${line.accounts.code} - ${line.accounts.name}` : "",
           line.description,
           `Dr ${fmtNumber(line.debit)}`,
           `Cr ${fmtNumber(line.credit)}`,
@@ -1027,7 +1027,7 @@ export function SuperAdminRoznamchaReportView({
     if (!targetRow) return;
     openA4ReportWindow({
       title: mode === "voucher" ? `${pageTitle} Voucher` : `${pageTitle} Journal`,
-      subtitle: `${targetRow.voucherNo} · ${targetRow.entryDate} · ${targetRow.countryName}`,
+      subtitle: `${targetRow.voucherNo} - ${targetRow.entryDate} - ${targetRow.countryName}`,
       rows: buildSelectedRows(mode, targetRow),
       autoPrint,
       lang
@@ -1151,7 +1151,7 @@ export function SuperAdminRoznamchaReportView({
               onClick={() => setDateOpen(!dateOpen)}
               className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm flex items-center gap-1 hover:bg-slate-50 outline-none"
             >
-              <span>📅 {appliedFilters.fromDate} to {appliedFilters.toDate}</span>
+              <span>Date: {appliedFilters.fromDate} to {appliedFilters.toDate}</span>
             </button>
             {dateOpen && (
               <div className="absolute right-0 mt-1 w-64 rounded-xl bg-white border border-slate-200 shadow-2xl z-[80] p-3 space-y-3 text-left">
@@ -1318,7 +1318,7 @@ export function SuperAdminRoznamchaReportView({
               onClick={() => setExchangeOpen(!exchangeOpen)}
               className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-blue-600 shadow-sm flex items-center gap-1 hover:bg-slate-50 outline-none"
             >
-              <span>💱 Rates</span>
+              <span>Rates</span>
             </button>
             {exchangeOpen && (
               <div className="absolute right-0 mt-1 w-64 rounded-xl bg-white border border-slate-200 shadow-2xl z-[80] p-3 space-y-3 text-left">
@@ -1456,7 +1456,7 @@ export function SuperAdminRoznamchaReportView({
             ? "Country Roznamcha Report"
             : "City Roznamcha Report"}
       </h1>
-      <span className="text-[10px] text-slate-400">•</span>
+      <span className="text-[10px] text-slate-400">-</span>
       <span className="hidden lg:block text-[10px] text-slate-500 font-semibold truncate max-w-[400px]">
         {typeFilter === "super_admin"
           ? "Country + Branch daily journal - USD rate used in table columns only (not in summary)"
@@ -1509,7 +1509,7 @@ export function SuperAdminRoznamchaReportView({
         <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="bg-slate-900 px-4 py-2 text-white font-bold text-xs uppercase tracking-wider">Session Info</div>
           <CardContent className="p-4 space-y-3">
-             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">User</span><span className="font-black text-slate-900">{clientSession?.user?.name || "-"}</span></div>
+             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">User</span><span className="font-black text-slate-900">{sessionInfo?.user?.fullName || sessionInfo?.user?.email || "-"}</span></div>
              <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Country</span><span className="font-black text-slate-900">{selectedCountryLabel}</span></div>
              <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs font-bold text-slate-500 uppercase">Branch</span><span className="text-xs font-black text-slate-900 truncate max-w-[120px]">{selectedBranchLabel}</span></div>
           </CardContent>
@@ -1520,7 +1520,7 @@ export function SuperAdminRoznamchaReportView({
       {typeFilter === "super_admin" ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">🌍 Country-Based Financial Summary</h2>
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">Country-Based Financial Summary</h2>
             <span className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-1 rounded-md">Currency isolation enforced</span>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1906,7 +1906,7 @@ export function SuperAdminRoznamchaReportView({
           setActiveDrawerEntry(null);
         }}
         title={`Voucher: ${activeDrawerEntry?.voucherNo || "Details"}`}
-        subtitle={`Roznamcha entry · Date: ${activeDrawerEntry?.entryDate || "-"}`}
+        subtitle={`Roznamcha entry - Date: ${activeDrawerEntry?.entryDate || "-"}`}
         actions={
           <div className="flex items-center gap-2">
             <Button
