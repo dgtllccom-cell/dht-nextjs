@@ -14,15 +14,15 @@ function CustomDropdown({ recordId }: { recordId: string }) {
   return (
     <ViewportActionMenu
       ariaLabel="Loading record actions"
-      buttonClassName="grid h-8 w-8 place-items-center rounded-md border border-input bg-background text-foreground hover:bg-muted"
-      trigger={<MoreVertical className="h-4 w-4" />}
+      buttonClassName="grid h-7 w-7 place-items-center rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 transition"
+      trigger={<MoreVertical className="h-3.5 w-3.5" />}
     >
       {(close) => (
-        <>
-          <button className="block w-full rounded-lg px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => close()}>Edit</button>
-          <button className="block w-full rounded-lg px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => close()}>Load</button>
-          <button className="block w-full rounded-lg px-4 py-2 text-left text-sm text-foreground hover:bg-muted" onClick={() => { close(); window.open(`/dashboard/purchase/purchase-loading-records/${recordId}`, "_self"); }}>View</button>
-        </>
+        <div className="py-1">
+          <button className="flex w-full items-center px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => close()}>Edit Record</button>
+          <button className="flex w-full items-center px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => close()}>Load Details</button>
+          <button className="flex w-full items-center px-4 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30 transition" onClick={() => { close(); window.open(`/dashboard/purchase/purchase-loading-records/${recordId}`, "_self"); }}>View Full Details</button>
+        </div>
       )}
     </ViewportActionMenu>
   );
@@ -194,46 +194,41 @@ export function PurchaseLoadingRecordsView() {
   }
 
   return (
-    <div className="w-full max-w-none px-2 py-4 sm:px-4">
-      <ErpPageActions>
-        <Button type="button" variant="outline" size="sm" onClick={() => void loadRecords()} disabled={loading}>
-          <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
-          Refresh
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
-          <Printer className="h-4 w-4" />
-          Print
-        </Button>
-        <Button type="button" variant="outline" size="icon" aria-label="More actions">
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </ErpPageActions>
+    <div className="w-full max-w-none space-y-4 px-2 py-3 text-slate-900 dark:text-slate-100 sm:px-4">
+      <ErpPageActions
+        title="Purchase Loading Records"
+        backLink="/dashboard/purchase"
+      />
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/60 backdrop-blur p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950/60">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search container / loading no / PO"
-              className="h-9 w-64 rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="h-8 w-64 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-900"
             />
           </div>
-          <select value={status} onChange={(event) => setStatus(event.target.value as "all" | LoadingStatus)} className="h-9 rounded-md border bg-background px-3 text-sm">
+          <select value={status} onChange={(event) => setStatus(event.target.value as "all" | LoadingStatus)} className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900">
             {statusOptions.map((option) => (
-              <option key={option} value={option}>
+              <option key={option} value={option} className="uppercase">
                 {option === "all" ? "All Status" : option}
               </option>
             ))}
           </select>
-          <Button type="button" size="sm" onClick={() => void loadRecords()} disabled={loading}>
-            Apply
+          <Button type="button" size="sm" variant="outline" onClick={() => void loadRecords()} disabled={loading} className="h-8 rounded-lg border-slate-200 text-xs font-bold">
+            <RefreshCcw className={cn("mr-1.5 h-3.5 w-3.5 text-slate-500", loading && "animate-spin")} />
+            Apply Filter
           </Button>
         </div>
+        <Button type="button" size="sm" variant="outline" onClick={() => window.print()} className="h-8 rounded-lg border-slate-200 text-xs font-bold">
+          <Printer className="mr-1.5 h-3.5 w-3.5 text-slate-500" /> Print Report
+        </Button>
       </div>
 
-      <div className="mb-4 grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
         <Metric label="Total Records" value={summary.total} />
         <Metric label="Loaded" value={summary.loaded} tone="green" />
         <Metric label="Pending" value={summary.pending} tone="amber" />
@@ -252,17 +247,21 @@ export function PurchaseLoadingRecordsView() {
       ) : null}
 
       <div className="space-y-4">
-        <Card>
-          <CardContent className="p-0">
-            <div className="border-b p-4">
-              <h2 className="text-base font-black">Loading Records Report</h2>
-              <p className="text-xs text-muted-foreground">Independent from Purchase Booking Order unless explicitly linked.</p>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/20">
+            <div className="flex items-center gap-2">
+              <Ship className="h-4 w-4 text-blue-600" />
+              <div>
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Loading Records Report</h2>
+                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 tracking-wide mt-0.5">Independent from Purchase Booking Order unless explicitly linked.</p>
+              </div>
             </div>
+          </div>
 
-            <div className="overflow-x-auto pb-4">
-              <table className="w-max min-w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-950 text-left text-xs uppercase tracking-wide text-white">
+          <div className="overflow-x-auto">
+            <table className="w-max min-w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/80 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
                     {[
                       "SR#",
                       "Country",
@@ -278,8 +277,12 @@ export function PurchaseLoadingRecordsView() {
                       "Gross Weight",
                       "Purchase Amount",
                       "Exchange Rate",
+                      "Final Amount (PKR)",
                       "Advance Amount",
-                      "Clearance Date",
+                      "Advance (PKR)",
+                      "Balance Amount",
+                      "Balance (PKR)",
+                      "Payment Date",
                       "Loading Country",
                       "Loading Port",
                       "Loading Date",
@@ -288,16 +291,16 @@ export function PurchaseLoadingRecordsView() {
                       "Received Date",
                       "Action"
                     ].map((head) => (
-                      <th key={head} className="whitespace-nowrap px-3 py-3 font-black">
+                      <th key={head} className="whitespace-nowrap px-4 py-3 border-b border-slate-100 dark:border-slate-800">
                         {head}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
                     <tr>
-                      <td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">
+                      <td colSpan={23} className="px-3 py-8 text-center text-muted-foreground">
                         Loading records...
                       </td>
                     </tr>
@@ -321,12 +324,27 @@ export function PurchaseLoadingRecordsView() {
                       const totalNet = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
                       const totalGross = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
                       
-                      // Financial
+                      // Financial Calculations
                       const totalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || g.totalAmount || 0), 0) : Number(form.totalAmount || form.finalAmount || 0);
-                      const currency = form.secondaryCurrency?.split(" ")?.[0] || form.currency || "-";
-                      const advanceCurrency = form.advanceAmount ? `${form.advanceAmount} ${currency}` : "-";
-                      const exchangeRate = form.exchangeRate || (poData as any).exchange_rate || "-";
-                      const clearanceDate = form.advancePaymentDate || form.paymentDate || form.clearanceDate || "-";
+                      const currency = form.secondaryCurrency?.split(" ")?.[0] || form.currency || "PKR";
+                      const rawExRate = Number(form.exchangeRate || (poData as any).exchange_rate || 1);
+                      const exchangeRate = isNaN(rawExRate) ? 1 : rawExRate;
+                      
+                      const purchaseAmtStr = totalAmt > 0 ? `${totalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${currency}` : "-";
+                      const finalAmtPKR = totalAmt * exchangeRate;
+                      const finalAmtPKRStr = finalAmtPKR > 0 ? `${finalAmtPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
+
+                      const advanceAmt = Number(form.advanceAmount || 0);
+                      const advanceAmtStr = advanceAmt > 0 ? `${advanceAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${currency}` : "-";
+                      const advanceFinalPKR = advanceAmt * exchangeRate;
+                      const advanceFinalPKRStr = advanceFinalPKR > 0 ? `${advanceFinalPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
+
+                      const balanceAmt = totalAmt - advanceAmt;
+                      const balanceAmtStr = balanceAmt > 0 ? `${balanceAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${currency}` : "-";
+                      const balanceFinalPKR = balanceAmt * exchangeRate;
+                      const balanceFinalPKRStr = balanceFinalPKR > 0 ? `${balanceFinalPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
+                      
+                      const paymentDate = form.advancePaymentDate || form.paymentDate || form.clearanceDate || "Nil";
                       
                       // Logistics
                       const loadingCountry = form.loadingCountry || form.originCountry || "-";
@@ -336,41 +354,45 @@ export function PurchaseLoadingRecordsView() {
                       const receivingPort = form.receivedPort || form.destinationPort || "-";
                       const receivingDateVal = form.receivedDate || form.arrivalDate || "-";
                       
-                      const countryLabel = record.countries?.name || form.branchCountry || "-";
-                      const branchLabel = record.country_branches?.name || form.branchName || "-";
+                      const countryLabel = `${record.countries?.name || form.branchCountry || "-"}${record.countries?.iso2 ? ` (${record.countries.iso2})` : ""}`;
+                      const branchLabel = `${record.country_branches?.name || form.branchName || "-"}${record.country_branches?.code ? ` (${record.country_branches.code})` : ""}`;
                       const adminLabel = form.userName || form.userId || "-";
 
                       return (
-                        <tr key={record.id} className="border-b hover:bg-muted/40">
-                          <td className="whitespace-nowrap px-3 py-2">{String(index + 1).padStart(2, "0")}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{countryLabel}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{branchLabel}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{adminLabel}</td>
-                          <td className="whitespace-nowrap px-3 py-2 font-bold text-primary">{record.loading_record_no}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{record.purchase_order_no ? <span className="inline-flex items-center gap-1"><Link2 className="h-3.5 w-3.5" />{record.purchase_order_no}</span> : "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2 leading-tight">
-                            <div className="font-mono text-xs font-bold text-foreground">{salesAccountNo}</div>
-                            <div className="text-muted-foreground text-[11px]">{salesAccountName}</div>
+                        <tr key={record.id} className="transition hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <td className="whitespace-nowrap px-4 py-2 text-[10px] font-bold text-slate-400">{String(index + 1).padStart(2, "0")}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-semibold">{countryLabel}</td>
+                          <td className="whitespace-nowrap px-4 py-2 text-slate-500">{branchLabel}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-semibold">{adminLabel}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-bold text-blue-600">{record.loading_record_no}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-semibold">{record.purchase_order_no ? <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-200"><Link2 className="h-3 w-3 text-blue-500" />{record.purchase_order_no}</span> : "-"}</td>
+                          <td className="whitespace-nowrap px-4 py-2 leading-tight">
+                            <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{salesAccountNo}</div>
+                            <div className="text-slate-400 text-[9px] uppercase tracking-wider">{salesAccountName}</div>
                           </td>
-                          <td className="whitespace-nowrap px-3 py-2 leading-tight">
-                            <div className="font-mono text-xs font-bold text-foreground">{purchaseAccountNo}</div>
-                            <div className="text-muted-foreground text-[11px]">{purchaseAccountName}</div>
+                          <td className="whitespace-nowrap px-4 py-2 leading-tight">
+                            <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{purchaseAccountNo}</div>
+                            <div className="text-slate-400 text-[9px] uppercase tracking-wider">{purchaseAccountName}</div>
                           </td>
-                          <td className="min-w-[150px] px-3 py-2">{combinedGoods}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{totalQty || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{totalNet || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{totalGross || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2 font-bold text-emerald-700">{totalAmt ? `${totalAmt} ${currency}` : "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">{exchangeRate}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-rose-600">{advanceCurrency}</td>
-                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{clearanceDate}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{loadingCountry}</td>
+                          <td className="min-w-[150px] px-4 py-2 text-[11px] text-slate-600 dark:text-slate-300">{combinedGoods}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono">{totalQty || "-"}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono">{totalNet || "-"}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono">{totalGross || "-"}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-emerald-600">{purchaseAmtStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px] font-semibold text-slate-400">{exchangeRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-[#0f2942] dark:text-blue-400">{finalAmtPKRStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-amber-600">{advanceAmtStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-[#0f2942] dark:text-amber-400">{advanceFinalPKRStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-rose-600">{balanceAmtStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-rose-700 dark:text-rose-500">{balanceFinalPKRStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px]">{paymentDate}</td>
+                          <td className="whitespace-nowrap px-4 py-2">{loadingCountry}</td>
                           <td className="whitespace-nowrap px-3 py-2">{record.loading_location || loadingPort || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{record.loaded_at ? new Date(record.loaded_at).toLocaleDateString() : (loadingDateVal || "-")}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{receivingCountry}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{record.receiving_location || receivingPort || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{receivingDateVal}</td>
-                          <td className="whitespace-nowrap px-3 py-2">
+                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px]">{record.loaded_at ? new Date(record.loaded_at).toLocaleDateString() : (loadingDateVal || "-")}</td>
+                          <td className="whitespace-nowrap px-4 py-2">{receivingCountry}</td>
+                          <td className="whitespace-nowrap px-4 py-2">{record.receiving_location || receivingPort || "-"}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px]">{receivingDateVal}</td>
+                          <td className="whitespace-nowrap px-4 py-2">
                             <CustomDropdown recordId={record.id} />
                           </td>
                         </tr>
@@ -378,30 +400,29 @@ export function PurchaseLoadingRecordsView() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">
+                      <td colSpan={23} className="px-3 py-8 text-center text-muted-foreground">
                         No loading records found.
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 function Metric({ label, value, tone }: { label: string; value: number; tone?: "green" | "amber" | "blue" }) {
-  const color = tone === "green" ? "text-emerald-600" : tone === "amber" ? "text-amber-600" : tone === "blue" ? "text-blue-600" : "text-foreground";
+  const color = tone === "green" ? "text-emerald-600 dark:text-emerald-400" : tone === "amber" ? "text-amber-600 dark:text-amber-400" : tone === "blue" ? "text-blue-600 dark:text-blue-400" : "text-slate-800 dark:text-slate-100";
+  const bg = tone === "green" ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/50" : tone === "amber" ? "bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/50" : tone === "blue" ? "bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/50" : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800";
+  
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="text-xs font-black uppercase tracking-wide text-muted-foreground">{label}</div>
-        <div className={cn("mt-2 text-2xl font-black", color)}>{value}</div>
-      </CardContent>
-    </Card>
+    <div className={cn("rounded-xl border p-4 shadow-sm", bg)}>
+      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</div>
+      <div className={cn("mt-1 text-2xl font-black font-mono tracking-tight", color)}>{value}</div>
+    </div>
   );
 }
 
@@ -438,3 +459,4 @@ function SelectField({ label, value, options, onChange }: { label: string; value
     </label>
   );
 }
+

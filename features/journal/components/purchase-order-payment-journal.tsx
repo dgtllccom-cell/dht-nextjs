@@ -690,26 +690,14 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
   const advancePercent = Number(form.advancePercent || 0);
   const totalRequiredAdvanceFC = (totalPrice * advancePercent) / 100;
   
-  // Starting balance depends on whether we're viewing advance or remaining
-  const startingBalance = activeMode === "remaining" 
-    ? Math.max(0, totalPrice - totalRequiredAdvanceFC)
-    : totalRequiredAdvanceFC;
-  
-  let currentBalance = startingBalance;
-  let accumulatedPaid = 0;
-  
   // Filter out the initial booking liability transfer so it only shows actual payments
   const filteredPayments = payments.filter((p: any) => !p.narration?.toLowerCase().includes("initial booking transfer"));
   
-  // Payments come newest first, reverse them to calculate step-by-step oldest first
-  const reversed = [...filteredPayments].reverse();
-  const historyWithBalance = reversed.map((p: any) => {
+  // Payments come newest first
+  const historyWithBalance = filteredPayments.map((p: any) => {
     const amtUSD = Number(p.amount || 0) / Number(p.exchange_rate || 1);
-    currentBalance -= amtUSD;
-    const prevPaid = accumulatedPaid;
-    accumulatedPaid += amtUSD;
-    return { ...p, remaining_balance: currentBalance, previous_balance_paid: prevPaid, amount_usd: amtUSD };
-  }).reverse();
+    return { ...p, amount_usd: amtUSD };
+  });
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
@@ -731,7 +719,6 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
                 <th className="px-4 py-3 text-right border-r">Paid (Foreign)</th>
                 <th className="px-4 py-3 text-center border-r">Exchange Rate</th>
                 <th className="px-4 py-3 text-right border-r">Paid (Local)</th>
-                <th className="px-4 py-3 text-right border-r">Remaining Balance</th>
                 <th className="px-4 py-3 border-r">Ledger Postings</th>
                 <th className="px-4 py-3 text-center w-28">Actions</th>
               </tr>
@@ -765,11 +752,6 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap border-r align-top">
                       <div className="text-sm">{money(p.amount, localCurrency)}</div>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono font-black whitespace-nowrap border-r align-top">
-                      <div className={cn("text-sm", p.remaining_balance < 0 ? "text-rose-600" : "text-indigo-600")}>
-                        {money(p.remaining_balance, p.currency_code || "USD")}
-                      </div>
                     </td>
                     <td className="px-4 py-3 border-r text-[10px] align-top">
                       <div className="font-semibold text-indigo-600 mb-1 leading-tight" title={drLabel}><span className="font-black text-indigo-800 mr-1">DR:</span>{drLabel}</div>
@@ -859,10 +841,21 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     return () => window.removeEventListener("open-edit-payment", handleOpenEdit);
   }, []);
 
-  const handleOpenA4PDF = (row: PurchaseOrderRow, autoPrint = false) => {
+  const handleOpenA4PDF = async (row: PurchaseOrderRow, autoPrint = false) => {
     const form = row.form_data?.form || {};
     const goods = row.form_data?.goodsEntries || [];
     const totals = row.form_data?.totals || {};
+
+    let paymentHistory: any[] = [];
+    try {
+      const response = await fetch(`/api/erp/purchases/orders/${row.id}/payments`, { credentials: "include" });
+      const body = await response.json();
+      if (body?.ok && body.data?.payments) {
+        paymentHistory = body.data.payments.filter((p: any) => !p.narration?.toLowerCase().includes("initial booking transfer"));
+      }
+    } catch (err) {
+      console.error("Failed to load nested payments for statement:", err);
+    }
 
     const purchaseData: PurchaseReportData = {
       id: row.id,
@@ -890,6 +883,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       countryName: form.loadingCountry || "N/A",
       createdAt: row.created_at || "",
       form_data: row.form_data || {},
+      paymentHistory,
       audit: {
         userName: session?.name || session?.username || "SUPER ADMIN",
         userId: session?.id || "USR-1001",
@@ -1344,17 +1338,21 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                !l.startsWith("Transfer Details:") &&
                !l.startsWith("Invoice/Business Details:") &&
                !l.startsWith("Invoice Details:") &&
-               !l.startsWith("Calculation:");
+               !l.startsWith("Calculation:") &&
+               !l.startsWith("Advance payment of") &&
+               !l.startsWith("Remaining payment of") &&
+               !l.startsWith("Credit payment of");
       });
 
       const systemLines: string[] = [];
 
-      // 2. Add Debit and Credit Account details
-      if (doubleEntry.debitCode && doubleEntry.debitName) {
-        systemLines.push(`Debit Account: ${doubleEntry.debitCode} - ${doubleEntry.debitName}`);
-      }
-      if (doubleEntry.creditCode && doubleEntry.creditName) {
-        systemLines.push(`Credit Account: ${doubleEntry.creditCode} - ${doubleEntry.creditName}`);
+      // 2. Add clean payment summary for the PO
+      if (selected?.purchase_order_no) {
+        const modeLabel = activeMode === "advance" ? "Advance" : activeMode === "remaining" ? "Remaining" : "Credit";
+        const amtFC = showCalcPanel && calcAmount ? calcAmount : (finalPayment || "0");
+        const curr = currency.toUpperCase();
+        const rateStr = (showCalcPanel && exchangeRate && Number(exchangeRate) !== 1) ? ` at exchange rate ${exchangeRate}` : "";
+        systemLines.push(`${modeLabel} payment of ${Number(amtFC || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${curr}${rateStr} processed for Bill No. ${selected.purchase_order_no}`);
       }
 
       // 3. Add Category Details (remarks note)
@@ -1371,17 +1369,17 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       return [...systemLines, ...userLines].filter(Boolean).join("\n");
     });
   }, [
-    doubleEntry.debitCode,
-    doubleEntry.debitName,
-    doubleEntry.creditCode,
-    doubleEntry.creditName,
+    selected,
+    activeMode,
+    finalPayment,
     detailsString,
     showCalcPanel,
     calcAmount,
     exchangeRate,
     calcOp,
     currency,
-    calcFinal
+    calcFinal,
+    baseCurrency
   ]);
 
   // Load saved bank/method options
@@ -1760,7 +1758,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </div>
 
         {/* Row 2: Country-wise Financial Summary. Never mix currencies across countries. */}
-        <div className="grid gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        <div className="grid gap-3 pt-1 md:grid-cols-2 xl:grid-cols-3">
           {countryCards.length ? countryCards.map((card) => (
             <div key={card.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="mb-2 flex items-start justify-between gap-2">
@@ -1772,11 +1770,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               </div>
               <div className="grid grid-cols-2 gap-2 text-[10px] normal-case">
                 <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
-                  <div className="font-bold uppercase text-slate-400">Invoice</div>
+                  <div className="font-bold uppercase text-slate-400">Total Bill</div>
                   <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{money(card.invoiceAmount, card.currency)}</div>
                 </div>
                 <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
-                  <div className="font-bold uppercase text-emerald-600">Advance</div>
+                  <div className="font-bold uppercase text-emerald-600">Paid</div>
                   <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">{money(card.advancePaid, card.currency)}</div>
                 </div>
                 <div className="col-span-2 rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
@@ -2100,37 +2098,77 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       {/* Status & Action */}
                       <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center">
                         <div className="flex flex-col items-center justify-center gap-1.5">
-                          {isPosted ? (
-                            <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
-                              Transferred ✓
-                            </span>
-                          ) : (
-                            <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
-                              Pending Transfer
-                            </span>
+                          {activeMode !== "advance_completed" && (
+                            <>
+                              {isPosted ? (
+                                <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
+                                  Transferred ✓
+                                </span>
+                              ) : (
+                                <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
+                                  Pending Transfer
+                                </span>
+                              )}
+                              {getStatusBadge(statusText)}
+                            </>
                           )}
-                          {getStatusBadge(statusText)}
-                          <div className="relative inline-block text-left mt-1" onClick={(e) => e.stopPropagation()}>
+                          <div className={cn("relative inline-block text-left", activeMode !== "advance_completed" && "mt-1")} onClick={(e) => e.stopPropagation()}>
                             <button 
                               onClick={() => setOpenDropdownId(openDropdownId === row.id ? null : row.id)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-400 focus:outline-none shadow-sm bg-white dark:bg-slate-900"
+                              className={cn(
+                                "inline-flex items-center justify-center rounded border border-slate-200 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-400 focus:outline-none shadow-sm bg-white dark:bg-slate-900",
+                                activeMode === "advance_completed" ? "h-8 px-3 text-xs font-semibold" : "h-7 w-7"
+                              )}
                             >
-                              <MoreVertical className="h-3.5 w-3.5" />
+                              {activeMode === "advance_completed" ? (
+                                <>Actions <ChevronDown className="ml-1 h-3.5 w-3.5" /></>
+                              ) : (
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              )}
                             </button>
                             {openDropdownId === row.id && (
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)} />
                                 <div className="absolute right-0 top-full mt-1 w-48 rounded-md bg-white dark:bg-slate-900 shadow-lg ring-1 ring-black ring-opacity-5 z-50 overflow-hidden border border-slate-200 dark:border-slate-800 font-semibold">
+                                  {activeMode === "advance_completed" && (
+                                    <div className="px-4 py-2.5 bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-1.5 items-start pointer-events-none">
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Current Status</span>
+                                      {isPosted ? (
+                                        <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
+                                          Transferred ✓
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
+                                          Pending Transfer
+                                        </span>
+                                      )}
+                                      {getStatusBadge(statusText)}
+                                    </div>
+                                  )}
                                   <div className="py-1">
                                     <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setViewingRow(row); setOpenDropdownId(null); }}>
                                       <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> View Detailed Bill
                                     </button>
                                     <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, true); setOpenDropdownId(null); }}>
-                                      <Printer className="mr-2.5 h-4 w-4 text-slate-500" /> Print A4 Invoice
+                                      <Printer className="mr-2.5 h-4 w-4 text-slate-500" /> Print Statement
+                                    </button>
+                                    <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, false); setOpenDropdownId(null); }}>
+                                      <FileText className="mr-2.5 h-4 w-4 text-slate-500" /> View Statement
                                     </button>
                                     <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] })); setOpenDropdownId(null); }}>
                                       {isExpanded ? <XCircle className="mr-2.5 h-4 w-4 text-slate-500" /> : <Plus className="mr-2.5 h-4 w-4 text-slate-500" />} {isExpanded ? "Hide Payment History" : "Show Payment History"}
                                     </button>
+                                    {activeMode === "advance_completed" && (
+                                      <>
+                                        <div className="border-t border-slate-100 dark:border-slate-800 my-1"></div>
+                                        <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30 transition" onClick={() => { 
+                                          setOpenDropdownId(null);
+                                          router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(row.purchase_order_no)}`);
+                                        }}>
+                                          <RefreshCw className="mr-2.5 h-4 w-4 text-indigo-500" /> Revert & Edit Advance
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               </>
@@ -3542,4 +3580,5 @@ function InfoRow({ label, value, highlight = false }: { label: string; value: st
     </div>
   );
 }
+
 

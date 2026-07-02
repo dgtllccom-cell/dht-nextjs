@@ -626,6 +626,17 @@ function openReportWindow(report: PurchaseReport, autoPrint: boolean) {
   });
 }
 
+function getCurrencySymbol(c: string) {
+  if (!c) return "";
+  const upper = c.toUpperCase();
+  if (upper === "USD") return "$";
+  if (upper === "AED") return "د.إ";
+  if (upper === "PKR") return "₨";
+  if (upper === "AFN") return "؋";
+  if (upper === "INR") return "₹";
+  return upper;
+}
+
 function unique(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
@@ -1859,8 +1870,10 @@ export function PurchaseOrderManagementDashboard() {
             const isUAECountry = String(selected.countryName || "").toUpperCase().includes("UNITED ARAB") || String(selected.countryName || "").toUpperCase().includes("UAE");
             const isUAEAccount = String(selected.purchaseAccountNumber || selected.form_data?.form?.purchaseAccountNo || "").toUpperCase().includes("UAE") || String(selected.salesAccountNumber || selected.form_data?.form?.salesAccountNo || "").toUpperCase().includes("UAE") || isUAECountry;
             const inferredCurrency = (Number(exRate) > 3 && Number(exRate) < 5) || isUAEAccount ? "AED" : "PKR";
-            const displayCurrency = selected.form_data?.form?.baseCurrency || inferredCurrency;
-            const displayCurrencySymbol = displayCurrency === "AED" ? "AED" : "Rs";
+            const displayCurrency = selected.form_data?.form?.baseCurrency || selected.form_data?.form?.secondaryCurrency?.split(" ")[0] || inferredCurrency;
+            const displayCurrencySymbol = getCurrencySymbol(displayCurrency);
+            const purchaseCurrency = selected.currency || selected.form_data?.form?.currency || "USD";
+            const purchaseCurrencySymbol = getCurrencySymbol(purchaseCurrency);
 
             const avgRateKg = totalNet > 0 ? (totalUSDVal / totalNet) : 0;
             const avgRateTon = avgRateKg * 1000;
@@ -2119,8 +2132,8 @@ export function PurchaseOrderManagementDashboard() {
                               <td className="p-1 border-r border-slate-200 text-right font-mono">{qtyKgs.toLocaleString()} kg</td>
                               <td className="p-1 border-r border-slate-200 text-right font-mono">{grossWeight.toLocaleString()} kg</td>
                               <td className="p-1 border-r border-slate-200 text-right font-mono">{netWeight.toLocaleString()} kg</td>
-                              <td className="p-1 border-r border-slate-200 text-right font-mono">${ratePerKg.toFixed(2)}</td>
-                              <td className="p-1 border-r border-slate-200 text-right font-mono font-bold">${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{purchaseCurrencySymbol}{ratePerKg.toFixed(2)}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono font-bold">{purchaseCurrencySymbol}{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                               <td className="p-1 border-r border-slate-200 text-right font-mono">{exVal}</td>
                               <td className="p-1 text-right font-mono font-bold text-emerald-600">{finalAmountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                             </tr>
@@ -2134,15 +2147,15 @@ export function PurchaseOrderManagementDashboard() {
                           <td className="p-1"></td>
                           <td className="p-1 text-right text-slate-950 font-bold">{totalGross.toLocaleString()} kg</td>
                           <td className="p-1 text-right text-slate-950 font-bold">{totalNet.toLocaleString()} kg</td>
-                          <td className="p-1 text-right text-slate-550 text-[7px]">Avg: ${avgRateKg.toFixed(2)}</td>
-                          <td className="p-1 text-right text-blue-600 font-black">${totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="p-1 text-right text-slate-550 text-[7px]">Avg: {purchaseCurrencySymbol}{avgRateKg.toFixed(2)}</td>
+                          <td className="p-1 text-right text-blue-600 font-black">{purchaseCurrencySymbol}{totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="p-1"></td>
                           <td className="p-1 text-right text-emerald-600 font-black">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}</td>
                         </tr>
                         <tr className="text-[7.5px] text-slate-550 border-t border-slate-200/60 font-semibold">
                           <td colSpan={5} className="p-1 text-right uppercase text-[7px]">Containers & Dues:</td>
                           <td colSpan={3} className="p-1 text-left">FCL: <span className="font-bold text-slate-800">{containerCount}</span></td>
-                          <td colSpan={5} className="p-1 text-left">Avg Rate/Ton: <span className="font-bold text-slate-800">${avgRateTon.toFixed(2)}</span></td>
+                          <td colSpan={5} className="p-1 text-left">Avg Rate/Ton: <span className="font-bold text-slate-800">{purchaseCurrencySymbol}{avgRateTon.toFixed(2)}</span></td>
                         </tr>
                       </tfoot>
                     </table>
@@ -2194,9 +2207,9 @@ export function PurchaseOrderManagementDashboard() {
                         <tbody>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Payment Condition:</td><td className="px-2 py-1 text-slate-800 font-bold">{paymentConditionText}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Percent / Due:</td><td className="px-2 py-1 text-slate-800">{advancePercent}% / <span className="font-bold text-blue-700">{advanceDueDateText}</span></td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">${advanceAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">{purchaseCurrencySymbol}{advanceAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance / Due:</td><td className="px-2 py-1 text-slate-800">{remainingPercent}% / <span className="font-bold text-rose-600">{finalPaymentDueDateText}</span></td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">${remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">{purchaseCurrencySymbol}{remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
                           <tr>
                             <td className="px-2 py-1 text-slate-400">Payment Status:</td>
                             <td className="px-2 py-1">

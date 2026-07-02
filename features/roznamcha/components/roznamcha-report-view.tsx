@@ -677,10 +677,10 @@ export function RoznamchaReportView({
                           )}
                         </td>
                         <td className="px-3 py-2 text-right font-mono tabular-nums text-rose-600">
-                          {line.debit ? `${line.currency} ${fmtNumber(Number(line.debit))}` : "-"}
+                          {line.debit ? `${selectedHeader.countries?.currency_code || "PKR"} ${fmtNumber(Number(line.debit))}` : "-"}
                         </td>
                         <td className="px-3 py-2 text-right font-mono tabular-nums text-emerald-600">
-                          {line.credit ? `${line.currency} ${fmtNumber(Number(line.credit))}` : "-"}
+                          {line.credit ? `${selectedHeader.countries?.currency_code || "PKR"} ${fmtNumber(Number(line.credit))}` : "-"}
                         </td>
                         <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                           {line.usd_amount ? `$${fmtNumber(Number(line.usd_amount))}` : "-"}
@@ -696,11 +696,11 @@ export function RoznamchaReportView({
               <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border dark:bg-slate-900/30 dark:border-slate-800">
                 <div>
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Debit Total</span>
-                  <div className="text-sm font-extrabold text-rose-600 mt-0.5">{selectedLines[0]?.currency || ""} {fmtNumber(selectedTotals.debit)}</div>
+                  <div className="text-sm font-extrabold text-rose-600 mt-0.5">{selectedHeader.countries?.currency_code || "PKR"} {fmtNumber(selectedTotals.debit)}</div>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Credit Total</span>
-                  <div className="text-sm font-extrabold text-emerald-600 mt-0.5">{selectedLines[0]?.currency || ""} {fmtNumber(selectedTotals.credit)}</div>
+                  <div className="text-sm font-extrabold text-emerald-600 mt-0.5">{selectedHeader.countries?.currency_code || "PKR"} {fmtNumber(selectedTotals.credit)}</div>
                 </div>
               </div>
             )}

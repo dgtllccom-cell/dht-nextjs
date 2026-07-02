@@ -69,52 +69,45 @@ async function resolveEffectiveScope(input: {
   requested: { countryId?: string | null; countryBranchId?: string | null; cityBranchId?: string | null };
 }) {
   const { session, requested } = input;
-  if (session.isSuperAdmin) {
-    return {
-      countryId: requested.countryId ?? null,
-      countryBranchId: requested.countryBranchId ?? null,
-      cityBranchId: requested.cityBranchId ?? null
-    };
-  }
-
-  const supabase = createSupabaseAdminClient() as any;
-
-  if (session.cityBranchIds.length) {
-    const cityBranchId = session.cityBranchIds[0]!;
+  const effectiveCityBranchId = requested.cityBranchId || session.cityBranchIds[0] || null;
+  
+  if (effectiveCityBranchId) {
+    const supabase = createSupabaseAdminClient() as any;
     const row = await requireSupabaseData(
       supabase
         .from("city_branches")
         .select("id, country_id, country_branch_id")
-        .eq("id", cityBranchId)
+        .eq("id", effectiveCityBranchId)
         .is("deleted_at", null)
         .maybeSingle()
     );
     return {
-      countryId: (row as any)?.country_id ?? session.countryIds[0] ?? null,
-      countryBranchId: (row as any)?.country_branch_id ?? session.countryBranchIds[0] ?? null,
-      cityBranchId
+      countryId: (row as any)?.country_id ?? requested.countryId ?? session.countryIds[0] ?? null,
+      countryBranchId: (row as any)?.country_branch_id ?? requested.countryBranchId ?? session.countryBranchIds[0] ?? null,
+      cityBranchId: effectiveCityBranchId
     };
   }
 
-  if (session.countryBranchIds.length) {
-    const countryBranchId = session.countryBranchIds[0]!;
+  const effectiveCountryBranchId = requested.countryBranchId || session.countryBranchIds[0] || null;
+  if (effectiveCountryBranchId) {
+    const supabase = createSupabaseAdminClient() as any;
     const row = await requireSupabaseData(
       supabase
         .from("country_branches")
         .select("id, country_id")
-        .eq("id", countryBranchId)
+        .eq("id", effectiveCountryBranchId)
         .is("deleted_at", null)
         .maybeSingle()
     );
     return {
-      countryId: (row as any)?.country_id ?? session.countryIds[0] ?? null,
-      countryBranchId,
+      countryId: (row as any)?.country_id ?? requested.countryId ?? session.countryIds[0] ?? null,
+      countryBranchId: effectiveCountryBranchId,
       cityBranchId: null
     };
   }
 
   return {
-    countryId: session.countryIds[0] ?? null,
+    countryId: requested.countryId || session.countryIds[0] || null,
     countryBranchId: null,
     cityBranchId: null
   };

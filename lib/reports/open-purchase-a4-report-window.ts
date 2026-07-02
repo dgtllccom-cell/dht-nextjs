@@ -44,6 +44,7 @@ export type PurchaseReportData = {
     userId: string;
     branchCode: string;
   };
+  paymentHistory?: any[];
 };
 
 function escapeHtml(value: string) {
@@ -706,6 +707,54 @@ export function openPurchaseA4ReportWindow(input: {
             </div>
           </div>
         </div>
+
+        ${b.paymentHistory && b.paymentHistory.length > 0 ? `
+        <!-- Traceable Payment History -->
+        <div class="border-box" style="margin-top: 10px;">
+          <div class="box-header">💸 Traceable Payment History (Nested Journal Entries)</div>
+          <table class="data-table">
+            <thead>
+              <tr style="background: #f1f5f9; color: #475569; font-size: 7px; font-weight: 700; border-bottom: 1px solid #cbd5e1;">
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc;">Journal Serials</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc;">User & Date</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc; text-align: right;">Paid (Foreign)</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc; text-align: center;">Ex. Rate</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc; text-align: right;">Paid (Local)</th>
+                <th style="padding: 5px 8px; color: #475569; background: #f8fafc;">Remarks / Narration</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${b.paymentHistory.map((p: any) => {
+                const re = p.roznamcha_entries || {};
+                const adminSn = re.super_admin_serial_number || "—";
+                const ctySn = re.country_serial_number || "—";
+                const user = p.users?.full_name || b.audit?.userName || "Admin";
+                const pDate = p.entry_date || p.created_at;
+                const amtUsd = (Number(p.amount || 0) / Number(p.exchange_rate || 1));
+                const amtLocal = Number(p.amount || 0);
+                const exRate = Number(p.exchange_rate || 1).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+                
+                return `
+                <tr>
+                  <td style="font-family: monospace; font-weight: bold;">
+                    <div>Admin: <span style="color: #2563eb;">${escapeHtml(adminSn)}</span></div>
+                    <div>Country: <span style="color: #059669;">${escapeHtml(ctySn)}</span></div>
+                  </td>
+                  <td>
+                    <strong>${escapeHtml(user)}</strong><br/>
+                    <span style="color: #64748b;">${formatDate(pDate)}</span>
+                  </td>
+                  <td style="text-align: right; font-family: monospace; font-weight: bold; color: #059669;">${formatMoney(amtUsd)} ${escapeHtml(p.currency_code || "USD")}</td>
+                  <td style="text-align: center; font-family: monospace; background: #f1f5f9; font-weight: bold;">${exRate}</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: bold; color: #1e3a8a;">${formatMoney(amtLocal)} ${escapeHtml(items[0]?.finalCurr || "PKR")}</td>
+                  <td><div style="max-width: 180px; word-wrap: break-word; white-space: pre-wrap; font-size: 7px; color: #475569;">${escapeHtml(p.narration || "-")}</div></td>
+                </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+        ` : ""}
 
         ${commonFooterHtml}
       </div>

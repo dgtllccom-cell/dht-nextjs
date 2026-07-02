@@ -90,7 +90,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     });
 
     const orderRow = order as any;
-    const exchangeRate = Number(orderRow.exchange_rate || 1);
+    const form = orderRow.form_data?.form || {};
+    let exchangeRate = Number(orderRow.exchange_rate || 0);
+    if (exchangeRate <= 1) {
+      exchangeRate = Number(form.exchangeRate || 1);
+    }
+    if (exchangeRate <= 0) exchangeRate = 1;
+
     const orderTotalUSD = Number(orderRow.order_total || 0) / exchangeRate;
     const advancePaidUSD = Number(orderRow.advance_paid || 0) / exchangeRate;
     const remainingPaidUSD = Number(orderRow.remaining_paid || 0) / exchangeRate;
@@ -103,7 +109,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       remainingDueUSD = Math.max(0, orderTotalUSD - advancePaidUSD - remainingPaidUSD - creditAmountUSD);
     }
 
-    const form = orderRow.form_data?.form || {};
+
     const goodsEntries = Array.isArray(orderRow.form_data?.goodsEntries) ? orderRow.form_data.goodsEntries : [];
     const formTotalUSD = goodsEntries.length
       ? goodsEntries.reduce((sum: number, item: any) => sum + Number(item.totalAmount || 0), 0)

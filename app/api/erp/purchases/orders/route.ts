@@ -48,54 +48,45 @@ async function resolveEffectiveScope(input: {
   const session = input.session;
   const req = input.requested;
 
-  // Super Admin can choose, but at minimum should provide countryId for country-scope records.
-  if (session.isSuperAdmin) {
-    return {
-      countryId: req.countryId ?? null,
-      countryBranchId: req.countryBranchId ?? null,
-      cityBranchId: req.cityBranchId ?? null
-    };
-  }
-
-  // Strictest scope first.
-  const supabase = await createApiSupabaseClient();
-
-  if (session.cityBranchIds.length) {
-    const cityBranchId = session.cityBranchIds[0]!;
+  const effectiveCityBranchId = req.cityBranchId || session.cityBranchIds[0] || null;
+  
+  if (effectiveCityBranchId) {
+    const supabase = await createApiSupabaseClient();
     const row = await requireSupabaseData(
       supabase
         .from("city_branches")
         .select("id, country_id, country_branch_id")
-        .eq("id", cityBranchId)
+        .eq("id", effectiveCityBranchId)
         .is("deleted_at", null)
         .maybeSingle()
     );
     return {
-      countryId: (row as any)?.country_id ?? session.countryIds[0] ?? null,
-      countryBranchId: (row as any)?.country_branch_id ?? session.countryBranchIds[0] ?? null,
-      cityBranchId
+      countryId: (row as any)?.country_id ?? req.countryId ?? session.countryIds[0] ?? null,
+      countryBranchId: (row as any)?.country_branch_id ?? req.countryBranchId ?? session.countryBranchIds[0] ?? null,
+      cityBranchId: effectiveCityBranchId
     };
   }
 
-  if (session.countryBranchIds.length) {
-    const countryBranchId = session.countryBranchIds[0]!;
+  const effectiveCountryBranchId = req.countryBranchId || session.countryBranchIds[0] || null;
+  if (effectiveCountryBranchId) {
+    const supabase = await createApiSupabaseClient();
     const row = await requireSupabaseData(
       supabase
         .from("country_branches")
         .select("id, country_id")
-        .eq("id", countryBranchId)
+        .eq("id", effectiveCountryBranchId)
         .is("deleted_at", null)
         .maybeSingle()
     );
     return {
-      countryId: (row as any)?.country_id ?? session.countryIds[0] ?? null,
-      countryBranchId,
+      countryId: (row as any)?.country_id ?? req.countryId ?? session.countryIds[0] ?? null,
+      countryBranchId: effectiveCountryBranchId,
       cityBranchId: null
     };
   }
 
   return {
-    countryId: session.countryIds[0] ?? null,
+    countryId: req.countryId || session.countryIds[0] || null,
     countryBranchId: null,
     cityBranchId: null
   };
@@ -192,13 +183,15 @@ export async function POST(request: NextRequest) {
     let mainBranchPrefix = "MB";
     if (effective.countryBranchId) {
       const { data: branch } = await admin.from("country_branches").select("code, name").eq("id", effective.countryBranchId).maybeSingle();
-      mainBranchPrefix = cleanSerialPrefix(branch?.code || branch?.name, "MB");
+      const branchNameWord = branch?.name ? branch.name.split(" ")[0].toUpperCase() : null;
+      mainBranchPrefix = cleanSerialPrefix(branchNameWord || branch?.code || branch?.name, "MB");
     }
 
     let cityBranchPrefix = "CB";
     if (effective.cityBranchId) {
       const { data: branch } = await admin.from("city_branches").select("code, name").eq("id", effective.cityBranchId).maybeSingle();
-      cityBranchPrefix = cleanSerialPrefix(branch?.code || branch?.name, "CB");
+      const branchNameWord = branch?.name ? branch.name.split(" ")[0].toUpperCase() : null;
+      cityBranchPrefix = cleanSerialPrefix(branchNameWord || branch?.code || branch?.name, "CB");
     }
 
     const countryTransactionSerialNumber = effective.countryId ? await nextTransactionSerial(admin, "country", effective.countryId, countryPrefix) : null;
@@ -236,7 +229,13 @@ export async function POST(request: NextRequest) {
       // landed_cost_local: body.landedCostLocal,
       // landed_cost_usd: body.landedCostUsd,
 
-      form_data: body.formData ?? null,
+      form_data: {
+        ...(body.formData || {}),
+        form: {
+          ...(body.formData?.form || {}),
+          billNo: branchTransactionSerialNumber || body.formData?.form?.billNo || null
+        }
+      },
       payment_status: paymentStatus,
       ledger_posting_status: ledgerPostingStatus,
       advance_paid: advanceAmount,

@@ -1559,7 +1559,8 @@ export function PurchaseOrderWizard({ session }) {
       setForm(prev => {
         const newCode = `${serialPrefix}-${suffix}`;
         const newName = selectedBranch.name || selectedBranch.city_name || prev.branchName;
-        const newBillNo = `${countryPrefix}-${cityCode}-${suffix}`;
+        const branchNameWord = newName ? newName.split(" ")[0].toUpperCase() : cityCode;
+        const newBillNo = `${branchNameWord}-${suffix}`;
 
         if (prev.branchCode === newCode && prev.branchName === newName && prev.billNo === newBillNo && prev.branchCountry === (country?.name || "")) return prev;
         return {

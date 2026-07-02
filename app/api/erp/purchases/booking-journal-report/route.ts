@@ -129,7 +129,12 @@ function normalizeOrder(row: any) {
     remaining_due: Number(row.remaining_due || 0),
     is_edited_since_transfer: row.is_edited_since_transfer ?? false,
     branchName: form.branchName ?? row.country_branches?.name ?? row.city_branches?.name ?? "-",
+    branchCode: form.branchCode ?? row.country_branches?.code ?? row.city_branches?.code ?? "-",
     countryName: form.branchCountry ?? row.countries?.name ?? "-",
+    countryCode: form.countryCode ?? row.countries?.iso2 ?? "-",
+    cityName: form.cityName ?? row.city_branches?.city_name ?? "-",
+    cityCode: form.cityCode ?? row.city_branches?.code ?? "-",
+    createdByName: form.userName ?? "-",
     createdAt: row.created_at,
     ledger_posting_status: row.ledger_posting_status,
     audit: {

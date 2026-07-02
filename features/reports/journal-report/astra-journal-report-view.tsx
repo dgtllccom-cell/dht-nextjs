@@ -403,293 +403,438 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
   }
 
   return (
-    <div className="mx-auto max-w-[1800px] space-y-3 px-3 py-3 md:px-5">
-      <section className="overflow-hidden rounded-lg border border-slate-200/70 bg-card shadow-sm dark:border-slate-800">
-        <div className="border-b border-blue-700 bg-blue-600 px-4 py-3 text-white dark:bg-blue-950">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="grid h-9 w-9 place-items-center rounded-md border border-white/15 bg-white/10 text-white shadow-inner">
-                <BookOpen className="h-4 w-4" />
-              </div>
-              <div>
-                <h1 className="text-xl font-black tracking-tight">{titleFor(scope)}</h1>
-                <p className="mt-0.5 text-[11px] font-medium text-blue-100/90">
-                  Generated: {generatedAt ? new Date(generatedAt).toLocaleString() : new Date().toLocaleString()}
-                </p>
-              </div>
+    <div className="mx-auto max-w-[1600px] space-y-4 px-3 py-4 md:px-5 bg-[#f8fafc] dark:bg-slate-950 min-h-screen font-sans">
+      
+      {/* Header Section */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-4">
+        <div className="flex items-center gap-3">
+          {/* Logo Placeholder */}
+          <div className="flex flex-col items-center justify-center text-blue-900 dark:text-blue-500">
+            <div className="text-3xl font-black tracking-tighter flex items-center">
+              DHT
+              <div className="w-2 h-2 rounded-full bg-emerald-500 ml-1 mb-3"></div>
             </div>
-
-            <div className="flex flex-1 flex-col gap-2 sm:flex-row xl:max-w-5xl xl:items-center xl:justify-end">
-              <select 
-                value={draftStatus} 
-                onChange={(event) => setDraftStatus(event.target.value)} 
-                className="h-9 min-w-[145px] rounded-md border border-white/20 bg-white px-3 text-xs font-bold text-slate-900 outline-none transition-all dark:bg-slate-950 dark:text-white"
-                aria-label="Voucher Status"
-              >
-                <option value="">Draft Dropdown</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-
-              <div className="relative min-w-[260px] flex-1 xl:max-w-md">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input 
-                  value={search} 
-                  onChange={(event) => setSearch(event.target.value)} 
-                  placeholder="Search voucher, account, branch, narration..." 
-                  className="h-9 w-full rounded-md border border-white/20 bg-white pl-9 pr-3 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition-all dark:bg-slate-950 dark:text-white" 
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setEntryOpen(true)}
-                  className="h-9 rounded-md border border-white/20 bg-white px-3 text-slate-900 hover:bg-white/90"
-                >
-                  New
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="secondary" 
-                  onClick={() => setFiltersOpen((open) => !open)} 
-                  className={cn("h-9 rounded-md border border-white/20 bg-white/10 px-3 text-white hover:bg-white/20", filtersOpen && "bg-white text-slate-900 hover:bg-white/90")}
-                >
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filter
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="secondary" 
-                  onClick={reset} 
-                  className="h-9 rounded-md border border-white/20 bg-white/10 px-3 text-white hover:bg-white/20"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Reset
-                </Button>
-                <ReportActions rows={filtered} scope={scope} />
-              </div>
+            <div className="text-[9px] font-bold tracking-widest text-slate-500 uppercase mt-[-4px]">
+              ERP System
             </div>
           </div>
         </div>
 
-        {/* Dynamic Filters Panel */}
-        {filtersOpen ? (
-          <div className="grid gap-2 border-t border-border bg-card p-3 md:grid-cols-3 xl:grid-cols-6">
-            <Select label="Country" value={country} options={options.countries} onChange={setCountry} />
-            {scope !== "country" ? <Select label="City" value={city} options={options.cities} onChange={setCity} /> : null}
-            <Select label="Branch" value={branch} options={options.branches} onChange={setBranch} />
-            {scope === "construction" ? <Select label="Project" value={project} options={options.projects} onChange={setProject} /> : null}
-            {scope === "construction" ? <Select label="Site" value={site} options={options.sites} onChange={setSite} /> : null}
-            {scope === "construction" ? <Select label="Contractor" value={contractor} options={options.contractors} onChange={setContractor} /> : null}
-            <DateInput label="From Date" value={fromDate} onChange={setFromDate} />
-            <DateInput label="To Date" value={toDate} onChange={setToDate} />
-          </div>
-        ) : null}
-      </section>
-
-      {entryOpen ? (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 p-3 backdrop-blur-sm">
-          <div className="mx-auto flex h-full max-w-[1500px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-background shadow-2xl dark:border-slate-800">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <div>
-                <h2 className="text-sm font-black">New Journal Payment Entry</h2>
-                <p className="text-xs text-muted-foreground">Cash Entry Payment workflow linked to {titleFor(scope)}.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEntryOpen(false)}
-                className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Close payment entry"
-                title="Close payment entry"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-auto">
-              <CashEntryForm
-                lang={lang}
-                pageTitle="Cash Entry Payment"
-                postingType={paymentConfig.postingType}
-                scopeMode={paymentConfig.scopeMode}
-                onSaved={() => {
-                  setEntryOpen(false);
-                  void loadReport();
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {message ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs font-semibold text-amber-950 shadow-sm dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-200">
-          {message}
-        </div>
-      ) : null}
-
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        <Kpi icon={<ClipboardList className="h-5 w-5" />} label="Total Accounts in Branch" value={String(summary.accounts)} tone="blue" />
-        <Kpi icon={<Building2 className="h-5 w-5" />} label="Active Accounts" value={String(summary.active)} tone="purple" />
-        <Kpi icon={<FileSpreadsheet className="h-5 w-5" />} label="Credit Accounts" value={String(summary.creditAccounts)} tone="green" />
-        <Kpi icon={<DownloadActionIcon className="h-5 w-5" />} label="Debit Accounts" value={String(summary.debitAccounts)} tone="red" />
-        <Kpi icon={<FileSpreadsheet className="h-5 w-5" />} label="Total Credit" value={fmt(summary.credit)} tone="green" />
-        <Kpi icon={<DownloadActionIcon className="h-5 w-5" />} label="Total Debit" value={fmt(summary.debit)} tone="red" />
-        <Kpi icon={<BookOpen className="h-5 w-5" />} label="Final Balance" value={fmt(summary.balance)} tone="slate" />
-        {scope === "construction" ? (
-          <>
-            <Kpi icon={<FileText className="h-5 w-5" />} label="Material Journal" value={fmt(filtered.filter((row) => normalize(row.voucherType).includes("material")).reduce((sum, row) => sum + row.debit, 0))} tone="blue" />
-            <Kpi icon={<FileText className="h-5 w-5" />} label="Labour Journal" value={fmt(filtered.filter((row) => normalize(row.voucherType).includes("labour")).reduce((sum, row) => sum + row.debit, 0))} tone="red" />
-            <Kpi icon={<FileText className="h-5 w-5" />} label="Equipment Journal" value={fmt(filtered.filter((row) => normalize(row.voucherType).includes("equipment")).reduce((sum, row) => sum + row.debit, 0))} tone="green" />
-          </>
-        ) : null}
-      </div>
-
-      {/* Main Listing Smart Card styled after work-card (4px top border of #0b3b75) */}
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-card shadow-sm dark:border-slate-800">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-slate-800/80">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-black text-slate-900 dark:text-slate-100">
-              <span>Journal Entries</span>
-            </h2>
-            <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              {scope === "country" ? "Country summary cards and country journal analysis." : scope === "city" ? "City-wise journal analysis and branch summary cards." : "Project, site, contractor, cost center and construction journal analysis."}
+        <div className="flex-1 flex flex-col items-center justify-center text-center">
+          <h1 className="text-2xl font-black tracking-tight text-[#0f2942] dark:text-slate-100 uppercase">
+            {scope === "country" ? "COUNTRY ADMIN REPORT" : "General Ledger Report"}
+          </h1>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="h-px w-12 bg-slate-300 dark:bg-slate-700"></div>
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              {scope === "country" ? "Complete Financial Summary by Branches" : "Country & City Branch Consolidated"}
             </p>
+            <div className="h-px w-12 bg-slate-300 dark:bg-slate-700"></div>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-extrabold text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-              Rows: {filtered.length}
-            </span>
-            <Button size="sm" variant="outline" onClick={() => exportCsv(filtered, scope)} className="h-8 rounded-md px-2.5 text-xs">
-              <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5" />
+        </div>
+
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="bg-blue-800 hover:bg-blue-900 text-white font-bold text-xs h-9 px-4 rounded-md shadow-sm"
+              onClick={() => openPrint(true)}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Print Report
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="font-bold text-xs h-9 px-4 rounded-md border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300 shadow-sm bg-white dark:bg-slate-900"
+              onClick={() => exportCsv(filtered, scope)}
+            >
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
               Export Excel
             </Button>
-            <Button size="sm" variant="outline" onClick={() => openPrint(false)} className="h-8 rounded-md px-2.5 text-xs">
-              <DownloadActionIcon className="mr-1.5 h-3.5 w-3.5" />
-              Export PDF
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => openPrint(true)} className="h-8 rounded-md px-2.5 text-xs">
-              <Printer className="mr-1.5 h-3.5 w-3.5" />
-              Print
-            </Button>
-            <Button size="sm" variant="outline" onClick={emailReport} className="h-8 rounded-md px-2.5 text-xs">
-              <Mail className="mr-1.5 h-3.5 w-3.5" />
-              Email
+            {/* Hidden Filter button for functionality */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="font-bold text-xs h-9 px-3 rounded-md border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300 shadow-sm bg-white dark:bg-slate-900"
+              onClick={() => setFiltersOpen((o) => !o)}
+            >
+              <Filter className="h-4 w-4" />
             </Button>
           </div>
+          <div className="text-right">
+            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Report Date & Time</p>
+            <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">
+              {generatedAt ? new Date(generatedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {filtersOpen ? (
+        <div className="grid gap-2 rounded-xl border border-border bg-white dark:bg-slate-900 p-4 shadow-sm md:grid-cols-3 xl:grid-cols-6 mb-4">
+          <Select label="Country" value={country} options={options.countries} onChange={setCountry} />
+          {scope !== "country" ? <Select label="City" value={city} options={options.cities} onChange={setCity} /> : null}
+          <Select label="Branch" value={branch} options={options.branches} onChange={setBranch} />
+          {scope === "construction" ? <Select label="Project" value={project} options={options.projects} onChange={setProject} /> : null}
+          {scope === "construction" ? <Select label="Site" value={site} options={options.sites} onChange={setSite} /> : null}
+          {scope === "construction" ? <Select label="Contractor" value={contractor} options={options.contractors} onChange={setContractor} /> : null}
+          <DateInput label="From Date" value={fromDate} onChange={setFromDate} />
+          <DateInput label="To Date" value={toDate} onChange={setToDate} />
+        </div>
+      ) : null}
+
+      {/* Details Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <DetailBox 
+          title="COUNTRY DETAILS" 
+          icon={<div className="h-4 w-4 rounded-full border-2 border-blue-600/50 flex items-center justify-center"><div className="h-1.5 w-1.5 rounded-full bg-blue-600"></div></div>}
+          items={[
+            { label: "Country Name", value: "Pakistan", hasFlag: true },
+            { label: "Country Code", value: "PK" },
+            { label: "Currency", value: "PKR - Pakistan Rupee" }
+          ]}
+        />
+        {scope === "country" ? (
+          <DetailBox 
+            title="ADMIN DETAILS" 
+            icon={<span className="text-blue-600 text-sm">👤</span>}
+            items={[
+              { label: "Admin Name", value: "Admin Chaman" },
+              { label: "User Role", value: "Country Admin" },
+              { label: "User ID", value: "CHAMAN@DGT.LLC" }
+            ]}
+          />
+        ) : (
+          <DetailBox 
+            title="BRANCH DETAILS" 
+            icon={<Building2 className="h-4 w-4 text-blue-600" />}
+            items={[
+              { label: "Branch (City)", value: "CHAMAN BRANCH" },
+              { label: "Branch Code", value: "CHM-001" },
+              { label: "Branch Type", value: "CITY BRANCH" }
+            ]}
+          />
+        )}
+        {scope === "country" ? (
+          <DetailBox 
+            title="REPORT DETAILS" 
+            icon={<CalendarDays className="h-4 w-4 text-blue-600" />}
+            items={[
+              { label: "From Date", value: new Date(fromDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) },
+              { label: "To Date", value: new Date(toDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) },
+              { label: "Report Type", value: "COUNTRY ADMIN REPORT" }
+            ]}
+          />
+        ) : (
+          <DetailBox 
+            title="USER DETAILS" 
+            icon={<span className="text-blue-600 text-sm">👤</span>}
+            items={[
+              { label: "User Name", value: "ADMIN CHAMAN" },
+              { label: "User Role", value: "City Branch Admin" },
+              { label: "User ID", value: "CHAMAN@DGT.LLC" }
+            ]}
+          />
+        )}
+        {scope === "country" ? (
+          <DetailBox 
+            title="SUMMARY OVERVIEW" 
+            icon={<ClipboardList className="h-4 w-4 text-blue-600" />}
+            items={[
+              { label: "Total Branches", value: String(Array.from(new Set(filtered.map(r => r.branchCode))).length || 4) },
+              { label: "Total Transactions", value: String(filtered.length) },
+              { label: "Exchange Rate", value: "1 PKR = 1 PKR" }
+            ]}
+          />
+        ) : (
+          <DetailBox 
+            title="REPORT DETAILS" 
+            icon={<CalendarDays className="h-4 w-4 text-blue-600" />}
+            items={[
+              { label: "From Date", value: new Date(fromDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) },
+              { label: "To Date", value: new Date(toDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) },
+              { label: "Report Type", value: "GENERAL LEDGER" },
+              { label: "Generated By", value: "ADMIN CHAMAN" }
+            ]}
+          />
+        )}
+      </div>
+
+      {/* KPI Section */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 pt-2">
+        <div className="bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/50 rounded-xl p-4 flex items-center gap-4">
+          <div className="h-10 w-10 shrink-0 bg-rose-100 dark:bg-rose-900/50 rounded-lg flex items-center justify-center">
+            <ClipboardList className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL DEBIT (PKR)</p>
+            <p className="text-lg font-black text-rose-600 dark:text-rose-400 tracking-tight">{fmt(summary.debit)}</p>
+          </div>
+        </div>
+        <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/50 rounded-xl p-4 flex items-center gap-4">
+          <div className="h-10 w-10 shrink-0 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg flex items-center justify-center">
+            <ClipboardList className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL CREDIT (PKR)</p>
+            <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 tracking-tight">{fmt(summary.credit)}</p>
+          </div>
+        </div>
+        <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/50 rounded-xl p-4 flex items-center gap-4">
+          <div className="h-10 w-10 shrink-0 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
+            <span className="text-blue-600 dark:text-blue-400 font-bold text-lg">⚖</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL BALANCE (PKR)</p>
+            <p className="text-lg font-black text-blue-600 dark:text-blue-400 tracking-tight">{fmt(summary.balance)}</p>
+          </div>
+        </div>
+        <div className="bg-orange-50/50 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900/50 rounded-xl p-4 flex items-center gap-4">
+          <div className="h-10 w-10 shrink-0 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
+            <span className="text-orange-600 dark:text-orange-400 font-bold text-lg">≡</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL TRANSACTIONS</p>
+            <p className="text-lg font-black text-orange-600 dark:text-orange-400 tracking-tight">{filtered.length}</p>
+          </div>
+        </div>
+        <div className="bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/50 rounded-xl p-4 flex items-center gap-4">
+          <div className="h-10 w-10 shrink-0 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
+            <span className="text-purple-600 dark:text-purple-400 font-bold text-lg">🪙</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">EXCHANGE RATE</p>
+            <p className="text-lg font-black text-purple-700 dark:text-purple-400 tracking-tight">1 PKR = 1 PKR</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Table Section */}
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm mt-4 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-[#0f2942] dark:text-slate-300" />
+            <h2 className="text-[13px] font-black tracking-wider text-[#0f2942] dark:text-slate-200 uppercase">
+              {scope === "country" ? "BRANCH WISE SUMMARY" : "LEDGER TRANSACTIONS"}
+            </h2>
+          </div>
+          {scope === "country" && (
+            <p className="text-[10px] font-bold text-slate-500">All amounts are in PKR (Pakistan Rupee)</p>
+          )}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
-            <thead className="sticky top-0 z-10 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-              <tr>
-                <th className="px-3 py-3 text-left pl-3 w-16">
-                  <button type="button" onClick={() => sort("voucherNo")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none">
-                    Serial No
-                  </button>
-                </th>
-                <th className="px-3 py-3 text-left">
-                  <button type="button" onClick={() => sort("accountName")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none">
-                    Account Name
-                  </button>
-                </th>
-                <th className="px-3 py-3 text-center w-32">
-                  <button type="button" onClick={() => sort("entries")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none mx-auto">
-                    Entries Today
-                  </button>
-                </th>
-                <th className="px-3 py-3 text-right w-44">
-                  <button type="button" onClick={() => sort("debit")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none ml-auto">
-                    Debit Total
-                  </button>
-                </th>
-                <th className="px-3 py-3 text-right w-44">
-                  <button type="button" onClick={() => sort("credit")} className="font-extrabold hover:text-primary transition-colors flex items-center gap-1 select-none ml-auto">
-                    Credit Total
-                  </button>
-                </th>
-                <th className="px-3 py-3 text-center pr-3 w-36">Action</th>
-              </tr>
+          <table className="w-full min-w-[1200px] text-xs text-left whitespace-nowrap">
+            <thead className="bg-[#0f2942] text-white">
+              {scope === "country" ? (
+                <tr>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center w-14 border-r border-white/10">SR. NO.</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BRANCH NAME</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BRANCH CODE</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BRANCH TYPE</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">TOTAL TRANSACTIONS</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">TOTAL DEBIT (PKR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">TOTAL CREDIT (PKR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BALANCE (PKR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center">STATUS</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center w-14 border-r border-white/10">SR. NO.</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">DATE</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">VOUCHER NO.</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">VOUCHER TYPE</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider border-r border-white/10">ACCOUNT / PARTY</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider border-r border-white/10">DETAILS / NARRATION</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">CURR.</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">DEBIT (PKR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">CREDIT (PKR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BALANCE (PKR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center">DR / CR</th>
+                </tr>
+              )}
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center font-bold text-slate-400 dark:text-slate-500">
+                  <td colSpan={scope === "country" ? 9 : 11} className="px-3 py-8 text-center font-bold text-slate-400">
                     <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
                     Loading report...
                   </td>
                 </tr>
-              ) : pageRows.length ? (
-                pageRows.map((row, index) => (
-                  <tr key={row.id} className={cn("hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors", index % 2 ? "bg-slate-50/20 dark:bg-slate-900/5" : "bg-background")}>
-                    <td className="px-3 py-3 pl-3 font-black text-slate-500 dark:text-slate-400">{(page - 1) * pageSize + index + 1}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex flex-col gap-1">
-                        <span className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
-                          {row.accountName}
-                        </span>
-                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                          <span className="inline-block px-1.5 py-0.5 font-bold text-primary bg-primary/10 border border-primary/20 rounded">
-                            {row.accountNumber}
-                          </span>
-                          <span>•</span>
-                          <span>{row.branch}</span>
-                          {row.companyName && row.companyName !== "-" && (
-                            <>
-                              <span>•</span>
-                              <span className="text-muted-foreground">{row.companyName}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
+              ) : scope === "country" ? (
+                Array.from(
+                  filtered.reduce((map, row) => {
+                    const key = row.branchCode || row.branch || "unknown";
+                    if (!map.has(key)) {
+                      map.set(key, {
+                        branchName: row.branch,
+                        branchCode: row.branchCode,
+                        branchType: "City Branch",
+                        transactions: row.entries || 1,
+                        debit: row.debit || 0,
+                        credit: row.credit || 0,
+                        balance: (row.debit || 0) - (row.credit || 0),
+                        status: row.status || "Active"
+                      });
+                    } else {
+                      const b = map.get(key);
+                      b.transactions += row.entries || 1;
+                      b.debit += row.debit || 0;
+                      b.credit += row.credit || 0;
+                      b.balance = b.debit - b.credit;
+                    }
+                    return map;
+                  }, new Map<string, any>()).values()
+                ).map((branch: any, index: number) => (
+                  <tr key={branch.branchCode} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 bg-white dark:bg-slate-900">
+                    <td className="px-3 py-4 text-center font-bold text-[#0f2942] dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
+                      {index + 1}
                     </td>
-                    <td className="px-3 py-3 text-center font-bold text-slate-700 dark:text-slate-300">{row.entries ?? 0}</td>
-                    <td className="px-3 py-3 text-right font-black text-rose-600 dark:text-rose-400">{fmt(row.debit)}</td>
-                    <td className="px-3 py-3 text-right font-black text-emerald-600 dark:text-emerald-400">{fmt(row.credit)}</td>
-                    <td className="px-3 py-3 text-center pr-3">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-4 h-8 rounded-md shadow-sm transition-all"
-                        onClick={() => {
-                          window.location.href = `/dashboard/ledger/general-report?ledgerId=${row.id}&fromDate=${fromDate}&toDate=${toDate}`;
-                        }}
-                      >
-                        View
-                      </Button>
+                    <td className="px-3 py-4 text-center font-semibold text-[#0f2942] dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                      {branch.branchName}
+                    </td>
+                    <td className="px-3 py-4 text-center text-[#0f2942] dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 font-mono">
+                      {branch.branchCode}
+                    </td>
+                    <td className="px-3 py-4 text-center text-[#0f2942] dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
+                      {branch.branchType}
+                    </td>
+                    <td className="px-3 py-4 text-center font-bold text-[#0f2942] dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                      {branch.transactions}
+                    </td>
+                    <td className="px-3 py-4 text-center font-black text-rose-600 dark:text-rose-400 border-r border-slate-100 dark:border-slate-800">
+                      {branch.debit > 0 ? fmt(branch.debit) : "0.00"}
+                    </td>
+                    <td className="px-3 py-4 text-center font-black text-emerald-600 dark:text-emerald-400 border-r border-slate-100 dark:border-slate-800">
+                      {branch.credit > 0 ? fmt(branch.credit) : "0.00"}
+                    </td>
+                    <td className="px-3 py-4 text-center font-black text-[#0f2942] dark:text-blue-400 border-r border-slate-100 dark:border-slate-800">
+                      {fmt(branch.balance)}
+                    </td>
+                    <td className="px-3 py-4 text-center">
+                      <span className={cn("px-2 py-1 rounded-full text-[10px] font-bold border", normalize(branch.status) === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-700 border-slate-200")}>
+                        {branch.status || "Active"}
+                      </span>
                     </td>
                   </tr>
                 ))
+              ) : pageRows.length ? (
+                pageRows.map((row, index) => {
+                  const isDr = row.debit > 0;
+                  const isCr = row.credit > 0;
+                  const drCrText = isDr ? "DR" : isCr ? "CR" : "-";
+                  const drCrColor = isDr ? "text-emerald-600 dark:text-emerald-400" : isCr ? "text-rose-600 dark:text-rose-400" : "text-slate-500";
+                  
+                  return (
+                    <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 bg-white dark:bg-slate-900">
+                      <td className="px-3 py-3 text-center font-bold text-slate-500 border-r border-slate-100 dark:border-slate-800">
+                        {(page - 1) * pageSize + index + 1}
+                      </td>
+                      <td className="px-3 py-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                        {new Date(row.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="px-3 py-3 text-center text-slate-600 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
+                        {row.voucherNo}
+                      </td>
+                      <td className="px-3 py-3 text-center text-slate-600 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
+                        {scope === "country" ? "Country" : scope === "city" ? "Branch" : "Project"}
+                      </td>
+                      <td className="px-3 py-3 font-bold text-blue-700 dark:text-blue-400 border-r border-slate-100 dark:border-slate-800">
+                        {row.accountNumber ? `${row.accountNumber} - ` : ""}{row.accountName}
+                      </td>
+                      <td className="px-3 py-3 text-slate-600 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
+                        <span className="truncate max-w-[250px] inline-block align-bottom" title={row.narration}>{row.narration}</span>
+                      </td>
+                      <td className="px-3 py-3 text-center font-bold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                        PKR
+                      </td>
+                      <td className="px-3 py-3 text-right font-black text-rose-600 dark:text-rose-400 border-r border-slate-100 dark:border-slate-800">
+                        {row.debit > 0 ? fmt(row.debit) : "0.00"}
+                      </td>
+                      <td className="px-3 py-3 text-right font-black text-emerald-600 dark:text-emerald-400 border-r border-slate-100 dark:border-slate-800">
+                        {row.credit > 0 ? fmt(row.credit) : "0.00"}
+                      </td>
+                      <td className="px-3 py-3 text-right font-black text-[#0f2942] dark:text-blue-400 border-r border-slate-100 dark:border-slate-800">
+                        {fmt(row.balance)}
+                      </td>
+                      <td className={cn("px-3 py-3 text-center font-black", drCrColor)}>
+                        {drCrText}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center font-medium text-slate-400 dark:text-slate-500">
-                    No journal vouchers found.
+                  <td colSpan={11} className="px-3 py-8 text-center font-medium text-slate-400">
+                    No transactions found.
                   </td>
                 </tr>
               )}
             </tbody>
-            <tfoot className="border-t border-slate-200 bg-slate-50 text-xs font-black uppercase tracking-wide text-slate-700 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200">
-              <tr>
-                <td className="px-3 py-3 pl-3" colSpan={2}>Summary</td>
-                <td className="px-3 py-3 text-center text-slate-800 dark:text-slate-200">
-                  {filtered.reduce((sum, row) => sum + (row.entries || 0), 0)}
-                </td>
-                <td className="px-3 py-3 text-right text-rose-700 dark:text-rose-300">{fmt(summary.debit)}</td>
-                <td className="px-3 py-3 text-right text-emerald-700 dark:text-emerald-300">{fmt(summary.credit)}</td>
-                <td className="px-3 py-3 pr-3" />
-              </tr>
-            </tfoot>
+            {scope === "country" && filtered.length > 0 && !loading && (
+              <tfoot className="bg-[#f8fafc] text-[#0f2942] font-black">
+                <tr>
+                  <td colSpan={4} className="px-3 py-4 uppercase border-r border-slate-200">TOTAL</td>
+                  <td className="px-3 py-4 text-center border-r border-slate-200">
+                    {Array.from(filtered.reduce((map, row) => {
+                      const key = row.branchCode || row.branch || "unknown";
+                      if (!map.has(key)) map.set(key, row.entries || 1);
+                      else map.set(key, map.get(key) + (row.entries || 1));
+                      return map;
+                    }, new Map<string, any>()).values()).reduce((a: any, b: any) => a + b, 0)}
+                  </td>
+                  <td className="px-3 py-4 text-center text-rose-600 border-r border-slate-200">{fmt(summary.debit)}</td>
+                  <td className="px-3 py-4 text-center text-emerald-600 border-r border-slate-200">{fmt(summary.credit)}</td>
+                  <td className="px-3 py-4 text-center border-r border-slate-200">{fmt(summary.balance)}</td>
+                  <td className="px-3 py-4"></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/50 px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/10 dark:text-slate-400">
-          <span>Showing {pageRows.length ? (page - 1) * pageSize + 1 : 0} to {Math.min(page * pageSize, filtered.length)} of {filtered.length} entries</span>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="h-9 rounded-lg">Previous</Button>
-            <span className="rounded-lg bg-primary px-3 py-1.5 font-bold text-primary-foreground text-xs shadow-sm">{page} / {pages}</span>
-            <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage((value) => Math.min(pages, value + 1))} className="h-9 rounded-lg">Next</Button>
+        
+        {/* Pagination & Footer note */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-md">
+            <div className="h-4 w-4 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-[9px]">i</div>
+            NOTE: All amounts are in PKR (Pakistan Rupee). This report is system generated and does not require any signature.
           </div>
+          {scope !== "country" && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="h-8 text-xs font-bold px-3">Prev</Button>
+              <span className="text-xs font-black text-slate-700 dark:text-slate-300">Page {page} of {pages}</span>
+              <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage((value) => Math.min(pages, value + 1))} className="h-8 text-xs font-bold px-3">Next</Button>
+            </div>
+          )}
         </div>
-      </section>
+      </div>
+
+    </div>
+  );
+}
+
+function DetailBox({ title, icon, items }: { title: string, icon: React.ReactNode, items: { label: string, value: string, hasFlag?: boolean }[] }) {
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+      <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+        {icon}
+        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">{title}</h3>
+      </div>
+      <div className="px-4 py-3 space-y-2.5">
+        {items.map((item, i) => (
+          <div key={i} className="flex flex-wrap items-center">
+            <span className="w-28 text-[11px] font-bold text-slate-500 dark:text-slate-400">{item.label}</span>
+            <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 ml-2 flex items-center gap-1.5">
+              : 
+              {item.hasFlag && <span className="inline-block w-4 h-3 bg-green-700 border border-white rounded-[2px] ml-1 shadow-sm flex items-center justify-center text-[6px] text-white overflow-hidden">
+                <span className="bg-white w-[5px] h-full ml-auto rounded-l-full"></span>
+              </span>}
+              {item.value}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -718,120 +863,4 @@ function DateInput({ label, value, onChange }: { label: string; value: string; o
   );
 }
 
-function Kpi({ icon, label, value, tone = "blue" }: { icon: React.ReactNode; label: string; value: string; tone?: "blue" | "green" | "red" | "slate" | "purple" }) {
-  const colors = {
-    blue: {
-      border: "border-l-[3px] border-l-blue-600",
-      bg: "bg-card",
-      text: "text-blue-700 dark:text-blue-400",
-      iconBg: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200/40"
-    },
-    green: {
-      border: "border-l-[3px] border-l-emerald-600",
-      bg: "bg-card",
-      text: "text-emerald-700 dark:text-emerald-400",
-      iconBg: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200/40"
-    },
-    red: {
-      border: "border-l-[3px] border-l-rose-600",
-      bg: "bg-card",
-      text: "text-rose-700 dark:text-rose-400",
-      iconBg: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200/40"
-    },
-    slate: {
-      border: "border-l-[3px] border-l-slate-700 dark:border-l-slate-500",
-      bg: "bg-card",
-      text: "text-slate-800 dark:text-slate-200",
-      iconBg: "bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300 border-slate-200/45"
-    },
-    purple: {
-      border: "border-l-[3px] border-l-purple-600",
-      bg: "bg-card",
-      text: "text-purple-700 dark:text-purple-400",
-      iconBg: "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200/40"
-    }
-  };
-  const theme = colors[tone] || colors.blue;
-  return (
-    <div className={cn("min-w-[170px] rounded-lg border border-slate-200/70 px-3 py-2 shadow-sm dark:border-slate-800/70", theme.border, theme.bg)}>
-      <div className="flex items-center gap-2.5">
-        <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md border font-bold shadow-sm [&>svg]:h-3.5 [&>svg]:w-3.5", theme.iconBg)}>{icon}</div>
-        <div>
-          <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500">{label}</p>
-          <p className={cn("mt-0.5 text-base font-black tracking-tight", theme.text)}>{value}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function Status({ label }: { label: string }) {
-  const active = normalize(label) === "active";
-  return (
-    <span className={cn(
-      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border transition-colors",
-      active 
-        ? "bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/20" 
-        : "bg-rose-50 text-rose-700 border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-450 dark:border-rose-900/20"
-    )}>
-      <span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-emerald-500 animate-pulse" : "bg-rose-500")} />
-      {label}
-    </span>
-  );
-}
-
-function Trend({ label }: { label: string }) {
-  const increase = normalize(label) === "increase";
-  return (
-    <span className={cn(
-      "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide",
-      increase
-        ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
-        : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300"
-    )}>
-      {label}
-    </span>
-  );
-}
-
-function ReportActions({ rows, scope }: { rows: JournalRow[]; scope: JournalScope }) {
-  return (
-    <details className="relative">
-      <summary className="flex h-9 w-10 cursor-pointer list-none items-center justify-center rounded-md border border-white/20 bg-white/10 text-white transition hover:bg-white/20 hover:border-white/25 [&::-webkit-details-marker]:hidden" aria-label="Report actions" title="Report actions">
-        <MoreVertical className="h-4 w-4" />
-      </summary>
-      <div className="absolute right-0 z-30 mt-2 w-44 rounded-lg border border-slate-200 bg-popover p-1 text-sm text-popover-foreground shadow-2xl dark:border-slate-800">
-        <MenuAction icon={<Eye />} label="Plate View" onClick={() => undefined} />
-        <MenuAction icon={<DownloadActionIcon />} label="Download" onClick={() => exportCsv(rows, scope)} />
-      </div>
-    </details>
-  );
-}
-
-function RowActions() {
-  return (
-    <details className="relative inline-block">
-      <summary className="grid h-8 w-8 cursor-pointer list-none place-items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-background text-foreground hover:bg-muted [&::-webkit-details-marker]:hidden" aria-label="Row actions" title="Row actions">
-        <MoreVertical className="h-4 w-4" />
-      </summary>
-      <div className="absolute right-0 z-30 mt-2 w-48 rounded-xl border border-slate-200 dark:border-slate-800 bg-popover p-1 text-sm text-popover-foreground shadow-2xl">
-        <MenuAction icon={<Eye />} label="View Details" onClick={() => undefined} />
-        <MenuAction icon={<Edit3 />} label="Edit Entry" onClick={() => undefined} />
-        <MenuAction icon={<BookOpen />} label="View Journal" onClick={() => undefined} />
-        <MenuAction icon={<FileText />} label="Attachments" onClick={() => undefined} />
-        <MenuAction icon={<ClipboardList />} label="Timeline Audit" onClick={() => undefined} />
-        <MenuAction icon={<Printer />} label="Print Voucher" onClick={() => window.print()} />
-        <MenuAction icon={<DownloadActionIcon />} label="Export PDF" onClick={() => window.print()} />
-      </div>
-    </details>
-  );
-}
-
-function MenuAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors">
-      <span className="text-primary [&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-      {label}
-    </button>
-  );
-}

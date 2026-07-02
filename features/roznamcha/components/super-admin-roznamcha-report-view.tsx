@@ -542,6 +542,42 @@ function countryStats(rows: SuperAdminRoznamchaRow[]) {
   }
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
+type BranchSummaryRow = {
+  key: string;
+  branchName: string;
+  branchCode: string;
+  branchType: string;
+  transactions: number;
+  debit: number;
+  credit: number;
+  balance: number;
+  status: string;
+};
+
+function branchStats(rows: SuperAdminRoznamchaRow[]): BranchSummaryRow[] {
+  const map = new Map<string, BranchSummaryRow>();
+  for (const row of rows) {
+    const isCityBranch = Boolean(row.cityBranchId);
+    const key = row.cityBranchId || row.countryBranchId || `${row.countryName}::main`;
+    const current = map.get(key) ?? {
+      key,
+      branchName: isCityBranch ? (row.cityBranchName || "-") : (row.countryBranchName || row.countryName || "-"),
+      branchCode: isCityBranch ? (row.cityBranchCode || "-") : (row.countryBranchCode || "-"),
+      branchType: isCityBranch ? "City Branch" : "Main Branch",
+      transactions: 0,
+      debit: 0,
+      credit: 0,
+      balance: 0,
+      status: "Active"
+    };
+    current.transactions += 1;
+    current.debit += row.debit;
+    current.credit += row.credit;
+    current.balance += row.debit - row.credit;
+    map.set(key, current);
+  }
+  return Array.from(map.values()).sort((a, b) => a.branchName.localeCompare(b.branchName));
+}
 
 async function fetchSessionInfo() {
   return apiGet<SessionInfo>("/api/erp/auth/session");
@@ -738,6 +774,18 @@ export function SuperAdminRoznamchaReportView({
   const currencyOptions = useMemo(() => buildCurrencyOptions(scopedRows), [scopedRows]);
   const selectedRow = useMemo(() => visibleRows.find((row) => row.id === selectedId) ?? visibleRows[0] ?? null, [selectedId, visibleRows]);
   const countryOverview = useMemo(() => countryStats(visibleRows), [visibleRows]);
+  const branchSummaryRows = useMemo(() => branchStats(visibleRows), [visibleRows]);
+  const branchGrandTotal = useMemo(() => {
+    return branchSummaryRows.reduce(
+      (total, row) => ({
+        transactions: total.transactions + row.transactions,
+        debit: total.debit + row.debit,
+        credit: total.credit + row.credit,
+        balance: total.balance + row.balance
+      }),
+      { transactions: 0, debit: 0, credit: 0, balance: 0 }
+    );
+  }, [branchSummaryRows]);
 
   const isFilteredToSingleCountry = appliedFilters.countryId !== "all";
   const targetCurrency = useMemo(() => {
@@ -1457,27 +1505,61 @@ export function SuperAdminRoznamchaReportView({
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="rounded-2xl border-0 bg-white shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] p-5">
-            <h2 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">Report Details</h2>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-slate-600">Total Entries</span>
-                <span className="font-black text-slate-900">{visibleRows.length}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-slate-600">Printed By</span>
-                <span className="font-black text-slate-900">{sessionInfo?.user?.fullName ?? "Admin"}</span>
-              </div>
-              <div className="flex justify-between items-center border-t border-slate-100 pt-3">
-                <span className="font-semibold text-slate-600">Print Date</span>
-                <span className="font-black text-slate-900">{clientSession.printDate}</span>
-              </div>
+        <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+          <CardHeader className="border-b bg-slate-50/80 px-4 py-3 dark:bg-slate-900/50">
+            <CardTitle className="text-sm font-black text-slate-950 dark:text-slate-100">Branch Wise Summary</CardTitle>
+            <p className="text-[11px] font-semibold text-slate-500">Every branch summary for the selected country and date range.</p>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] border-collapse text-xs">
+                <thead className="sticky top-0 z-10 bg-slate-900 text-white">
+                  <tr className="whitespace-nowrap text-left">
+                    <th className="border border-slate-200 px-3 py-2.5 font-black dark:border-slate-800">Branch Name</th>
+                    <th className="border border-slate-200 px-3 py-2.5 font-black dark:border-slate-800">Branch Code</th>
+                    <th className="border border-slate-200 px-3 py-2.5 font-black dark:border-slate-800">Branch Type</th>
+                    <th className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">Total Transactions</th>
+                    <th className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">Total Debit</th>
+                    <th className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">Total Credit</th>
+                    <th className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">Balance</th>
+                    <th className="border border-slate-200 px-3 py-2.5 text-center font-black dark:border-slate-800">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {branchSummaryRows.length ? branchSummaryRows.map((row, index) => (
+                    <tr key={row.key} className={cn("hover:bg-slate-50 dark:hover:bg-slate-900/40", index % 2 === 0 ? "bg-white dark:bg-slate-950" : "bg-slate-50/50 dark:bg-slate-900/30")}>
+                      <td className="border border-slate-200 px-3 py-2.5 font-bold text-slate-900 dark:border-slate-800 dark:text-slate-100">{row.branchName}</td>
+                      <td className="border border-slate-200 px-3 py-2.5 font-mono font-bold text-blue-700 dark:border-slate-800 dark:text-blue-300">{row.branchCode}</td>
+                      <td className="border border-slate-200 px-3 py-2.5 font-semibold text-slate-600 dark:border-slate-800 dark:text-slate-300">{row.branchType}</td>
+                      <td className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">{row.transactions}</td>
+                      <td className="border border-slate-200 px-3 py-2.5 text-right font-mono font-black text-rose-600 dark:border-slate-800 dark:text-rose-400">{fmtCountryValue(row.debit)}</td>
+                      <td className="border border-slate-200 px-3 py-2.5 text-right font-mono font-black text-emerald-600 dark:border-slate-800 dark:text-emerald-400">{fmtCountryValue(row.credit)}</td>
+                      <td className="border border-slate-200 px-3 py-2.5 text-right font-mono font-black text-slate-900 dark:border-slate-800 dark:text-slate-100">{fmtCountryValue(Math.abs(row.balance))}</td>
+                      <td className="border border-slate-200 px-3 py-2.5 text-center dark:border-slate-800">
+                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">{row.status}</span>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={8} className="border border-slate-200 px-3 py-8 text-center text-sm font-semibold text-slate-400 dark:border-slate-800">No branch summary records found.</td>
+                    </tr>
+                  )}
+                  <tr className="bg-slate-900 text-white">
+                    <td className="border border-slate-800 px-3 py-3 font-black uppercase" colSpan={3}>Grand Total</td>
+                    <td className="border border-slate-800 px-3 py-3 text-right font-black">{branchGrandTotal.transactions}</td>
+                    <td className="border border-slate-800 px-3 py-3 text-right font-mono font-black text-rose-200">{fmtCountryValue(branchGrandTotal.debit)}</td>
+                    <td className="border border-slate-800 px-3 py-3 text-right font-mono font-black text-emerald-200">{fmtCountryValue(branchGrandTotal.credit)}</td>
+                    <td className="border border-slate-800 px-3 py-3 text-right font-mono font-black">{fmtCountryValue(Math.abs(branchGrandTotal.balance))}</td>
+                    <td className="border border-slate-800 px-3 py-3 text-center font-black">-</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </Card>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
+      {typeFilter !== "country" && (
       <div className="space-y-4">
         <Card id="super-admin-roznamcha-table" className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
           <CardHeader className="space-y-1 border-b bg-slate-50/50 dark:bg-slate-900/50 py-2 px-4 flex flex-row items-center justify-between">
@@ -1715,7 +1797,7 @@ export function SuperAdminRoznamchaReportView({
                               <span className="font-semibold text-blue-600 hover:underline">{row.accountParty}</span>
                             </td>
                             <td className="p-2 text-left max-w-[300px] truncate border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-350" title={row.narration}>{row.narration}</td>
-                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-extrabold text-slate-900 dark:text-slate-100">{row.currency}</td>
+                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-extrabold text-slate-900 dark:text-slate-100">{row.countryCurrency || "PKR"}</td>
                             <td className={cn(
                               "p-2 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
                               row.debit > 0 ? "text-red-600 dark:text-red-400 font-black" : "text-slate-400 font-normal"
@@ -1768,6 +1850,7 @@ export function SuperAdminRoznamchaReportView({
           </CardContent>
         </Card>
       </div>
+      )}
 
       <DetailDrawer
         isOpen={activeDrawerEntry !== null}
@@ -1869,10 +1952,10 @@ export function SuperAdminRoznamchaReportView({
                             )}
                           </td>
                           <td className="px-3 py-2 text-right font-mono tabular-nums text-rose-600">
-                            {line.debit ? `${line.currency} ${fmtNumber(Number(line.debit))}` : "-"}
+                            {line.debit ? `${activeDrawerEntry.countryCurrency || "PKR"} ${fmtNumber(Number(line.debit))}` : "-"}
                           </td>
                           <td className="px-3 py-2 text-right font-mono tabular-nums text-emerald-600">
-                            {line.credit ? `${line.currency} ${fmtNumber(Number(line.credit))}` : "-"}
+                            {line.credit ? `${activeDrawerEntry.countryCurrency || "PKR"} ${fmtNumber(Number(line.credit))}` : "-"}
                           </td>
                           <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                             {line.usd_amount ? `$${fmtNumber(Number(line.usd_amount))}` : line.debit ? `$${fmtNumber(Number(line.debit) / lineRate)}` : line.credit ? `$${fmtNumber(Number(line.credit) / lineRate)}` : "-"}
@@ -1889,13 +1972,13 @@ export function SuperAdminRoznamchaReportView({
               <div>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Debit Total</span>
                 <div className="text-sm font-extrabold text-rose-600 mt-0.5">
-                  {activeDrawerEntry.currency} {fmtNumber(activeDrawerEntry.debit)}
+                  {activeDrawerEntry.countryCurrency || "PKR"} {fmtNumber(activeDrawerEntry.debit)}
                 </div>
               </div>
               <div>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Credit Total</span>
                 <div className="text-sm font-extrabold text-emerald-600 mt-0.5">
-                  {activeDrawerEntry.currency} {fmtNumber(activeDrawerEntry.credit)}
+                  {activeDrawerEntry.countryCurrency || "PKR"} {fmtNumber(activeDrawerEntry.credit)}
                 </div>
               </div>
             </div>
@@ -1952,4 +2035,8 @@ function MenuAction({
 function MenuDivider() {
   return <div className="my-1 border-t border-slate-100" />;
 }
+
+
+
+
 

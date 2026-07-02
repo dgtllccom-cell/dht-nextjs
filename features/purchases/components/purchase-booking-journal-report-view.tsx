@@ -621,6 +621,16 @@ function ScopePill({ label, value }: { label: string; value: string | number }) 
     </div>
   );
 }
+function getCurrencySymbol(c: string) {
+  if (!c) return "";
+  const upper = c.toUpperCase();
+  if (upper === "USD") return "$";
+  if (upper === "AED") return "د.إ";
+  if (upper === "PKR") return "₨";
+  if (upper === "AFN") return "؋";
+  if (upper === "INR") return "₹";
+  return upper;
+}
 
 function ReportActionsMenu({ rows, onExport }: { rows: PurchaseReport[]; onExport: () => void }) {
   return (
@@ -1895,7 +1905,8 @@ export function PurchaseBookingJournalReportView({
             </div>
           }
         >
-          {selected ? (function() {
+          {(() => {
+            if (!selected) return null;
             const goodsEntries = selected.form_data?.goodsEntries || [
               {
                 goodsName: selected.productName || selected.goodsDescription || "Purchase Cargo",
@@ -1909,7 +1920,7 @@ export function PurchaseBookingJournalReportView({
                 coursePrice: selected.purchaseRate || 0,
                 totalAmount: selected.totalPurchaseAmount || 0,
                 exchangeRate: selected.exchange_rate || 280,
-                finalAmount: selected.finalAmount || (selected.totalPurchaseAmount * 280) || 0
+                  finalAmount: selected.finalAmount || (selected.totalPurchaseAmount * 280) || 0
               }
             ];
 
@@ -1940,6 +1951,11 @@ export function PurchaseBookingJournalReportView({
               const finalAmountVal = Number(item.finalAmount || amount * exVal);
               return sum + finalAmountVal;
             }, 0);
+            const purchaseCurrency = selected.currency || selected.form_data?.form?.currency || "USD";
+            const purchaseCurrencySymbol = getCurrencySymbol(purchaseCurrency);
+
+            const displayCurrency = selected.form_data?.form?.purchaseAccountCurrency || selected.form_data?.form?.salesAccountCurrency || selected.form_data?.form?.baseCurrency || "PKR";
+            const displayCurrencySymbol = getCurrencySymbol(displayCurrency);
 
             const avgRateKg = totalNet > 0 ? (totalUSDVal / totalNet) : 0;
             const avgRateTon = avgRateKg * 1000;
@@ -2171,8 +2187,8 @@ export function PurchaseBookingJournalReportView({
                               <td className="p-1 border-r border-slate-200 text-right font-mono">{qtyKgs.toLocaleString()} kg</td>
                               <td className="p-1 border-r border-slate-200 text-right font-mono">{grossWeight.toLocaleString()} kg</td>
                               <td className="p-1 border-r border-slate-200 text-right font-mono">{netWeight.toLocaleString()} kg</td>
-                              <td className="p-1 border-r border-slate-200 text-right font-mono">${ratePerKg.toFixed(2)}</td>
-                              <td className="p-1 border-r border-slate-200 text-right font-mono font-bold">${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono">{purchaseCurrencySymbol}{ratePerKg.toFixed(2)}</td>
+                              <td className="p-1 border-r border-slate-200 text-right font-mono font-bold">{purchaseCurrencySymbol}{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                               <td className="p-1 border-r border-slate-200 text-right font-mono">{exVal}</td>
                               <td className="p-1 text-right font-mono font-bold text-emerald-600">{finalAmountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                             </tr>
@@ -2186,15 +2202,15 @@ export function PurchaseBookingJournalReportView({
                           <td className="p-1"></td>
                           <td className="p-1 text-right text-slate-950 font-bold">{totalGross.toLocaleString()} kg</td>
                           <td className="p-1 text-right text-slate-950 font-bold">{totalNet.toLocaleString()} kg</td>
-                          <td className="p-1 text-right text-slate-550 text-[7px]">Avg: ${avgRateKg.toFixed(2)}</td>
-                          <td className="p-1 text-right text-blue-600 font-black">${totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="p-1 text-right text-slate-550 text-[7px]">Avg: {purchaseCurrencySymbol}{avgRateKg.toFixed(2)}</td>
+                          <td className="p-1 text-right text-blue-600 font-black">{purchaseCurrencySymbol}{totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="p-1"></td>
-                          <td className="p-1 text-right text-emerald-600 font-black">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs</td>
+                          <td className="p-1 text-right text-emerald-600 font-black">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}</td>
                         </tr>
                         <tr className="text-[7.5px] text-slate-550 border-t border-slate-200/60 font-semibold">
                           <td colSpan={5} className="p-1 text-right uppercase text-[7px]">Containers & Dues:</td>
                           <td colSpan={3} className="p-1 text-left">FCL: <span className="font-bold text-slate-800">{containerCount}</span></td>
-                          <td colSpan={5} className="p-1 text-left">Avg Rate/Ton: <span className="font-bold text-slate-800">${avgRateTon.toFixed(2)}</span></td>
+                          <td colSpan={5} className="p-1 text-left">Avg Rate/Ton: <span className="font-bold text-slate-800">{purchaseCurrencySymbol}{avgRateTon.toFixed(2)}</span></td>
                         </tr>
                       </tfoot>
                     </table>
@@ -2246,9 +2262,9 @@ export function PurchaseBookingJournalReportView({
                         <tbody>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Payment Condition:</td><td className="px-2 py-1 text-slate-800 font-bold">{paymentConditionText}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Percent / Due:</td><td className="px-2 py-1 text-slate-800">{advancePercent}% / <span className="font-bold text-blue-700">{advanceDueDateText}</span></td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">${advanceAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">{purchaseCurrencySymbol}{advanceAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance / Due:</td><td className="px-2 py-1 text-slate-800">{remainingPercent}% / <span className="font-bold text-rose-600">{finalPaymentDueDateText}</span></td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">${remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">{purchaseCurrencySymbol}{remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
                           <tr>
                             <td className="px-2 py-1 text-slate-400">Payment Status:</td>
                             <td className="px-2 py-1">
@@ -2287,7 +2303,7 @@ export function PurchaseBookingJournalReportView({
                               <span className="text-slate-400 font-medium px-1.5">@</span> 
                               <span className="text-blue-600">{exRate}</span> 
                               <span className="text-slate-400 font-medium px-1.5">=</span> 
-                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}
                             </td>
                           </tr>
                           <tr className="border-b border-slate-100">
@@ -2306,7 +2322,7 @@ export function PurchaseBookingJournalReportView({
                               <span className="text-slate-400 font-medium px-1.5">@</span> 
                               <span className="text-blue-600">{exRate}</span> 
                               <span className="text-slate-400 font-medium px-1.5">=</span> 
-                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Rs
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}
                             </td>
                           </tr>
                           <tr className="border-b border-slate-100">
@@ -2377,7 +2393,7 @@ export function PurchaseBookingJournalReportView({
                 </div>
               </div>
             );
-          })() : null}
+          })()}
         </DetailDrawer>
     </div>
   );

@@ -218,6 +218,22 @@ export function PurchaseTransferErpReportView({
   const creditCurrency = form.salesAccountCurrency || form.secondaryCurrency || (debitCurrency !== "USD" ? debitCurrency : null) || "PKR";
   const localCurrency = form.secondaryCurrency || creditCurrency || "PKR";
 
+function getCurrencySymbol(c: string) {
+  if (!c) return "";
+  const upper = c.toUpperCase();
+  if (upper === "USD") return "$";
+  if (upper === "AED") return "د.إ";
+  if (upper === "PKR") return "₨";
+  if (upper === "AFN") return "؋";
+  if (upper === "INR") return "₹";
+  return upper;
+}
+
+  const currencySymbol = getCurrencySymbol(currency);
+  const localCurrencySymbol = getCurrencySymbol(localCurrency);
+  const debitCurrencySymbol = getCurrencySymbol(debitCurrency);
+  const creditCurrencySymbol = getCurrencySymbol(creditCurrency);
+
   const debitAmount = (debitCurrency === "USD" || debitCurrency === form.currencyType || debitCurrency === d?.currency)
     ? totalPurchaseAmountUsd
     : totalPurchaseAmountPkr;
@@ -507,10 +523,10 @@ export function PurchaseTransferErpReportView({
             <SectionCard icon={<CreditCard className="h-4 w-4" />} title="Payment Information" badge={d.payment_status || d.status}>
               <div className="grid sm:grid-cols-2 gap-x-8">
                 <div>
-                  <InfoRow label="Total Purchase Amount" value={`${money(totalPurchaseAmountUsd)} ${currency} / ${money(totalPurchaseAmountPkr)} ${localCurrency}`} mono />
+                  <InfoRow label="Total Purchase Amount" value={`${money(totalPurchaseAmountUsd)} ${currencySymbol} / ${money(totalPurchaseAmountPkr)} ${localCurrencySymbol}`} mono />
                   <InfoRow label="Advance Percentage" value={`${form.advancePercent || 0}%`} mono />
-                  <InfoRow label="Advance Paid" value={`${money(displayAdvanceUsd)} ${currency} / ${money(displayAdvancePkr)} ${localCurrency}`} mono />
-                  <InfoRow label="Remaining Balance" value={`${money(displayRemainingUsd)} ${currency} / ${money(displayRemainingPkr)} ${localCurrency}`} mono />
+                  <InfoRow label="Advance Paid" value={`${money(displayAdvanceUsd)} ${currencySymbol} / ${money(displayAdvancePkr)} ${localCurrencySymbol}`} mono />
+                  <InfoRow label="Remaining Balance" value={`${money(displayRemainingUsd)} ${currencySymbol} / ${money(displayRemainingPkr)} ${localCurrencySymbol}`} mono />
                 </div>
                 <div>
                   <InfoRow label="Payment Status" value={statusLabel(d.payment_status || d.status || "-")} />
@@ -522,10 +538,10 @@ export function PurchaseTransferErpReportView({
               {/* Payment summary bar */}
               <div className="mt-4 grid grid-cols-4 gap-3">
                 {[
-                  { label: "Total Amount", value: `${money(totalPurchaseAmountUsd)} ${currency}`, subValue: `${money(totalPurchaseAmountPkr)} ${localCurrency}`, color: "text-[#0f2942]" },
+                  { label: "Total Amount", value: `${money(totalPurchaseAmountUsd)} ${currencySymbol}`, subValue: `${money(totalPurchaseAmountPkr)} ${localCurrencySymbol}`, color: "text-[#0f2942]" },
                   { label: "Advance Percentage", value: `${form.advancePercent || 0}%`, color: "text-blue-600" },
-                  { label: "Advance Paid", value: `${money(displayAdvanceUsd)} ${currency}`, subValue: `${money(displayAdvancePkr)} ${localCurrency}`, color: "text-emerald-600" },
-                  { label: "Remaining Due", value: `${money(displayRemainingUsd)} ${currency}`, subValue: `${money(displayRemainingPkr)} ${localCurrency}`, color: "text-rose-600" }
+                  { label: "Advance Paid", value: `${money(displayAdvanceUsd)} ${currencySymbol}`, subValue: `${money(displayAdvancePkr)} ${localCurrencySymbol}`, color: "text-emerald-600" },
+                  { label: "Remaining Due", value: `${money(displayRemainingUsd)} ${currencySymbol}`, subValue: `${money(displayRemainingPkr)} ${localCurrencySymbol}`, color: "text-rose-600" }
                 ].map((item) => (
                   <div key={item.label} className="rounded-lg border bg-slate-50 p-3 text-center dark:bg-slate-900/40">
                     <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{item.label}</p>
@@ -574,14 +590,14 @@ export function PurchaseTransferErpReportView({
                     <tr className="bg-blue-50/40 hover:bg-blue-50/70">
                       <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{form.purchaseAccountNo || d.purchaseAccountNumber || "—"}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{form.purchaseAccountName || d.purchaseAccountName || "Purchase Account (Debit)"} (DR)</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-blue-700">{money(debitAmount)} {debitCurrency}</td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-blue-700">{money(debitAmount)} {debitCurrencySymbol}</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-slate-400">-</td>
                     </tr>
                     <tr className="bg-emerald-50/40 hover:bg-emerald-50/70">
                       <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{form.salesAccountNo || d.salesAccountNumber || "—"}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{form.salesAccountName || d.salesAccountName || "Sales / Credit Account (Credit)"} (CR)</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-slate-400">-</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">{money(creditAmount)} {creditCurrency}</td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">{money(creditAmount)} {creditCurrencySymbol}</td>
                     </tr>
                   </tbody>
                 </table>
