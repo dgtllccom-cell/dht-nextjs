@@ -89,6 +89,18 @@ function fmtNumber(value: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function fmtBalance(balance: number, normalBalance?: "debit" | "credit") {
+  if (!balance) return { text: "0.00", isDr: false, isCr: false, color: "text-slate-500" };
+  const isCredit = normalBalance === "debit" ? balance < 0 : balance > 0;
+  const absBal = Math.abs(balance);
+  return {
+    text: `${fmtNumber(absBal)} ${isCredit ? "CR" : "DR"}`,
+    isDr: !isCredit,
+    isCr: isCredit,
+    color: isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
+  };
+}
+
 function fmtRate(value: number) {
   const n = Number.isFinite(value) ? value : 0;
   return n ? n.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 8 }) : "-";
@@ -996,7 +1008,9 @@ export function LedgerReportView({
             onNext={() => setPage((p) => Math.min(pageCount, p + 1))} 
             pageSize={pageSize} 
           />
+        </div>
       </section>
+      </div>
 
       <DetailDrawer
         isOpen={drawerOpen}
@@ -1050,22 +1064,25 @@ export function LedgerReportView({
                     </tr>
                   </thead>
                   <tbody className="divide-y dark:divide-slate-800">
-                    {displayedLines.map((line, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40">
-                        <td className="px-3 py-2 whitespace-nowrap">{line.entryDate}</td>
-                        <td className="px-3 py-2 font-mono whitespace-nowrap">{line.referenceNo || line.sourceId.slice(0, 8)}</td>
-                        <td className="px-3 py-2 max-w-[200px] truncate" title={line.description ?? undefined}>{line.description || "-"}</td>
-                        <td className="px-3 py-2 text-right font-mono text-rose-600">
-                          {line.debit ? fmtNumber(line.debit) : "-"}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-emerald-600">
-                          {line.credit ? fmtNumber(line.credit) : "-"}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono font-bold">
-                          {fmtNumber(line.runningBalance)}
-                        </td>
-                      </tr>
-                    ))}
+                    {displayedLines.map((line, idx) => {
+                      const lineBal = fmtBalance(line.runningBalance, selectedLedger?.normalBalance);
+                      return (
+                        <tr key={idx} className={cn("hover:bg-slate-50/50 dark:hover:bg-slate-900/40", lineBal.color)}>
+                          <td className="px-3 py-2 whitespace-nowrap">{line.entryDate}</td>
+                          <td className="px-3 py-2 font-mono whitespace-nowrap">{line.referenceNo || line.sourceId.slice(0, 8)}</td>
+                          <td className="px-3 py-2 max-w-[200px] truncate" title={line.description ?? undefined}>{line.description || "-"}</td>
+                          <td className="px-3 py-2 text-right font-mono">
+                            {line.debit ? fmtNumber(line.debit) : "-"}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono">
+                            {line.credit ? fmtNumber(line.credit) : "-"}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-bold">
+                            {lineBal.text}
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {displayedLines.length === 0 && (
                       <tr>
                         <td colSpan={6} className="px-3 py-4 text-center text-muted-foreground italic">No entries for this period.</td>
@@ -1087,7 +1104,9 @@ export function LedgerReportView({
               </div>
               <div>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Closing Balance</span>
-                <div className="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">{selectedLedger?.ledgerCurrency} {fmtNumber(displayedLines.length ? displayedLines[displayedLines.length - 1]!.runningBalance : 0)}</div>
+                <div className={cn("text-sm font-extrabold mt-0.5", fmtBalance(displayedLines.length ? displayedLines[displayedLines.length - 1]!.runningBalance : 0, selectedLedger?.normalBalance).color)}>
+                  {selectedLedger?.ledgerCurrency} {fmtBalance(displayedLines.length ? displayedLines[displayedLines.length - 1]!.runningBalance : 0, selectedLedger?.normalBalance).text}
+                </div>
               </div>
             </div>
           </div>

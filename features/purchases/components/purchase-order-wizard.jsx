@@ -2138,7 +2138,11 @@ export function PurchaseOrderWizard({ session }) {
     };
   };
 
+  const isSubmittingRef = React.useRef(false);
+
   const handleSavePurchaseOrder = async (shouldClose = false) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setSavingOrder(true);
     setSaveMessage("");
     try {
@@ -2171,6 +2175,7 @@ export function PurchaseOrderWizard({ session }) {
       setSaveMessage(msg);
       alert(msg); // Ensure the user actually sees the error!
     } finally {
+      isSubmittingRef.current = false;
       setSavingOrder(false);
     }
   };

@@ -1,12 +1,12 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "", process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "");
-    const { data, error } = await supabase.from('purchase_orders').select('id, purchase_order_no, country_id, payment_status, created_at, deleted_at').order('created_at', { ascending: false }).limit(5);
-    return NextResponse.json({ ok: true, data, error });
+    const admin = createSupabaseAdminClient() as any;
+    const { data, error } = await admin.from("roznamcha_entries").select("id, type, journal_no, voucher_no, reference_no, created_at").order("created_at", { ascending: false }).limit(50);
+    return NextResponse.json({ data, error });
   } catch (err: any) {
-    return NextResponse.json({ ok: false, error: err.message });
+    return NextResponse.json({ error: err.message });
   }
 }

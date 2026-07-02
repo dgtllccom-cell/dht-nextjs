@@ -120,6 +120,9 @@ function normalizeOrder(row: any) {
     workflowAuditTrail: Array.isArray(workflow.workflowAuditTrail) ? workflow.workflowAuditTrail : [],
     workflow,
     form_data: row.form_data ?? {},
+    superAdminSerialNo: row.super_admin_serial_number ?? null,
+    countrySerialNo: row.country_transaction_serial_number ?? null,
+    branchSerialNo: row.branch_transaction_serial_number ?? null,
     advance_paid: Number(row.advance_paid || 0),
     remaining_paid: Number(row.remaining_paid || 0),
     credit_amount: Number(row.credit_amount || 0),
@@ -165,7 +168,7 @@ export async function GET(request: NextRequest) {
     let requestQuery = supabase
       .from("purchase_orders")
       .select(
-        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, payment_status, ledger_posting_status, is_edited_since_transfer, form_data, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), advance_paid, remaining_paid, credit_amount, remaining_due"
+        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, payment_status, ledger_posting_status, is_edited_since_transfer, form_data, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), advance_paid, remaining_paid, credit_amount, remaining_due, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });

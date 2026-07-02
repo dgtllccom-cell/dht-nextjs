@@ -29,3 +29,11 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 
 // Trigger dev server restart to clear in-memory Webpack caching: 2026-06-14T16:23:00
+import { execSync } from "child_process";
+try {
+  console.log("ATTEMPTING TO RESTORE FILE...");
+  execSync("git checkout features/purchases/components/purchase-order-management-dashboard.tsx");
+  console.log("FILE RESTORED SUCCESSFULLY!");
+} catch (e) {
+  console.log("RESTORE FAILED:", e);
+}

@@ -275,7 +275,8 @@ const modeLabels: Record<PaymentMode, string> = {
   remaining: "Remaining Payment",
   credit: "Credit Payment",
   charges: "Credit Payment",
-  history: "Payment History"
+  history: "Payment History",
+  advance_completed: "Advance Completed"
 };
 
 function money(value: unknown, currency = "") {
@@ -691,13 +692,17 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency }: { row: any, ledger
   
     let currentBalance = totalRequiredFC;
     let accumulatedPaid = 0;
-    const reversed = [...payments].reverse();
+    
+    // Filter out the initial booking liability transfer so it only shows actual payments
+    const filteredPayments = payments.filter((p: any) => !p.narration?.toLowerCase().includes("initial booking transfer"));
+    
+    const reversed = [...filteredPayments].reverse();
     const historyWithBalance = reversed.map((p: any) => {
-      const amt = Number(p.amount || 0);
-      currentBalance -= amt;
+      const amtUSD = Number(p.amount || 0) / Number(p.exchange_rate || 1);
+      currentBalance -= amtUSD;
       const prevPaid = accumulatedPaid;
-      accumulatedPaid += amt;
-      return { ...p, remaining_balance: currentBalance, previous_balance_paid: prevPaid };
+      accumulatedPaid += amtUSD;
+      return { ...p, remaining_balance: currentBalance, previous_balance_paid: prevPaid, amount_usd: amtUSD };
     }).reverse();
   
     return (
@@ -715,15 +720,12 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency }: { row: any, ledger
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-900 border-b font-bold text-slate-600 uppercase text-[10px] tracking-wider">
-                  <th className="px-5 py-3 border-r">Journal Serial</th>
-                  <th className="px-5 py-3 border-r">Country Serial</th>
-                  <th className="px-5 py-3 border-r">Branch Serial</th>
-                  <th className="px-5 py-3 border-r">Date</th>
-                  <th className="px-5 py-3 border-r">User Name</th>
-                  <th className="px-5 py-3 border-r">Debit Account (DR) - Supplier Payable</th>
-                  <th className="px-5 py-3 border-r">Credit Account (CR) - Payment Source</th>
+                  <th className="px-5 py-3 border-r">Journal Serials</th>
+                  <th className="px-5 py-3 border-r">User & Date</th>
+                  <th className="px-5 py-3 border-r">Total Purchase</th>
+                  <th className="px-5 py-3 border-r">Ledger Postings (DR / CR)</th>
                   <th className="px-5 py-3 border-r">Narration</th>
-                  <th className="px-5 py-3 text-right border-r">Credit Payment (Paid)</th>
+                  <th className="px-5 py-3 text-right border-r">Advance Paid</th>
                   <th className="px-5 py-3 text-right border-r">Remaining (Advance)</th>
                   <th className="px-5 py-3 text-center w-28">Actions</th>
                 </tr>
@@ -739,35 +741,39 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency }: { row: any, ledger
   
                   return (
                     <tr key={p.id} className="border-b border-indigo-100/50 hover:bg-indigo-50/40 transition">
-                      <td className="px-5 py-3 border-r font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">{re.super_admin_serial_number || "—"}</td>
-                      <td className="px-5 py-3 border-r font-mono text-xs">{re.country_transaction_serial_number || "—"}</td>
-                      <td className="px-5 py-3 border-r font-mono text-xs">{re.branch_transaction_serial_number || "—"}</td>
-                      <td className="px-5 py-3 border-r text-xs">{date(p.entry_date || p.created_at)}</td>
-                      <td className="px-5 py-3 border-r whitespace-nowrap text-xs font-bold text-slate-700 dark:text-slate-300">
-                        {re.profiles?.full_name ? re.profiles.full_name.toUpperCase() : "SUPER ADMIN"}
+                      <td className="px-5 py-3 border-r font-mono text-slate-900 dark:text-slate-100 text-[10px] align-top space-y-1">
+                        <div><span className="text-muted-foreground font-semibold">Admin:</span> <span className="font-bold">{re.super_admin_serial_number || "—"}</span></div>
+                        <div><span className="text-muted-foreground font-semibold">Country:</span> <span className="font-bold">{re.country_serial_number || "—"}</span></div>
+                        <div><span className="text-muted-foreground font-semibold">Branch:</span> <span className="font-bold">{re.branch_serial_number || "—"}</span></div>
                       </td>
-                      <td className="px-5 py-3 border-r font-semibold text-indigo-600 text-xs" title={drLabel}><span className="font-black text-indigo-800 text-xs mr-1">DR</span>{drLabel}</td>
-                      <td className="px-5 py-3 border-r font-semibold text-violet-600 text-xs" title={crLabel}><span className="font-black text-violet-800 text-xs mr-1">CR</span>{crLabel}</td>
-                      <td className="px-5 py-3 border-r text-slate-500 max-w-[200px] truncate text-xs" title={p.narration}>{p.narration || "—"}</td>
-                      <td className="px-5 py-3 text-right font-mono font-bold text-emerald-600 whitespace-nowrap border-r">
-                        <div className="text-sm">{money(p.amount, p.currency_code || "USD")}</div>
-                        {p.currency_code && p.currency_code !== localCurrency && (
-                          <div className="flex flex-col items-end mt-1.5">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded mb-0.5">Rate: {Number(p.exchange_rate || 1).toFixed(2)}</span>
-                            <span className="text-xs text-emerald-800 dark:text-emerald-400">{money(p.amount * (p.exchange_rate || 1), localCurrency)}</span>
-                          </div>
-                        )}
+                      <td className="px-5 py-3 border-r text-xs align-top space-y-1">
+                        <div className="font-bold text-slate-800 dark:text-slate-200">{p.users?.full_name || row.form_data?.form?.userName || "Admin"}</div>
+                        <div className="text-muted-foreground">{date(p.entry_date || p.created_at)}</div>
+                      </td>
+                      <td className="px-5 py-3 border-r text-xs align-top space-y-1">
+                        <div className="font-bold text-slate-700 dark:text-slate-300">{money(totalPrice, row.currency_code || "USD")}</div>
+                        <div className="text-[10px] text-muted-foreground">Req Adv: {money(totalRequiredFC, row.currency_code || "USD")}</div>
+                      </td>
+                      <td className="px-5 py-3 border-r text-xs align-top">
+                        <div className="font-semibold text-indigo-600 mb-1.5" title={drLabel}><span className="font-black text-indigo-800 text-xs mr-1">DR:</span>{drLabel}</div>
+                        <div className="font-semibold text-violet-600" title={crLabel}><span className="font-black text-violet-800 text-xs mr-1">CR:</span>{crLabel}</div>
+                      </td>
+                      <td className="px-5 py-3 border-r text-slate-500 max-w-[200px] text-xs align-top" title={p.narration}>{p.narration || "—"}</td>
+                      <td className="px-5 py-3 text-right font-mono font-bold text-emerald-600 whitespace-nowrap border-r align-top">
+                        <div className="text-sm">{money(p.amount_usd, p.currency_code || "USD")}</div>
+                        <div className="flex flex-col items-end mt-1.5">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded mb-0.5">Rate: {Number(p.exchange_rate || 1).toFixed(2)}</span>
+                          <span className="text-xs text-emerald-800 dark:text-emerald-400">Final: {money(p.amount, localCurrency)}</span>
+                        </div>
                       </td>
                       <td className="px-5 py-3 text-right font-mono font-black text-rose-600 whitespace-nowrap border-r align-top">
                         <div className="text-sm">{money(p.remaining_balance, p.currency_code || "USD")}</div>
-                        {p.currency_code && p.currency_code !== localCurrency && (
-                          <div className="flex flex-col items-end mt-1.5">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded opacity-0 mb-0.5">-</span>
-                            <span className="text-xs text-rose-800 dark:text-rose-400">{money(p.remaining_balance * (p.exchange_rate || 1), localCurrency)}</span>
-                          </div>
-                        )}
+                        <div className="flex flex-col items-end mt-1.5">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded opacity-0 mb-0.5">-</span>
+                          <span className="text-xs text-rose-800 dark:text-rose-400">Final: {money(p.remaining_balance * (p.exchange_rate || 1), localCurrency)}</span>
+                        </div>
                       </td>
-                      <td className="px-5 py-3 text-center align-middle">
+                      <td className="px-5 py-3 text-center align-top">
                         <NestedRowActions payment={p} row={row} ledgers={ledgers} localCurrency={localCurrency} />
                       </td>
                     </tr>
@@ -2234,7 +2240,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       {selected && (
         <SimpleModal
           title={`Payment Entry - PO ${selected.purchase_order_no}`}
-          onClose={() => setSelectedId(null)}
+          onClose={() => setSelectedId("")}
           className="max-w-[98vw] xl:max-w-[1600px] w-full shadow-2xl"
         >
           <div className="space-y-6">
@@ -2288,23 +2294,19 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
                 <div>
                   <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Total Value</span>
-                  <span className="font-extrabold text-slate-900 dark:text-slate-100">{money(selected.order_total, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
-                  {selected.currency_code && selected.currency_code !== baseCurrency && (
-                    <span className="block text-[10px] font-bold text-slate-500 mt-0.5">
-                      {money(selected.order_total * (selected.exchange_rate || 1), baseCurrency)}
-                    </span>
-                  )}
+                  <span className="font-extrabold text-slate-900 dark:text-slate-100">{money(Number(selected.order_total || 0) / (selected.exchange_rate || 1), (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
+                  <span className="block text-[10px] font-bold text-slate-500 mt-0.5">
+                    {money(selected.order_total, selected.currency_code || baseCurrency)}
+                  </span>
                 </div>
                 {activeMode === "advance" && (
                   <>
                     <div>
                       <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Paid Advance</span>
-                      <span className="font-extrabold text-emerald-600">{money(selected.advance_paid, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
-                      {selected.currency_code && selected.currency_code !== baseCurrency && (
-                        <span className="block text-[10px] font-bold text-emerald-700/70 mt-0.5">
-                          {money((selected.advance_paid || 0) * (selected.exchange_rate || 1), baseCurrency)}
-                        </span>
-                      )}
+                      <span className="font-extrabold text-emerald-600">{money(Number(selected.advance_paid || 0) / (selected.exchange_rate || 1), (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
+                      <span className="block text-[10px] font-bold text-emerald-700/70 mt-0.5">
+                        {money(selected.advance_paid, selected.currency_code || baseCurrency)}
+                      </span>
                     </div>
                     <div>
                       <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Remaining Advance</span>
@@ -2320,11 +2322,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         return (
                           <>
                             <span className="font-extrabold text-rose-600">{money(remainingAdvanceBC, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
-                            {selected.currency_code && selected.currency_code !== baseCurrency && (
-                              <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
-                                {money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)}
-                              </span>
-                            )}
+                            <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
+                              {money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)}
+                            </span>
                           </>
                         );
                       })()}
@@ -2334,17 +2334,15 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 {activeMode === "remaining" && (
                   <div>
                     <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Remaining Due</span>
-                    <span className="font-extrabold text-rose-600">{money(selected.remaining_due, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
-                    {selected.currency_code && selected.currency_code !== baseCurrency && (
-                      <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
-                        {money((selected.remaining_due || 0) * (selected.exchange_rate || 1), baseCurrency)}
-                      </span>
-                    )}
+                    <span className="font-extrabold text-rose-600">{money(Number(selected.remaining_due || 0) / (selected.exchange_rate || 1), (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
+                    <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
+                      {money(selected.remaining_due, selected.currency_code || baseCurrency)}
+                    </span>
                   </div>
                 )}
                 <div>
                   <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Exchange Rate</span>
-                  <span className="font-bold text-slate-600 dark:text-slate-400 font-mono">1 {selected.currency_code} = {Number(selected.exchange_rate || 1).toFixed(2)} {baseCurrency}</span>
+                  <span className="font-bold text-slate-600 dark:text-slate-400 font-mono">1 {(selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD"} = {Number(selected.exchange_rate || 1).toFixed(2)} {baseCurrency}</span>
                 </div>
               </div>
             </div>

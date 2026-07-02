@@ -132,7 +132,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         p_debit_ledger_id: debitLedgerId,
         p_credit_ledger_id: creditLedgerId,
         p_reference_no: (order as any).purchase_order_no || null,
-        p_narration: `Initial booking transfer for Purchase Order ${(order as any).purchase_order_no}`
+        p_narration: `Initial booking transfer for Purchase Order ${(order as any).purchase_order_no} (Dr: ${purchaseAccountCode} / Cr: ${salesAccountCode})`
       });
       
       if (rpcError) {
@@ -193,8 +193,10 @@ interface ScopeContext {
 /**
  * Resolve a ledger ID from an account code.
  * Tries multiple lookup strategies in priority order:
- * 1. Direct ledger.code match (scope-aware first, then any scope)
- * 2. Enterprise account lookup → linked ledger
+ * 1. Direct ledger.code match (scope-aware first)
+ * 2. Enterprise account lookup → linked ledger (scope-aware)
+ * 3. Direct ledger match (any scope fallback)
+ * 4. Enterprise linked ledger (any scope fallback)
  */
 async function getLedgerIdByCode(
   supabase: any,
@@ -212,7 +214,7 @@ async function getLedgerIdByCode(
       .eq("is_active", true)
       .is("deleted_at", null);
 
-  // 1a. Direct ledger code match — scope-specific first
+  // 1. Direct ledger code match — scope-specific first
   if (scope?.cityBranchId) {
     const { data } = await ledgerBase()
       .eq("code", lookup)
@@ -234,13 +236,6 @@ async function getLedgerIdByCode(
       .maybeSingle();
     if (data?.id) return data.id;
   }
-
-  // 1b. Direct ledger code match — any scope (fallback)
-  const { data: anyLedger } = await ledgerBase()
-    .eq("code", lookup)
-    .limit(1)
-    .maybeSingle();
-  if (anyLedger?.id) return anyLedger.id;
 
   // 2. Find enterprise account by various identifiers
   const { data: account } = await supabase
@@ -254,54 +249,64 @@ async function getLedgerIdByCode(
     .limit(1)
     .maybeSingle();
 
-  if (!account?.id) return null;
+  if (account?.id) {
+    // 3. Find ledger linked to this enterprise account — scope-specific first
+    if (scope?.cityBranchId) {
+      const { data } = await supabase
+        .from("ledgers")
+        .select("id")
+        .eq("enterprise_account_id", account.id)
+        .eq("city_branch_id", scope.cityBranchId)
+        .eq("is_active", true)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (data?.id) return data.id;
+    }
+    if (scope?.countryBranchId) {
+      const { data } = await supabase
+        .from("ledgers")
+        .select("id")
+        .eq("enterprise_account_id", account.id)
+        .eq("country_branch_id", scope.countryBranchId)
+        .eq("is_active", true)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (data?.id) return data.id;
+    }
+    if (scope?.countryId) {
+      const { data } = await supabase
+        .from("ledgers")
+        .select("id")
+        .eq("enterprise_account_id", account.id)
+        .eq("country_id", scope.countryId)
+        .eq("is_active", true)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (data?.id) return data.id;
+    }
+  }
 
-  // 3. Find ledger linked to this enterprise account — scope-specific first
-  if (scope?.cityBranchId) {
-    const { data } = await supabase
-      .from("ledgers")
-      .select("id")
-      .eq("enterprise_account_id", account.id)
-      .eq("city_branch_id", scope.cityBranchId)
-      .eq("is_active", true)
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (data?.id) return data.id;
-  }
-  if (scope?.countryBranchId) {
-    const { data } = await supabase
-      .from("ledgers")
-      .select("id")
-      .eq("enterprise_account_id", account.id)
-      .eq("country_branch_id", scope.countryBranchId)
-      .eq("is_active", true)
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (data?.id) return data.id;
-  }
-  if (scope?.countryId) {
-    const { data } = await supabase
-      .from("ledgers")
-      .select("id")
-      .eq("enterprise_account_id", account.id)
-      .eq("country_id", scope.countryId)
-      .eq("is_active", true)
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (data?.id) return data.id;
-  }
-
-  // 4. Any ledger linked to this enterprise account (fallback)
-  const { data: fallbackLedger } = await supabase
-    .from("ledgers")
-    .select("id")
-    .eq("enterprise_account_id", account.id)
-    .eq("is_active", true)
-    .is("deleted_at", null)
+  // 4. Direct ledger code match — any scope (fallback)
+  const { data: anyLedger } = await ledgerBase()
+    .eq("code", lookup)
     .limit(1)
     .maybeSingle();
+  if (anyLedger?.id) return anyLedger.id;
 
-  return fallbackLedger?.id ?? null;
+  // 5. Any ledger linked to this enterprise account (fallback)
+  if (account?.id) {
+    const { data: fallbackLedger } = await supabase
+      .from("ledgers")
+      .select("id")
+      .eq("enterprise_account_id", account.id)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+    if (fallbackLedger?.id) return fallbackLedger.id;
+  }
+
+  return null;
 }
 
 export async function revertOrderBookingTransfer(orderId: string, supabase: any, adminSupabase: any) {

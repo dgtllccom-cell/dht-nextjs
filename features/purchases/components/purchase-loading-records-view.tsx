@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, Link2, MoreVertical, Printer, RefreshCcw, Search, Ship } from "lucide-react";
-import { Button } from "@/components/ui/button";`r`nimport { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
+import { Button } from "@/components/ui/button";
+import { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErpPageActions } from "@/components/layout/erp-page-actions";
 import { cn } from "@/lib/utils";
@@ -138,6 +139,17 @@ export function PurchaseLoadingRecordsView() {
 
   useEffect(() => {
     void loadRecords();
+    const refresh = () => void loadRecords();
+    window.addEventListener("focus", refresh);
+    window.addEventListener("erp:purchase-order-saved", refresh);
+    window.addEventListener("erp:purchase-transfer-saved", refresh);
+    window.addEventListener("erp:purchase-loading-saved", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("erp:purchase-order-saved", refresh);
+      window.removeEventListener("erp:purchase-transfer-saved", refresh);
+      window.removeEventListener("erp:purchase-loading-saved", refresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -251,7 +263,31 @@ export function PurchaseLoadingRecordsView() {
               <table className="w-max min-w-full border-collapse text-sm">
                 <thead>
                   <tr className="bg-slate-950 text-left text-xs uppercase tracking-wide text-white">
-                    {["SR#", "Organization", "Loading No", "Purchase Booking No.", "Sales Account", "Account Detail", "Goods Name", "Goods Details", "Quantity", "Net Weight", "Gross Weight", "Purchase Total Currency", "Advance Currency", "Transport Information", "Action"].map((head) => (
+                    {[
+                      "SR#",
+                      "Country",
+                      "Branch",
+                      "User Name",
+                      "Loading No",
+                      "Purchase Booking No.",
+                      "Sales Account",
+                      "Purchase Account",
+                      "Goods",
+                      "Quantity",
+                      "Net Weight",
+                      "Gross Weight",
+                      "Purchase Amount",
+                      "Exchange Rate",
+                      "Advance Amount",
+                      "Clearance Date",
+                      "Loading Country",
+                      "Loading Port",
+                      "Loading Date",
+                      "Received Country",
+                      "Received Port",
+                      "Received Date",
+                      "Action"
+                    ].map((head) => (
                       <th key={head} className="whitespace-nowrap px-3 py-3 font-black">
                         {head}
                       </th>
@@ -270,14 +306,17 @@ export function PurchaseLoadingRecordsView() {
                       const poData = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders)?.form_data || {};
                       const form = poData.form || {};
                       
-                      // Supplier
-                      const supplierName = form.supplierName || form.vendorName || poData.supplier?.accountName || "-";
-                      const accountDetail = form.supplierDetails || poData.accountDetail || "-";
+                      // Account Info
+                      const salesAccountNo = form.salesAccountNumber || form.salesAccountNo || "-";
+                      const salesAccountName = form.salesAccountName || "-";
+                      const purchaseAccountNo = form.purchaseAccountNumber || form.purchaseAccountNo || "-";
+                      const purchaseAccountName = form.purchaseAccountName || "-";
                       
                       // Goods
                       const goods = poData.goodsEntries || [];
                       const goodsName = goods.map((g: any) => g.goodsName || g.item_name).filter(Boolean).join(", ") || form.itemName || "-";
                       const goodsDetails = goods.map((g: any) => g.brand || g.size || g.item_details).filter(Boolean).join(", ") || form.itemDetails || "-";
+                      const combinedGoods = goodsName !== "-" ? `${goodsName}${goodsDetails !== "-" ? ` - ${goodsDetails}` : ""}` : "-";
                       const totalQty = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || g.quantity || 0), 0) : Number(form.quantity || 0);
                       const totalNet = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
                       const totalGross = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
@@ -286,6 +325,8 @@ export function PurchaseLoadingRecordsView() {
                       const totalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || g.totalAmount || 0), 0) : Number(form.totalAmount || form.finalAmount || 0);
                       const currency = form.secondaryCurrency?.split(" ")?.[0] || form.currency || "-";
                       const advanceCurrency = form.advanceAmount ? `${form.advanceAmount} ${currency}` : "-";
+                      const exchangeRate = form.exchangeRate || (poData as any).exchange_rate || "-";
+                      const clearanceDate = form.advancePaymentDate || form.paymentDate || form.clearanceDate || "-";
                       
                       // Logistics
                       const loadingCountry = form.loadingCountry || form.originCountry || "-";
@@ -293,30 +334,42 @@ export function PurchaseLoadingRecordsView() {
                       const loadingDateVal = form.loadingDate || "-";
                       const receivingCountry = form.receivedCountry || form.destinationCountry || "-";
                       const receivingPort = form.receivedPort || form.destinationPort || "-";
-                      const receivingDateVal = form.receivedDate || form.arrivalDate || "-";`r`n                      const countryLabel = `${record.countries?.name || form.branchCountry || "-"}${record.countries?.iso2 ? ` (${record.countries.iso2})` : ""}`;`r`n                      const cityLabel = `${record.city_branches?.city_name || form.cityName || "-"}${record.city_branches?.code ? ` (${record.city_branches.code})` : ""}`;`r`n                      const branchLabel = `${record.country_branches?.name || form.branchName || "-"}${record.country_branches?.code ? ` (${record.country_branches.code})` : ""}`;`r`n                      const adminLabel = form.userName || form.userId || "-";
+                      const receivingDateVal = form.receivedDate || form.arrivalDate || "-";
+                      
+                      const countryLabel = record.countries?.name || form.branchCountry || "-";
+                      const branchLabel = record.country_branches?.name || form.branchName || "-";
+                      const adminLabel = form.userName || form.userId || "-";
 
                       return (
                         <tr key={record.id} className="border-b hover:bg-muted/40">
                           <td className="whitespace-nowrap px-3 py-2">{String(index + 1).padStart(2, "0")}</td>
-                          <td className="min-w-[260px] px-3 py-2 text-[11px] leading-relaxed"><div className="font-black text-foreground">{countryLabel}</div><div>{cityLabel}</div><div>{branchLabel}</div><div className="text-muted-foreground">Created By: {adminLabel}</div></td>`r`n                          <td className="whitespace-nowrap px-3 py-2 font-bold text-primary">{record.loading_record_no}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{countryLabel}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{branchLabel}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{adminLabel}</td>
+                          <td className="whitespace-nowrap px-3 py-2 font-bold text-primary">{record.loading_record_no}</td>
                           <td className="whitespace-nowrap px-3 py-2">{record.purchase_order_no ? <span className="inline-flex items-center gap-1"><Link2 className="h-3.5 w-3.5" />{record.purchase_order_no}</span> : "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{supplierName || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{accountDetail || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{goodsName || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{goodsDetails || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2 leading-tight">
+                            <div className="font-mono text-xs font-bold text-foreground">{salesAccountNo}</div>
+                            <div className="text-muted-foreground text-[11px]">{salesAccountName}</div>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 leading-tight">
+                            <div className="font-mono text-xs font-bold text-foreground">{purchaseAccountNo}</div>
+                            <div className="text-muted-foreground text-[11px]">{purchaseAccountName}</div>
+                          </td>
+                          <td className="min-w-[150px] px-3 py-2">{combinedGoods}</td>
                           <td className="whitespace-nowrap px-3 py-2">{totalQty || "-"}</td>
                           <td className="whitespace-nowrap px-3 py-2">{totalNet || "-"}</td>
                           <td className="whitespace-nowrap px-3 py-2">{totalGross || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{totalAmt ? `${totalAmt} ${currency}` : "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{advanceCurrency || "-"}</td>
-                          <td className="min-w-[300px] px-3 py-2 text-[11px] leading-relaxed">
-                            <div><span className="font-black">Loading:</span> {loadingCountry || "-"} / {record.loading_location || loadingPort || "-"}</div>
-                            <div><span className="font-black">Loaded:</span> {record.loaded_at ? new Date(record.loaded_at).toLocaleDateString() : (loadingDateVal || "-")}</div>
-                            <div><span className="font-black">Destination:</span> {receivingCountry || "-"} / {record.receiving_location || receivingPort || "-"}</div>
-                            <div><span className="font-black">Receiving:</span> {receivingDateVal || "-"}</div>
-                            <div><span className="font-black">Shipping:</span> {record.carrier_name || form.shippingMethod || form.shippingLine || "-"}</div>
-                            <div><span className="font-black">Vessel / Container:</span> {record.container_number || form.containerNumber || "-"} / {record.container_type || "-"}</div>
-                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 font-bold text-emerald-700">{totalAmt ? `${totalAmt} ${currency}` : "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">{exchangeRate}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-rose-600">{advanceCurrency}</td>
+                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{clearanceDate}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{loadingCountry}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{record.loading_location || loadingPort || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{record.loaded_at ? new Date(record.loaded_at).toLocaleDateString() : (loadingDateVal || "-")}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{receivingCountry}</td>
+                          <td className="whitespace-nowrap px-3 py-2">{record.receiving_location || receivingPort || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{receivingDateVal}</td>
                           <td className="whitespace-nowrap px-3 py-2">
                             <CustomDropdown recordId={record.id} />
                           </td>

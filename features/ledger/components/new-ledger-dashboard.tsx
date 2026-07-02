@@ -58,6 +58,18 @@ function fmtNumber(value: number | null | undefined) {
     : "0.00";
 }
 
+function fmtBalance(balance: number, normalBalance?: "debit" | "credit") {
+  if (!balance) return { text: "0.00", isDr: false, isCr: false, color: "text-slate-500" };
+  const isCredit = normalBalance === "debit" ? balance < 0 : balance > 0;
+  const absBal = Math.abs(balance);
+  return {
+    text: `${fmtNumber(absBal)} ${isCredit ? "CR" : "DR"}`,
+    isDr: !isCredit,
+    isCr: isCredit,
+    color: isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
+  };
+}
+
 function fmtDate(value: string | null | undefined) {
   if (!value) return "-";
   const d = new Date(value);
@@ -558,8 +570,14 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
               <InfoRow label="Entries" value={String(totals.entries)} />
               <InfoRow label="Dr" value={fmtNumber(totals.debit || account?.debitTotal)} danger />
               <InfoRow label="Cr" value={fmtNumber(totals.credit || account?.creditTotal)} success />
-              <InfoRow label="Opening" value={fmtNumber(openingBalance)} />
-              <InfoRow label="Balance" value={fmtNumber(totals.balance || account?.currentBalance)} strong />
+              <InfoRow label="Opening" value={fmtBalance(openingBalance, account?.normalBalance).text} />
+              <InfoRow 
+                label="Balance" 
+                value={fmtBalance(totals.balance || account?.currentBalance || 0, account?.normalBalance).text} 
+                success={fmtBalance(totals.balance || account?.currentBalance || 0, account?.normalBalance).isCr}
+                danger={fmtBalance(totals.balance || account?.currentBalance || 0, account?.normalBalance).isDr}
+                strong={!fmtBalance(totals.balance || account?.currentBalance || 0, account?.normalBalance).isCr && !fmtBalance(totals.balance || account?.currentBalance || 0, account?.normalBalance).isDr} 
+              />
               {isSuperAdmin && <InfoRow label="1 USD" value="Rate stored per posting" />}
             </InfoPanel>
 
@@ -608,26 +626,29 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
                     const userNameVal = line.createdByName || "-";
                     const usdDebit = line.debit > 0 ? line.usdAmount : 0;
                     const usdCredit = line.credit > 0 ? line.usdAmount : 0;
+                    
+                    const lineBal = fmtBalance(line.runningBalance, account?.normalBalance);
+                    const usdBal = fmtBalance(line.runningBalanceUsd, account?.normalBalance);
  
                     return (
-                      <tr key={`${line.sourceId}-${index}`} className={cn("border-b", index % 2 ? "bg-muted/20" : "bg-background")}>
+                      <tr key={`${line.sourceId}-${index}`} className={cn("border-b", index % 2 ? "bg-muted/20" : "bg-background", lineBal.color)}>
                         <td className="px-4 py-3">{fmtDate(line.entryDate)}</td>
                         <td className="px-4 py-3 font-mono">{superAdminSerial}</td>
                         <td className="px-4 py-3 font-mono">{countrySerial}</td>
                         <td className="px-4 py-3 font-mono">{branchSerial}</td>
                         <td className="px-4 py-3" title={line.branchName || undefined}>{branchNameVal}</td>
-                        <td className="px-4 py-3 font-medium text-cyan-600 dark:text-cyan-300">{userNameVal}</td>
+                        <td className="px-4 py-3 font-medium">{userNameVal}</td>
                         <td className="px-4 py-3">{line.referenceNo || "-"}</td>
                         <td className="max-w-[360px] px-4 py-3">{line.description || "-"}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-cyan-600 dark:text-cyan-300">{fmtNumber(line.debit)}</td>
-                        <td className="px-4 py-3 text-right text-rose-500">{fmtNumber(line.credit)}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-emerald-600">{fmtNumber(line.runningBalance)}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{fmtNumber(line.debit)}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{fmtNumber(line.credit)}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{lineBal.text}</td>
                         {isSuperAdmin && (
                           <>
-                            <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-300">{fmtNumber(line.usdRate)}</td>
+                            <td className="px-4 py-3 text-right">{fmtNumber(line.usdRate)}</td>
                             <td className="px-4 py-3 text-right">{fmtNumber(usdDebit)}</td>
                             <td className="px-4 py-3 text-right">{fmtNumber(usdCredit)}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-emerald-600">{fmtNumber(line.runningBalanceUsd)}</td>
+                            <td className="px-4 py-3 text-right font-semibold">{usdBal.text}</td>
                           </>
                         )}
                       </tr>

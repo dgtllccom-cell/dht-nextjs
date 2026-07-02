@@ -557,7 +557,7 @@ function ReportToolbar({
             <RefreshCcw className="mr-2 h-4 w-4" />
             Reset
           </Button>
-          <ReportActionsMenu rows={rows} onExport={onExport} />
+          <ReportActionsMenu rows={rows} onExport={onExport!} />
         </div>
       </div>
       <div className="flex items-center justify-between border-t border-border px-3 py-2 text-xs text-muted-foreground">
@@ -974,7 +974,7 @@ export function PurchaseBookingJournalReportView({
       setIsDrawerOpen(false);
       // Update local state without reload to reflect change
       setReports((prev) => prev.map(r => r.id === selected.id ? { ...r, form_data: updatedFormData } : r));
-      setSelected({ ...selected, form_data: updatedFormData });
+      // setSelected is not a state setter, selected is derived
       setIsDrawerOpen(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error accepting booking.");
@@ -1647,7 +1647,10 @@ export function PurchaseBookingJournalReportView({
                 || report.journalStatus === "Posted"
                 || report.journalStatus?.toLowerCase() === "posted"
                 || report.form_data?.workflow?.journalStatus === "Posted"
-                || report.form_data?.workflow?.journalStatus?.toLowerCase() === "posted";
+                || report.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
+                || ((report as any).advance_paid && (report as any).advance_paid > 0)
+                || report.paymentStatus === "partial"
+                || report.paymentStatus === "completed";
               const transferStatusBadge = isPosted ? (
                 <span className="inline-flex rounded bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap">
                   YES
@@ -1741,7 +1744,7 @@ export function PurchaseBookingJournalReportView({
                     {totalAmt > 0 ? `${formatMoney(totalAmt)}` : "-"}
                   </Td>
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
-                    {purchaseAmt > 0 ? `${formatMoney(purchaseAmt)}` : "-"}
+                    {purchaseAmt > 0 ? `${formatMoney(purchaseAmt)} ${currency}` : "-"}
                   </Td>
                   <Td right className={`font-mono ${getRowColor()} text-[10px]`}>
                     {exchangeRate > 0 ? exchangeRate.toLocaleString("en-US") : "-"}
@@ -1879,18 +1882,16 @@ export function PurchaseBookingJournalReportView({
                   {accepting ? "Accepting..." : "Accept"}
                 </Button>
               )}
-              <Button
-                type="button"
-                onClick={handleTransfer}
-                disabled={transferring || Boolean(selected && (selected.status === "Posted" || selected.ledger_posting_status === "posted" || selected.ledger_posting_status === "Transferred" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")) || selected?.form_data?.workflow?.confirmationStatus !== "Accepted"}
-                className={
-                  selected && (selected.status === "Posted" || selected.ledger_posting_status === "posted" || selected.ledger_posting_status === "Transferred" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")
-                    ? "bg-slate-350 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed border-slate-300 font-bold text-xs h-8"
-                    : "bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8"
-                }
-              >
-                {transferring ? "Transferring..." : (selected && (selected.status === "Posted" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")) ? "✓ Transferred" : "Transfer"}
-              </Button>
+              {!(selected && (selected.status === "Posted" || (selected as any).ledger_posting_status === "posted" || (selected as any).ledger_posting_status === "Transferred" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")) && (
+                <Button
+                  type="button"
+                  onClick={handleTransfer}
+                  disabled={transferring || selected?.form_data?.workflow?.confirmationStatus !== "Accepted"}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8"
+                >
+                  {transferring ? "Transferring..." : "Transfer"}
+                </Button>
+              )}
             </div>
           }
         >
@@ -2365,6 +2366,13 @@ export function PurchaseBookingJournalReportView({
                       <div className="font-bold text-slate-400 text-[6.5px] mt-1">AUTHORIZED BY</div>
                     </div>
                   </div>
+
+                  {/* Transfer Info */}
+                  {selected.form_data?.form?.transferAudit && (
+                    <div className="text-right text-[8px] font-bold text-blue-600 mt-2 border-t border-slate-200 pt-1.5">
+                      Transferred to Purchase Transfer Payment by <span className="uppercase">{selected.form_data.form.transferAudit.userName}</span> on {new Date(selected.form_data.form.transferAudit.transferDate).toLocaleDateString()}
+                    </div>
+                  )}
 
                 </div>
               </div>

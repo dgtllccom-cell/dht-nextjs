@@ -90,19 +90,28 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     });
 
     const orderRow = order as any;
-    const orderTotal = Number(orderRow.order_total || 0);
-    const advancePaid = Number(orderRow.advance_paid || 0);
-    const remainingPaid = Number(orderRow.remaining_paid || 0);
-    const creditAmount = Number(orderRow.credit_amount || 0);
-    const remainingDue = Math.max(0, Number(orderRow.remaining_due ?? (orderTotal - advancePaid - remainingPaid - creditAmount)));
+    const exchangeRate = Number(orderRow.exchange_rate || 1);
+    const orderTotalUSD = Number(orderRow.order_total || 0) / exchangeRate;
+    const advancePaidUSD = Number(orderRow.advance_paid || 0) / exchangeRate;
+    const remainingPaidUSD = Number(orderRow.remaining_paid || 0) / exchangeRate;
+    const creditAmountUSD = Number(orderRow.credit_amount || 0) / exchangeRate;
+    
+    let remainingDueUSD = 0;
+    if (orderRow.remaining_due != null) {
+      remainingDueUSD = Number(orderRow.remaining_due) / exchangeRate;
+    } else {
+      remainingDueUSD = Math.max(0, orderTotalUSD - advancePaidUSD - remainingPaidUSD - creditAmountUSD);
+    }
+
     const form = orderRow.form_data?.form || {};
     const goodsEntries = Array.isArray(orderRow.form_data?.goodsEntries) ? orderRow.form_data.goodsEntries : [];
-    const formTotal = goodsEntries.length
-      ? goodsEntries.reduce((sum: number, item: any) => sum + Number(item.totalAmount || item.finalAmount || 0), 0)
-      : Number(form.totalAmount || orderTotal || 0);
+    const formTotalUSD = goodsEntries.length
+      ? goodsEntries.reduce((sum: number, item: any) => sum + Number(item.totalAmount || 0), 0)
+      : Number(form.totalAmount || orderTotalUSD);
+      
     const advancePercent = Number(form.advancePercent || 0);
-    const requiredAdvance = advancePercent > 0 ? (formTotal * advancePercent) / 100 : 0;
-    const remainingAdvance = Math.max(0, requiredAdvance - advancePaid);
+    const requiredAdvanceUSD = advancePercent > 0 ? (formTotalUSD * advancePercent) / 100 : 0;
+    const remainingAdvanceUSD = Math.max(0, requiredAdvanceUSD - advancePaidUSD);
     const tolerance = 0.01;
 
     if (body.debitLedgerId === body.creditLedgerId) {
@@ -112,20 +121,20 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const bodyAmountUSD = body.amount / (body.exchangeRate || 1);
 
     if (body.kind === "advance" && advancePercent > 0) {
-      if (remainingAdvance <= tolerance) {
+      if (remainingAdvanceUSD <= tolerance) {
         throw new Error("Advance payment is already completed for this purchase order. Duplicate posting is not allowed.");
       }
-      if (bodyAmountUSD > remainingAdvance + tolerance) {
-        throw new Error(`Advance payment amount cannot exceed remaining advance balance (${remainingAdvance.toFixed(2)}).`);
+      if (bodyAmountUSD > remainingAdvanceUSD + tolerance) {
+        throw new Error(`Advance payment amount cannot exceed remaining advance balance (${remainingAdvanceUSD.toFixed(2)}).`);
       }
     }
 
-    if ((body.kind === "remaining" || body.kind === "credit") && remainingDue <= tolerance) {
+    if ((body.kind === "remaining" || body.kind === "credit") && remainingDueUSD <= tolerance) {
       throw new Error("This purchase order has no remaining payable balance. Duplicate posting is not allowed.");
     }
 
-    if ((body.kind === "remaining" || body.kind === "credit") && bodyAmountUSD > remainingDue + tolerance) {
-      throw new Error(`Payment amount cannot exceed remaining payable balance (${remainingDue.toFixed(2)}).`);
+    if ((body.kind === "remaining" || body.kind === "credit") && bodyAmountUSD > remainingDueUSD + tolerance) {
+      throw new Error(`Payment amount cannot exceed remaining payable balance (${remainingDueUSD.toFixed(2)}).`);
     }
     // Transaction-safe posting via RPC using the security definer wrapper post_purchase_booking_transfer.
     // This wrapper sets config('request.jwt.claims', ...) so audit log triggers find auth.uid().
