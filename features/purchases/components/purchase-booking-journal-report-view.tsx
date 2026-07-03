@@ -2303,7 +2303,7 @@ export function PurchaseBookingJournalReportView({
                               <span className="text-slate-400 font-medium px-1.5">@</span> 
                               <span className="text-blue-600">{exRate}</span> 
                               <span className="text-slate-400 font-medium px-1.5">=</span> 
-                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {localCurrency}
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrency}
                             </td>
                           </tr>
                           <tr className="border-b border-slate-100">

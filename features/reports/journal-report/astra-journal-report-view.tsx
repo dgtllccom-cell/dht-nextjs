@@ -544,7 +544,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
             items={[
               { label: "Total Branches", value: String(Array.from(new Set(filtered.map(r => r.branchCode))).length || 4) },
               { label: "Total Transactions", value: String(filtered.length) },
-              { label: "Exchange Rate", value: "1 PKR = 1 PKR" }
+              { label: "Exchange Rate", value: "1 Base Currency = 1 Base Currency" }
             ]}
           />
         ) : (
@@ -568,7 +568,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
             <ClipboardList className="h-5 w-5 text-rose-600 dark:text-rose-400" />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL DEBIT (PKR)</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL DEBIT (BASE CURR)</p>
             <p className="text-lg font-black text-rose-600 dark:text-rose-400 tracking-tight">{fmt(summary.debit)}</p>
           </div>
         </div>
@@ -577,7 +577,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
             <ClipboardList className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL CREDIT (PKR)</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL CREDIT (BASE CURR)</p>
             <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 tracking-tight">{fmt(summary.credit)}</p>
           </div>
         </div>
@@ -586,7 +586,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
             <span className="text-blue-600 dark:text-blue-400 font-bold text-lg">⚖</span>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL BALANCE (PKR)</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">TOTAL BALANCE (BASE CURR)</p>
             <p className="text-lg font-black text-blue-600 dark:text-blue-400 tracking-tight">{fmt(summary.balance)}</p>
           </div>
         </div>
@@ -605,7 +605,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-0.5">EXCHANGE RATE</p>
-            <p className="text-lg font-black text-purple-700 dark:text-purple-400 tracking-tight">1 PKR = 1 PKR</p>
+            <p className="text-lg font-black text-purple-700 dark:text-purple-400 tracking-tight">1 Base Currency = 1 Base Currency</p>
           </div>
         </div>
       </div>
@@ -620,7 +620,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
             </h2>
           </div>
           {scope === "country" && (
-            <p className="text-[10px] font-bold text-slate-500">All amounts are in PKR (Pakistan Rupee)</p>
+            <p className="text-[10px] font-bold text-slate-500">All amounts are in Base Currency</p>
           )}
         </div>
         <div className="overflow-x-auto">
@@ -633,9 +633,9 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
                   <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BRANCH CODE</th>
                   <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BRANCH TYPE</th>
                   <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">TOTAL TRANSACTIONS</th>
-                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">TOTAL DEBIT (PKR)</th>
-                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">TOTAL CREDIT (PKR)</th>
-                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BALANCE (PKR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">TOTAL DEBIT (BASE CURR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">TOTAL CREDIT (BASE CURR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BALANCE (BASE CURR)</th>
                   <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center">STATUS</th>
                 </tr>
               ) : (
@@ -647,9 +647,9 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
                   <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider border-r border-white/10">ACCOUNT / PARTY</th>
                   <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider border-r border-white/10">DETAILS / NARRATION</th>
                   <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">CURR.</th>
-                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">DEBIT (PKR)</th>
-                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">CREDIT (PKR)</th>
-                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BALANCE (PKR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">DEBIT (BASE CURR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">CREDIT (BASE CURR)</th>
+                  <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center border-r border-white/10">BALANCE (BASE CURR)</th>
                   <th className="px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-center">DR / CR</th>
                 </tr>
               )}
@@ -747,7 +747,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
                         <span className="truncate max-w-[250px] inline-block align-bottom" title={row.narration}>{row.narration}</span>
                       </td>
                       <td className="px-3 py-3 text-center font-bold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
-                        PKR
+                        BASE CURR
                       </td>
                       <td className="px-3 py-3 text-right font-black text-rose-600 dark:text-rose-400 border-r border-slate-100 dark:border-slate-800">
                         {row.debit > 0 ? fmt(row.debit) : "0.00"}
@@ -798,7 +798,7 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-md">
             <div className="h-4 w-4 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-[9px]">i</div>
-            NOTE: All amounts are in PKR (Pakistan Rupee). This report is system generated and does not require any signature.
+            NOTE: All amounts are in Base Currency. This report is system generated and does not require any signature.
           </div>
           {scope !== "country" && (
             <div className="flex items-center gap-2">
