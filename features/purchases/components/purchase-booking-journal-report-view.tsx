@@ -2156,7 +2156,7 @@ export function PurchaseBookingJournalReportView({
                           <th className="p-1 border-r border-slate-200 text-right w-[8%]">GROSS WT</th>
                           <th className="p-1 border-r border-slate-200 text-right w-[8%]">NET WT</th>
                           <th className="p-1 border-r border-slate-200 text-right w-[8%]">RATE / KG</th>
-                          <th className="p-1 border-r border-slate-200 text-right w-[10%]">AMOUNT (USD)</th>
+                          <th className="p-1 border-r border-slate-200 text-right w-[10%]">AMOUNT ({purchaseCurrency})</th>
                           <th className="p-1 border-r border-slate-200 text-right w-[6%]">EX. RATE</th>
                           <th className="p-1 text-right w-[10%]">FINAL AMOUNT</th>
                         </tr>
@@ -2203,7 +2203,7 @@ export function PurchaseBookingJournalReportView({
                           <td className="p-1 text-right text-slate-950 font-bold">{totalGross.toLocaleString()} kg</td>
                           <td className="p-1 text-right text-slate-950 font-bold">{totalNet.toLocaleString()} kg</td>
                           <td className="p-1 text-right text-slate-550 text-[7px]">Avg: {purchaseCurrencySymbol}{avgRateKg.toFixed(2)}</td>
-                          <td className="p-1 text-right text-blue-600 font-black">{purchaseCurrencySymbol}{totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="p-1 text-right text-blue-600 font-black">{totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {purchaseCurrencySymbol}</td>
                           <td className="p-1"></td>
                           <td className="p-1 text-right text-emerald-600 font-black">{totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}</td>
                         </tr>
@@ -2299,11 +2299,11 @@ export function PurchaseBookingJournalReportView({
                           <tr className="border-b border-slate-100">
                             <td className="px-2 py-1 text-slate-400">Debit Amount:</td>
                             <td className="px-2 py-1 text-slate-800 font-mono font-bold text-emerald-600">
-                              {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {selected.currency || "USD"} 
+                              {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {purchaseCurrency} 
                               <span className="text-slate-400 font-medium px-1.5">@</span> 
                               <span className="text-blue-600">{exRate}</span> 
                               <span className="text-slate-400 font-medium px-1.5">=</span> 
-                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {localCurrency}
                             </td>
                           </tr>
                           <tr className="border-b border-slate-100">
@@ -2318,11 +2318,11 @@ export function PurchaseBookingJournalReportView({
                           <tr className="border-b border-slate-100">
                             <td className="px-2 py-1 text-slate-400">Credit Amount:</td>
                             <td className="px-2 py-1 text-slate-800 font-mono font-bold text-emerald-600">
-                              {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {selected.currency || "USD"} 
+                              {totalUSDVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {purchaseCurrency} 
                               <span className="text-slate-400 font-medium px-1.5">@</span> 
                               <span className="text-blue-600">{exRate}</span> 
                               <span className="text-slate-400 font-medium px-1.5">=</span> 
-                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrencySymbol}
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {localCurrency}
                             </td>
                           </tr>
                           <tr className="border-b border-slate-100">

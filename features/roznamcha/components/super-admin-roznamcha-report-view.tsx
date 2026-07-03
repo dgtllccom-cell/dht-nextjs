@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -91,10 +91,13 @@ type FilterState = {
   toDate: string;
   countryId: string;
   branchId: string;
+  userName: string;
   voucherType: string;
   partySearch: string;
   currency: string;
 };
+
+type ReportMode = "daily_summary" | "branch_wise" | "user_wise";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -577,6 +580,101 @@ function branchStats(rows: SuperAdminRoznamchaRow[]): BranchSummaryRow[] {
     map.set(key, current);
   }
   return Array.from(map.values()).sort((a, b) => a.branchName.localeCompare(b.branchName));
+}
+type DailySummaryRow = {
+  key: string;
+  date: string;
+  countryName: string;
+  branchName: string;
+  voucherTypes: Set<string>;
+  transactions: number;
+  debit: number;
+  credit: number;
+  balance: number;
+  currency: string;
+};
+
+type UserSummaryRow = {
+  key: string;
+  userName: string;
+  role: string;
+  countryName: string;
+  branchName: string;
+  createdBy: string;
+  firstEntry: string;
+  lastEntry: string;
+  transactions: number;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
+function buildUserOptions(rows: SuperAdminRoznamchaRow[]): SearchSelectOption[] {
+  const seen = new Map<string, SearchSelectOption>();
+  for (const row of rows) {
+    const user = row.createdBy && row.createdBy !== "-" ? row.createdBy : "Unknown User";
+    const key = user.toLowerCase();
+    if (!seen.has(key)) seen.set(key, { value: user, label: user, keywords: `${user} ${row.countryName} ${row.countryBranchName} ${row.cityBranchName}` });
+  }
+  return Array.from(seen.values()).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function dailyStats(rows: SuperAdminRoznamchaRow[]): DailySummaryRow[] {
+  const map = new Map<string, DailySummaryRow>();
+  for (const row of rows) {
+    const branchName = row.cityBranchId ? row.cityBranchName : row.countryBranchName;
+    const key = [row.entryDate, row.countryName, branchName, row.currency].join("::");
+    const current = map.get(key) ?? {
+      key,
+      date: row.entryDate,
+      countryName: row.countryName,
+      branchName,
+      voucherTypes: new Set<string>(),
+      transactions: 0,
+      debit: 0,
+      credit: 0,
+      balance: 0,
+      currency: row.currency || row.countryCurrency || "-"
+    };
+    current.voucherTypes.add(row.typeLabel);
+    current.transactions += 1;
+    current.debit += row.debit;
+    current.credit += row.credit;
+    current.balance += row.debit - row.credit;
+    map.set(key, current);
+  }
+  return Array.from(map.values()).sort((a, b) => `${a.date}${a.countryName}${a.branchName}`.localeCompare(`${b.date}${b.countryName}${b.branchName}`));
+}
+
+function userStats(rows: SuperAdminRoznamchaRow[]): UserSummaryRow[] {
+  const map = new Map<string, UserSummaryRow>();
+  for (const row of rows) {
+    const userName = row.createdBy && row.createdBy !== "-" ? row.createdBy : "Unknown User";
+    const branchName = row.cityBranchId ? row.cityBranchName : row.countryBranchName;
+    const key = [userName, row.countryName, branchName].join("::");
+    const current = map.get(key) ?? {
+      key,
+      userName,
+      role: row.type === "super_admin" ? "Super Admin" : row.type === "country" ? "Country User" : "Branch User",
+      countryName: row.countryName,
+      branchName,
+      createdBy: userName,
+      firstEntry: row.entryDate,
+      lastEntry: row.entryDate,
+      transactions: 0,
+      debit: 0,
+      credit: 0,
+      balance: 0
+    };
+    current.firstEntry = row.entryDate < current.firstEntry ? row.entryDate : current.firstEntry;
+    current.lastEntry = row.entryDate > current.lastEntry ? row.entryDate : current.lastEntry;
+    current.transactions += 1;
+    current.debit += row.debit;
+    current.credit += row.credit;
+    current.balance += row.debit - row.credit;
+    map.set(key, current);
+  }
+  return Array.from(map.values()).sort((a, b) => a.userName.localeCompare(b.userName));
 }
 
 async function fetchSessionInfo() {
@@ -2083,4 +2181,7 @@ function MenuAction({
 function MenuDivider() {
   return <div className="my-1 border-t border-slate-100" />;
 }
+
+
+
 

@@ -27,7 +27,7 @@ declare
   ledger_scope_value ledger_scope;
   line_account_id uuid;
   line_ledger_id uuid;
-  line_payment_type line_payment_type;
+  line_payment_type payment_entry_type;
   line_description text;
   line_debit numeric(18, 4);
   line_credit numeric(18, 4);
@@ -172,7 +172,7 @@ begin
 
   for line_item in select * from jsonb_array_elements(p_lines)
   loop
-    line_payment_type := (line_item ->> 'paymentEntryType')::line_payment_type;
+    line_payment_type := coalesce(line_item ->> 'paymentEntryType', line_item ->> 'payment_entry_type')::payment_entry_type;
     line_ledger_id := (line_item ->> 'ledgerId')::uuid;
     line_description := nullif(trim(line_item ->> 'description'), '');
     line_debit := coalesce((line_item ->> 'debit')::numeric, 0);

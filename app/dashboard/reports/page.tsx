@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { apiGet } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { ComprehensiveDailyReportView } from "@/features/reports/components/comprehensive-daily-report";
 
 type ReportType =
   | "cash-entry"
@@ -40,7 +41,8 @@ type ReportType =
   | "approval-workflows"
   | "expenses"
   | "financial-summaries"
-  | "purchase-booking-register";
+  | "purchase-booking-register"
+  | "daily-comprehensive";
 
 interface ReportMeta {
   type: ReportType;
@@ -62,7 +64,8 @@ const REPORT_LIST: ReportMeta[] = [
   { type: "approval-workflows", title: "Approval Workflow States", status: "Workflow steps, pending and approved transactions", icon: ShieldAlert, description: "Approval steps, pending and approved workflows" },
   { type: "expenses", title: "Interval Expense Tracking", description: "Expense tracking by Daily/Weekly/Monthly/Yearly costs", icon: Coins },
   { type: "financial-summaries", title: "Financial Balance Summaries", description: "Account kind balance summaries, trial balance & net income", icon: FileSpreadsheet },
-  { type: "purchase-booking-register", title: "Purchase Booking Register", description: "Wholesaler / Import Export / Container Trading register", icon: ClipboardList }
+  { type: "purchase-booking-register", title: "Purchase Booking Register", description: "Wholesaler / Import Export / Container Trading register", icon: ClipboardList },
+  { type: "daily-comprehensive", title: "Comprehensive Daily Report", description: "Daily Summary, Branch-wise & User-wise reporting", icon: FileSpreadsheet }
 ];
 
 export default function ReportsHub() {
@@ -393,7 +396,7 @@ export default function ReportsHub() {
           </div>
 
           {/* Aggregates Summary Cards Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className={cn("grid gap-4", selectedReport === "daily-comprehensive" ? "hidden" : "grid-cols-2 md:grid-cols-4")}>
             {selectedReport === "cash-entry" && (
               <>
                 <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-slate-800">
@@ -519,7 +522,9 @@ export default function ReportsHub() {
 
           {/* Data Table */}
           <div className="rounded-xl border bg-white shadow-sm overflow-hidden dark:bg-slate-900 dark:border-slate-800">
-            {loading ? (
+            {selectedReport === "daily-comprehensive" ? (
+              <ComprehensiveDailyReportView />
+            ) : loading ? (
               <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                 <RefreshCw className="h-8 w-8 animate-spin text-indigo-600 mb-2" />
                 <p className="text-xs font-bold">Querying core ledger registry...</p>

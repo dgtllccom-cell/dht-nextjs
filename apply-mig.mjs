@@ -9,14 +9,10 @@ async function applyMigration() {
   const sql = postgres(dbUrl, { ssl: 'require' });
 
   try {
-    const mig54 = fs.readFileSync('supabase/migrations/0054_post_roznamcha_generate_serials.sql', 'utf8');
-    const mig55 = fs.readFileSync('supabase/migrations/0055_fix_cross_branch_roznamcha_posting.sql', 'utf8');
+    const mig56 = fs.readFileSync('supabase/migrations/0056_multi_country_transaction_traceability.sql', 'utf8');
     
-    console.log("Executing SQL migration 0054...");
-    await sql.unsafe(mig54);
-    
-    console.log("Executing SQL migration 0055...");
-    await sql.unsafe(mig55);
+    console.log("Executing SQL migration 0056...");
+    await sql.unsafe(mig56);
     
     console.log("✅ Migrations applied successfully!");
     console.log("You can now click 'Transfer to Payment' in your browser and it will work perfectly.");

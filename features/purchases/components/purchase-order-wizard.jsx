@@ -2731,8 +2731,8 @@ export function PurchaseOrderWizard({ session }) {
           </span>
           <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider pr-1">Live</span>
         </div>
-        <Button type="button" variant="outline" className="h-7.5 text-[10px] font-bold px-3 uppercase tracking-wider border-border hover:bg-muted" onClick={handleOpenA4Report}>Print</Button>
-        <Button type="button" variant="outline" className="h-7.5 text-[10px] font-bold px-3 uppercase tracking-wider border-border hover:bg-muted" onClick={handleOpenA4Report}>Preview</Button>
+        <Button type="button" variant="outline" className="h-7.5 text-[10px] font-bold px-3 uppercase tracking-wider border-border hover:bg-muted" onClick={() => handleOpenA4Report(false)}>Print</Button>
+        <Button type="button" variant="outline" className="h-7.5 text-[10px] font-bold px-3 uppercase tracking-wider border-border hover:bg-muted" onClick={() => setPreviewModalOpen(true)}>Preview</Button>
         <Button type="button" variant="destructive" className="h-7.5 text-[10px] font-bold px-3 uppercase tracking-wider bg-red-50/50 text-red-600 hover:bg-red-50 border border-red-100 shadow-none dark:bg-red-500/10 dark:hover:bg-red-500/20 dark:border-red-500/20 dark:text-red-400 mr-2" onClick={() => setGoodsEntries([])}>Clear</Button>
 
         <Button
@@ -4144,21 +4144,110 @@ export function PurchaseOrderWizard({ session }) {
 
                   {/* Transfer / Journal Status Block */}
                   {isTransferred ? (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 shadow-sm">
-                      <div className="flex items-center gap-2 mb-2 border-b border-emerald-100 pb-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        <h4 className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Transfer Completed</h4>
-                      </div>
-                      <p className="text-[9px] text-emerald-700 font-semibold mb-3 leading-relaxed">
-                        This bill has been automatically transferred and posted to the business journal (Roznamcha). All associated ledger accounts have been updated.
-                      </p>
+                    <div className="space-y-4">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2 border-b border-emerald-100 pb-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          <h4 className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Transfer Completed</h4>
+                        </div>
+                        <p className="text-[9px] text-emerald-700 font-semibold mb-3 leading-relaxed">
+                          This bill has been automatically transferred and posted to the business journal (Roznamcha). All associated ledger accounts have been updated.
+                        </p>
 
-                      <div className="space-y-1.5 text-[9px] font-mono bg-white/60 p-2 rounded border border-emerald-100/50">
-                        <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">General Serial No:</span> <span className="font-bold text-emerald-900">{form.generalSerialNumber || `GSN-${new Date().getFullYear()}-0001`}</span></div>
-                        <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Roznamcha (Journal) No:</span> <span className="font-bold text-emerald-900">{form.journalNumber || `JRN-${new Date().getFullYear()}-8821`}</span></div>
-                        <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Branch Roznamcha No:</span> <span className="font-bold text-emerald-900">{form.branchJournalNumber || `BR-JRN-402`}</span></div>
-                        <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Cash Entry Serial:</span> <span className="font-bold text-emerald-900">{form.cashEntrySerial || `CE-9921`}</span></div>
-                        <div className="flex justify-between border-t border-emerald-100/50 pt-1 mt-1"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Business Entry Ref:</span> <span className="font-bold text-emerald-900 uppercase">{form.businessEntryRef || `BUS-ENT-PURCHASE`}</span></div>
+                        <div className="space-y-1.5 text-[9px] font-mono bg-white/60 p-2 rounded border border-emerald-100/50">
+                          <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">General Serial No:</span> <span className="font-bold text-emerald-900">{form.generalSerialNumber || `GSN-${new Date().getFullYear()}-0001`}</span></div>
+                          <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Roznamcha (Journal) No:</span> <span className="font-bold text-emerald-900">{form.journalNumber || `JRN-${new Date().getFullYear()}-8821`}</span></div>
+                          <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Branch Roznamcha No:</span> <span className="font-bold text-emerald-900">{form.branchJournalNumber || `BR-JRN-402`}</span></div>
+                          <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Cash Entry Serial:</span> <span className="font-bold text-emerald-900">{form.cashEntrySerial || `CE-9921`}</span></div>
+                          <div className="flex justify-between border-t border-emerald-100/50 pt-1 mt-1"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Business Entry Ref:</span> <span className="font-bold text-emerald-900 uppercase">{form.businessEntryRef || `BUS-ENT-PURCHASE`}</span></div>
+                        </div>
+                      </div>
+                      
+                      <div className="border border-slate-200 rounded-lg p-4 bg-white shadow-sm overflow-hidden flex justify-center">
+                        <div className="w-[210mm] bg-white border border-slate-100 p-8 transform scale-[0.65] sm:scale-[0.7] origin-top shadow-sm mx-auto">
+                          {/* Inline Bill View */}
+                          <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
+                            <h1 className="text-2xl font-black uppercase text-slate-900 tracking-widest">Purchase Booking Order</h1>
+                            <div className="flex justify-between items-end mt-4 text-[9px] font-bold text-slate-700">
+                              <div className="text-left">
+                                <p>Booking Date: {form.purchaseDate}</p>
+                                <p>Branch: {form.branchName} ({form.branchCode})</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] font-black text-slate-900">PO No: {form.purchaseOrderNo}</p>
+                                <p>Contract No: {form.purchaseContractNo || "N/A"}</p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 mb-6 text-[9px]">
+                            <div className="border border-slate-300 p-3 rounded">
+                              <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800 text-[10px]">Purchase Account (DR)</h3>
+                              <div className="grid grid-cols-[80px_1fr] gap-1">
+                                <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.purchaseAccountNo || "N/A"}</span>
+                                <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.purchaseAccountName || "N/A"}</span>
+                                <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.purchaseCompanyName || "N/A"}</span>
+                              </div>
+                            </div>
+                            <div className="border border-slate-300 p-3 rounded">
+                              <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800 text-[10px]">Sales Account (CR)</h3>
+                              <div className="grid grid-cols-[80px_1fr] gap-1">
+                                <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.salesAccountNo || "N/A"}</span>
+                                <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.salesAccountName || "N/A"}</span>
+                                <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.salesCompanyName || "N/A"}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="mb-6">
+                            <h3 className="font-black text-[10px] border-b border-slate-800 pb-1 mb-2 uppercase text-slate-800 flex items-center gap-2">
+                              <Package className="h-3.5 w-3.5" /> Goods Details
+                            </h3>
+                            <table className="w-full text-[8px] text-left border border-slate-300">
+                              <thead className="bg-slate-100 border-b border-slate-300">
+                                <tr>
+                                  <th className="p-1.5 font-bold uppercase border-r border-slate-300">Goods</th>
+                                  <th className="p-1.5 font-bold uppercase border-r border-slate-300">Brand</th>
+                                  <th className="p-1.5 font-bold uppercase border-r border-slate-300">Origin</th>
+                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">Qty</th>
+                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">G.Wt</th>
+                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">N.Wt</th>
+                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">Rate</th>
+                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">Amount ({form.currencyType || "USD"})</th>
+                                  <th className="p-1.5 text-right font-bold uppercase text-emerald-800">Final ({form.purchaseCurrency || "AED"})</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {goodsEntries.map((row, idx) => (
+                                  <tr key={idx} className="border-b border-slate-200">
+                                    <td className="p-1.5 font-bold border-r border-slate-300">{row.goodsName}</td>
+                                    <td className="p-1.5 border-r border-slate-300">{row.brand}</td>
+                                    <td className="p-1.5 border-r border-slate-300">{row.origin}</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono font-bold">{row.qtyNo.toLocaleString()} {row.qtyName}</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono">{row.grossWeight.toFixed(2)}</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono font-bold">{row.netWeight.toFixed(2)}</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono">{row.coursePrice.toFixed(2)}</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono font-bold text-slate-700">{row.totalAmount.toLocaleString()}</td>
+                                    <td className="p-1.5 text-right font-mono font-bold text-emerald-700 bg-emerald-50">
+                                      {row.finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                  </tr>
+                                ))}
+                                {goodsEntries.length > 0 && (
+                                  <tr className="bg-slate-50 font-bold border-t-2 border-slate-400">
+                                    <td colSpan={3} className="p-1.5 text-right border-r border-slate-300">TOTALS:</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300">{reportTotals.totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || ""}</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300">{reportTotals.totalGross.toFixed(2)}</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300">{reportTotals.totalNet.toFixed(2)}</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300 bg-slate-200">-</td>
+                                    <td className="p-1.5 text-right border-r border-slate-300 text-slate-800">{reportTotals.grandPrimaryFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                    <td className="p-1.5 text-right text-emerald-800 bg-emerald-100">{reportTotals.grandFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ) : (

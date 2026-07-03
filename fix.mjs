@@ -1,53 +1,12 @@
--- Multi-country transaction traceability hardening.
--- Safe additive migration: keeps existing purchase flow and extends the same
--- global/country/branch serial model to Sales plus explicit source metadata
--- on Roznamcha journal entries.
+import postgres from 'postgres';
 
-alter table if exists sales_orders
-  add column if not exists super_admin_serial_number text,
-  add column if not exists country_transaction_serial_number text,
-  add column if not exists branch_transaction_serial_number text,
-  add column if not exists original_currency_code text,
-  add column if not exists currency_name text,
-  add column if not exists base_currency_amount numeric(18, 4);
+const dbUrl = "postgresql://postgres.csesvyxxjivnkkozgopt:Gulistan%409090@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres";
 
-create unique index if not exists sales_orders_super_admin_serial_idx
-  on sales_orders (super_admin_serial_number)
-  where super_admin_serial_number is not null and deleted_at is null;
+async function applyFix() {
+  console.log("Connecting to database to fix post_purchase_order_payment...");
+  const sql = postgres(dbUrl, { ssl: 'require' });
 
-create index if not exists sales_orders_country_transaction_serial_idx
-  on sales_orders (country_transaction_serial_number)
-  where country_transaction_serial_number is not null and deleted_at is null;
-
-create index if not exists sales_orders_branch_transaction_serial_idx
-  on sales_orders (branch_transaction_serial_number)
-  where branch_transaction_serial_number is not null and deleted_at is null;
-
-alter table if exists roznamcha_entries
-  add column if not exists source_module text,
-  add column if not exists source_transaction_type text,
-  add column if not exists source_transaction_id uuid,
-  add column if not exists source_reference_no text,
-  add column if not exists original_currency_code text,
-  add column if not exists currency_name text,
-  add column if not exists base_currency_amount numeric(18, 4);
-
-create index if not exists roznamcha_entries_source_trace_idx
-  on roznamcha_entries (source_module, source_transaction_type, source_transaction_id)
-  where deleted_at is null;
-
-alter table if exists purchase_order_payments
-  add column if not exists source_module text,
-  add column if not exists source_transaction_type text,
-  add column if not exists source_reference_no text,
-  add column if not exists original_currency_code text,
-  add column if not exists currency_name text,
-  add column if not exists base_currency_amount numeric(18, 4);
-
-create index if not exists purchase_order_payments_source_trace_idx
-  on purchase_order_payments (source_module, source_transaction_type, source_reference_no)
-  where deleted_at is null;
-
+  const query = `
 create or replace function post_purchase_order_payment(
   p_purchase_order_id uuid,
   p_kind purchase_order_payment_kind,
@@ -108,9 +67,6 @@ begin
   v_journal := concat('PO-', to_char(now(), 'YYYYMMDD'), '-', substr(replace(gen_random_uuid()::text,'-',''),1,6));
   v_voucher := concat('POPAY-', to_char(now(), 'YYYYMMDD'), '-', substr(replace(gen_random_uuid()::text,'-',''),1,6));
 
-  -- post_roznamcha_entry stores usd_amount as amount * usdRate. Purchase
-  -- screens pass local currency per 1 USD, so store the reciprocal as the
-  -- line conversion rate.
   v_line_rate := case when v_exchange_rate = 0 then 1 else 1 / v_exchange_rate end;
 
   v_lines := jsonb_build_array(
@@ -201,7 +157,7 @@ begin
     v_entry_id,
     'posted',
     coalesce(nullif(trim(p_reference_no), ''), v_order.purchase_order_no),
-    nullif(trim(coalesce(p_narration, '')), ''),
+    coalesce(nullif(trim(p_narration), ''), concat('Purchase payment for ', v_order.purchase_order_no)),
     'purchase',
     case p_kind
       when 'booking' then 'purchase_booking_transfer'
@@ -214,19 +170,24 @@ begin
     v_currency,
     v_currency,
     v_base_amount,
-    auth.uid(),
+    null,
     now(),
     now()
-  )
-  returning id into v_po_payment_id;
-
-  perform recalc_purchase_order_payment_totals(v_order.id);
+  ) returning id into v_po_payment_id;
 
   return v_po_payment_id;
 end;
 $$;
+  `;
 
-insert into erp_schema_migrations(name, status, applied_at)
-values ('0056_multi_country_transaction_traceability', 'applied', now())
-on conflict (name)
-do update set status = excluded.status, applied_at = excluded.applied_at;
+  try {
+    await sql.unsafe(query);
+    console.log("✅ Function post_purchase_order_payment successfully replaced!");
+  } catch (err) {
+    console.error("❌ Failed:", err);
+  } finally {
+    await sql.end();
+  }
+}
+
+applyFix();

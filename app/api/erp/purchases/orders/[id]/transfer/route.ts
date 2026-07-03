@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       cityBranchId: (order as any)?.city_branch_id ?? null,
     });
 
-    if ((order as any).ledger_posting_status === "posted" || (order as any).form_data?.workflow?.transferStatus === "transferred" || (order as any).form_data?.form?.transferAudit) {
+    if (((order as any).ledger_posting_status === "posted" || (order as any).form_data?.workflow?.transferStatus === "transferred" || (order as any).form_data?.form?.transferAudit) && !(order as any).is_edited_since_transfer) {
       return handleApiError(new Error("This booking has already been transferred to Payment and cannot be transferred again."));
     }
 
@@ -51,9 +51,81 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     
     const advancePaid = 0;
 
-    // Per rules: "Transfer to Purchase Transfer Payment" does not post to Ledger.
-    const remainingDue = Math.max(0, totalPurchaseAmount - advancePaid);
-    const paymentStatus = "pending";
+    if (!form.purchaseAccountNo) {
+      throw new Error("Purchase Account is required for automated ledger posting.");
+    }
+    if (!form.salesAccountNo) {
+      throw new Error("Sales/Payable Account is required for automated ledger posting.");
+    }
+
+    async function getLedgerByAccountNumber(accountNumber: string) {
+      const { data: account, error: accErr } = await supabase
+        .from("enterprise_accounts")
+        .select("id")
+        .eq("account_number", accountNumber)
+        .is("deleted_at", null)
+        .single();
+      if (accErr || !account) throw new Error(`Account not found: ${accountNumber}`);
+      
+      const { data: ledger, error: ledErr } = await supabase
+        .from("ledgers")
+        .select("id")
+        .eq("enterprise_account_id", account.id)
+        .is("deleted_at", null)
+        .single();
+      if (ledErr || !ledger) throw new Error(`Ledger not found for account: ${accountNumber}`);
+      return ledger.id;
+    }
+
+    const debitLedgerId = await getLedgerByAccountNumber(form.purchaseAccountNo);
+    const creditLedgerId = await getLedgerByAccountNumber(form.salesAccountNo);
+
+    const orderRow = order as any;
+    let exchangeRate = Number(orderRow.exchange_rate || 0);
+    if (exchangeRate <= 1) exchangeRate = Number(form.exchangeRate || 1);
+    if (exchangeRate <= 0) exchangeRate = 1;
+
+    const orderTotalUSD = Number(orderRow.order_total || 0) / exchangeRate;
+    const bodyAmount = orderTotalUSD * exchangeRate; // Post the full amount 
+    
+    // Execute automated posting
+    const entryDateVal = form.purchaseDate || form.orderDate || new Date().toISOString();
+    
+    const { data: paymentId, error: rpcError } = await supabase.rpc("post_purchase_booking_transfer", {
+      p_actor_id: session.userId,
+      p_purchase_order_id: params.id,
+      p_kind: "booking",
+      p_entry_date: entryDateVal,
+      p_amount: bodyAmount,
+      p_currency_code: orderRow.currency_code || form.currencyType || "USD",
+      p_exchange_rate: exchangeRate,
+      p_debit_ledger_id: debitLedgerId,
+      p_credit_ledger_id: creditLedgerId,
+      p_reference_no: form.billNo || form.purchaseContractNo || null,
+      p_narration: `Automated Transfer Posting: ${form.billNo || form.purchaseContractNo || orderRow.purchase_order_no}`
+    });
+
+    if (rpcError) {
+      throw new Error(`Failed to automate ledger posting: ${rpcError.message}`);
+    }
+
+    const { data: paymentRecord, error: paymentError } = await supabase
+      .from("purchase_order_payments")
+      .select("roznamcha_entry_id, original_currency_code, currency_name, base_currency_amount")
+      .eq("id", paymentId)
+      .maybeSingle();
+
+    if (paymentError) throw new Error(`Payment query error: ${paymentError.message}`);
+    if (!paymentRecord) throw new Error(`Payment record not found after insert! paymentId: ${paymentId}`);
+
+    const { data: journalRecord, error: journalError } = await supabase
+      .from("roznamcha_entries")
+      .select("super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number")
+      .eq("id", paymentRecord.roznamcha_entry_id)
+      .maybeSingle();
+
+    if (journalError) throw new Error(`Journal query error: ${journalError.message}`);
+    if (!journalRecord) throw new Error(`Journal record not found! roznamcha_entry_id: ${paymentRecord.roznamcha_entry_id}`);
 
     const updatedFormData = {
       ...(formData || {}),
@@ -68,37 +140,54 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       workflow: {
         ...(formData.workflow || {}),
         transferStatus: "transferred",
+        invoiceStatus: "available",
         paymentStatus: "pending",
-        journalStatus: "pending",
-        ledgerStatus: "pending",
-        currentStep: "purchase_transfer_payment",
+        journalStatus: "posted",
+        ledgerStatus: "posted",
+        currentStep: "payment_posted",
+        lastPaymentId: paymentId,
+        lastRoznamchaEntryId: paymentRecord.roznamcha_entry_id,
+        lastPaymentPostedAt: new Date().toISOString(),
         transferredAt: new Date().toISOString(),
         transferredBy: session.userId
+      },
+      lastPaymentTrace: {
+        paymentId,
+        roznamchaEntryId: paymentRecord.roznamcha_entry_id,
+        debitLedgerId,
+        creditLedgerId,
+        originalCurrencyCode: paymentRecord.original_currency_code || orderRow.currency_code,
+        currencyName: paymentRecord.currency_name || orderRow.currency_code,
+        exchangeRate: exchangeRate,
+        baseCurrencyAmount: paymentRecord.base_currency_amount,
+        superAdminSerialNumber: journalRecord.super_admin_serial_number,
+        countryTransactionSerialNumber: journalRecord.country_transaction_serial_number,
+        branchTransactionSerialNumber: journalRecord.branch_transaction_serial_number
       }
     };
 
     const patch = {
-      ledger_posting_status: "draft",
+      ledger_posting_status: "posted",
       is_edited_since_transfer: false,
-      payment_status:        paymentStatus,
-      advance_paid:          advancePaid,
-      remaining_due:         remainingDue,
-      updated_at:            new Date().toISOString(),
-      form_data:             updatedFormData
+      payment_status: "pending",
+      advance_paid: 0,
+      remaining_due: orderRow.order_total, // Depends on advance, but keeping consistent
+      updated_at: new Date().toISOString(),
+      form_data: updatedFormData
     };
 
-    // Transfer only moves the accepted booking into Purchase Transfer Payment.
-    // Actual accounting is posted from the payment screen so the system creates
-    // the Purchase Payment, Business Roznamcha, Journal and Ledger entries once.
-    if (!form.purchaseAccountNo) {
-      throw new Error("Purchase Account is required before transferring to payment.");
-    }
-    await requireSupabaseData(
-      supabase.from("purchase_orders").update(patch).eq("id", params.id).select("id").single()
-    );
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from("purchase_orders")
+      .update(patch)
+      .eq("id", params.id)
+      .select("id")
+      .maybeSingle();
+
+    if (updateError) throw new Error(`Update query error: ${updateError.message}`);
+    if (!updatedOrder) throw new Error(`Update failed! Order not found or not updated: ${params.id}`);
 
     await writeAuditLog({
-      action:       "transfer_payment",
+      action:       "automated_transfer_posting",
       entityTable:  "purchase_orders",
       entityId:     params.id,
       before:       order,
@@ -108,12 +197,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return apiOk({
       success:          true,
       purchaseOrderId:  params.id,
-      paymentStatus,
-      advancePaid,
-      remainingDue
+      paymentStatus:    "posted",
+      advancePaid:      0,
+      remainingDue:     orderRow.order_total
     });
   } catch (error) {
-    console.error("TRANSFER_PAYMENT_ERROR:", error);
+    console.error("AUTOMATED_TRANSFER_ERROR:", error);
     return handleApiError(error);
   }
 }

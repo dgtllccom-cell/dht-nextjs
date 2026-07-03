@@ -234,13 +234,8 @@ function getCurrencySymbol(c: string) {
   const debitCurrencySymbol = getCurrencySymbol(debitCurrency);
   const creditCurrencySymbol = getCurrencySymbol(creditCurrency);
 
-  const debitAmount = (debitCurrency === "USD" || debitCurrency === form.currencyType || debitCurrency === d?.currency)
-    ? totalPurchaseAmountUsd
-    : totalPurchaseAmountPkr;
-
-  const creditAmount = (creditCurrency === "USD" || creditCurrency === form.currencyType || creditCurrency === d?.currency)
-    ? totalPurchaseAmountUsd
-    : totalPurchaseAmountPkr;
+  const debitAmount = totalPurchaseAmountPkr;
+  const creditAmount = totalPurchaseAmountPkr;
 
   const isBalanced = true;
 
@@ -590,14 +585,14 @@ function getCurrencySymbol(c: string) {
                     <tr className="bg-blue-50/40 hover:bg-blue-50/70">
                       <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{form.purchaseAccountNo || d.purchaseAccountNumber || "—"}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{form.purchaseAccountName || d.purchaseAccountName || "Purchase Account (Debit)"} (DR)</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-blue-700">{money(debitAmount)} {debitCurrencySymbol}</td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-blue-700">{money(debitAmount)} {localCurrencySymbol}</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-slate-400">-</td>
                     </tr>
                     <tr className="bg-emerald-50/40 hover:bg-emerald-50/70">
                       <td className="px-4 py-3 font-mono font-black text-[#0f2942]">{form.salesAccountNo || d.salesAccountNumber || "—"}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{form.salesAccountName || d.salesAccountName || "Sales / Credit Account (Credit)"} (CR)</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-slate-400">-</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">{money(creditAmount)} {creditCurrencySymbol}</td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">{money(creditAmount)} {localCurrencySymbol}</td>
                     </tr>
                   </tbody>
                 </table>
