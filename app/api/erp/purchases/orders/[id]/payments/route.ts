@@ -11,6 +11,64 @@ const paramsSchema = z.object({
   id: uuidSchema
 });
 
+function buildPurchaseTrace(orderRow: any, fallbackReference?: string | null) {
+  const data = orderRow.form_data ?? {};
+  const form = data.form ?? {};
+  const systemBillNumber = String(orderRow.purchase_order_no || form.purchaseOrderNo || "").trim();
+  const manualBillNumber = String(
+    form.manualBillNumber ||
+      form.manual_bill_number ||
+      form.billNo ||
+      form.purchaseContractNo ||
+      orderRow.purchase_contract_no ||
+      fallbackReference ||
+      ""
+  ).trim();
+  const partyName = String(
+    form.purchaseAccountName || form.supplierName || form.salesAccountName || form.customerName || "Purchase Party"
+  ).trim();
+  const countryName = String(form.branchCountry || form.countryName || "").trim();
+  const branchName = String(form.branchName || form.cityBranchName || "").trim();
+  const referenceNo = [systemBillNumber, manualBillNumber].filter(Boolean).join(" / ") || fallbackReference || null;
+  const narrationPrefix = [
+    systemBillNumber ? "System Bill: " + systemBillNumber : null,
+    manualBillNumber ? "Manual Bill: " + manualBillNumber : null,
+    partyName ? "Party: " + partyName : null,
+    countryName ? "Country: " + countryName : null,
+    branchName ? "Branch: " + branchName : null
+  ].filter(Boolean).join(" | ");
+
+  return { systemBillNumber, manualBillNumber, partyName, countryName, branchName, referenceNo, narrationPrefix };
+}
+
+async function assertLedgerMatchesPurchaseScope(supabase: any, ledgerId: string, orderRow: any, label: string) {
+  const { data: ledger, error } = await supabase
+    .from("ledgers")
+    .select("id, code, name, country_id, country_branch_id, city_branch_id")
+    .eq("id", ledgerId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error || !ledger) {
+    throw new Error(label + " ledger was not found.");
+  }
+
+  if (orderRow.country_id && ledger.country_id && ledger.country_id !== orderRow.country_id) {
+    throw new Error(label + " ledger belongs to a different country and cannot be used for this purchase.");
+  }
+
+  if (orderRow.city_branch_id && ledger.city_branch_id && ledger.city_branch_id !== orderRow.city_branch_id) {
+    throw new Error(label + " ledger belongs to a different city branch and cannot be used for this purchase.");
+  }
+
+  if (!orderRow.city_branch_id && orderRow.country_branch_id && ledger.country_branch_id && ledger.country_branch_id !== orderRow.country_branch_id) {
+    throw new Error(label + " ledger belongs to a different main branch and cannot be used for this purchase.");
+  }
+
+  return ledger;
+}
+
+
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireErpSession();
@@ -20,7 +78,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     const order = await requireSupabaseData(
       supabase
         .from("purchase_orders")
-        .select("id, purchase_order_no, country_id, country_branch_id, city_branch_id, currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
+        .select("id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
         .eq("id", params.id)
         .is("deleted_at", null)
         .maybeSingle()
@@ -40,7 +98,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         .select(`
           id, purchase_order_id, kind, entry_date, amount, currency_code, exchange_rate, 
           debit_ledger_id, credit_ledger_id, roznamcha_entry_id, status, reference_no, 
-          narration, created_at,
+          narration, source_module, source_transaction_type, source_reference_no, original_currency_code, currency_name, base_currency_amount, created_at,
           roznamcha_entries (
             id,
             super_admin_serial_number,
@@ -75,7 +133,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const order = await requireSupabaseData(
       supabase
         .from("purchase_orders")
-        .select("id, purchase_order_no, country_id, country_branch_id, city_branch_id, currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
+        .select("id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, form_data, ledger_posting_status, payment_status")
         .eq("id", params.id)
         .is("deleted_at", null)
         .maybeSingle()
@@ -124,7 +182,20 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       throw new Error("Debit and credit ledgers must be different for purchase payment posting.");
     }
 
-    const bodyAmountUSD = body.amount / (body.exchangeRate || 1);
+    const debitLedger = await assertLedgerMatchesPurchaseScope(supabase, body.debitLedgerId, orderRow, "Debit");
+    const creditLedger = await assertLedgerMatchesPurchaseScope(supabase, body.creditLedgerId, orderRow, "Credit");
+    const trace = buildPurchaseTrace(orderRow, body.referenceNo ?? null);
+    const postingReferenceNo = body.referenceNo?.trim() || trace.referenceNo;
+    const postingNarration = [
+      body.narration?.trim(),
+      trace.narrationPrefix,
+      "Currency: " + body.currencyCode,
+      "Exchange Rate: " + body.exchangeRate,
+      "Final Amount: " + body.amount
+    ].filter(Boolean).join(" | ");
+
+    const isForeignCurrency = body.currencyCode?.toUpperCase() === (orderRow.currency_code?.toUpperCase() || "USD");
+    const bodyAmountUSD = isForeignCurrency ? Number(body.amount) : Number(body.amount) / Number(body.exchangeRate || 1);
 
     if (body.kind === "advance" && advancePercent > 0) {
       if (remainingAdvanceUSD <= tolerance) {
@@ -154,8 +225,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       p_exchange_rate: body.exchangeRate,
       p_debit_ledger_id: body.debitLedgerId,
       p_credit_ledger_id: body.creditLedgerId,
-      p_reference_no: body.referenceNo ?? null,
-      p_narration: body.narration ?? null
+      p_reference_no: postingReferenceNo,
+      p_narration: postingNarration || null
     });
 
     if (error) {
@@ -215,7 +286,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       lastRoznamchaEntryId: paymentRecord.roznamcha_entry_id,
       lastPaymentPostedAt: new Date().toISOString(),
       sourceModule: "purchase",
-      sourceTransactionType: paymentRecord.source_transaction_type || (body.kind === "booking" ? "purchase_booking_transfer" : "purchase_payment")
+      sourceTransactionType: paymentRecord.source_transaction_type || (body.kind === "booking" ? "purchase_booking_transfer" : "purchase_payment"),
+      systemBillNumber: trace.systemBillNumber,
+      manualBillNumber: trace.manualBillNumber,
+      partyName: trace.partyName,
+      referenceNo: postingReferenceNo
     };
 
     await requireSupabaseData(
@@ -236,7 +311,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
               baseCurrencyAmount: paymentRecord.base_currency_amount,
               superAdminSerialNumber: journalRecord.super_admin_serial_number,
               countryTransactionSerialNumber: journalRecord.country_transaction_serial_number,
-              branchTransactionSerialNumber: journalRecord.branch_transaction_serial_number
+              branchTransactionSerialNumber: journalRecord.branch_transaction_serial_number,
+              systemBillNumber: trace.systemBillNumber,
+              manualBillNumber: trace.manualBillNumber,
+              partyName: trace.partyName,
+              referenceNo: postingReferenceNo,
+              narration: postingNarration,
+              debitLedgerCode: debitLedger.code,
+              creditLedgerCode: creditLedger.code
             }
           },
           updated_at: new Date().toISOString()
@@ -258,7 +340,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         currencyCode: body.currencyCode,
         exchangeRate: body.exchangeRate,
         debitLedgerId: body.debitLedgerId,
-        creditLedgerId: body.creditLedgerId
+        creditLedgerId: body.creditLedgerId,
+        systemBillNumber: trace.systemBillNumber,
+        manualBillNumber: trace.manualBillNumber,
+        partyName: trace.partyName,
+        referenceNo: postingReferenceNo
       },
       ipAddress: request.headers.get("x-forwarded-for") ?? null
     });

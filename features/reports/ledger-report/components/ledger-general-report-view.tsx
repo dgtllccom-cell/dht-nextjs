@@ -866,7 +866,7 @@ export function LedgerReportView({
                 <KeyValue label="Country" value={selectedLedger.countryName || "-"} />
                 <KeyValue label="Currency" value={selectedLedger.ledgerCurrency || "-"} />
                 <KeyValue label="Status" value={selectedLedger.status === "inactive" ? "Inactive" : "Active"} tone={selectedLedger.status === "inactive" ? "text-rose-400" : "text-emerald-400"} />
-                <KeyValue label="Opening Balance" value={fmtNumber((statement?.lines?.[0] ? statement.lines[0]!.runningBalance - statement.lines[0]!.debit + statement.lines[0]!.credit : selectedLedger.balance ?? 0))} />
+                <KeyValue label="Opening Balance" value={fmtNumber((statement?.totals as any)?.openingBalance ?? (statement?.lines?.[0] ? (selectedLedger.normalBalance === "credit" ? statement.lines[0]!.runningBalance - statement.lines[0]!.credit + statement.lines[0]!.debit : statement.lines[0]!.runningBalance - statement.lines[0]!.debit + statement.lines[0]!.credit) : selectedLedger.balance ?? 0))} />
                 <KeyValue label="Current Balance" value={fmtNumber(statement?.totals?.balance ?? selectedLedger.balance ?? 0)} />
               </div>
 

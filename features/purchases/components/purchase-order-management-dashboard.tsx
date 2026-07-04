@@ -1870,9 +1870,9 @@ export function PurchaseOrderManagementDashboard() {
             const isUAECountry = String(selected.countryName || "").toUpperCase().includes("UNITED ARAB") || String(selected.countryName || "").toUpperCase().includes("UAE");
             const isUAEAccount = String(selected.purchaseAccountNumber || selected.form_data?.form?.purchaseAccountNo || "").toUpperCase().includes("UAE") || String(selected.salesAccountNumber || selected.form_data?.form?.salesAccountNo || "").toUpperCase().includes("UAE") || isUAECountry;
             const inferredCurrency = (Number(exRate) > 3 && Number(exRate) < 5) || isUAEAccount ? "AED" : "PKR";
-            const displayCurrency = selected.form_data?.form?.baseCurrency || selected.form_data?.form?.secondaryCurrency?.split(" ")[0] || inferredCurrency;
+            const displayCurrency = selected.finalCurrency || selected.payment_currency || selected.form_data?.form?.secondaryCurrency?.split(" ")[0] || inferredCurrency;
             const displayCurrencySymbol = getCurrencySymbol(displayCurrency);
-            const purchaseCurrency = selected.currency || selected.form_data?.form?.currency || "USD";
+            const purchaseCurrency = selected.currency || selected.purchase_currency || selected.form_data?.form?.currencyType || "USD";
             const purchaseCurrencySymbol = getCurrencySymbol(purchaseCurrency);
 
             const avgRateKg = totalNet > 0 ? (totalUSDVal / totalNet) : 0;

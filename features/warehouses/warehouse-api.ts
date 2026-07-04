@@ -34,12 +34,33 @@ let mockWarehouses: WarehouseRecord[] = [
 ];
 
 export async function fetchWarehouses(): Promise<WarehouseRecord[]> {
-  await new Promise((resolve) => setTimeout(resolve, 600));
-  return [...mockWarehouses];
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  let list = [...mockWarehouses];
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("erp_warehouses");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const ids = new Set(list.map((w) => w.id));
+          for (const item of parsed) {
+            if (!ids.has(item.id)) {
+              list.push(item);
+              ids.add(item.id);
+            } else {
+              const idx = list.findIndex((w) => w.id === item.id);
+              if (idx !== -1) list[idx] = { ...list[idx], ...item };
+            }
+          }
+        }
+      } catch (e) {}
+    }
+  }
+  return list;
 }
 
 export async function createWarehouse(data: Omit<WarehouseRecord, "id" | "created_at" | "updated_at">): Promise<string> {
-  await new Promise((resolve) => setTimeout(resolve, 800));
+  await new Promise((resolve) => setTimeout(resolve, 150));
   const newId = `wh-${Date.now()}`;
   const newRecord: WarehouseRecord = {
     ...data,
@@ -48,5 +69,13 @@ export async function createWarehouse(data: Omit<WarehouseRecord, "id" | "create
     updated_at: new Date().toISOString(),
   };
   mockWarehouses.push(newRecord);
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("erp_warehouses");
+      const list = stored ? JSON.parse(stored) : [];
+      const updated = Array.isArray(list) ? [...list, newRecord] : [newRecord];
+      localStorage.setItem("erp_warehouses", JSON.stringify(updated));
+    } catch (e) {}
+  }
   return newId;
 }

@@ -9,6 +9,7 @@ import { fetchWarehouses, type WarehouseRecord } from "@/features/warehouses/war
 export type WarehousePickerProps = {
   value?: string;
   onValueChange?: (value: string) => void;
+  onSelectRecord?: (record: WarehouseRecord | null) => void;
   label?: string;
   placeholder?: string;
   disabled?: boolean;
@@ -17,6 +18,7 @@ export type WarehousePickerProps = {
 export function WarehousePicker({
   value,
   onValueChange,
+  onSelectRecord,
   label = "Warehouse",
   placeholder,
   disabled
@@ -55,7 +57,11 @@ export function WarehousePicker({
         placeholder={placeholder ?? (loading ? "Loading warehouses..." : "Search warehouse by name, type...")}
         disabled={disabled || loading}
         options={options}
-        onValueChange={onValueChange}
+        onValueChange={(val) => {
+          onValueChange?.(val);
+          const found = warehouses.find((w) => w.id === val) || null;
+          onSelectRecord?.(found);
+        }}
         createLabel="+ New Warehouse"
         createButtonPlacement="both"
         onCreateNew={async () => setOpenCreate(true)}
@@ -69,9 +75,10 @@ export function WarehousePicker({
         >
           <WarehouseForm
             mode="embedded"
-            onSave={(warehouseId) => {
+            onSave={(warehouseId, savedRecord) => {
               loadList().catch(() => null);
               onValueChange?.(warehouseId);
+              if (savedRecord) onSelectRecord?.(savedRecord);
               setOpenCreate(false);
             }}
             onCancel={() => setOpenCreate(false)}

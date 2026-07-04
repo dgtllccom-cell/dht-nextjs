@@ -863,11 +863,11 @@ export function CashEntryForm({
 
     // Country-level users can choose when multiple exist.
     if (!countryBranchId && branchIds.length) {
-      if (forcePickBranch || branchIds.length === 1) setCountryBranchId(branchIds[0]!);
+      if (forcePickBranch || branchIds.length === 1 || !session.scopes.isSuperAdmin) setCountryBranchId(branchIds[0]!);
     }
 
     if (!cityBranchId && cityIds.length) {
-      if (forcePickBranch || cityIds.length === 1) setCityBranchId(cityIds[0]!);
+      if (forcePickBranch || cityIds.length === 1 || !session.scopes.isSuperAdmin) setCityBranchId(cityIds[0]!);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, effectiveScopeMode]);
@@ -940,14 +940,19 @@ export function CashEntryForm({
       const list = Array.isArray(json.cityBranches) ? json.cityBranches : [];
       if (!cancelled) {
         setCityBranches(list);
-        if (list.length === 1) setCityBranchId(list[0]!.id);
+        const assignedCityIds = session?.scopes?.cityBranchIds ?? [];
+        const assignedCity = assignedCityIds.length
+          ? list.find((branch) => assignedCityIds.includes(branch.id))
+          : null;
+        if (!cityBranchId && assignedCity) setCityBranchId(assignedCity.id);
+        else if (!cityBranchId && list.length === 1) setCityBranchId(list[0]!.id);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [countryId, countryBranchId]);
+  }, [countryId, countryBranchId, session]);
 
   // Load ledgers once the branch scope is selected.
   useEffect(() => {

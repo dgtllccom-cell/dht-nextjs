@@ -471,12 +471,12 @@ export class LedgerReportService {
     toDate: string;
     limit?: number;
     language?: SupportedLanguage | null;
-  }): Promise<{ header: LedgerLookupRow | null; lines: LedgerStatementLine[] }> {
+  }): Promise<{ header: LedgerLookupRow | null; lines: LedgerStatementLine[]; openingBalance: number }> {
     const supabase = createSupabaseAdminClient() as any;
     const limit = Math.max(1, Math.min(input.limit ?? 2000, 5000));
 
     const ledgerIds = Array.isArray(input.ledgerId) ? input.ledgerId : [input.ledgerId];
-    if (ledgerIds.length === 0) return { header: null, lines: [] };
+    if (ledgerIds.length === 0) return { header: null, lines: [], openingBalance: 0 };
 
     // Ensure ledger is accessible (session-scoped).
     const headerRows = await this.listLedgers({
@@ -487,9 +487,9 @@ export class LedgerReportService {
       language: input.language ?? null
     });
     const header = headerRows[0] ?? null;
-    if (!header) return { header: null, lines: [] };
+    if (!header) return { header: null, lines: [], openingBalance: 0 };
 
-    const [batchRes, rozRes] = await Promise.all([
+    const [batchRes, rozRes, priorBatchRes, priorRozRes] = await Promise.all([
       supabase
         .from("ledger_posting_lines")
         .select(
@@ -512,7 +512,18 @@ export class LedgerReportService {
         .order("entry_date", { ascending: true, foreignTable: "roznamcha_entries" })
         .order("created_at", { ascending: true, foreignTable: "roznamcha_entries" })
         .order("id", { ascending: true })
-        .limit(limit)
+        .limit(limit),
+      supabase
+        .from("ledger_posting_lines")
+        .select("debit, credit, ledger_posting_batches!inner(entry_date)")
+        .in("ledger_id", ledgerIds)
+        .lt("ledger_posting_batches.entry_date", input.fromDate),
+      supabase
+        .from("roznamcha_lines")
+        .select("debit, credit, roznamcha_entries!inner(entry_date, deleted_at)")
+        .in("ledger_id", ledgerIds)
+        .lt("roznamcha_entries.entry_date", input.fromDate)
+        .is("roznamcha_entries.deleted_at", null)
     ]);
 
     if (batchRes.error) throw new Error(batchRes.error.message);
@@ -598,8 +609,21 @@ export class LedgerReportService {
       branchNameById.set(b.id, b.name);
     }
 
+    let priorDebit = 0;
+    let priorCredit = 0;
+    for (const r of ((priorBatchRes.data ?? []) as any[])) {
+      priorDebit += toNumber(r.debit);
+      priorCredit += toNumber(r.credit);
+    }
+    for (const r of ((priorRozRes.data ?? []) as any[])) {
+      priorDebit += toNumber(r.debit);
+      priorCredit += toNumber(r.credit);
+    }
+
     const creditNormal = header.normalBalance === "credit";
-    let running = 0;
+    const openingBalance = creditNormal ? (priorCredit - priorDebit) : (priorDebit - priorCredit);
+    let running = openingBalance;
+
     const lines: LedgerStatementLine[] = merged.map((row) => {
       running += creditNormal ? row.credit - row.debit : row.debit - row.credit;
       const branchId = row.cityBranchId || row.countryBranchId;
@@ -627,7 +651,7 @@ export class LedgerReportService {
       };
     });
 
-    return { header, lines };
+    return { header, lines, openingBalance };
   }
 }
 

@@ -111,14 +111,24 @@ export function MoneyExchangeForm({ lang }: { lang: SupportedLanguage }) {
       setBranches(branchesList);
       
       // Default to user's branch if possible
-      const defaultBranchId = sess?.scopes?.cityBranchIds?.[0] || branchesList?.[0]?.id || "";
+      let defaultBranchId = sess?.scopes?.cityBranchIds?.[0] || sess?.scopes?.countryBranchIds?.[0] || "";
+      if (!defaultBranchId && !sess?.scopes?.isSuperAdmin) {
+        defaultBranchId = branchesList?.[0]?.id || "";
+      }
+      if (!defaultBranchId && branchesList?.length === 1) {
+        defaultBranchId = branchesList[0].id;
+      }
       setSelectedBranch(defaultBranchId);
       if (defaultBranchId) {
         const br = branchesList?.find((x: any) => x.id === defaultBranchId);
         if (br) {
           setSelectedCountry(br.country_id);
           setBranchCurrency(br.currency_code || "PKR");
+        } else if (sess?.scopes?.countryIds?.[0]) {
+          setSelectedCountry(sess.scopes.countryIds[0]);
         }
+      } else if (sess?.scopes?.countryIds?.[0]) {
+        setSelectedCountry(sess.scopes.countryIds[0]);
       }
     }).catch(console.error);
     return () => { active = false; };

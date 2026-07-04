@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { ReactNode } from "react";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
@@ -31,11 +31,13 @@ export type AccountLiveReportProps = {
   currency: string;
   status?: string;
   lang?: SupportedLanguage;
+  contacts?: Array<{ type: string; value: string }>;
 
   // Connected Master details
   customerDetail?: any;
   companyDetail?: any;
   bankDetail?: any;
+  warehouseDetail?: any;
 
   // Context metadata
   selectedCountryName?: string;
@@ -54,53 +56,55 @@ export type AccountLiveReportProps = {
 
 
 const liveReportLabels: Record<string, Partial<Record<SupportedLanguage, string>>> = {
-  active: { en: "Active", ur: "\u0641\u0639\u0627\u0644", ar: "\u0646\u0634\u0637", fa: "\u0641\u0639\u0627\u0644", ps: "\u0641\u0639\u0627\u0644" },
-  inProgress: { en: "In Progress", ur: "\u062c\u0627\u0631\u06cc \u06c1\u06d2", ar: "\u0642\u064a\u062f \u0627\u0644\u062a\u0646\u0641\u064a\u0630", fa: "\u062f\u0631 \u062d\u0627\u0644 \u0627\u062c\u0631\u0627", ps: "\u067e\u0647 \u062c\u0631\u06cc\u0627\u0646 \u06a9\u06d0" },
-  accountTitle: { en: "Account Title", ur: "\u0627\u06a9\u0627\u0624\u0646\u0679 \u0639\u0646\u0648\u0627\u0646" },
-  accountCodeAuto: { en: "Account Code (Auto)", ur: "\u0627\u06a9\u0627\u0624\u0646\u0679 \u06a9\u0648\u0688 (\u062e\u0648\u062f\u06a9\u0627\u0631)" },
-  accountGroup: { en: "Account Group", ur: "\u0627\u06a9\u0627\u0624\u0646\u0679 \u06af\u0631\u0648\u067e" },
-  currency: { en: "Currency", ur: "\u06a9\u0631\u0646\u0633\u06cc" },
-  date: { en: "Date", ur: "\u062a\u0627\u0631\u06cc\u062e" },
-  openingBalance: { en: "Opening Balance", ur: "\u0627\u0648\u067e\u0646\u0646\u06af \u0628\u06cc\u0644\u0646\u0633" },
-  debitAmount: { en: "Debit Amount", ur: "\u0688\u06cc\u0628\u0679 \u0631\u0642\u0645" },
-  creditAmount: { en: "Credit Amount", ur: "\u06a9\u0631\u06cc\u0688\u0679 \u0631\u0642\u0645" },
-  netBalance: { en: "Net Balance", ur: "\u0646\u06cc\u0679 \u0628\u06cc\u0644\u0646\u0633" },
-  accountInformation: { en: "ACCOUNT INFORMATION", ur: "\u0627\u06a9\u0627\u0624\u0646\u0679 \u0645\u0639\u0644\u0648\u0645\u0627\u062a" },
-  customerInformation: { en: "CUSTOMER INFORMATION", ur: "\u06a9\u0633\u0679\u0645\u0631 \u0645\u0639\u0644\u0648\u0645\u0627\u062a" },
-  customerName: { en: "Customer Name", ur: "\u06a9\u0633\u0679\u0645\u0631 \u0646\u0627\u0645" },
-  customerCode: { en: "Customer Code", ur: "\u06a9\u0633\u0679\u0645\u0631 \u06a9\u0648\u0688" },
-  customerType: { en: "Customer Type", ur: "\u06a9\u0633\u0679\u0645\u0631 \u0642\u0633\u0645" },
-  phone: { en: "Phone", ur: "\u0641\u0648\u0646" },
-  email: { en: "Email", ur: "\u0627\u06cc \u0645\u06cc\u0644" },
-  address: { en: "Address", ur: "\u067e\u062a\u06c1" },
-  lastUpdated: { en: "Last Updated", ur: "\u0622\u062e\u0631\u06cc \u0627\u067e\u0688\u06cc\u0679" },
-  companyDetails: { en: "COMPANY DETAILS", ur: "\u06a9\u0645\u067e\u0646\u06cc \u062a\u0641\u0635\u06cc\u0644\u0627\u062a" },
-  companyName: { en: "Company Name", ur: "\u06a9\u0645\u067e\u0646\u06cc \u0646\u0627\u0645" },
-  companyCode: { en: "Company Code", ur: "\u06a9\u0645\u067e\u0646\u06cc \u06a9\u0648\u0688" },
-  registrationNo: { en: "Registration No.", ur: "\u0631\u062c\u0633\u0679\u0631\u06cc\u0634\u0646 \u0646\u0645\u0628\u0631" },
-  bankDetails: { en: "BANK DETAILS", ur: "\u0628\u06cc\u0646\u06a9 \u062a\u0641\u0635\u06cc\u0644\u0627\u062a" },
-  bankName: { en: "Bank Name", ur: "\u0628\u06cc\u0646\u06a9 \u0646\u0627\u0645" },
-  accountNumber: { en: "Account Number", ur: "\u0627\u06a9\u0627\u0624\u0646\u0679 \u0646\u0645\u0628\u0631" },
-  bankBranch: { en: "Bank Branch", ur: "\u0628\u06cc\u0646\u06a9 \u0628\u0631\u0627\u0646\u0686" },
-  swiftCode: { en: "Swift Code", ur: "\u0633\u0648\u0641\u0679 \u06a9\u0648\u0688" },
-  warehouseDetails: { en: "WAREHOUSE DETAILS", ur: "\u06af\u0648\u062f\u0627\u0645 \u062a\u0641\u0635\u06cc\u0644\u0627\u062a" },
-  warehouseName: { en: "Warehouse Name", ur: "\u06af\u0648\u062f\u0627\u0645 \u0646\u0627\u0645" },
-  warehouseCode: { en: "Warehouse Code", ur: "\u06af\u0648\u062f\u0627\u0645 \u06a9\u0648\u0688" },
-  location: { en: "Location", ur: "\u0645\u0642\u0627\u0645" },
-  auditInformation: { en: "AUDIT INFORMATION", ur: "\u0622\u0688\u0679 \u0645\u0639\u0644\u0648\u0645\u0627\u062a" },
-  accountName: { en: "Account Name", ur: "\u0627\u06a9\u0627\u0624\u0646\u0679 \u0646\u0627\u0645" },
-  accountCode: { en: "Account Code", ur: "\u0627\u06a9\u0627\u0624\u0646\u0679 \u06a9\u0648\u0688" },
-  subType: { en: "Sub Type", ur: "\u0630\u06cc\u0644\u06cc \u0642\u0633\u0645" },
-  category: { en: "Category", ur: "\u06a9\u06cc\u0679\u06cc\u06af\u0631\u06cc" },
-  manualRef: { en: "Manual Ref", ur: "\u062f\u0633\u062a\u06cc \u062d\u0648\u0627\u0644\u06c1" },
-  country: { en: "Country", ur: "\u0645\u0644\u06a9" },
-  branch: { en: "Branch", ur: "\u0628\u0631\u0627\u0646\u0686" },
-  createdBy: { en: "Created By", ur: "\u0628\u0646\u0627\u06cc\u0627 \u06af\u06cc\u0627 \u0628\u0630\u0631\u06cc\u0639\u06c1" },
-  createdAt: { en: "Created At", ur: "\u0628\u0646\u0627\u0646\u06d2 \u06a9\u0627 \u0648\u0642\u062a" },
-  updatedBy: { en: "Updated By", ur: "\u0627\u067e\u0688\u06cc\u0679 \u0628\u0630\u0631\u06cc\u0639\u06c1" },
-  updatedAt: { en: "Updated At", ur: "\u0627\u067e\u0688\u06cc\u0679 \u0648\u0642\u062a" },
-  ipAddress: { en: "IP Address", ur: "\u0622\u0626\u06cc \u067e\u06cc \u0627\u06cc\u0688\u0631\u06cc\u0633" },
-  browserPlatform: { en: "Browser / Platform", ur: "\u0628\u0631\u0627\u0624\u0632\u0631 / \u067e\u0644\u06cc\u0679 \u0641\u0627\u0631\u0645" }
+  active: { en: "Active", ur: "فعال", ar: "نشط", fa: "فعال", ps: "فعال" },
+  inProgress: { en: "In Progress", ur: "جاری ہے", ar: "قيد التنفيذ", fa: "در حال اجرا", ps: "په جریان کې" },
+  accountTitle: { en: "Account Title", ur: "اکاؤنٹ عنوان" },
+  accountCodeAuto: { en: "Account Code (Auto)", ur: "اکاؤنٹ کوڈ (خودکار)" },
+  accountGroup: { en: "Account Group", ur: "اکاؤنٹ گروپ" },
+  currency: { en: "Currency", ur: "کرنسی" },
+  date: { en: "Date", ur: "تاریخ" },
+  openingBalance: { en: "Opening Balance", ur: "اوپننگ بیلنس" },
+  debitAmount: { en: "Debit Amount", ur: "ڈیبٹ رقم" },
+  creditAmount: { en: "Credit Amount", ur: "کریڈٹ رقم" },
+  netBalance: { en: "Net Balance", ur: "نیٹ بیلنس" },
+  accountInformation: { en: "ACCOUNT INFORMATION", ur: "اکاؤنٹ معلومات" },
+  customerInformation: { en: "CUSTOMER INFORMATION", ur: "کسمٹر معلومات" },
+  customerName: { en: "Customer Name", ur: "کسمٹر نام" },
+  customerCode: { en: "Customer Code", ur: "کسمٹر کوڈ" },
+  customerType: { en: "Customer Type", ur: "کسمٹر قسم" },
+  phone: { en: "Phone", ur: "فون" },
+  email: { en: "Email", ur: "ای میل" },
+  address: { en: "Address", ur: "پتہ" },
+  lastUpdated: { en: "Last Updated", ur: "آخری اپڈیٹ" },
+  companyDetails: { en: "COMPANY DETAILS", ur: "کمپنی تفصیلات" },
+  companyName: { en: "Company Name", ur: "کمپنی نام" },
+  companyCode: { en: "Company Code", ur: "کمپنی کوڈ" },
+  registrationNo: { en: "Registration No.", ur: "رجسٹریشن نمبر" },
+  bankDetails: { en: "BANK DETAILS", ur: "بینک تفصیلات" },
+  bankName: { en: "Bank Name", ur: "بینک نام" },
+  accountNumber: { en: "Account Number", ur: "اکاؤنٹ نمبر" },
+  bankBranch: { en: "Bank Branch", ur: "بینک برانچ" },
+  swiftCode: { en: "Swift Code", ur: "سوفٹ کوڈ" },
+  warehouseDetails: { en: "WAREHOUSE DETAILS", ur: "گودام تفصیلات" },
+  warehouseName: { en: "Warehouse Name", ur: "گودام نام" },
+  warehouseCode: { en: "Warehouse Code", ur: "گودام کوڈ" },
+  location: { en: "Location", ur: "مقام" },
+  auditInformation: { en: "AUDIT INFORMATION", ur: "آڈٹ معلومات" },
+  accountName: { en: "Account Name", ur: "اکاؤنٹ نام" },
+  accountCode: { en: "Account Code", ur: "اکاؤنٹ کوڈ" },
+  subType: { en: "Sub Type", ur: "ذیلی قسم" },
+  category: { en: "Category", ur: "کیٹیگری" },
+  manualRef: { en: "Manual Ref", ur: "دستی حوالہ" },
+  country: { en: "Country", ur: "ملک" },
+  branch: { en: "Branch", ur: "برانچ" },
+  createdBy: { en: "Created By", ur: "بنایا گیا بذریعہ" },
+  createdAt: { en: "Created At", ur: "بنانے کا وقت" },
+  updatedBy: { en: "Updated By", ur: "اپڈیٹ بذریعہ" },
+  updatedAt: { en: "Updated At", ur: "اپڈیٹ وقت" },
+  ipAddress: { en: "IP Address", ur: "آئی پی ایڈریس" },
+  browserPlatform: { en: "Browser / Platform", ur: "براؤزر / پلیٹ فارم" },
+  mobileNumber: { en: "Mobile Number", ur: "موبائل نمبر", ar: "رقم الهاتف المحمول", fa: "شماره موبایل", ps: "د موبایل شمیره" },
+  contactsList: { en: "Contacts", ur: "رابطہ نمبرز", ar: "جهات الاتصال", fa: "مخاطبین", ps: "اړیکې" }
 };
 export function AccountLiveReportPanel({
   accountName,
@@ -112,9 +116,11 @@ export function AccountLiveReportPanel({
   currency,
   status = "Active",
   lang = "en",
+  contacts,
   customerDetail,
   companyDetail,
   bankDetail,
+  warehouseDetail,
   selectedCountryName,
   selectedCountryCode,
   selectedBranchName,
@@ -147,18 +153,29 @@ export function AccountLiveReportPanel({
     return `${prefix}-${clean.slice(0, 4)}`;
   }
 
+  // Extract contacts from Step 1 or master records
+  const stepContacts = Array.isArray(contacts) ? contacts.filter(c => c && c.value && c.value.trim() !== "") : [];
+  const primaryStepMobile = stepContacts.find(c => c.type.toLowerCase().includes("mobile") || c.type === "Mobile")?.value || stepContacts[0]?.value || "";
+  const primaryStepEmail = stepContacts.find(c => c.type.toLowerCase().includes("email"))?.value || "";
+  const formattedStepContacts = stepContacts.map(c => `${c.type}: ${c.value}`).join(" | ") || "";
+
   // 2. Customer Information fields
   const custObj = customerDetail?.customer ?? customerDetail;
-  const customerFields = custObj ? [
-    { label: t("customerName", "Customer Name"), value: custObj.customer_name || custObj.name || accountName || "-" },
-    { label: t("customerCode", "Customer Code"), value: custObj.customer_code || (custObj.id ? compactCode(custObj.id, "CUST") : "CUST-001") },
-    { label: t("customerType", "Customer Type"), value: custObj.customer_type || "Company / Individual" },
-    { label: "NTN / CNIC", value: custObj.ntn_cnic || custObj.ntn || "-" },
-    { label: t("phone", "Phone"), value: custObj.mobile || custObj.phone || "-" },
-    { label: t("email", "Email"), value: custObj.email || "-" },
-    { label: t("address", "Address"), value: custObj.address || "-" },
-    { label: t("createdAt", "Created At"), value: custObj.created_at ? new Date(custObj.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + " " + new Date(custObj.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }) : formattedDateTime },
-    { label: t("lastUpdated", "Last Updated"), value: custObj.updated_at ? new Date(custObj.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + " " + new Date(custObj.updated_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }) : formattedDateTime }
+  const custContactsList = Array.isArray(customerDetail?.contacts) ? customerDetail.contacts : [];
+  const custPhone = custObj?.mobile || custObj?.phone || custObj?.whatsapp || custContactsList.find((c: any) => c.contact_value)?.contact_value || (accountTitle === "Customer" && primaryStepMobile ? primaryStepMobile : "-");
+  const custEmail = custObj?.email || custContactsList.find((c: any) => c.contact_type?.toLowerCase().includes("email"))?.contact_value || (accountTitle === "Customer" && primaryStepEmail ? primaryStepEmail : "-");
+  const custAddress = custObj?.address || (accountTitle === "Customer" ? [selectedBranchName, selectedCountryName].filter(Boolean).join(", ") || "-" : "-");
+
+  const customerFields = (custObj || accountTitle === "Customer") ? [
+    { label: t("customerName", "Customer Name"), value: custObj?.customer_name || custObj?.name || (accountTitle === "Customer" ? accountName : "-") },
+    { label: t("customerCode", "Customer Code"), value: custObj?.customer_code || (custObj?.id ? compactCode(custObj.id, "CUST") : (accountTitle === "Customer" ? accountCode || "CUST-AUTO" : "-")) },
+    { label: t("customerType", "Customer Type"), value: custObj?.customer_type || subType || "Company / Individual" },
+    { label: "NTN / CNIC", value: custObj?.ntn_cnic || custObj?.ntn || (accountTitle === "Customer" ? manualReferenceNumber || "-" : "-") },
+    { label: t("phone", "Phone"), value: custPhone },
+    { label: t("email", "Email"), value: custEmail },
+    { label: t("address", "Address"), value: custAddress },
+    { label: t("createdAt", "Created At"), value: custObj?.created_at ? new Date(custObj.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + " " + new Date(custObj.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }) : formattedDateTime },
+    { label: t("lastUpdated", "Last Updated"), value: custObj?.updated_at ? new Date(custObj.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + " " + new Date(custObj.updated_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }) : formattedDateTime }
   ] : [
     { label: t("customerName", "Customer Name"), value: "-" },
     { label: t("customerCode", "Customer Code"), value: "-" },
@@ -172,16 +189,20 @@ export function AccountLiveReportPanel({
   ];
 
   // 3. Company Details fields
-  const companyFields = companyDetail ? [
-    { label: t("companyName", "Company Name"), value: companyDetail.companyName || companyDetail.name || companyDetail.legal_name || "-" },
-    { label: t("companyCode", "Company Code"), value: companyDetail.code || (companyDetail.id ? compactCode(companyDetail.id, "DBG") : "-") },
-    { label: t("registrationNo", "Registration No."), value: companyDetail.registration_no || companyDetail.registrations?.find((r: any) => r.type.toLowerCase().includes("registration") || r.type.toLowerCase().includes("license") || r.type.toLowerCase().includes("trade"))?.value || "-" },
-    { label: "NTN", value: companyDetail.ntn || companyDetail.registrations?.find((r: any) => r.type.toLowerCase().includes("ntn") || r.type.toLowerCase().includes("gst") || r.type.toLowerCase().includes("tax"))?.value || "-" },
-    { label: t("phone", "Phone"), value: companyDetail.phone || companyDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("phone") || c.type.toLowerCase().includes("number") || c.type.toLowerCase().includes("mobile"))?.value || "-" },
-    { label: t("email", "Email"), value: companyDetail.email || companyDetail.contacts?.find((c: any) => c.type.toLowerCase().includes("email"))?.value || "-" },
-    { label: t("address", "Address"), value: companyDetail.address || "-" },
-    { label: t("createdAt", "Created At"), value: companyDetail.created_at ? new Date(companyDetail.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + " " + new Date(companyDetail.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }) : formattedDateTime },
-    { label: t("lastUpdated", "Last Updated"), value: companyDetail.updated_at ? new Date(companyDetail.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + " " + new Date(companyDetail.updated_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }) : formattedDateTime }
+  const compPhone = companyDetail?.phone || companyDetail?.contacts?.find((c: any) => c.type?.toLowerCase().includes("phone") || c.type?.toLowerCase().includes("mobile") || c.type?.toLowerCase().includes("number"))?.value || (accountTitle === "Company" && primaryStepMobile ? primaryStepMobile : "-");
+  const compEmail = companyDetail?.email || companyDetail?.contacts?.find((c: any) => c.type?.toLowerCase().includes("email"))?.value || (accountTitle === "Company" && primaryStepEmail ? primaryStepEmail : "-");
+  const compAddress = companyDetail?.address || (accountTitle === "Company" ? [selectedBranchName, selectedCountryName].filter(Boolean).join(", ") || "-" : "-");
+
+  const companyFields = (companyDetail || accountTitle === "Company") ? [
+    { label: t("companyName", "Company Name"), value: companyDetail?.companyName || companyDetail?.name || companyDetail?.legal_name || (accountTitle === "Company" ? accountName : "-") },
+    { label: t("companyCode", "Company Code"), value: companyDetail?.code || (companyDetail?.id ? compactCode(companyDetail.id, "DBG") : (accountTitle === "Company" ? accountCode || "COMP-AUTO" : "-")) },
+    { label: t("registrationNo", "Registration No."), value: companyDetail?.registration_no || companyDetail?.registrations?.find((r: any) => r.type?.toLowerCase().includes("registration") || r.type?.toLowerCase().includes("license") || r.type?.toLowerCase().includes("trade"))?.value || (accountTitle === "Company" ? manualReferenceNumber || "-" : "-") },
+    { label: "NTN", value: companyDetail?.ntn || companyDetail?.registrations?.find((r: any) => r.type?.toLowerCase().includes("ntn") || r.type?.toLowerCase().includes("gst") || r.type?.toLowerCase().includes("tax"))?.value || "-" },
+    { label: t("phone", "Phone"), value: compPhone },
+    { label: t("email", "Email"), value: compEmail },
+    { label: t("address", "Address"), value: compAddress },
+    { label: t("createdAt", "Created At"), value: companyDetail?.created_at ? new Date(companyDetail.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + " " + new Date(companyDetail.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }) : formattedDateTime },
+    { label: t("lastUpdated", "Last Updated"), value: companyDetail?.updated_at ? new Date(companyDetail.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + " " + new Date(companyDetail.updated_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }) : formattedDateTime }
   ] : [
     { label: t("companyName", "Company Name"), value: "-" },
     { label: t("companyCode", "Company Code"), value: "-" },
@@ -195,15 +216,15 @@ export function AccountLiveReportPanel({
   ];
 
   // 4. Bank Details fields
-  const bankFields = bankDetail ? [
-    { label: t("bankName", "Bank Name"), value: bankDetail.bank_name || bankDetail.bankName || bankDetail.name || "-" },
-    { label: t("accountTitle", "Account Title"), value: bankDetail.account_title || accountName || "-" },
-    { label: t("accountNumber", "Account Number"), value: bankDetail.account_number || "-" },
-    { label: "IBAN", value: bankDetail.iban_number || "-" },
-    { label: t("bankBranch", "Bank Branch"), value: bankDetail.branch_name || "-" },
-    { label: t("swiftCode", "Swift Code"), value: bankDetail.swift_bic || "-" },
-    { label: t("createdAt", "Created At"), value: bankDetail.created_at ? new Date(bankDetail.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-" },
-    { label: t("lastUpdated", "Last Updated"), value: bankDetail.updated_at ? new Date(bankDetail.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-" }
+  const bankFields = (bankDetail || accountTitle === "Bank") ? [
+    { label: t("bankName", "Bank Name"), value: bankDetail?.bank_name || bankDetail?.bankName || bankDetail?.name || (accountTitle === "Bank" ? accountName : "-") },
+    { label: t("accountTitle", "Account Title"), value: bankDetail?.account_title || accountName || "-" },
+    { label: t("accountNumber", "Account Number"), value: bankDetail?.account_number || (accountTitle === "Bank" ? manualReferenceNumber || "-" : "-") },
+    { label: "IBAN", value: bankDetail?.iban_number || "-" },
+    { label: t("bankBranch", "Bank Branch"), value: bankDetail?.branch_name || (accountTitle === "Bank" ? selectedBranchName || "-" : "-") },
+    { label: t("swiftCode", "Swift Code"), value: bankDetail?.swift_bic || "-" },
+    { label: t("createdAt", "Created At"), value: bankDetail?.created_at ? new Date(bankDetail.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : formattedDateTime },
+    { label: t("lastUpdated", "Last Updated"), value: bankDetail?.updated_at ? new Date(bankDetail.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : formattedDateTime }
   ] : [
     { label: t("bankName", "Bank Name"), value: "-" },
     { label: t("accountTitle", "Account Title"), value: "-" },
@@ -216,7 +237,35 @@ export function AccountLiveReportPanel({
   ];
 
   // 5. Warehouse Details fields
-  const warehouseFields = [
+  const formatWhContact = (val: any) => {
+    if (!val) return "-";
+    if (typeof val === "string") {
+      const trimmed = val.trim();
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((c: any) => c.value || c.phone || "").filter(Boolean).join(", ") || "-";
+          }
+          if (typeof parsed === "object" && parsed !== null) {
+            return parsed.value || parsed.phone || parsed.contact_number || "-";
+          }
+        } catch (e) {}
+      }
+    }
+    return String(val);
+  };
+  const whPhone = formatWhContact(warehouseDetail?.contact_number || warehouseDetail?.phone);
+  const whAddress = warehouseDetail?.full_address || warehouseDetail?.address || warehouseDetail?.location || "-";
+  const warehouseFields = warehouseDetail ? [
+    { label: t("warehouseName", "Warehouse Name"), value: warehouseDetail.warehouse_name || warehouseDetail.name || "-" },
+    { label: t("warehouseCode", "Warehouse Code"), value: warehouseDetail.id ? compactCode(warehouseDetail.id, "WH") : "-" },
+    { label: t("location", "Location"), value: whAddress },
+    { label: t("phone", "Phone"), value: whPhone },
+    { label: t("address", "Address"), value: whAddress },
+    { label: t("createdAt", "Created At"), value: warehouseDetail.created_at ? new Date(warehouseDetail.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : formattedDateTime },
+    { label: t("lastUpdated", "Last Updated"), value: warehouseDetail.updated_at ? new Date(warehouseDetail.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : formattedDateTime }
+  ] : [
     { label: t("warehouseName", "Warehouse Name"), value: "-" },
     { label: t("warehouseCode", "Warehouse Code"), value: "-" },
     { label: t("location", "Location"), value: "-" },
@@ -245,6 +294,8 @@ export function AccountLiveReportPanel({
     { label: t("category", "Category"), value: category || "-" },
     { label: t("currency", "Currency"), value: currency || "-" },
     { label: t("manualRef", "Manual Ref"), value: manualReferenceNumber || "-" },
+    { label: t("mobileNumber", "Mobile Number"), value: primaryStepMobile || custPhone || compPhone || "-" },
+    { label: t("contactsList", "Contacts"), value: formattedStepContacts || "-" },
     { label: t("country", "Country"), value: selectedCountryName || "-" },
     { label: t("branch", "Branch"), value: selectedBranchName || "-" },
   ];

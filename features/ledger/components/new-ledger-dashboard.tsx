@@ -173,7 +173,7 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
   const [toDate, setToDate] = useState(todayIso());
   const [account, setAccount] = useState<LedgerLookupRow | null>(null);
   const [lines, setLines] = useState<LedgerStatementLine[]>([]);
-  const [totals, setTotals] = useState({ entries: 0, debit: 0, credit: 0, balance: 0 });
+  const [totals, setTotals] = useState<{ entries: number; debit: number; credit: number; balance: number; openingBalance?: number }>({ entries: 0, debit: 0, credit: 0, balance: 0, openingBalance: 0 });
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingLedgers, setLoadingLedgers] = useState(false);
@@ -189,10 +189,12 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
   const isSuperAdmin = useMemo(() => session ? (session.scopes?.isSuperAdmin || session.roles?.includes("super_admin")) : true, [session]);
 
   const openingBalance = useMemo(() => {
+    if (totals.openingBalance !== undefined) return totals.openingBalance;
     const first = lines[0];
     if (!first) return account?.currentBalance ?? 0;
-    return first.runningBalance - first.debit + first.credit;
-  }, [account?.currentBalance, lines]);
+    const creditNormal = account?.normalBalance === "credit";
+    return creditNormal ? first.runningBalance - first.credit + first.debit : first.runningBalance - first.debit + first.credit;
+  }, [account?.normalBalance, account?.currentBalance, lines, totals.openingBalance]);
 
   const countryOptions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -283,6 +285,7 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
         entries: statement.totals.entries,
         debit: statement.totals.debit,
         credit: statement.totals.credit,
+        openingBalance: (statement.totals as any).openingBalance ?? 0,
         balance: statement.totals.balance || statement.header?.currentBalance || 0
       });
     } catch (err) {
@@ -314,7 +317,7 @@ export function NewLedgerDashboard({ initialAccount = "" }: { initialAccount?: s
     setSelectedUser("");
     setAccount(null);
     setLines([]);
-    setTotals({ entries: 0, debit: 0, credit: 0, balance: 0 });
+    setTotals({ entries: 0, debit: 0, credit: 0, balance: 0, openingBalance: 0 });
     setError(null);
   }
 

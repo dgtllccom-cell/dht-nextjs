@@ -255,6 +255,30 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
   const companies = useMemo(() => filtered.filter(r => r.companyName && r.companyName !== "—").length, [filtered]);
   const banks     = useMemo(() => filtered.filter(r => r.accountCategory.toLowerCase().includes("bank") || r.accountCategory.toLowerCase().includes("asset")).length, [filtered]);
 
+  /* ── Country-Wise Breakdown ─────────────────────────────────── */
+  const countryBreakdowns = useMemo(() => {
+    const map = new Map<string, { total: number; customers: number; companies: number; banks: number; personal: number; currency: string }>();
+    for (const r of filtered) {
+      const c = r.countryName || "Unknown Country";
+      if (!map.has(c)) {
+        map.set(c, { total: 0, customers: 0, companies: 0, banks: 0, personal: 0, currency: r.currency || "-" });
+      }
+      const item = map.get(c)!;
+      item.total += 1;
+      const cat = (r.accountCategory || "").toLowerCase();
+      if (cat.includes("bank") || cat.includes("asset")) {
+        item.banks += 1;
+      } else if (r.companyName && r.companyName !== "—") {
+        item.companies += 1;
+      } else if (cat.includes("customer") || (r.customerNumber || "").startsWith("CUST")) {
+        item.customers += 1;
+      } else {
+        item.personal += 1;
+      }
+    }
+    return Array.from(map.entries()).map(([name, stats]) => ({ name, ...stats })).sort((a, b) => b.total - a.total);
+  }, [filtered]);
+
   function applyFilters() {
     setAccNo(draftAccNo); setAccName(draftName); setCountry(draftCountry);
     setBranch(draftBranch); setAccType(draftType); setSubType(draftSub);
@@ -487,29 +511,89 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
         </div>
       )}
 
-      {/* ─── Compact Metrics Panel ─────────────────────────────── */}
+      {/* ─── Country-Wise Breakdown Summary Report ─────────────────────────────── */}
       <div className="asr-executive-panel">
-        <div className="asr-metrics-section">
-          {[
-            { label: "Total Accounts", value: loading ? null : filtered.length, color: "#1f5eff" },
-            { label: "Customers",      value: loading ? null : customers,        color: "#059669" },
-            { label: "Companies",      value: loading ? null : companies,        color: "#7c3aed" },
-            { label: "Banks",          value: loading ? null : banks,            color: "#d97706" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="asr-metric-mini-card" style={{ borderLeft: `3px solid ${color}` }}>
-              <div className="asr-metric-mini-content">
-                <span className="asr-metric-mini-label">{label}</span>
-                <span className="asr-metric-mini-value">
-                  {value === null ? <span className="asr-skeleton" /> : value}
-                </span>
-              </div>
+        <div className="flex flex-col gap-3 p-3.5">
+          <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="grid h-5 w-5 place-items-center rounded-md bg-blue-600 text-white font-black text-[10px] shadow-sm">🌐</span>
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                Country-Wise Accounts Summary Report ({countryBreakdowns.length} {countryBreakdowns.length === 1 ? "Country" : "Countries"})
+              </h2>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold text-slate-600 dark:text-slate-300">
+                <span>Total Accounts: <strong className="text-blue-600 dark:text-blue-400">{filtered.length}</strong></span> |
+                <span>Customers: <strong className="text-emerald-600 dark:text-emerald-400">{customers}</strong></span> |
+                <span>Companies: <strong className="text-purple-600 dark:text-purple-400">{companies}</strong></span> |
+                <span>Banks: <strong className="text-amber-600 dark:text-amber-400">{banks}</strong></span>
+              </span>
             </div>
-          ))}
-          {hasActiveFilters && (
-            <button type="button" onClick={resetFilters} className="asr-clear-chip-compact ml-auto">
-              <X className="h-3 w-3" /> Clear filters
-            </button>
-          )}
+            {hasActiveFilters && (
+              <button type="button" onClick={resetFilters} className="asr-clear-chip-compact">
+                <X className="h-3 w-3" /> Clear filters
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 h-24 animate-pulse" />
+              ))
+            ) : countryBreakdowns.length === 0 ? (
+              <div className="col-span-full text-center py-5 text-xs text-slate-400 font-bold">
+                No country accounts found matching the criteria.
+              </div>
+            ) : (
+              countryBreakdowns.map((cb) => {
+                const isSelected = country === cb.name;
+                return (
+                  <div
+                    key={cb.name}
+                    onClick={() => setCountry(isSelected ? "all" : cb.name)}
+                    className={cn(
+                      "group relative overflow-hidden rounded-xl border p-3 transition-all duration-200 cursor-pointer shadow-xs",
+                      isSelected
+                        ? "bg-blue-50/95 dark:bg-blue-950/60 border-blue-600 shadow-md ring-2 ring-blue-500/20"
+                        : "bg-white dark:bg-slate-900/90 border-slate-200/90 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-700 hover:shadow-md"
+                    )}
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2 mb-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="grid h-5 w-5 place-items-center rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-black text-[9px] shrink-0">
+                          {cb.name.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span className="font-black text-[11px] text-slate-800 dark:text-slate-100 truncate group-hover:text-blue-600 transition-colors">
+                          {cb.name}
+                        </span>
+                      </div>
+                      <span className="inline-flex items-center rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black text-white shadow-xs shrink-0">
+                        {cb.total} {cb.total === 1 ? "Acc" : "Accs"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-1 text-center">
+                      <div className="rounded bg-emerald-50 dark:bg-emerald-950/40 p-1 border border-emerald-100 dark:border-emerald-900/40">
+                        <div className="text-[7.5px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">Cust</div>
+                        <div className="text-[11px] font-black text-emerald-700 dark:text-emerald-300 font-mono leading-none mt-0.5">{cb.customers}</div>
+                      </div>
+                      <div className="rounded bg-purple-50 dark:bg-purple-950/40 p-1 border border-purple-100 dark:border-purple-900/40">
+                        <div className="text-[7.5px] font-black uppercase text-purple-600 dark:text-purple-400 tracking-wider">Comp</div>
+                        <div className="text-[11px] font-black text-purple-700 dark:text-purple-300 font-mono leading-none mt-0.5">{cb.companies}</div>
+                      </div>
+                      <div className="rounded bg-amber-50 dark:bg-amber-950/40 p-1 border border-amber-100 dark:border-amber-900/40">
+                        <div className="text-[7.5px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">Bank</div>
+                        <div className="text-[11px] font-black text-amber-700 dark:text-amber-300 font-mono leading-none mt-0.5">{cb.banks}</div>
+                      </div>
+                      <div className="rounded bg-slate-50 dark:bg-slate-800/60 p-1 border border-slate-150 dark:border-slate-700/50">
+                        <div className="text-[7.5px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">Pers</div>
+                        <div className="text-[11px] font-black text-slate-700 dark:text-slate-200 font-mono leading-none mt-0.5">{cb.personal}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
       {/* ─── Table ────────────────────────────────────────────────────── */}
@@ -545,7 +629,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={17} className="asr-empty-cell">
+                  <td colSpan={18} className="asr-empty-cell">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin text-[#1f5eff]" />
                       <span>Loading accounts report…</span>
@@ -554,7 +638,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                 </tr>
               ) : errorMsg ? (
                 <tr>
-                  <td colSpan={17} className="asr-empty-cell text-red-500 font-bold">
+                  <td colSpan={18} className="asr-empty-cell text-red-500 font-bold">
                     Error: {errorMsg}
                   </td>
                 </tr>
@@ -755,7 +839,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                 })
               ) : (
                 <tr>
-                  <td colSpan={17} className="asr-empty-cell">
+                  <td colSpan={18} className="asr-empty-cell">
                     No accounts found matching the selected filters.
                   </td>
                 </tr>
@@ -1105,32 +1189,34 @@ function AsrStyles() {
       }
       .asr-table {
         width: 100%; border-collapse: collapse;
-        font-size: 11px; text-align: left;
+        font-size: 10.5px; text-align: left;
         min-width: 1400px;
+        font-family: inherit;
       }
       .asr-th {
-        background: var(--asr-head);
-        padding: 9px 10px;
-        font-size: 9px; font-weight: 900;
-        text-transform: uppercase; letter-spacing: .06em;
+        background: linear-gradient(180deg, var(--asr-head), var(--asr-card));
+        padding: 7px 8px;
+        font-size: 8.5px; font-weight: 950;
+        text-transform: uppercase; letter-spacing: .07em;
         color: var(--asr-muted);
-        border-bottom: 1px solid var(--asr-line);
+        border-bottom: 2px solid var(--asr-line);
         border-right: 1px solid var(--asr-line);
         white-space: nowrap;
       }
       .asr-th:last-child { border-right: none; }
-      .asr-row { background: var(--asr-card); transition: background .1s; }
+      .asr-row { background: var(--asr-card); transition: background .12s ease; }
       .asr-row:hover { background: var(--asr-hover); }
       .asr-td {
-        padding: 8px 10px;
+        padding: 5.5px 8px;
         border-bottom: 1px solid var(--asr-line);
         border-right: 1px solid var(--asr-line);
         color: var(--asr-title);
         vertical-align: middle;
         white-space: nowrap;
+        font-size: 10.5px;
       }
       .asr-td:last-child { border-right: none; }
-      .asr-td-num { font-weight: 800; color: var(--asr-muted); text-align: center; width: 36px; }
+      .asr-td-num { font-weight: 800; color: var(--asr-muted); text-align: center; width: 34px; font-size: 10px; }
       .asr-empty-cell { padding: 48px; text-align: center; color: var(--asr-muted); font-weight: 600; }
 
       /* Avatar */

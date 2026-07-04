@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     const ledgerIds = query.ledgerId.split(",");
 
-    const { header, lines } = await ledgerReportService.getLedgerStatement({
+    const { header, lines, openingBalance = 0 } = await ledgerReportService.getLedgerStatement({
       session,
       ledgerId: ledgerIds,
       fromDate: query.fromDate,
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
           entries: 0,
           debit: 0,
           credit: 0,
+          openingBalance: 0,
           balance: 0,
           usdDebit: 0,
           usdCredit: 0
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
     const creditTotal = lines.reduce((t, l) => t + l.credit, 0);
     const usdDebitTotal = lines.reduce((t, l) => t + (l.debit > 0 ? l.usdAmount : 0), 0);
     const usdCreditTotal = lines.reduce((t, l) => t + (l.credit > 0 ? l.usdAmount : 0), 0);
-    const balance = lines.length ? lines[lines.length - 1]!.runningBalance : 0;
+    const balance = lines.length ? lines[lines.length - 1]!.runningBalance : openingBalance;
 
     return apiOk({
       found: true,
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
         entries: lines.length,
         debit: debitTotal,
         credit: creditTotal,
+        openingBalance,
         balance,
         usdDebit: usdDebitTotal,
         usdCredit: usdCreditTotal

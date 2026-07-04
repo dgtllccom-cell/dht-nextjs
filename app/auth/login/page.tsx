@@ -100,14 +100,6 @@ export default async function LoginPage({
 
                 <LoginForm lang={lang} />
 
-                <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-400">
-                  <div className="font-black text-slate-700 dark:text-slate-200">Demo Super Admin</div>
-                  <div className="mt-1 grid grid-cols-2 gap-2 font-semibold">
-                    <span>Username: superadmin</span>
-                    <span>Password: Admin@123</span>
-                  </div>
-                </div>
-
                 <div className="mt-7 text-center text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400">
                   &copy; 2026 DAMAAN BUSINESS GROUP
                 </div>

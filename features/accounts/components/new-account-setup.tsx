@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -26,6 +26,7 @@ import { CustomerPicker } from "@/features/customers/components/customer-picker"
 import { CompanyPicker } from "@/features/companies/components/company-picker";
 import { BankPicker } from "@/features/banks/components/bank-picker";
 import { WarehousePicker } from "@/features/warehouses/components/warehouse-picker";
+import { fetchWarehouses } from "@/features/warehouses/warehouse-api";
 import { rtlLanguages, type SupportedLanguage } from "@/lib/i18n/languages";
 import { getLabel } from "./translations";
 import { AccountLiveReportPanel } from "./account-live-report-panel";
@@ -285,10 +286,10 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
             } else if (acc.bank_id) {
               setAccountTitle("Bank");
               setLinkedBankId(acc.bank_id);
-              fetch(`/api/erp/companies/${acc.bank_id}`)
+              fetch(`/api/erp/banks/${acc.bank_id}`)
                 .then((r) => r.json())
                 .then((json) => {
-                  const name = json?.company?.name ?? json?.company?.legal_name ?? "";
+                  const name = json?.data?.bank?.bank_name ?? json?.bank?.bank_name ?? json?.bank_name ?? "";
                   if (!cancelled) setLinkedBankName(name);
                 })
                 .catch(() => null);
@@ -312,6 +313,19 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
             setManualReferenceNumber(acc.manual_reference_number || "");
             setAccountName(acc.name || "");
             setContacts(Array.isArray(acc.contacts) && acc.contacts.length > 0 ? acc.contacts : [{ type: "Mobile", value: "" }]);
+
+            if (typeof window !== "undefined") {
+              const storedWhKey = localStorage.getItem(`account_warehouse_${acc.id}`) || localStorage.getItem(`account_warehouse_${acc.account_number || acc.code}`);
+              if (storedWhKey) {
+                try {
+                  const parsedWh = JSON.parse(storedWhKey);
+                  if (parsedWh?.id) {
+                    setLinkedWarehouseId(parsedWh.id);
+                    if (parsedWh.detail) setWarehouseDetail(parsedWh.detail);
+                  }
+                } catch (e) {}
+              }
+            }
           }
         }
       } catch (err) {
@@ -340,6 +354,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   const [customerDetail, setCustomerDetail] = useState<any>(null);
   const [companyDetail, setCompanyDetail] = useState<any>(null);
   const [bankDetail, setBankDetail] = useState<any>(null);
+  const [warehouseDetail, setWarehouseDetail] = useState<any>(null);
 
   // Fetch full customer details when linkedCustomerId changes
   useEffect(() => {
@@ -348,7 +363,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
     fetch(`/api/erp/customers/${linkedCustomerId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && json?.ok && json?.data) setCustomerDetail(json.data);
+        if (!cancelled && json?.ok && (json?.data || json?.customer)) setCustomerDetail(json.data ?? json.customer);
       })
       .catch(() => null);
     return () => { cancelled = true; };
@@ -362,7 +377,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
       .then((r) => r.json())
       .then((json) => {
         if (cancelled) return;
-        let comp = json?.company || {};
+        let comp = json?.data?.company || json?.company || {};
         if (typeof window !== "undefined") {
           const stored = localStorage.getItem("incorporated_companies");
           if (stored) {
@@ -373,7 +388,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
             } catch (e) {}
           }
         }
-        if (json?.ok && json?.company) {
+        if (json?.ok && (json?.data?.company || json?.company)) {
           setCompanyDetail(comp);
         } else if (comp.id) {
           setCompanyDetail(comp);
@@ -401,11 +416,32 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
     fetch(`/api/erp/banks/${linkedBankId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && json?.ok && json?.data?.bank) setBankDetail(json.data.bank);
+        if (!cancelled && json?.ok && (json?.data?.bank || json?.bank)) setBankDetail(json.data?.bank ?? json.bank);
       })
       .catch(() => null);
     return () => { cancelled = true; };
   }, [linkedBankId]);
+
+  // Fetch warehouse details when linkedWarehouseId changes
+  useEffect(() => {
+    if (!linkedWarehouseId) { setWarehouseDetail(null); return; }
+    let cancelled = false;
+    fetchWarehouses().then((list) => {
+      if (cancelled) return;
+      let found = list.find((w) => w.id === linkedWarehouseId);
+      if (!found && typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("erp_warehouses");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) found = parsed.find((w: any) => w.id === linkedWarehouseId);
+          }
+        } catch (e) {}
+      }
+      if (found) setWarehouseDetail(found);
+    }).catch(() => null);
+    return () => { cancelled = true; };
+  }, [linkedWarehouseId]);
 
   // Fetch report records
   async function fetchReport() {
@@ -550,6 +586,13 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           isControlAccount: accountTitle === "Bank",
           contacts
         });
+        if (typeof window !== "undefined" && linkedWarehouseId) {
+          try {
+            const whData = JSON.stringify({ id: linkedWarehouseId, detail: warehouseDetail });
+            if (initialAccountId) localStorage.setItem(`account_warehouse_${initialAccountId}`, whData);
+            if (accountCode) localStorage.setItem(`account_warehouse_${accountCode}`, whData);
+          } catch (e) {}
+        }
         setMessage(`Updated account details successfully.`);
         void fetchReport();
         setTimeout(() => {
@@ -596,6 +639,13 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           ...current
         ]);
         setAccountCode(response.accountNumber);
+        if (typeof window !== "undefined" && linkedWarehouseId) {
+          try {
+            const whData = JSON.stringify({ id: linkedWarehouseId, detail: warehouseDetail });
+            localStorage.setItem(`account_warehouse_${response.accountId}`, whData);
+            localStorage.setItem(`account_warehouse_${response.accountNumber}`, whData);
+          } catch (e) {}
+        }
         setMessage(`Saved account ${response.accountNumber}.`);
         void fetchReport();
         setTimeout(() => {
@@ -1036,10 +1086,10 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                 onValueChange={(id) => {
                   setLinkedBankId(id || null);
                   if (!id) { setLinkedBankName(""); return; }
-                  fetch(`/api/erp/companies/${id}`)
+                  fetch(`/api/erp/banks/${id}`)
                     .then((r) => r.json())
                     .then((json) => {
-                      const name = json?.company?.name ?? json?.company?.legal_name ?? "";
+                      const name = json?.data?.bank?.bank_name ?? json?.bank?.bank_name ?? json?.bank_name ?? "";
                       setLinkedBankName(name);
                       if (!accountName && name) setAccountName(name);
                     })
@@ -1089,6 +1139,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                     label={getLabel("warehouseMaster", lang)}
                     value={linkedWarehouseId ?? ""}
                     onValueChange={(val) => setLinkedWarehouseId(val || null)}
+                    onSelectRecord={(rec) => setWarehouseDetail(rec)}
                     placeholder={getLabel("searchExistingWarehouses", lang)}
                   />
                 </div>
@@ -1175,9 +1226,11 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
             manualReferenceNumber={manualReferenceNumber}
             currency={branchInfo?.currency || selectedCountry?.currency_code || "AED"}
             status={saved ? "Active" : "In Progress"}
+            contacts={contacts}
             customerDetail={customerDetail}
             companyDetail={companyDetail}
             bankDetail={bankDetail}
+            warehouseDetail={warehouseDetail}
             selectedCountryName={selectedCountry?.name}
             selectedCountryCode={selectedCountry?.iso2 || selectedCountry?.iso3 || undefined}
             selectedBranchName={branchType === "Main" ? selectedBranchName(mainBranches, branch) : selectedCityBranchName(cityBranches, branch)}

@@ -68,22 +68,137 @@ function uniqueStrings(values: Array<string | null>) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
+async function resolveHierarchyScopes(
+  supabase: any,
+  initialCountryIds: string[],
+  initialCountryBranchIds: string[],
+  initialCityBranchIds: string[],
+  isSuperAdmin: boolean
+): Promise<{ countryIds: string[]; countryBranchIds: string[]; cityBranchIds: string[] }> {
+  if (isSuperAdmin || !supabase) {
+    return {
+      countryIds: initialCountryIds,
+      countryBranchIds: initialCountryBranchIds,
+      cityBranchIds: initialCityBranchIds
+    };
+  }
+
+  let countryIds = [...initialCountryIds];
+  let countryBranchIds = [...initialCountryBranchIds];
+  let cityBranchIds = [...initialCityBranchIds];
+
+  // 1. From city branches upward -> get parent main branch and country IDs
+  if (cityBranchIds.length > 0) {
+    try {
+      const { data: cbs } = await supabase
+        .from("city_branches")
+        .select("country_id, country_branch_id")
+        .in("id", cityBranchIds)
+        .is("deleted_at", null);
+      if (cbs) {
+        for (const row of cbs) {
+          if (row.country_id) countryIds.push(row.country_id);
+          if (row.country_branch_id) countryBranchIds.push(row.country_branch_id);
+        }
+      }
+    } catch (e) {
+      console.error("Error resolving hierarchy from city branches:", e);
+    }
+  }
+
+  countryIds = uniqueStrings(countryIds);
+  countryBranchIds = uniqueStrings(countryBranchIds);
+
+  // 2. From country branches upward -> get parent country IDs; downward -> get child city branch IDs
+  if (countryBranchIds.length > 0) {
+    try {
+      const [mainRes, childCityRes] = await Promise.all([
+        supabase
+          .from("country_branches")
+          .select("country_id")
+          .in("id", countryBranchIds)
+          .is("deleted_at", null),
+        supabase
+          .from("city_branches")
+          .select("id, country_id")
+          .in("country_branch_id", countryBranchIds)
+          .is("deleted_at", null)
+      ]);
+      if (mainRes?.data) {
+        for (const row of mainRes.data) {
+          if (row.country_id) countryIds.push(row.country_id);
+        }
+      }
+      if (childCityRes?.data) {
+        for (const row of childCityRes.data) {
+          if (row.id) cityBranchIds.push(row.id);
+          if (row.country_id) countryIds.push(row.country_id);
+        }
+      }
+    } catch (e) {
+      console.error("Error resolving hierarchy from country branches:", e);
+    }
+  }
+
+  countryIds = uniqueStrings(countryIds);
+  cityBranchIds = uniqueStrings(cityBranchIds);
+
+  // 3. From country IDs downward -> get all main branches and city branches in assigned countries
+  if (initialCountryIds.length > 0) {
+    try {
+      const [countryBranchesRes, cityBranchesRes] = await Promise.all([
+        supabase
+          .from("country_branches")
+          .select("id")
+          .in("country_id", initialCountryIds)
+          .is("deleted_at", null),
+        supabase
+          .from("city_branches")
+          .select("id")
+          .in("country_id", initialCountryIds)
+          .is("deleted_at", null)
+      ]);
+      if (countryBranchesRes?.data) {
+        for (const row of countryBranchesRes.data) {
+          if (row.id) countryBranchIds.push(row.id);
+        }
+      }
+      if (cityBranchesRes?.data) {
+        for (const row of cityBranchesRes.data) {
+          if (row.id) cityBranchIds.push(row.id);
+        }
+      }
+    } catch (e) {
+      console.error("Error resolving hierarchy from country IDs:", e);
+    }
+  }
+
+  return {
+    countryIds: uniqueStrings(countryIds),
+    countryBranchIds: uniqueStrings(countryBranchIds),
+    cityBranchIds: uniqueStrings(cityBranchIds)
+  };
+}
+
 export async function getCurrentErpSession(): Promise<ErpSession | null> {
   // Temporary local session (for initial Super Admin bootstrapping)
   const temp = await readTempSession();
   if (temp) {
     let resolvedUserId = temp.userId;
-    if (temp.userId.startsWith("00000000-") && isSupabaseConfigured()) {
+    let adminSupabase: any = null;
+    if (isSupabaseConfigured()) {
       try {
-        const supabase = createSupabaseAdminClient();
-        const { data: firstProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        if (firstProfile?.id) {
-          resolvedUserId = firstProfile.id;
+        adminSupabase = createSupabaseAdminClient();
+        if (temp.userId.startsWith("00000000-")) {
+          const { data: firstProfile } = await adminSupabase
+            .from("profiles")
+            .select("id")
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (firstProfile?.id) {
+            resolvedUserId = firstProfile.id;
+          }
         }
       } catch (e) {
         console.error("Failed to resolve profile ID for temp session:", e);
@@ -91,6 +206,19 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
     }
 
     const perms = [...new Set(temp.roles.flatMap((role) => enterpriseRolePermissions[role] ?? []))];
+    const initialCountryIds = uniqueStrings(temp.assignments.map((assignment) => assignment.countryId));
+    const initialCountryBranchIds = uniqueStrings(temp.assignments.map((assignment) => assignment.countryBranchId));
+    const initialCityBranchIds = uniqueStrings(temp.assignments.map((assignment) => assignment.cityBranchId));
+    const isSuperAdmin = temp.roles.includes("super_admin");
+
+    const resolvedScopes = await resolveHierarchyScopes(
+      adminSupabase,
+      initialCountryIds,
+      initialCountryBranchIds,
+      initialCityBranchIds,
+      isSuperAdmin
+    );
+
     return {
       userId: resolvedUserId,
       email: temp.email,
@@ -99,10 +227,10 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
       roles: temp.roles,
       permissions: perms,
       assignments: temp.assignments,
-      countryIds: uniqueStrings(temp.assignments.map((assignment) => assignment.countryId)),
-      countryBranchIds: uniqueStrings(temp.assignments.map((assignment) => assignment.countryBranchId)),
-      cityBranchIds: uniqueStrings(temp.assignments.map((assignment) => assignment.cityBranchId)),
-      isSuperAdmin: temp.roles.includes("super_admin")
+      countryIds: resolvedScopes.countryIds,
+      countryBranchIds: resolvedScopes.countryBranchIds,
+      cityBranchIds: resolvedScopes.cityBranchIds,
+      isSuperAdmin
     };
   }
 
@@ -171,33 +299,18 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
     permissions = ["*:*", ...permissions];
   }
 
-  const countryIds = uniqueStrings(assignments.map((assignment) => assignment.countryId));
-  let countryBranchIds = uniqueStrings(assignments.map((assignment) => assignment.countryBranchId));
-  let cityBranchIds = uniqueStrings(assignments.map((assignment) => assignment.cityBranchId));
+  const initialCountryIds = uniqueStrings(assignments.map((assignment) => assignment.countryId));
+  const initialCountryBranchIds = uniqueStrings(assignments.map((assignment) => assignment.countryBranchId));
+  const initialCityBranchIds = uniqueStrings(assignments.map((assignment) => assignment.cityBranchId));
+  const isSuperAdmin = roles.includes("super_admin");
 
-  if (!roles.includes("super_admin") && countryIds.length > 0 && (roles.includes("country_admin") || roles.includes("main_branch_admin") || roles.includes("country_user"))) {
-    const [countryBranchesRes, cityBranchesRes] = await Promise.all([
-      supabase
-        .from("country_branches")
-        .select("id")
-        .in("country_id", countryIds)
-        .is("deleted_at", null),
-      supabase
-        .from("city_branches")
-        .select("id")
-        .in("country_id", countryIds)
-        .is("deleted_at", null)
-    ]);
-
-    if (countryBranchesRes.data) {
-      const resolvedCbs = countryBranchesRes.data.map((r: any) => r.id as string);
-      countryBranchIds = uniqueStrings([...countryBranchIds, ...resolvedCbs]);
-    }
-    if (cityBranchesRes.data) {
-      const resolvedCityBranches = cityBranchesRes.data.map((r: any) => r.id as string);
-      cityBranchIds = uniqueStrings([...cityBranchIds, ...resolvedCityBranches]);
-    }
-  }
+  const resolvedScopes = await resolveHierarchyScopes(
+    supabase,
+    initialCountryIds,
+    initialCountryBranchIds,
+    initialCityBranchIds,
+    isSuperAdmin
+  );
 
   return {
     userId: user.id,
@@ -207,10 +320,10 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
     roles,
     permissions,
     assignments,
-    countryIds,
-    countryBranchIds,
-    cityBranchIds,
-    isSuperAdmin: roles.includes("super_admin")
+    countryIds: resolvedScopes.countryIds,
+    countryBranchIds: resolvedScopes.countryBranchIds,
+    cityBranchIds: resolvedScopes.cityBranchIds,
+    isSuperAdmin
   };
 }
 

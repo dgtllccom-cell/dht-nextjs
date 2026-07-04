@@ -357,12 +357,16 @@ export async function GET(request: NextRequest) {
     const countryBranchIds = [...new Set(accountRows.map((row) => row.country_branch_id).filter((value): value is string => Boolean(value)))];
     const cityBranchIds = [...new Set(accountRows.map((row) => row.city_branch_id).filter((value): value is string => Boolean(value)))];
     const customerIds = [...new Set(accountRows.map((row) => row.customer_id).filter((value): value is string => Boolean(value)))];
+    const companyIds = [...new Set(accountRows.map((row) => row.company_id).filter((value): value is string => Boolean(value)))];
+    const bankIds = [...new Set(accountRows.map((row) => row.bank_id).filter((value): value is string => Boolean(value)))];
 
     const countriesRes = await fetchInChunks(countryIds, 150, async (chunk) => supabase.from("countries").select("id, name, iso2, currency_code").in("id", chunk));
     const countryBranchesRes = await fetchInChunks(countryBranchIds, 150, async (chunk) => supabase.from("country_branches").select("id, country_id, name, code, local_currency, status").in("id", chunk));
     const cityBranchesRes = await fetchInChunks(cityBranchIds, 150, async (chunk) => supabase.from("city_branches").select("id, country_id, country_branch_id, city_name, name, code, local_currency, status").in("id", chunk));
     const companyRes = profileRes.data?.default_company_id ? await supabase.from("companies").select("id, name, legal_name, base_currency, created_at, updated_at").eq("id", profileRes.data.default_company_id).maybeSingle() : { data: null, error: null };
     const customersRes = await fetchInChunks(customerIds, 150, async (chunk) => supabase.from("customers").select("id, customer_name").in("id", chunk));
+    const companiesListRes = await fetchInChunks(companyIds, 150, async (chunk) => supabase.from("companies").select("id, name, legal_name").in("id", chunk));
+    const banksListRes = await fetchInChunks(bankIds, 150, async (chunk) => supabase.from("banks").select("id, bank_name, branch_name, account_number, phone, email").in("id", chunk));
 
     if (countriesRes.error) throw new Error(countriesRes.error.message);
     if (countryBranchesRes.error) throw new Error(countryBranchesRes.error.message);
@@ -398,6 +402,8 @@ export async function GET(request: NextRequest) {
     const cityBranchLookup = new Map(cityBranches.map((row) => [row.id, row] as const));
     const ledgerLookup = new Map(ledgers.map((row) => [row.enterprise_account_id ?? row.id, row] as const));
     const customerLookup = new Map(customers.map((row) => [row.id, row.customer_name] as const));
+    const companiesLookup = new Map(((companiesListRes.data ?? []) as any[]).map((row) => [row.id, row]));
+    const banksLookup = new Map(((banksListRes.data ?? []) as any[]).map((row) => [row.id, row]));
 
     const postingByAccount = new Map<string, PostingLineRow[]>();
     for (const line of postingLines) {
@@ -531,6 +537,19 @@ export async function GET(request: NextRequest) {
               ? countryBranch?.code ?? "-"
               : cityBranch?.code ?? "-";
 
+      const linkedComp = account.company_id ? companiesLookup.get(account.company_id) : null;
+      const linkedBnk = account.bank_id ? banksLookup.get(account.bank_id) : null;
+      const contactsList = Array.isArray(account.contacts) ? account.contacts : [];
+      const findContact = (prefix: string) => contactsList.find(c => c?.type?.toLowerCase()?.includes(prefix))?.value ?? null;
+
+      const mobileVal = findContact("mobile") || findContact("phone") || linkedBnk?.phone || "-";
+      const whatsappVal = findContact("whatsapp") || findContact("wa") || mobileVal;
+      const emailVal = findContact("email") || linkedBnk?.email || "-";
+      const ownerVal = findContact("owner") || linkedComp?.legal_name || linkedComp?.name || profile?.full_name || "-";
+      const warehouseVal = findContact("warehouse") || "-";
+      const bankVal = linkedBnk?.bank_name || (account.is_control_account ? accountName : "-");
+      const companyVal = linkedComp?.name || translatedCompanyName || translatedBusinessName || company?.name || profile?.full_name || "-";
+
       return {
         accountId: account.id,
         accountCode: account.account_number || account.code,
@@ -577,9 +596,15 @@ export async function GET(request: NextRequest) {
         journalActivityCount,
         latestJournalNo,
         latestActivityAt,
-        companyName: translatedCompanyName || translatedBusinessName || company?.name || profile?.full_name || "-",
+        companyName: companyVal,
+        bankName: bankVal,
+        warehouseName: warehouseVal,
+        ownerName: ownerVal,
+        mobile: mobileVal,
+        whatsapp: whatsappVal,
+        email: emailVal,
         companyCode: company?.id ? parseIdPrefix(company.id) : "-",
-        companyOwner: profile?.full_name ?? "-",
+        companyOwner: ownerVal,
         recentActivityLabel: latestAudit?.action ?? latestMovement?.referenceNo ?? null,
         recentActivityAt: latestActivityAt,
         recentMovements: allMovements.map((row) => ({
@@ -592,7 +617,7 @@ export async function GET(request: NextRequest) {
           usdRate: row.usdRate,
           usdAmount: row.usdAmount
         })),
-        contacts: account.contacts || []
+        contacts: contactsList
       };
     });
 

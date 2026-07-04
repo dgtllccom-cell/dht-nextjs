@@ -4,7 +4,7 @@ import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Download, Expand, Eye, FileSpreadsheet, FileText, MoreVertical, PencilLine, Printer, Search, Trash2, CalendarDays, RefreshCw, SlidersHorizontal, Landmark, CheckCircle2, ChevronDown, PackageCheck, FileCheck2, Building2, MapPin } from "lucide-react";
+import { Download, Expand, Eye, FileSpreadsheet, FileText, MoreVertical, PencilLine, Printer, Search, Trash2, CalendarDays, RefreshCw, SlidersHorizontal, Landmark, CheckCircle2, ChevronDown, PackageCheck, FileCheck2, Building2, MapPin, Phone, MessageCircle, Mail } from "lucide-react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { apiDelete, apiGet } from "@/lib/api/client";
@@ -62,6 +62,13 @@ type AccountGeneralReportRow = {
   companyName: string;
   companyCode: string;
   companyOwner: string;
+  bankName?: string;
+  warehouseName?: string;
+  ownerName?: string;
+  mobile?: string;
+  whatsapp?: string;
+  email?: string;
+  contacts?: Array<{ type: string; value: string }>;
   recentActivityLabel: string | null;
   recentActivityAt: string | null;
   accountSerialNumber?: number;
@@ -136,6 +143,66 @@ function titleCase(value: string) {
 
 function fmtNumber(value: number) {
   return (Number.isFinite(value) ? value : 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function ContactIconPopup({ row }: { row: AccountGeneralReportRow }) {
+  const [activeTab, setActiveTab] = useState<"mobile" | "whatsapp" | "email" | null>(null);
+
+  const mobile = row.mobile || row.contacts?.find(c => c.type?.toLowerCase().includes("mobile") || c.type?.toLowerCase().includes("phone"))?.value || "-";
+  const whatsapp = row.whatsapp || row.contacts?.find(c => c.type?.toLowerCase().includes("whatsapp") || c.type?.toLowerCase().includes("wa"))?.value || mobile;
+  const email = row.email || row.contacts?.find(c => c.type?.toLowerCase().includes("email"))?.value || "-";
+
+  return (
+    <div className="relative inline-flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setActiveTab(activeTab === "mobile" ? null : "mobile")}
+        title={`Mobile: ${mobile}`}
+        className={cn(
+          "p-1 rounded-full border transition hover:scale-110",
+          activeTab === "mobile" ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/40 dark:border-blue-800"
+        )}
+      >
+        <Phone className="h-3 w-3" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setActiveTab(activeTab === "whatsapp" ? null : "whatsapp")}
+        title={`WhatsApp: ${whatsapp}`}
+        className={cn(
+          "p-1 rounded-full border transition hover:scale-110",
+          activeTab === "whatsapp" ? "bg-emerald-600 text-white border-emerald-600 shadow-md" : "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800"
+        )}
+      >
+        <MessageCircle className="h-3 w-3" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setActiveTab(activeTab === "email" ? null : "email")}
+        title={`Email: ${email}`}
+        className={cn(
+          "p-1 rounded-full border transition hover:scale-110",
+          activeTab === "email" ? "bg-amber-600 text-white border-amber-600 shadow-md" : "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800"
+        )}
+      >
+        <Mail className="h-3 w-3" />
+      </button>
+
+      {activeTab && (
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1.5 min-w-[180px] rounded-lg border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in zoom-in-95">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-1 mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+            <span>{activeTab.toUpperCase()}</span>
+            <button type="button" onClick={() => setActiveTab(null)} className="text-slate-400 hover:text-slate-600">×</button>
+          </div>
+          <div className="font-mono text-[11px] font-black text-slate-800 dark:text-slate-100 break-all select-all">
+            {activeTab === "mobile" ? mobile : activeTab === "whatsapp" ? whatsapp : email}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function fmtDateTime(value: string | null | undefined) {
@@ -1060,10 +1127,11 @@ export function AccountGeneralReportView({
                 <thead className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
                   <tr>
                     {[
-                      { label: "Account Overview", span: 3, cls: "bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-t-2 border-t-slate-400" },
+                      { label: "Master Reference & Account Overview", span: 7, cls: "bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-t-2 border-t-slate-400" },
+                      { label: "Contact Details", span: 1, cls: "bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-t-2 border-t-emerald-500" },
                       { label: "Branch & Location", span: 3, cls: "bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-800 dark:text-indigo-400 border-t-2 border-t-indigo-500" },
                       { label: "Financial Information", span: 4, cls: "bg-blue-50/50 dark:bg-blue-950/20 text-blue-800 dark:text-blue-400 border-t-2 border-t-blue-500" },
-                      { label: "Status", span: 1, cls: "bg-amber-50/50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-t-2 border-t-amber-500" },
+                      { label: "Start & Status", span: 2, cls: "bg-amber-50/50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-t-2 border-t-amber-500" },
                       { label: "Actions", span: 1, cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border-t-2 border-t-slate-300" },
                     ].map((group) => (
                       <th
@@ -1077,9 +1145,10 @@ export function AccountGeneralReportView({
                   </tr>
                   <tr className="bg-white dark:bg-slate-950 text-[9px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b-2 border-slate-200 dark:border-slate-800">
                     {[
-                      "ACCOUNT CODE", "ACCOUNT NAME", "CATEGORY",
-                      "COUNTRY", "MAIN BRANCH", "CITY BRANCH",
-                      "CURRENCY", "DEBIT", "CREDIT", "BALANCE",
+                      "MANUAL REF", "ACCOUNT CODE", "ACCOUNT NAME", "COMPANY NAME",
+                      "BANK NAME", "WAREHOUSE NAME", "OWNER NAME", "CONTACTS",
+                      "COUNTRY", "MAIN BRANCH", "CITY BRANCH", "CURRENCY",
+                      "DEBIT", "CREDIT", "BALANCE", "START DATE",
                       "STATUS", "ACTIONS"
                     ].map((header, i) => (
                       <th key={i} className="px-3 py-3 border-r border-slate-100 dark:border-slate-800/50 last:border-r-0 whitespace-nowrap text-center align-middle">
@@ -1091,7 +1160,7 @@ export function AccountGeneralReportView({
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
                   {loading ? (
                     <tr>
-                      <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-500 font-medium">
+                      <td colSpan={18} className="px-5 py-10 text-center text-sm text-slate-500 font-medium">
                         <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-blue-500" />
                         Loading accounts registry...
                       </td>
@@ -1111,9 +1180,16 @@ export function AccountGeneralReportView({
                             highlighted && "bg-emerald-50 dark:bg-emerald-950/30"
                           )}
                         >
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono text-slate-600 dark:text-slate-400">{row.manualReferenceNumber || "-"}</td>
                           <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono font-bold text-blue-700 dark:text-blue-400">{row.accountCode}</td>
                           <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-bold text-left">{row.accountName}</td>
-                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 uppercase text-[9px] tracking-wide text-slate-500">{row.accountCategory} / {row.subType}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-medium">{row.companyName || "-"}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-medium text-emerald-700 dark:text-emerald-400">{row.bankName || "-"}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-medium text-amber-700 dark:text-amber-400">{row.warehouseName || "-"}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-medium">{row.ownerName || row.companyOwner || "-"}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 text-center align-middle">
+                            <ContactIconPopup row={row} />
+                          </td>
                           <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850">{row.countryName}</td>
                           <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850">{row.mainBranchName ?? (row.branchType === "Main Branch" ? row.branchName : "-")}</td>
                           <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850">{row.cityBranchName ?? (row.branchType === "City Branch" ? row.branchName : "-")}</td>
@@ -1121,6 +1197,7 @@ export function AccountGeneralReportView({
                           <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono text-rose-600 dark:text-rose-400 text-right">{fmtNumber(row.debitTotal)}</td>
                           <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono text-emerald-600 dark:text-emerald-400 text-right">{fmtNumber(row.creditTotal)}</td>
                           <td className={cn("px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono font-black text-right", rowTone(row.currentBalance))}>{fmtNumber(row.currentBalance)}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850 font-mono text-[9px] text-slate-500">{row.createdAt ? row.createdAt.slice(0, 10) : "-"}</td>
                           <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-850">
                             <span className={cn("inline-block px-1.5 py-0.5 rounded text-[8px] font-black uppercase text-white tracking-widest", row.status === "active" ? "bg-emerald-600" : "bg-slate-500")}>
                               {row.status}
@@ -1154,7 +1231,7 @@ export function AccountGeneralReportView({
                     })
                   ) : (
                     <tr>
-                      <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-500">
+                      <td colSpan={18} className="px-5 py-10 text-center text-sm text-slate-500">
                         No accounts match the selected filters.
                       </td>
                     </tr>

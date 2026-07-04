@@ -255,7 +255,7 @@ export async function GET(request: NextRequest) {
       .order("code", { ascending: true });
 
     if (!session.isSuperAdmin) {
-      const conditions: string[] = [];
+      const conditions: string[] = ["country_id.is.null", "scope.eq.super_admin"];
       if (session.cityBranchIds && session.cityBranchIds.length > 0) {
         conditions.push(`city_branch_id.in.(${session.cityBranchIds.join(",")})`);
       }
@@ -266,16 +266,18 @@ export async function GET(request: NextRequest) {
         conditions.push(`country_id.in.(${session.countryIds.join(",")})`);
       }
 
-      if (conditions.length > 0) {
-        query = query.or(conditions.join(","));
-      } else {
-        query = query.eq("id", "00000000-0000-0000-0000-000000000000");
-      }
+      query = query.or(conditions.join(","));
     }
 
-    if (scope.countryId) query = query.eq("country_id", scope.countryId);
-    if (scope.countryBranchId) query = query.eq("country_branch_id", scope.countryBranchId);
-    if (scope.cityBranchId) query = query.eq("city_branch_id", scope.cityBranchId);
+    if (scope.countryId) {
+      query = query.or(`country_id.eq.${scope.countryId},country_id.is.null`);
+    }
+    if (scope.countryBranchId) {
+      query = query.or(`country_branch_id.eq.${scope.countryBranchId},country_branch_id.is.null`);
+    }
+    if (scope.cityBranchId) {
+      query = query.or(`city_branch_id.eq.${scope.cityBranchId},city_branch_id.is.null`);
+    }
 
     const { data, error } = await query.limit(200);
 

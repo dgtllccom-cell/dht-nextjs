@@ -530,10 +530,15 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
       .then((res) => {
         const list = res?.countries || res?.data || [];
         setCountries(list);
-        // Do not auto-select to force user to choose ("country puche ga")
+        const cId = sessionInfo?.scopes?.countryIds?.[0];
+        if (cId && !selectedCountry) {
+          setSelectedCountry(cId);
+        } else if (list.length === 1 && !selectedCountry) {
+          setSelectedCountry(list[0].id);
+        }
       })
       .catch(console.error);
-  }, []);
+  }, [sessionInfo]);
 
   // Fetch main branches when country changes
   useEffect(() => {
@@ -542,9 +547,13 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
         .then((res) => {
           const list = res?.countryBranches || res?.entries || res?.data || [];
           setMainBranches(list);
-          if (list.length > 0) {
+          const mbId = sessionInfo?.scopes?.countryBranchIds?.[0];
+          const assigned = mbId ? list.find((b: any) => b.id === mbId) : null;
+          if (assigned) {
+            setSelectedMainBranch(assigned.id);
+          } else if (list.length === 1) {
             setSelectedMainBranch(list[0].id);
-          } else {
+          } else if (!selectedMainBranch || !list.some((b: any) => b.id === selectedMainBranch)) {
             setSelectedMainBranch("");
           }
         })
@@ -553,7 +562,7 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
       setMainBranches([]);
       setSelectedMainBranch("");
     }
-  }, [selectedCountry]);
+  }, [selectedCountry, sessionInfo]);
 
   // Fetch city branches when main branch changes
   useEffect(() => {
@@ -562,8 +571,15 @@ export function ExpensesBillEntryForm({ lang }: { lang: SupportedLanguage }) {
         .then((res) => {
           const list = res?.cityBranches || res?.entries || res?.data || [];
           setCityBranches(list);
-          // Do not auto-select to force user to choose ("city branch puche ga")
-          setBranch("");
+          const cbId = sessionInfo?.scopes?.cityBranchIds?.[0];
+          const assigned = cbId ? list.find((b: any) => b.id === cbId) : null;
+          if (assigned) {
+            setBranch(assigned.id);
+          } else if (list.length === 1 && !sessionInfo?.scopes?.isSuperAdmin) {
+            setBranch(list[0].id);
+          } else if (!branch || !list.some((b: any) => b.id === branch)) {
+            setBranch("");
+          }
         })
         .catch(console.error);
     } else {

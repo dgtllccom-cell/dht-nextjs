@@ -151,20 +151,24 @@ function countryBookingSummaries(rows: PurchaseReport[]): CountryBookingSummary[
   const map = new Map<string, CountryBookingSummary>();
   rows.forEach((row) => {
     const country = row.countryName || "UNKNOWN";
-    const currency = row.currency || "USD";
+    const currency = (row.currency && row.currency !== "PKR" && row.currency !== "AED" && row.currency !== "AFN" && row.currency !== "INR") ? row.currency : "USD";
     const key = `${country.toLowerCase()}::${currency}`;
     const current = map.get(key) || { key, country, currency, totalOrders: 0, invoiceAmount: 0, advancePaid: 0, remainingBalance: 0 };
     
     const invoiceAmount = Number(row.totalPurchaseAmount || 0);
-    const advancePaid = Number((row as any).advance_paid || 0);
-    const remainingPaid = Number((row as any).remaining_paid || 0);
-    const creditAmount = Number((row as any).credit_amount || 0);
-    const totalPaidLocal = advancePaid + remainingPaid + creditAmount;
+    const advancePaidRaw = Number((row as any).advance_paid || 0);
+    const remainingPaidRaw = Number((row as any).remaining_paid || 0);
+    const creditAmountRaw = Number((row as any).credit_amount || 0);
+    const exRate = Number((row as any).exchange_rate || (row as any).exchangeRate || 1);
+    
+    const advancePaid = (exRate > 1 && advancePaidRaw > invoiceAmount * 1.05) ? advancePaidRaw / exRate : advancePaidRaw;
+    const totalPaidLocal = advancePaidRaw + remainingPaidRaw + creditAmountRaw;
+    const totalPaidUsd = (exRate > 1 && totalPaidLocal > invoiceAmount * 1.05) ? totalPaidLocal / exRate : totalPaidLocal;
     
     current.totalOrders += 1;
     current.invoiceAmount += invoiceAmount;
     current.advancePaid += advancePaid;
-    current.remainingBalance += Math.max(0, invoiceAmount - totalPaidLocal);
+    current.remainingBalance += Math.max(0, invoiceAmount - totalPaidUsd);
     map.set(key, current);
   });
   return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
@@ -1507,7 +1511,7 @@ export function PurchaseBookingJournalReportView({
             tableGroups={[
               { label: "General Information", span: 10, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Product Information", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
-              { label: "Financial Information", span: isSuperAdmin ? 10 : 9, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
+              { label: "Financial Information", span: isSuperAdmin ? 9 : 8, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Route & Loading", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Status", span: 4, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Actions", span: 1, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
@@ -1536,7 +1540,6 @@ export function PurchaseBookingJournalReportView({
               "PURCH. CURR",
               "PURCH. PRICE",
               "TOTAL AMT",
-              "PURCH. AMT",
               "EX. RATE",
               "FINAL CURR",
               "FINAL AMT",
@@ -1625,7 +1628,8 @@ export function PurchaseBookingJournalReportView({
                 || report.form_data?.form?.paymentCondition
                 || report.paymentStatus || "-";
               const currency = report.currency || "USD";
-              const localCurrency = report.form_data?.form?.purchaseAccountCurrency 
+              const localCurrency = report.finalCurrency
+                || report.form_data?.form?.purchaseAccountCurrency 
                 || report.form_data?.form?.salesAccountCurrency || "PKR";
 
               // ── Route & Loading ──────────────────────────────────────────
@@ -1748,24 +1752,21 @@ export function PurchaseBookingJournalReportView({
                   {/* ── Financial Information ───────────────────── */}
                   <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{currency}</Td>
                   <Td right className={`font-mono font-semibold ${getRowColor()} text-[10px]`}>
-                    {purchasePrice > 0 ? `${purchasePrice.toFixed(3)}` : "-"}
+                    {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${currency}` : "-"}
                   </Td>
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
-                    {totalAmt > 0 ? `${formatMoney(totalAmt)}` : "-"}
-                  </Td>
-                  <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
-                    {purchaseAmt > 0 ? `${formatMoney(purchaseAmt)} ${currency}` : "-"}
+                    {totalAmt > 0 ? `${formatMoney(totalAmt)} ${currency}` : "-"}
                   </Td>
                   <Td right className={`font-mono ${getRowColor()} text-[10px]`}>
                     {exchangeRate > 0 ? exchangeRate.toLocaleString("en-US") : "-"}
                   </Td>
                   <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{localCurrency}</Td>
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
-                    {finalAmt > 0 ? `${formatMoney(finalAmt)}` : "-"}
+                    {finalAmt > 0 ? `${formatMoney(finalAmt)} ${localCurrency}` : "-"}
                   </Td>
                   {isSuperAdmin && (
                     <Td right className={`font-mono font-bold text-blue-500 text-[10px]`}>
-                      {finalAmt > 0 ? `${formatMoney(exchangeRate > 0 ? finalAmt / exchangeRate : finalAmt)}` : "-"}
+                      {finalAmt > 0 ? `${formatMoney(exchangeRate > 0 ? finalAmt / exchangeRate : finalAmt)} USD` : "-"}
                     </Td>
                   )}
                   <Td center className="text-[10px]">
@@ -2322,7 +2323,7 @@ export function PurchaseBookingJournalReportView({
                               <span className="text-slate-400 font-medium px-1.5">@</span> 
                               <span className="text-blue-600">{exRate}</span> 
                               <span className="text-slate-400 font-medium px-1.5">=</span> 
-                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {localCurrency}
+                              {totalPKRVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {displayCurrency}
                             </td>
                           </tr>
                           <tr className="border-b border-slate-100">

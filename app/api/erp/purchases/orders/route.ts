@@ -6,6 +6,7 @@ import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { requireErpSession } from "@/lib/auth/session";
 import { createApiSupabaseClient, requireSupabaseData, writeAuditLog } from "@/lib/api/supabase";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { safeInsertPurchaseOrderItems, safeInsertPurchaseOrderExpenses } from "@/lib/services/purchase-table-manager";
 import { revalidatePath } from "next/cache";
 
 const listQuerySchema = z.object({
@@ -41,65 +42,40 @@ async function resolveCountryCurrency(admin: any, countryId: string | null | und
   return data?.currency_code || fallback;
 }
 
-async function resolveEffectiveScope(input: {
-  session: Awaited<ReturnType<typeof requireErpSession>>;
-  requested: { countryId?: string | null; countryBranchId?: string | null; cityBranchId?: string | null };
-}) {
-  const session = input.session;
-  const req = input.requested;
-
-  const effectiveCityBranchId = req.cityBranchId || session.cityBranchIds[0] || null;
+async function resolveEffectiveScope(req: { countryId?: string | null; countryBranchId?: string | null; cityBranchId?: string | null }) {
+  const supabase = await createApiSupabaseClient();
   
-  if (effectiveCityBranchId) {
-    const supabase = await createApiSupabaseClient();
-    const row = await requireSupabaseData(
-      supabase
-        .from("city_branches")
-        .select("id, country_id, country_branch_id")
-        .eq("id", effectiveCityBranchId)
-        .is("deleted_at", null)
-        .maybeSingle()
-    );
-    return {
-      countryId: (row as any)?.country_id ?? req.countryId ?? session.countryIds[0] ?? null,
-      countryBranchId: (row as any)?.country_branch_id ?? req.countryBranchId ?? session.countryBranchIds[0] ?? null,
-      cityBranchId: effectiveCityBranchId
-    };
+  if (req.cityBranchId) {
+    const { data: row } = await supabase
+      .from("city_branches")
+      .select("id, country_id, country_branch_id")
+      .eq("id", req.cityBranchId)
+      .maybeSingle();
+    if (row) return { countryId: row.country_id, countryBranchId: row.country_branch_id, cityBranchId: req.cityBranchId };
   }
 
-  const effectiveCountryBranchId = req.countryBranchId || session.countryBranchIds[0] || null;
-  if (effectiveCountryBranchId) {
-    const supabase = await createApiSupabaseClient();
-    const row = await requireSupabaseData(
-      supabase
-        .from("country_branches")
-        .select("id, country_id")
-        .eq("id", effectiveCountryBranchId)
-        .is("deleted_at", null)
-        .maybeSingle()
-    );
-    return {
-      countryId: (row as any)?.country_id ?? req.countryId ?? session.countryIds[0] ?? null,
-      countryBranchId: effectiveCountryBranchId,
-      cityBranchId: null
-    };
+  if (req.countryBranchId) {
+    const { data: row } = await supabase
+      .from("country_branches")
+      .select("id, country_id")
+      .eq("id", req.countryBranchId)
+      .maybeSingle();
+    if (row) return { countryId: row.country_id, countryBranchId: req.countryBranchId, cityBranchId: null };
   }
 
-  return {
-    countryId: req.countryId || session.countryIds[0] || null,
-    countryBranchId: null,
-    cityBranchId: null
-  };
+  return { countryId: req.countryId ?? null, countryBranchId: null, cityBranchId: null };
 }
 
 export async function GET(request: NextRequest) {
   try {
     const session = await requireErpSession();
+    const { searchParams } = new URL(request.url);
+
     const query = listQuerySchema.parse({
-      countryId: request.nextUrl.searchParams.get("countryId") ?? undefined,
-      countryBranchId: request.nextUrl.searchParams.get("countryBranchId") ?? undefined,
-      cityBranchId: request.nextUrl.searchParams.get("cityBranchId") ?? undefined,
-      limit: request.nextUrl.searchParams.get("limit") ?? undefined
+      countryId: searchParams.get("countryId") || undefined,
+      countryBranchId: searchParams.get("countryBranchId") || undefined,
+      cityBranchId: searchParams.get("cityBranchId") || undefined,
+      limit: searchParams.get("limit") || undefined
     });
 
     authorizeApiScope(session, {
@@ -113,30 +89,44 @@ export async function GET(request: NextRequest) {
     const supabase = await createApiSupabaseClient();
     let q = supabase
       .from("purchase_orders")
-      .select(
-        "id, purchase_order_no, purchase_contract_no, country_id, country_branch_id, city_branch_id, supplier_company_id, companies(name), currency_code, exchange_rate, order_total, advance_paid, remaining_paid, credit_amount, remaining_due, payment_status, ledger_posting_status, form_data, super_admin_serial_number, country_transaction_serial_number, branch_transaction_serial_number, created_at, updated_at"
-      )
+      .select("*")
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
-    // Enforce strict scope isolation: city branch first, then main branch, then country.
-    if (query.cityBranchId) {
-      q = q.eq("city_branch_id", query.cityBranchId);
-    } else if (!session.isSuperAdmin && session.cityBranchIds.length) {
-      q = q.in("city_branch_id", session.cityBranchIds);
-    } else if (query.countryBranchId) {
-      q = q.eq("country_branch_id", query.countryBranchId);
-    } else if (!session.isSuperAdmin && session.countryBranchIds.length) {
-      q = q.in("country_branch_id", session.countryBranchIds);
-    } else if (query.countryId) {
-      q = q.eq("country_id", query.countryId);
-    } else if (!session.isSuperAdmin) {
-      q = q.in("country_id", session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]);
+    if (query.cityBranchId) q = q.eq("city_branch_id", query.cityBranchId);
+    else if (query.countryBranchId) q = q.eq("country_branch_id", query.countryBranchId);
+    else if (query.countryId) q = q.eq("country_id", query.countryId);
+
+    let rawRows;
+    try {
+      rawRows = await requireSupabaseData(q.limit(query.limit));
+    } catch (e: any) {
+      const errMsg = String(e.message || e);
+      if (errMsg.includes("column") || errMsg.includes("does not exist") || errMsg.includes("schema cache") || errMsg.includes("relation")) {
+        await ensurePurchaseSchemaAndEnums();
+        rawRows = await requireSupabaseData(q.limit(query.limit));
+      } else {
+        throw e;
+      }
     }
+    const seenPo = new Set<string>();
+    const rows = (rawRows ?? []).filter((row: any) => {
+      const poNo = String(row.purchase_order_no || "").trim().toUpperCase();
+      if (!poNo) return true;
+      if (seenPo.has(poNo)) return false;
+      seenPo.add(poNo);
+      return true;
+    });
 
-    const rows = await requireSupabaseData(q.limit(query.limit));
+    const filteredRows = rows.filter((row: any) => {
+      if (session.isSuperAdmin) return true;
+      const matchCity = !session.cityBranchIds.length || (row.city_branch_id && session.cityBranchIds.includes(row.city_branch_id));
+      const matchBranch = !session.countryBranchIds.length || (row.country_branch_id && session.countryBranchIds.includes(row.country_branch_id));
+      const matchCountry = !session.countryIds.length || (row.country_id && session.countryIds.includes(row.country_id));
+      return matchCity && matchBranch && matchCountry;
+    });
 
-    return apiOk({ orders: rows ?? [], limit: query.limit });
+    return apiOk(filteredRows);
   } catch (error) {
     return handleApiError(error);
   }
@@ -148,12 +138,9 @@ export async function POST(request: NextRequest) {
     const body = purchaseOrderCreateSchema.parse(await request.json());
 
     const effective = await resolveEffectiveScope({
-      session,
-      requested: {
-        countryId: body.countryId ?? null,
-        countryBranchId: body.countryBranchId ?? null,
-        cityBranchId: body.cityBranchId ?? null
-      }
+      countryId: body.countryId ?? null,
+      countryBranchId: body.countryBranchId ?? null,
+      cityBranchId: body.cityBranchId ?? null
     });
 
     authorizeApiScope(session, {
@@ -165,45 +152,77 @@ export async function POST(request: NextRequest) {
     });
 
     const supabase = await createApiSupabaseClient();
+    const adminSupabase = createSupabaseAdminClient() as any;
 
-    const lps = String(body.ledgerPostingStatus || "draft").toLowerCase();
-    const ledgerPostingStatus = lps === "posted" ? "posted" : lps === "cancelled" ? "cancelled" : "draft";
-
-    const admin = createSupabaseAdminClient() as any;
-    const recordCurrencyCode = await resolveCountryCurrency(admin, effective.countryId, body.currencyCode || "USD");
-
-    const superAdminSerialNumber = await nextTransactionSerial(admin, "global", "global", "SA");
-
-    let countryPrefix = "CNT";
+    let countryPrefix = "PK";
     if (effective.countryId) {
-      const { data: country } = await admin.from("countries").select("iso2, iso3, name").eq("id", effective.countryId).maybeSingle();
-      countryPrefix = cleanSerialPrefix(country?.iso2 || country?.iso3 || country?.name, "CNT");
+      const { data: countryRow } = await adminSupabase
+        .from("countries")
+        .select("iso2")
+        .eq("id", effective.countryId)
+        .maybeSingle();
+      if (countryRow?.iso2) countryPrefix = countryRow.iso2.toUpperCase();
     }
 
-    let mainBranchPrefix = "MB";
-    if (effective.countryBranchId) {
-      const { data: branch } = await admin.from("country_branches").select("code, name").eq("id", effective.countryBranchId).maybeSingle();
-      const branchNameWord = branch?.name ? branch.name.split(" ")[0].toUpperCase() : null;
-      mainBranchPrefix = cleanSerialPrefix(branchNameWord || branch?.code || branch?.name, "MB");
-    }
+    let branchPrefix = "QTA";
+    let branchTransactionSerialNumber = null;
+    let countryTransactionSerialNumber = null;
+    let superAdminSerialNumber = null;
 
-    let cityBranchPrefix = "CB";
     if (effective.cityBranchId) {
-      const { data: branch } = await admin.from("city_branches").select("code, name").eq("id", effective.cityBranchId).maybeSingle();
-      const branchNameWord = branch?.name ? branch.name.split(" ")[0].toUpperCase() : null;
-      cityBranchPrefix = cleanSerialPrefix(branchNameWord || branch?.code || branch?.name, "CB");
+      const { data: cityRow } = await adminSupabase
+        .from("city_branches")
+        .select("code")
+        .eq("id", effective.cityBranchId)
+        .maybeSingle();
+      if (cityRow?.code) {
+        const parts = cityRow.code.split("-");
+        branchPrefix = parts.length > 1 ? parts[parts.length - 1].toUpperCase() : cityRow.code.toUpperCase();
+      }
+
+      const { count: branchCount } = await adminSupabase
+        .from("purchase_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("city_branch_id", effective.cityBranchId)
+        .is("deleted_at", null);
+      const bSeq = (branchCount || 0) + 1;
+      branchTransactionSerialNumber = `${countryPrefix}-${branchPrefix}-${String(bSeq).padStart(4, "0")}`;
     }
 
-    const countryTransactionSerialNumber = effective.countryId ? await nextTransactionSerial(admin, "country", effective.countryId, countryPrefix) : null;
-    const branchTransactionSerialNumber = effective.cityBranchId || effective.countryBranchId ? await nextTransactionSerial(admin, "branch", effective.cityBranchId || effective.countryBranchId || "", effective.cityBranchId ? cityBranchPrefix : mainBranchPrefix) : null;
-    const mainBranchTransactionSerialNumber = effective.countryBranchId ? await nextTransactionSerial(admin, "main_branch", effective.countryBranchId, mainBranchPrefix) : null;
-    const cityBranchTransactionSerialNumber = effective.cityBranchId ? await nextTransactionSerial(admin, "city_branch", effective.cityBranchId, cityBranchPrefix) : null;
-    const purchaseOrderNo = await nextTransactionSerial(admin, "module_purchase", "global", "PUR");
-    const paymentStatusRaw = String(body.paymentStatus || "pending").toLowerCase();
-    const orderTotal = Number(body.orderTotal || 0);
-    const advanceAmount = 0; // Initialize as 0, paid through payments module
-    const remainingDue = orderTotal;
-    const paymentStatus = ["pending", "partial", "completed", "cancelled"].includes(paymentStatusRaw) ? paymentStatusRaw : "pending";
+    if (effective.countryId) {
+      const { count: countryCount } = await adminSupabase
+        .from("purchase_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("country_id", effective.countryId)
+        .is("deleted_at", null);
+      const cSeq = (countryCount || 0) + 1;
+      countryTransactionSerialNumber = `${countryPrefix}-${String(cSeq).padStart(6, "0")}`;
+    }
+
+    const { count: totalCount } = await adminSupabase
+      .from("purchase_orders")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null);
+    const sSeq = (totalCount || 0) + 1;
+    superAdminSerialNumber = String(sSeq).padStart(8, "0");
+
+    const purchaseOrderNo =
+      !body.purchaseOrderNo || body.purchaseOrderNo === "AUTO"
+        ? branchTransactionSerialNumber || `PO-${Date.now()}`
+        : body.purchaseOrderNo.trim();
+
+    const orderTotal = body.orderTotal ?? 0;
+    const advanceAmount = body.advanceAmount ?? 0;
+    const remainingDue = Math.max(0, orderTotal - advanceAmount);
+    
+    let paymentStatus = body.paymentStatus || "unpaid";
+    if (advanceAmount > 0 && advanceAmount < orderTotal) paymentStatus = "partially_paid";
+    else if (advanceAmount >= orderTotal && orderTotal > 0) paymentStatus = "paid";
+
+    const ledgerPostingStatus = body.ledgerPostingStatus || "unposted";
+
+    const purchaseCurrency = body.purchaseCurrency || "USD";
+    const paymentCurrency = body.paymentCurrency || purchaseCurrency;
 
     const payload = {
       country_id: effective.countryId,
@@ -213,21 +232,21 @@ export async function POST(request: NextRequest) {
       purchase_contract_no: body.purchaseContractNo?.trim() || null,
       supplier_company_id: body.supplierCompanyId ?? null,
       
-      // purchase_currency: body.currencyCode || "USD",
-      // payment_currency: body.paymentCurrencyCode || "USD",
-      currency_code: recordCurrencyCode, // Country currency is the source of truth
+      purchase_currency: purchaseCurrency,
+      payment_currency: paymentCurrency,
+      currency_code: purchaseCurrency,
       exchange_rate: body.exchangeRate,
       order_total: body.orderTotal,
       
-      // total_goods_original: body.totalGoodsOriginal,
-      // total_goods_local: body.totalGoodsLocal,
-      // total_goods_usd: body.totalGoodsUsd,
-      // total_expenses_original: body.totalExpensesOriginal,
-      // total_expenses_local: body.totalExpensesLocal,
-      // total_expenses_usd: body.totalExpensesUsd,
-      // landed_cost_original: body.landedCostOriginal,
-      // landed_cost_local: body.landedCostLocal,
-      // landed_cost_usd: body.landedCostUsd,
+      total_goods_original: body.totalGoodsOriginal ?? 0,
+      total_goods_local: body.totalGoodsLocal ?? 0,
+      total_goods_usd: body.totalGoodsUsd ?? 0,
+      total_expenses_original: body.totalExpensesOriginal ?? 0,
+      total_expenses_local: body.totalExpensesLocal ?? 0,
+      total_expenses_usd: body.totalExpensesUsd ?? 0,
+      landed_cost_original: body.landedCostOriginal ?? 0,
+      landed_cost_local: body.landedCostLocal ?? 0,
+      landed_cost_usd: body.landedCostUsd ?? 0,
 
       form_data: {
         ...(body.formData || {}),
@@ -242,9 +261,7 @@ export async function POST(request: NextRequest) {
       remaining_due: remainingDue,
       super_admin_serial_number: superAdminSerialNumber,
       country_transaction_serial_number: countryTransactionSerialNumber,
-      branch_transaction_serial_number: branchTransactionSerialNumber,
-      // main_branch_transaction_serial: mainBranchTransactionSerialNumber,
-      // city_branch_transaction_serial: cityBranchTransactionSerialNumber
+      branch_transaction_serial_number: branchTransactionSerialNumber
     };
 
     let inserted;
@@ -253,7 +270,19 @@ export async function POST(request: NextRequest) {
         supabase.from("purchase_orders").insert(payload).select("id, purchase_order_no").single()
       );
     } catch (e: any) {
-      return apiError("INSERT_FAILED", e.message || String(e), 400);
+      const errMsg = String(e.message || e);
+      if (errMsg.includes("schema cache") || errMsg.includes("column") || errMsg.includes("relation") || errMsg.includes("landed_cost") || errMsg.includes("currency")) {
+        await ensurePurchaseSchemaAndEnums();
+        try {
+          inserted = await requireSupabaseData(
+            supabase.from("purchase_orders").insert(payload).select("id, purchase_order_no").single()
+          );
+        } catch (retryErr: any) {
+          return apiError("INSERT_FAILED", retryErr.message || String(retryErr), 400);
+        }
+      } else {
+        return apiError("INSERT_FAILED", errMsg, 400);
+      }
     }
 
     const orderId = (inserted as any).id;
@@ -280,7 +309,7 @@ export async function POST(request: NextRequest) {
         // total_usd: it.totalUsd || 0
       }));
       try {
-        await requireSupabaseData(supabase.from("purchase_order_items").insert(itemsPayload));
+        await safeInsertPurchaseOrderItems(supabase, itemsPayload);
       } catch (e: any) {
         return apiError("ITEMS_INSERT_FAILED", e.message || String(e), 400);
       }
@@ -299,7 +328,7 @@ export async function POST(request: NextRequest) {
         // amount_usd: ex.amountUsd || 0
       }));
       try {
-        await requireSupabaseData(supabase.from("purchase_order_expenses").insert(expPayload));
+        await safeInsertPurchaseOrderExpenses(supabase, expPayload);
       } catch (e: any) {
         return apiError("EXPENSES_INSERT_FAILED", e.message || String(e), 400);
       }

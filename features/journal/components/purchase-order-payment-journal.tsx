@@ -355,12 +355,16 @@ function countryPaymentSummaries(rows: PurchaseOrderRow[]): CountryPaymentSummar
   const map = new Map<string, CountryPaymentSummary>();
   rows.forEach((row) => {
     const country = rowCountryName(row);
-    const currency = rowCurrency(row);
+    const currRaw = rowCurrency(row);
+    const currency = (currRaw && currRaw !== "PKR" && currRaw !== "AED" && currRaw !== "AFN" && currRaw !== "INR") ? currRaw : "USD";
     const key = `${country.toLowerCase()}::${currency}`;
     const current = map.get(key) || { key, country, currency, totalOrders: 0, invoiceAmount: 0, advancePaid: 0, remainingBalance: 0 };
     const invoiceAmount = orderTotal(row);
-    const advancePaid = Number(row.advance_paid || 0);
-    const explicitRemaining = Number(row.remaining_due || 0);
+    const advancePaidRaw = Number(row.advance_paid || 0);
+    const exRate = Number(row.exchange_rate || 1);
+    const advancePaid = (exRate > 1 && advancePaidRaw > invoiceAmount * 1.05) ? advancePaidRaw / exRate : advancePaidRaw;
+    const explicitRemainingRaw = Number(row.remaining_due || 0);
+    const explicitRemaining = (exRate > 1 && explicitRemainingRaw > invoiceAmount * 1.05) ? explicitRemainingRaw / exRate : explicitRemainingRaw;
     current.totalOrders += 1;
     current.invoiceAmount += invoiceAmount;
     current.advancePaid += advancePaid;

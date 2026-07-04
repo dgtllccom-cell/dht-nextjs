@@ -6,7 +6,14 @@ import { requireErpSession } from "@/lib/auth/session";
 import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { createApiSupabaseClient, requireSupabaseData, writeAuditLog } from "@/lib/api/supabase";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { revertOrderBookingTransfer, revertAllOrderPayments } from "./transfer/route";
+import { revertOrderBookingTransfer, revertAllOrderPayments } from "@/lib/services/purchase-payment-reversal";
+import {
+  safeInsertPurchaseOrderItems,
+  safeDeletePurchaseOrderItems,
+  safeInsertPurchaseOrderExpenses,
+  safeDeletePurchaseOrderExpenses,
+  ensurePurchaseSchemaAndEnums
+} from "@/lib/services/purchase-table-manager";
 import { revalidatePath } from "next/cache";
 
 const paramsSchema = z.object({
@@ -87,18 +94,22 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (body.cityBranchId !== undefined) patch.city_branch_id = body.cityBranchId ?? null;
     if (body.supplierCompanyId !== undefined) patch.supplier_company_id = body.supplierCompanyId ?? null;
     if (body.purchaseContractNo !== undefined) patch.purchase_contract_no = body.purchaseContractNo?.trim() || null;
-    if (body.currencyCode !== undefined) patch.currency_code = body.currencyCode;
+    if (body.currencyCode !== undefined) {
+      patch.currency_code = body.currencyCode;
+      patch.purchase_currency = body.currencyCode;
+    }
+    if (body.paymentCurrencyCode !== undefined) patch.payment_currency = body.paymentCurrencyCode;
     if (body.exchangeRate !== undefined) patch.exchange_rate = body.exchangeRate;
     if (body.orderTotal !== undefined) patch.order_total = body.orderTotal;
-    // if (body.totalGoodsOriginal !== undefined) patch.total_goods_original = body.totalGoodsOriginal;
-    // if (body.totalGoodsLocal !== undefined) patch.total_goods_local = body.totalGoodsLocal;
-    // if (body.totalGoodsUsd !== undefined) patch.total_goods_usd = body.totalGoodsUsd;
-    // if (body.totalExpensesOriginal !== undefined) patch.total_expenses_original = body.totalExpensesOriginal;
-    // if (body.totalExpensesLocal !== undefined) patch.total_expenses_local = body.totalExpensesLocal;
-    // if (body.totalExpensesUsd !== undefined) patch.total_expenses_usd = body.totalExpensesUsd;
-    // if (body.landedCostOriginal !== undefined) patch.landed_cost_original = body.landedCostOriginal;
-    // if (body.landedCostLocal !== undefined) patch.landed_cost_local = body.landedCostLocal;
-    // if (body.landedCostUsd !== undefined) patch.landed_cost_usd = body.landedCostUsd;
+    if (body.totalGoodsOriginal !== undefined) patch.total_goods_original = body.totalGoodsOriginal;
+    if (body.totalGoodsLocal !== undefined) patch.total_goods_local = body.totalGoodsLocal;
+    if (body.totalGoodsUsd !== undefined) patch.total_goods_usd = body.totalGoodsUsd;
+    if (body.totalExpensesOriginal !== undefined) patch.total_expenses_original = body.totalExpensesOriginal;
+    if (body.totalExpensesLocal !== undefined) patch.total_expenses_local = body.totalExpensesLocal;
+    if (body.totalExpensesUsd !== undefined) patch.total_expenses_usd = body.totalExpensesUsd;
+    if (body.landedCostOriginal !== undefined) patch.landed_cost_original = body.landedCostOriginal;
+    if (body.landedCostLocal !== undefined) patch.landed_cost_local = body.landedCostLocal;
+    if (body.landedCostUsd !== undefined) patch.landed_cost_usd = body.landedCostUsd;
     if (body.formData !== undefined) patch.form_data = body.formData ?? null;
     if (body.ledgerPostingStatus !== undefined) {
       const s = String(body.ledgerPostingStatus).toLowerCase();
@@ -131,9 +142,26 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       // For now, let's keep it simple and not overwrite advance_paid.
     }
 
-    const updated = await requireSupabaseData(
-      supabase.from("purchase_orders").update(patch).eq("id", params.id).select("id").single()
-    );
+    let updated;
+    try {
+      updated = await requireSupabaseData(
+        supabase.from("purchase_orders").update(patch).eq("id", params.id).select("id").single()
+      );
+    } catch (e: any) {
+      const errMsg = String(e.message || e);
+      if (errMsg.includes("schema cache") || errMsg.includes("column") || errMsg.includes("relation") || errMsg.includes("landed_cost") || errMsg.includes("currency")) {
+        await ensurePurchaseSchemaAndEnums();
+        try {
+          updated = await requireSupabaseData(
+            supabase.from("purchase_orders").update(patch).eq("id", params.id).select("id").single()
+          );
+        } catch (retryErr: any) {
+          return apiError("UPDATE_FAILED", retryErr.message || String(retryErr), 400);
+        }
+      } else {
+        return apiError("UPDATE_FAILED", errMsg, 400);
+      }
+    }
 
     // CASCADE BILL NUMBER TO PAYMENTS
     if (body.purchaseContractNo !== undefined && body.purchaseContractNo?.trim()) {
@@ -145,7 +173,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     }
 
     if (body.items !== undefined) {
-      await requireSupabaseData(supabase.from("purchase_order_items").delete().eq("purchase_order_id", params.id));
+      await safeDeletePurchaseOrderItems(supabase, params.id);
       if (body.items && body.items.length > 0) {
         const itemsPayload = body.items.map((it: any) => ({
           purchase_order_id: params.id,
@@ -167,12 +195,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           // total_local: it.totalLocal || 0,
           // total_usd: it.totalUsd || 0
         }));
-        await requireSupabaseData(supabase.from("purchase_order_items").insert(itemsPayload));
+        await safeInsertPurchaseOrderItems(supabase, itemsPayload);
       }
     }
 
     if (body.expenses !== undefined) {
-      await requireSupabaseData(supabase.from("purchase_order_expenses").delete().eq("purchase_order_id", params.id));
+      await safeDeletePurchaseOrderExpenses(supabase, params.id);
       if (body.expenses && body.expenses.length > 0) {
         const expPayload = body.expenses.map((ex: any) => ({
           purchase_order_id: params.id,
@@ -185,7 +213,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           // amount_local: ex.amountLocal || 0,
           // amount_usd: ex.amountUsd || 0
         }));
-        await requireSupabaseData(supabase.from("purchase_order_expenses").insert(expPayload));
+        await safeInsertPurchaseOrderExpenses(supabase, expPayload);
       }
     }
 
