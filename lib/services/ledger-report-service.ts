@@ -175,7 +175,7 @@ export class LedgerReportService {
     includeAllScopes?: boolean;
   }): Promise<LedgerLookupRow[]> {
     const supabase = createSupabaseAdminClient() as any;
-    const limit = Math.max(1, Math.min(input.limit ?? 250, 500));
+    const limit = Math.max(1, Math.min(input.limit ?? 250, 3000));
 
     let q = supabase
       .from("ledgers")
