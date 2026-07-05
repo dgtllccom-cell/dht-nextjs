@@ -68,6 +68,28 @@ function uniqueStrings(values: Array<string | null>) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
+function getAssignmentRoots(assignments: RoleAssignmentScope[]) {
+  const cIds: string[] = [];
+  const cbIds: string[] = [];
+  const cityIds: string[] = [];
+  
+  for (const a of assignments) {
+    if (a.cityBranchId) {
+      cityIds.push(a.cityBranchId);
+    } else if (a.countryBranchId) {
+      cbIds.push(a.countryBranchId);
+    } else if (a.countryId) {
+      cIds.push(a.countryId);
+    }
+  }
+  
+  return {
+    initialCountryIds: uniqueStrings(cIds),
+    initialCountryBranchIds: uniqueStrings(cbIds),
+    initialCityBranchIds: uniqueStrings(cityIds)
+  };
+}
+
 async function resolveHierarchyScopes(
   supabase: any,
   initialCountryIds: string[],
@@ -83,100 +105,75 @@ async function resolveHierarchyScopes(
     };
   }
 
-  let countryIds = [...initialCountryIds];
-  let countryBranchIds = [...initialCountryBranchIds];
-  let cityBranchIds = [...initialCityBranchIds];
+  const finalCountryIds = new Set(initialCountryIds);
+  const finalCountryBranchIds = new Set(initialCountryBranchIds);
+  const finalCityBranchIds = new Set(initialCityBranchIds);
 
-  // 1. From city branches upward -> get parent main branch and country IDs
-  if (cityBranchIds.length > 0) {
-    try {
-      const { data: cbs } = await supabase
-        .from("city_branches")
-        .select("country_id, country_branch_id")
-        .in("id", cityBranchIds)
-        .is("deleted_at", null);
-      if (cbs) {
-        for (const row of cbs) {
-          if (row.country_id) countryIds.push(row.country_id);
-          if (row.country_branch_id) countryBranchIds.push(row.country_branch_id);
-        }
-      }
-    } catch (e) {
-      console.error("Error resolving hierarchy from city branches:", e);
-    }
-  }
-
-  countryIds = uniqueStrings(countryIds);
-  countryBranchIds = uniqueStrings(countryBranchIds);
-
-  // 2. From country branches upward -> get parent country IDs; downward -> get child city branch IDs
-  if (countryBranchIds.length > 0) {
-    try {
-      const [mainRes, childCityRes] = await Promise.all([
-        supabase
-          .from("country_branches")
-          .select("country_id")
-          .in("id", countryBranchIds)
-          .is("deleted_at", null),
-        supabase
-          .from("city_branches")
-          .select("id, country_id")
-          .in("country_branch_id", countryBranchIds)
-          .is("deleted_at", null)
-      ]);
-      if (mainRes?.data) {
-        for (const row of mainRes.data) {
-          if (row.country_id) countryIds.push(row.country_id);
-        }
-      }
-      if (childCityRes?.data) {
-        for (const row of childCityRes.data) {
-          if (row.id) cityBranchIds.push(row.id);
-          if (row.country_id) countryIds.push(row.country_id);
-        }
-      }
-    } catch (e) {
-      console.error("Error resolving hierarchy from country branches:", e);
-    }
-  }
-
-  countryIds = uniqueStrings(countryIds);
-  cityBranchIds = uniqueStrings(cityBranchIds);
-
-  // 3. From country IDs downward -> get all main branches and city branches in assigned countries
+  // 1. Resolve DOWNWARD from initial roots
   if (initialCountryIds.length > 0) {
     try {
-      const [countryBranchesRes, cityBranchesRes] = await Promise.all([
-        supabase
-          .from("country_branches")
-          .select("id")
-          .in("country_id", initialCountryIds)
-          .is("deleted_at", null),
-        supabase
-          .from("city_branches")
-          .select("id")
-          .in("country_id", initialCountryIds)
-          .is("deleted_at", null)
+      const [cbRes, cityRes] = await Promise.all([
+        supabase.from("country_branches").select("id").in("country_id", initialCountryIds).is("deleted_at", null),
+        supabase.from("city_branches").select("id").in("country_id", initialCountryIds).is("deleted_at", null)
       ]);
-      if (countryBranchesRes?.data) {
-        for (const row of countryBranchesRes.data) {
-          if (row.id) countryBranchIds.push(row.id);
-        }
-      }
-      if (cityBranchesRes?.data) {
-        for (const row of cityBranchesRes.data) {
-          if (row.id) cityBranchIds.push(row.id);
-        }
-      }
+      cbRes?.data?.forEach((r: any) => { if (r.id) finalCountryBranchIds.add(r.id); });
+      cityRes?.data?.forEach((r: any) => { if (r.id) finalCityBranchIds.add(r.id); });
     } catch (e) {
-      console.error("Error resolving hierarchy from country IDs:", e);
+      console.error("Error resolving downward from country IDs:", e);
+    }
+  }
+
+  if (initialCountryBranchIds.length > 0) {
+    try {
+      const { data: cityRes } = await supabase
+        .from("city_branches")
+        .select("id")
+        .in("country_branch_id", initialCountryBranchIds)
+        .is("deleted_at", null);
+      cityRes?.forEach((r: any) => { if (r.id) finalCityBranchIds.add(r.id); });
+    } catch (e) {
+      console.error("Error resolving downward from country branch IDs:", e);
+    }
+  }
+
+  // 2. Resolve UPWARD from all gathered nodes to ensure parent context is included
+  const cityBranchArray = Array.from(finalCityBranchIds);
+  if (cityBranchArray.length > 0) {
+    try {
+      const { data } = await supabase
+        .from("city_branches")
+        .select("country_id, country_branch_id")
+        .in("id", cityBranchArray)
+        .is("deleted_at", null);
+      data?.forEach((r: any) => {
+        if (r.country_id) finalCountryIds.add(r.country_id);
+        if (r.country_branch_id) finalCountryBranchIds.add(r.country_branch_id);
+      });
+    } catch (e) {
+      console.error("Error resolving upward from city branches:", e);
+    }
+  }
+
+  const countryBranchArray = Array.from(finalCountryBranchIds);
+  if (countryBranchArray.length > 0) {
+    try {
+      const { data } = await supabase
+        .from("country_branches")
+        .select("country_id")
+        .in("id", countryBranchArray)
+        .is("deleted_at", null);
+      data?.forEach((r: any) => {
+        if (r.country_id) finalCountryIds.add(r.country_id);
+      });
+    } catch (e) {
+      console.error("Error resolving upward from country branches:", e);
     }
   }
 
   return {
-    countryIds: uniqueStrings(countryIds),
-    countryBranchIds: uniqueStrings(countryBranchIds),
-    cityBranchIds: uniqueStrings(cityBranchIds)
+    countryIds: Array.from(finalCountryIds),
+    countryBranchIds: Array.from(finalCountryBranchIds),
+    cityBranchIds: Array.from(finalCityBranchIds)
   };
 }
 
@@ -206,9 +203,7 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
     }
 
     const perms = [...new Set(temp.roles.flatMap((role) => enterpriseRolePermissions[role] ?? []))];
-    const initialCountryIds = uniqueStrings(temp.assignments.map((assignment) => assignment.countryId));
-    const initialCountryBranchIds = uniqueStrings(temp.assignments.map((assignment) => assignment.countryBranchId));
-    const initialCityBranchIds = uniqueStrings(temp.assignments.map((assignment) => assignment.cityBranchId));
+    const { initialCountryIds, initialCountryBranchIds, initialCityBranchIds } = getAssignmentRoots(temp.assignments);
     const isSuperAdmin = temp.roles.includes("super_admin");
 
     const resolvedScopes = await resolveHierarchyScopes(
@@ -299,9 +294,7 @@ export async function getCurrentErpSession(): Promise<ErpSession | null> {
     permissions = ["*:*", ...permissions];
   }
 
-  const initialCountryIds = uniqueStrings(assignments.map((assignment) => assignment.countryId));
-  const initialCountryBranchIds = uniqueStrings(assignments.map((assignment) => assignment.countryBranchId));
-  const initialCityBranchIds = uniqueStrings(assignments.map((assignment) => assignment.cityBranchId));
+  const { initialCountryIds, initialCountryBranchIds, initialCityBranchIds } = getAssignmentRoots(assignments);
   const isSuperAdmin = roles.includes("super_admin");
 
   const resolvedScopes = await resolveHierarchyScopes(
