@@ -205,7 +205,15 @@ export function PurchaseModuleWorkspace({
         const message = typeof body.error === "string" ? body.error : body.error?.message;
         throw new Error(message || "Purchase records could not be loaded.");
       }
-      setOrders(body.data?.orders || body.orders || []);
+      let rows: PurchaseOrderRow[] = [];
+      if (Array.isArray(body?.data)) {
+        rows = body.data;
+      } else if (Array.isArray(body?.data?.orders)) {
+        rows = body.data.orders;
+      } else if (Array.isArray(body?.orders)) {
+        rows = body.orders;
+      }
+      setOrders(rows);
     } catch (err) {
       setOrders([]);
       setError(err instanceof Error ? err.message : "Purchase records could not be loaded.");

@@ -92,8 +92,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         transferStatus: "transferred",
         invoiceStatus: workflow.invoiceStatus || "available",
         paymentStatus: "pending",
-        journalStatus: "pending",
-        ledgerStatus: "pending",
+        journalStatus: "posted",
+        ledgerStatus: "posted",
         currentStep: "purchase_transfer_payment",
         currentStepName: "Purchase Transfer Payment",
         nextStepName: "Post Payment",
@@ -126,8 +126,114 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       }
     };
 
+    // --- AUTOMATIC ROZNAMCHA POSTING LOGIC ---
+    
+    // Helper to get enterpriseAccountId and ledgerId
+    const getAccountInfo = async (accountCode: string) => {
+      const { data: entAccount, error } = await supabase
+        .from("enterprise_accounts")
+        .select("id, currency")
+        .eq("account_number", accountCode)
+        .is("deleted_at", null)
+        .limit(1)
+        .maybeSingle();
+      if (error || !entAccount) return null;
+
+      const { data: ledger } = await supabase
+        .from("ledgers")
+        .select("id")
+        .eq("enterprise_account_id", entAccount.id)
+        .limit(1)
+        .maybeSingle();
+      
+      return {
+        enterpriseAccountId: entAccount.id,
+        ledgerId: ledger?.id || null,
+        currency: entAccount.currency || "USD"
+      };
+    };
+
+    const purchaseAccountInfo = await getAccountInfo(form.purchaseAccountNo);
+    const salesAccountInfo = await getAccountInfo(form.salesAccountNo);
+
+    if (!purchaseAccountInfo?.ledgerId) {
+      throw new Error(`Could not resolve ledger for Purchase Account: ${form.purchaseAccountNo}. Please ensure the account exists and has a ledger.`);
+    }
+    if (!salesAccountInfo?.ledgerId) {
+      throw new Error(`Could not resolve ledger for Sales Account: ${form.salesAccountNo}. Please ensure the account exists and has a ledger.`);
+    }
+
+    const roznamchaType = orderRow.city_branch_id ? "branch" : orderRow.country_branch_id ? "country" : orderRow.country_id ? "country" : "super_admin";
+
+    const roznamchaPayload = {
+      mode: "post",
+      type: roznamchaType,
+      countryId: orderRow.country_id,
+      countryBranchId: orderRow.country_branch_id,
+      cityBranchId: orderRow.city_branch_id,
+      entryDate: now.split("T")[0],
+      journalNo: systemBillNumber,
+      voucherNo: manualBillNumber || systemBillNumber,
+      referenceNo: referenceNo,
+      narration: "Purchase Booking Auto-Transfer",
+      lines: [
+        {
+          enterpriseAccountId: purchaseAccountInfo.enterpriseAccountId,
+          ledgerId: purchaseAccountInfo.ledgerId,
+          debit: totalPurchaseAmount,
+          credit: 0,
+          currency: form.purchaseCurrency || form.currencyType || purchaseAccountInfo.currency,
+          exchangeRate: form.exchangeRate || 1,
+          paymentEntryType: "transfer",
+          description: `Purchase Auto Debit - ${partyName}`
+        },
+        {
+          enterpriseAccountId: salesAccountInfo.enterpriseAccountId,
+          ledgerId: salesAccountInfo.ledgerId,
+          debit: 0,
+          credit: totalPurchaseAmount,
+          currency: form.salesAccountCurrency || form.secondaryCurrency || salesAccountInfo.currency,
+          exchangeRate: form.exchangeRate || 1,
+          paymentEntryType: "transfer",
+          description: `Purchase Auto Credit - ${partyName}`
+        }
+      ]
+    };
+
+    // Check if Roznamcha entry already exists for this order to prevent double posting and duplicate key errors
+    const { data: existingRoz } = await supabase
+      .from("roznamcha_entries")
+      .select("id")
+      .eq("journal_no", systemBillNumber)
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (!existingRoz) {
+      const baseUrl = request.nextUrl.origin;
+      const roznamchaRes = await fetch(`${baseUrl}/api/erp/roznamcha`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          cookie: request.headers.get("cookie") || ""
+        },
+        body: JSON.stringify({
+          ...roznamchaPayload,
+          // Append a timestamp or unique suffix to ensure it doesn't violate unique constraints if voucherNo was used elsewhere
+          voucherNo: `${manualBillNumber || systemBillNumber}-TRF-${Date.now()}`
+        })
+      });
+      
+      const roznamchaData = await roznamchaRes.json().catch(() => ({}));
+      if (!roznamchaRes.ok || !roznamchaData.success) {
+        throw new Error(roznamchaData?.error?.message || roznamchaData?.error || "Failed to post to Roznamcha automatically.");
+      }
+    }
+
+    // --- END ROZNAMCHA POSTING LOGIC ---
+
     const patch = {
-      ledger_posting_status: "transferred",
+      ledger_posting_status: "posted",
       payment_status: "pending",
       is_edited_since_transfer: false,
       advance_paid: 0,
@@ -162,7 +268,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       manualBillNumber,
       referenceNo,
       transferOnly: true,
-      ledgerPostingStatus: "transferred",
+      ledgerPostingStatus: "posted",
       paymentStatus: "pending",
       advancePaid: 0,
       remainingDue: orderRow.order_total

@@ -19,7 +19,10 @@ async function ensureTablesAndReloadSchema() {
         add column if not exists total_expenses_usd numeric(18,4) not null default 0,
         add column if not exists landed_cost_original numeric(18,4) not null default 0,
         add column if not exists landed_cost_local numeric(18,4) not null default 0,
-        add column if not exists landed_cost_usd numeric(18,4) not null default 0;
+        add column if not exists landed_cost_usd numeric(18,4) not null default 0,
+        add column if not exists super_admin_serial_number text,
+        add column if not exists country_transaction_serial_number text,
+        add column if not exists branch_transaction_serial_number text;
 
       create table if not exists purchase_order_items (
         id uuid primary key default gen_random_uuid(),

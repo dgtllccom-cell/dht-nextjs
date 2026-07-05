@@ -50,7 +50,7 @@ import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-windo
 import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
 import { PurchaseBookingJournalReportView } from "./purchase-booking-journal-report-view";
 
-// ── Non-location constants (static values, not from master forms) ─────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Non-location constants (static values, not from master forms) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const CURRENCY_OPTIONS = ["USD", "AED", "EUR", "GBP", "PKR", "AFN", "INR", "CNY", "SAR"];
 const PAYMENT_TYPES = ["Advance Payment", "Invoice", "Final Payment", "Credit"];
 const LOADING_TYPES = ["By Sea", "By Road", "By Air"];
@@ -66,7 +66,7 @@ const GOODS_HS_CODES = {
   "ALMONDS": "0802.12",
   "HAZELNUTS": "0802.22"
 };
-// NOTE: COUNTRY_OPTIONS and ORIGIN_OPTIONS removed — countries now come from Location Master.
+// NOTE: COUNTRY_OPTIONS and ORIGIN_OPTIONS removed Ã¢â‚¬â€ countries now come from Location Master.
 
 const MOCK_ACCOUNTS = [
   { accountCode: "AE-AC-0001", accountName: "Dubai Purchase Account", cityBranchName: "Dubai Main Branch", ledgerCurrency: "AED" },
@@ -338,9 +338,9 @@ function currencySymbol(currency) {
   const c = String(currency || "").toUpperCase();
   if (c.includes("USD")) return "$";
   if (c.includes("AED")) return "DH";
-  if (c.includes("PKR")) return "₨";
-  if (c.includes("AFN")) return "؋";
-  if (c.includes("INR")) return "₹";
+  if (c.includes("PKR")) return "Ã¢â€šÂ¨";
+  if (c.includes("AFN")) return "Ã˜â€¹";
+  if (c.includes("INR")) return "Ã¢â€šÂ¹";
   return currency || "";
 }
 
@@ -569,7 +569,7 @@ export function PurchaseOrderWizard({ session }) {
   // Scoping States
   const [localSession, setLocalSession] = useState(session || null);
   const [countries, setCountries] = useState([]);
-  const [allCountries, setAllCountries] = useState([]); // unscoped — for transit pickers
+  const [allCountries, setAllCountries] = useState([]); // unscoped Ã¢â‚¬â€ for transit pickers
   const [dbGoods, setDbGoods] = useState([]); // goods from master DB
   const [dbLoadingPorts, setDbLoadingPorts] = useState([]);
   const [dbReceivedPorts, setDbReceivedPorts] = useState([]);
@@ -656,6 +656,52 @@ export function PurchaseOrderWizard({ session }) {
   const [newGoodError, setNewGoodError] = useState("");
 
   const renderGlobalInfoCards = () => {
+    // Determine logged-in user's branch details
+    let loginBranchName = "N/A";
+    let loginBranchCode = "N/A";
+    let loginCityName = "N/A";
+    let loginCountryName = "N/A";
+
+    if (isSuperAdmin) {
+      loginBranchName = "Global System";
+      loginBranchCode = "GLOBAL-00";
+      loginCountryName = "All";
+      loginCityName = "Global HQ";
+    } else {
+      const uCid = activeSession?.countryIds?.[0] || activeSession?.scopes?.countryIds?.[0];
+      const uBid = activeSession?.countryBranchIds?.[0] || activeSession?.scopes?.countryBranchIds?.[0];
+      const uCbid = activeSession?.cityBranchIds?.[0] || activeSession?.scopes?.cityBranchIds?.[0];
+
+      const c = countries.find(x => x.id === uCid) || allCountries.find(x => x.id === uCid);
+      const mb = mainBranches.find(x => x.id === uBid);
+      const cb = cityBranches.find(x => x.id === uCbid);
+
+      if (uCbid && cb) {
+        loginBranchName = cb.name || cb.city_name;
+        loginBranchCode = cb.code || cb.branch_code;
+        loginCityName = cb.city_name || cb.name;
+        loginCountryName = c?.name || "N/A";
+      } else if (uBid && mb) {
+        loginBranchName = mb.name;
+        loginBranchCode = mb.code;
+        loginCityName = "Main Branch";
+        loginCountryName = c?.name || "N/A";
+      } else if (uCid && c) {
+        loginBranchName = `${c.name} Region`;
+        loginBranchCode = c.iso2 || "N/A";
+        loginCityName = "All Cities";
+        loginCountryName = c.name;
+      } else {
+        // Fallback to what's in the form if lists haven't loaded yet
+        loginBranchName = form.branchName;
+        loginBranchCode = form.branchCode;
+        loginCityName = form.branchCity;
+        loginCountryName = form.branchCountry;
+      }
+    }
+
+    const primaryRole = (activeSession?.roles?.[0] || activeSession?.scopes?.roles?.[0] || "User").replace(/_/g, " ");
+
     return (
       <div className="w-full mb-4 animate-in fade-in duration-300">
         <div className="bg-card border border-border shadow-md rounded-lg p-3 relative">
@@ -674,15 +720,14 @@ export function PurchaseOrderWizard({ session }) {
                 <div className="space-y-1.5 text-[10px]">
                   <div className="space-y-0.5 border-b border-border/40 pb-1.5 mb-1.5">
                     <span className="text-muted-foreground block text-[8px] uppercase font-bold">Branch Name</span>
-                    <span className="font-black text-primary block truncate text-xs" title={form.branchName}>{form.branchName || "N/A"}</span>
+                    <span className="font-black text-primary block truncate text-xs" title={loginBranchName}>{loginBranchName || "N/A"}</span>
                   </div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Branch Code:</span> <span className="font-semibold text-foreground font-mono">{form.branchCode || "N/A"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Branch Code:</span> <span className="font-semibold text-foreground font-mono">{loginBranchCode || "N/A"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">User Admin:</span> <span className="font-black text-emerald-600 dark:text-emerald-450 uppercase">{form.userName}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">User ID:</span> <span className="font-semibold text-foreground font-mono text-[9px]">{form.userId || "N/A"}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Login Time:</span> <span className="font-semibold text-foreground">14:35:02</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">IP Address:</span> <span className="font-semibold text-foreground font-mono text-[9px]">192.168.1.1</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Location:</span> <span className="font-semibold text-foreground truncate" title="Sargodha, PK">Sargodha, PK</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Country:</span> <span className="font-semibold text-foreground truncate" title={form.branchCountry}>{form.branchCountry || "N/A"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Role:</span> <span className="font-semibold text-foreground capitalize text-[9px]">{primaryRole}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Location:</span> <span className="font-semibold text-foreground truncate" title={`${loginCityName || "N/A"}, ${loginCountryName || "N/A"}`}>{loginCityName || "N/A"}, {loginCountryName || "N/A"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Country:</span> <span className="font-semibold text-foreground truncate" title={loginCountryName}>{loginCountryName || "N/A"}</span></div>
                 </div>
               </div>
 
@@ -697,9 +742,10 @@ export function PurchaseOrderWizard({ session }) {
                 <div className="space-y-1.5 text-[10px]">
                   <div className="flex justify-between"><span className="text-muted-foreground">Booking Date:</span> <span className="font-semibold text-foreground">{form.purchaseDate}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Fiscal Year:</span> <span className="font-semibold">2025-26</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground font-bold">Booking Branch:</span> <span className="font-bold text-emerald-600 dark:text-emerald-450 truncate" title={loginBranchName}>{loginBranchName || "N/A"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Status:</span> <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-1.5 py-0.2 text-[8px] font-bold text-yellow-600 dark:text-yellow-450 uppercase">{form.salesStatus}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">GPBO Serial:</span> <span className="font-bold text-foreground truncate font-mono" title={form.purchaseOrderNo}>{form.purchaseOrderNo}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">BPBO Serial:</span> <span className="font-bold text-foreground truncate font-mono" title={form.billNo}>{form.billNo}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">System Serial:</span> <span className="font-bold text-foreground truncate font-mono" title={form.purchaseOrderNo}>{form.purchaseOrderNo}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground font-bold text-primary">Branch Serial:</span> <span className="font-bold text-primary truncate font-mono" title={form.billNo}>{form.billNo}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Contract No:</span> <span className="font-semibold text-foreground truncate font-mono" title={form.purchaseContractNo}>{form.purchaseContractNo}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Loading Mode:</span> <span className="font-semibold text-foreground truncate" title={form.shippingMode}>{form.shippingMode || "N/A"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Origin Country:</span> <span className="font-semibold text-foreground truncate" title={form.origin || form.branchCountry}>{form.origin || form.branchCountry || "N/A"}</span></div>
@@ -1046,15 +1092,19 @@ export function PurchaseOrderWizard({ session }) {
         const sessionRes = payload?.data || payload;
         if (!cancelled && sessionRes) {
           setLocalSession(sessionRes);
-          const sScopes = sessionRes.scopes || {};
+          const sScopes = sessionRes.scopes || sessionRes || {};
           const isSup = sScopes.isSuperAdmin;
+          const userCountryId = (!isSup && sScopes.countryIds?.[0]) ? sScopes.countryIds[0] : null;
+          const userCountryBranchId = (!isSup && sScopes.countryBranchIds?.[0]) ? sScopes.countryBranchIds[0] : null;
+          const userCityBranchId = (!isSup && sScopes.cityBranchIds?.[0]) ? sScopes.cityBranchIds[0] : null;
+
           setForm((prev) => ({
             ...prev,
-            userName: sessionRes.user?.fullName || prev.userName,
-            userId: sessionRes.user?.id || prev.userId,
-            countryId: prev.countryId || (!isSup && sScopes.countryIds?.[0] ? sScopes.countryIds[0] : prev.countryId),
-            countryBranchId: prev.countryBranchId || (!isSup && sScopes.countryBranchIds?.[0] ? sScopes.countryBranchIds[0] : prev.countryBranchId),
-            cityBranchId: prev.cityBranchId || (!isSup && sScopes.cityBranchIds?.[0] ? sScopes.cityBranchIds[0] : prev.cityBranchId)
+            userName: sessionRes.user?.fullName || sessionRes.fullName || prev.userName,
+            userId: sessionRes.user?.id || sessionRes.userId || prev.userId,
+            countryId: userCountryId || prev.countryId,
+            countryBranchId: userCountryBranchId || prev.countryBranchId,
+            cityBranchId: userCityBranchId || prev.cityBranchId
           }));
         }
       } catch (err) {
@@ -1354,9 +1404,9 @@ export function PurchaseOrderWizard({ session }) {
         } else if (poNo) {
           poData = await lookupPurchaseBookingReport(
             poNo,
-            activeSession.scopes?.countryIds?.[0] || null,
-            activeSession.scopes?.countryBranchIds?.[0] || null,
-            activeSession.scopes?.cityBranchIds?.[0] || null,
+            activeSession.countryIds?.[0] || activeSession.scopes?.countryIds?.[0] || null,
+            activeSession.countryBranchIds?.[0] || activeSession.scopes?.countryBranchIds?.[0] || null,
+            activeSession.cityBranchIds?.[0] || activeSession.scopes?.cityBranchIds?.[0] || null,
             isSuperAdmin
           );
         }
@@ -1438,18 +1488,18 @@ export function PurchaseOrderWizard({ session }) {
   // Set initial scope fields for scoped users
   useEffect(() => {
     if (!session) return;
-    if (session.scopes?.isSuperAdmin) return;
+    if (session.isSuperAdmin) return;
 
-    if (session.scopes?.countryIds?.length) {
-      const cid = session.scopes.countryIds[0];
+    if (session.countryIds?.length) {
+      const cid = session.countryIds[0];
       setForm(prev => ({ ...prev, countryId: cid }));
     }
-    if (session.scopes?.countryBranchIds?.length) {
-      const bid = session.scopes.countryBranchIds[0];
+    if (session.countryBranchIds?.length) {
+      const bid = session.countryBranchIds[0];
       setForm(prev => ({ ...prev, countryBranchId: bid }));
     }
-    if (session.scopes?.cityBranchIds?.length) {
-      const cbid = session.scopes.cityBranchIds[0];
+    if (session.cityBranchIds?.length) {
+      const cbid = session.cityBranchIds[0];
       setForm(prev => ({ ...prev, cityBranchId: cbid }));
     }
   }, [session]);
@@ -1570,6 +1620,42 @@ export function PurchaseOrderWizard({ session }) {
     }
   }, [form.countryId, form.countryBranchId, form.cityBranchId, mainBranches, cityBranches, form.purchaseOrderNo, transitCountryOptions]);
 
+  // Auto-select Default Purchase and Sales Accounts for the selected Branch
+  useEffect(() => {
+    // Only run if we have accounts and a branch is selected
+    if (dbAccounts.length === 0 || !form.countryId) return;
+
+    // Wait until the user has actually selected a branch
+    const branchContextId = form.cityBranchId || form.countryBranchId;
+    if (!branchContextId) return;
+    
+    // Find matching accounts for the current scope
+    const scopedAccounts = dbAccounts.filter(acc => accountMatchesScope(acc));
+
+    // Try to auto-populate if currently empty OR if current account doesn't belong to the new branch
+    const purchaseNeedsUpdate = !form.purchaseAccountNo || !scopedAccounts.some(a => a.accountCode === form.purchaseAccountNo);
+    const salesNeedsUpdate = !form.salesAccountNo || !scopedAccounts.some(a => a.accountCode === form.salesAccountNo);
+
+    let newPurchaseAcc = null;
+    let newSalesAcc = null;
+
+    if (purchaseNeedsUpdate) {
+      newPurchaseAcc = scopedAccounts.find(a => String(a.kind || "").toLowerCase() === "liability" && !a.isControlAccount);
+      if (!newPurchaseAcc) newPurchaseAcc = scopedAccounts.find(a => String(a.kind || "").toLowerCase() === "liability");
+    }
+    
+    if (salesNeedsUpdate) {
+      newSalesAcc = scopedAccounts.find(a => String(a.kind || "").toLowerCase() === "asset" && !a.isControlAccount);
+      if (!newSalesAcc) newSalesAcc = scopedAccounts.find(a => String(a.kind || "").toLowerCase() === "asset");
+    }
+
+    if (newPurchaseAcc || newSalesAcc) {
+      // applyAccountMaster uses functional updates, so it's safe to call sequentially
+      if (newPurchaseAcc) applyAccountMaster("purchase", newPurchaseAcc);
+      if (newSalesAcc) applyAccountMaster("sales", newSalesAcc);
+    }
+  }, [form.cityBranchId, form.countryBranchId, dbAccounts]);
+
   // Load latest exchange rate and set currency when country or branch changes
   useEffect(() => {
     const countryId = form.countryId;
@@ -1577,7 +1663,7 @@ export function PurchaseOrderWizard({ session }) {
     const activeCountry = transitCountryOptions.find(c => String(c.id) === String(countryId)) || countries.find(c => String(c.id) === String(countryId));
 
     // Determine the active country name or ISO from either the selected country or the user's session scope
-    const cName = activeCountry?.name || session?.scopes?.countryName || "";
+    const cName = activeCountry?.name || session?.countryName || session?.scopes?.countryName || "";
     const iso = activeCountry?.iso2 || "";
 
     if (cName) {
@@ -1629,8 +1715,8 @@ export function PurchaseOrderWizard({ session }) {
     setForm(prev => ({
       ...prev,
       branchCountry: activeCountry?.name || prev.branchCountry,
-      branchName: activeMainBranch?.name || prev.branchName,
-      branchCode: activeMainBranch?.code || prev.branchCode,
+      branchName: activeCityBranch?.name || activeMainBranch?.name || prev.branchName,
+      branchCode: activeCityBranch?.code || activeMainBranch?.code || prev.branchCode,
       branchCity: activeCityBranch?.city_name || prev.branchCity,
     }));
   }, [form.countryId, form.countryBranchId, form.cityBranchId, countries, mainBranches, cityBranches]);
@@ -1793,7 +1879,7 @@ export function PurchaseOrderWizard({ session }) {
   };
 
   const handleTextChange = (type, val) => {
-    // Update only the local search display state — do NOT overwrite the
+    // Update only the local search display state Ã¢â‚¬â€ do NOT overwrite the
     // form account code field with raw text. The account code will only be
     // set once a valid account is confirmed via selection or background lookup.
     if (type === "purchase") {
@@ -2375,7 +2461,7 @@ export function PurchaseOrderWizard({ session }) {
   };
 
 
-  // ── Inline Master Creation Handlers ─────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Inline Master Creation Handlers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   const handleAddNewCountry = async () => {
     const { name } = newCountryForm;
     if (!name.trim()) {
@@ -4004,50 +4090,43 @@ export function PurchaseOrderWizard({ session }) {
                   </div>
 
                   <div className="space-y-4">
-                    {/* ── SECTION 1: SHIPPING & LOCATIONS ──────────────────────────────── */}
-                    {/* ── SECTION 1: SHIPPING & LOCATIONS (MASTER INTEGRATED & RESIGNED) ── */}
-                    <div className="bg-card border border-border shadow-md rounded-xl p-5 space-y-4 animate-in fade-in duration-300">
-                      <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                    {/* SECTION 1: SHIPPING & LOCATION */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
                         <div className="flex items-center gap-2.5">
-                          <div className="p-2 rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
+                          <div className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
                             <Globe2 className="h-4 w-4" />
                           </div>
                           <div>
-                            <h4 className="text-sm font-black uppercase tracking-wider text-foreground">Shipping & Location Master Setup</h4>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">Linked directly to system Master Settings registry</p>
+                            <h4 className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">Shipping & Location</h4>
+                            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Essential route information only: country, port, mode and dates.</p>
                           </div>
                         </div>
-                        <span className="text-xs font-black text-primary uppercase bg-primary/10 dark:bg-primary/20 px-3 py-1 rounded-full border border-primary/20 flex items-center gap-1.5 shadow-sm">
-                          <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                          Mode: {form.shippingMode || "Not Selected"}
-                        </span>
+                        <label className="min-w-[150px] space-y-1">
+                          <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Shipping Mode</span>
+                          <select
+                            value={form.shippingMode || "By Sea"}
+                            onChange={(e) => {
+                              const mode = e.target.value;
+                              setValue("shippingMode", mode);
+                              setValue("shipmentType", mode === "By Sea" ? "By Ship" : mode);
+                            }}
+                            className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                          >
+                            {LOADING_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                          </select>
+                        </label>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
-                        {/* Column 1: Loading Information (Origin) */}
-                        <div className="bg-muted/30 border border-border/60 rounded-xl p-4 space-y-4 relative overflow-hidden">
-                          <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
-                              <h5 className="text-xs font-black uppercase tracking-wider text-foreground">Loading Location (Origin)</h5>
-                            </div>
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Departure</span>
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-3 dark:border-amber-900/50 dark:bg-amber-950/10">
+                          <div className="mb-3 flex items-center gap-2 border-b border-amber-100 pb-2 dark:border-amber-900/40">
+                            <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                            <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Loading / Departure</h5>
                           </div>
-
-                          <div className="space-y-3.5">
-                            {/* Loading Country */}
-                            <div>
-                              <div className="flex items-center justify-between mb-1.5">
-                                <label className="text-[11px] font-bold text-foreground">Loading Country <span className="text-destructive">*</span></label>
-                                <button
-                                  type="button"
-                                  onClick={() => { setNewCountryForm({ name: "", targetField: "loadingCountry" }); setNewCountryModal(true); }}
-                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:text-primary/80 transition-colors bg-primary/10 hover:bg-primary/15 px-2 py-0.5 rounded"
-                                  title="Add New Country directly to Master Settings"
-                                >
-                                  <span>+ New Country</span>
-                                </button>
-                              </div>
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <label className="space-y-1">
+                              <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Loading Country</span>
                               <select
                                 value={form.loadingCountry || ""}
                                 onChange={(e) => {
@@ -4058,37 +4137,14 @@ export function PurchaseOrderWizard({ session }) {
                                   setValue("loadingPort", "");
                                   setValue("loadingLocation", "");
                                 }}
-                                className="w-full h-9 bg-background border border-input rounded-lg px-3 text-foreground text-xs font-semibold outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm transition-all"
+                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                               >
-                                <option value="">-- Select Country from Master --</option>
-                                {masterCountryOptions.map((c) => (
-                                  <option key={c.id || c.name} value={c.name}>{c.name} {c.iso2 ? `(${c.iso2})` : ""}</option>
-                                ))}
+                                <option value="">Select Country</option>
+                                {masterCountryOptions.map((c) => <option key={c.id || c.name} value={c.name}>{c.name} {c.iso2 ? `(${c.iso2})` : ""}</option>)}
                               </select>
-                            </div>
-
-                            {/* Loading Port / Point */}
-                            <div>
-                              <div className="flex items-center justify-between mb-1.5">
-                                <label className="text-[11px] font-bold text-foreground">Loading Port / Point <span className="text-destructive">*</span></label>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setNewPortError("");
-                                    setNewPortForm({
-                                      portName: "",
-                                      countryName: form.loadingCountry || "",
-                                      transportType: form.shippingMode === "By Road" ? "road" : form.shippingMode === "By Air" ? "air" : "sea",
-                                      side: "loading"
-                                    });
-                                    setNewPortModal(true);
-                                  }}
-                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:text-primary/80 transition-colors bg-primary/10 hover:bg-primary/15 px-2 py-0.5 rounded"
-                                  title="Add New Port directly to Master Settings"
-                                >
-                                  <span>+ New Port/Point</span>
-                                </button>
-                              </div>
+                            </label>
+                            <label className="space-y-1">
+                              <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Loading Port</span>
                               <select
                                 value={form.loadingPort || form.airportName || form.loadingBorder || ""}
                                 onChange={(e) => {
@@ -4099,48 +4155,32 @@ export function PurchaseOrderWizard({ session }) {
                                   if (form.shippingMode === "By Road") setValue("loadingBorder", val);
                                 }}
                                 disabled={!form.loadingCountry && currentLoadingPorts.length === 0}
-                                className="w-full h-9 bg-background border border-input rounded-lg px-3 text-foreground text-xs font-semibold outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                               >
-                                <option value="">
-                                  {!form.loadingCountry ? "-- Select Loading Country First --" : currentLoadingPorts.length === 0 ? "-- No Ports Found for this Country --" : "-- Select Port / Point from Master --"}
-                                </option>
-                                {currentLoadingPorts.map((p, idx) => (
-                                  <option key={p.id || p.port_name || idx} value={p.port_name}>{p.port_name} {p.port_code ? `[${p.port_code}]` : ""}</option>
-                                ))}
+                                <option value="">Select Port</option>
+                                {currentLoadingPorts.map((p, idx) => <option key={p.id || p.port_name || idx} value={p.port_name}>{p.port_name} {p.port_code ? `[${p.port_code}]` : ""}</option>)}
                               </select>
-                              {form.loadingCountry && currentLoadingPorts.length === 0 && (
-                                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5 italic font-medium">
-                                  No master ports found for {form.loadingCountry}. Click "+ New Port/Point" above to add one.
-                                </p>
-                              )}
-                            </div>
+                            </label>
+                            <label className="space-y-1">
+                              <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Loading Date</span>
+                              <input
+                                type="date"
+                                value={form.loadingDate || ""}
+                                onChange={(e) => setValue("loadingDate", e.target.value)}
+                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                              />
+                            </label>
                           </div>
                         </div>
 
-                        {/* Column 2: Receiving Information (Destination) */}
-                        <div className="bg-muted/30 border border-border/60 rounded-xl p-4 space-y-4 relative overflow-hidden">
-                          <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-                              <h5 className="text-xs font-black uppercase tracking-wider text-foreground">Receiving Location (Destination)</h5>
-                            </div>
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Arrival</span>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/10">
+                          <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-2 dark:border-emerald-900/40">
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                            <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Receiving / Arrival</h5>
                           </div>
-
-                          <div className="space-y-3.5">
-                            {/* Receiving Country */}
-                            <div>
-                              <div className="flex items-center justify-between mb-1.5">
-                                <label className="text-[11px] font-bold text-foreground">Receiving Country <span className="text-destructive">*</span></label>
-                                <button
-                                  type="button"
-                                  onClick={() => { setNewCountryForm({ name: "", targetField: "receivingCountry" }); setNewCountryModal(true); }}
-                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:text-primary/80 transition-colors bg-primary/10 hover:bg-primary/15 px-2 py-0.5 rounded"
-                                  title="Add New Country directly to Master Settings"
-                                >
-                                  <span>+ New Country</span>
-                                </button>
-                              </div>
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <label className="space-y-1">
+                              <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Receiving Country</span>
                               <select
                                 value={form.receivingCountry || form.destinationCountry || form.receivedCountry || ""}
                                 onChange={(e) => {
@@ -4152,37 +4192,14 @@ export function PurchaseOrderWizard({ session }) {
                                   setValue("destinationPort", "");
                                   setValue("receivedPort", "");
                                 }}
-                                className="w-full h-9 bg-background border border-input rounded-lg px-3 text-foreground text-xs font-semibold outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm transition-all"
+                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                               >
-                                <option value="">-- Select Country from Master --</option>
-                                {masterCountryOptions.map((c) => (
-                                  <option key={c.id || c.name} value={c.name}>{c.name} {c.iso2 ? `(${c.iso2})` : ""}</option>
-                                ))}
+                                <option value="">Select Country</option>
+                                {masterCountryOptions.map((c) => <option key={c.id || c.name} value={c.name}>{c.name} {c.iso2 ? `(${c.iso2})` : ""}</option>)}
                               </select>
-                            </div>
-
-                            {/* Receiving Port / Point */}
-                            <div>
-                              <div className="flex items-center justify-between mb-1.5">
-                                <label className="text-[11px] font-bold text-foreground">Receiving Port / Point <span className="text-destructive">*</span></label>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setNewPortError("");
-                                    setNewPortForm({
-                                      portName: "",
-                                      countryName: form.receivingCountry || form.destinationCountry || form.receivedCountry || "",
-                                      transportType: form.shippingMode === "By Road" ? "road" : form.shippingMode === "By Air" ? "air" : "sea",
-                                      side: "received"
-                                    });
-                                    setNewPortModal(true);
-                                  }}
-                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:text-primary/80 transition-colors bg-primary/10 hover:bg-primary/15 px-2 py-0.5 rounded"
-                                  title="Add New Port directly to Master Settings"
-                                >
-                                  <span>+ New Port/Point</span>
-                                </button>
-                              </div>
+                            </label>
+                            <label className="space-y-1">
+                              <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Receiving Port</span>
                               <select
                                 value={form.receivingPort || form.destinationPort || form.receivedPort || ""}
                                 onChange={(e) => {
@@ -4192,27 +4209,26 @@ export function PurchaseOrderWizard({ session }) {
                                   setValue("receivedPort", val);
                                 }}
                                 disabled={!(form.receivingCountry || form.destinationCountry || form.receivedCountry) && currentReceivedPorts.length === 0}
-                                className="w-full h-9 bg-background border border-input rounded-lg px-3 text-foreground text-xs font-semibold outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                               >
-                                <option value="">
-                                  {!(form.receivingCountry || form.destinationCountry || form.receivedCountry) ? "-- Select Receiving Country First --" : currentReceivedPorts.length === 0 ? "-- No Ports Found for this Country --" : "-- Select Port / Point from Master --"}
-                                </option>
-                                {currentReceivedPorts.map((p, idx) => (
-                                  <option key={p.id || p.port_name || idx} value={p.port_name}>{p.port_name} {p.port_code ? `[${p.port_code}]` : ""}</option>
-                                ))}
+                                <option value="">Select Port</option>
+                                {currentReceivedPorts.map((p, idx) => <option key={p.id || p.port_name || idx} value={p.port_name}>{p.port_name} {p.port_code ? `[${p.port_code}]` : ""}</option>)}
                               </select>
-                              {(form.receivingCountry || form.destinationCountry || form.receivedCountry) && currentReceivedPorts.length === 0 && (
-                                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5 italic font-medium">
-                                  No master ports found for {form.receivingCountry || form.destinationCountry || form.receivedCountry}. Click "+ New Port/Point" above to add one.
-                                </p>
-                              )}
-                            </div>
+                            </label>
+                            <label className="space-y-1">
+                              <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Receiving Date</span>
+                              <input
+                                type="date"
+                                value={form.receivedDate || ""}
+                                onChange={(e) => setValue("receivedDate", e.target.value)}
+                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                              />
+                            </label>
                           </div>
                         </div>
                       </div>
                     </div>
-
-                    {/* ── SECTION 2: ADVANCE & PAYMENT TERMS ───────────────────────────── */}
+                    {/* Ã¢â€â‚¬Ã¢â€â‚¬ SECTION 2: ADVANCE & PAYMENT TERMS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
                     <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-3 space-y-3">
                       <h4 className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 pb-1">Advance & Payment Terms</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -4259,7 +4275,7 @@ export function PurchaseOrderWizard({ session }) {
                       </div>
                     </div>
 
-                    {/* ── SECTION 3: TRANSPORT & CONTAINER DETAILS ─────────────────────── */}
+                    {/* Ã¢â€â‚¬Ã¢â€â‚¬ SECTION 3: TRANSPORT & CONTAINER DETAILS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
                     <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-3 space-y-3">
                       <h4 className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 pb-1">Transport & Container Details</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -4303,20 +4319,11 @@ export function PurchaseOrderWizard({ session }) {
                             className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
                           />
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Transport Agent</label>
-                          <input
-                            type="text"
-                            value={form.transportAgent || ""}
-                            onChange={(e) => setValue("transportAgent", e.target.value)}
-                            placeholder="e.g. FastLogistics"
-                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
-                          />
-                        </div>
+
                       </div>
                     </div>
 
-                    {/* ── SECTION 4: REMARKS & NARRATION ───────────────────────────────── */}
+                    {/* Ã¢â€â‚¬Ã¢â€â‚¬ SECTION 4: REMARKS & NARRATION Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
                     <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-3">
                       <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Remarks & Narration</label>
                       <textarea
@@ -4356,7 +4363,7 @@ export function PurchaseOrderWizard({ session }) {
       )}
 
       {activeTab === "report" && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-5">
+              <div className="flex-1 overflow-y-auto p-3 space-y-4">
 
                   {/* Transfer / Journal Status Block */}
                   {isTransferred ? (
@@ -4391,7 +4398,7 @@ export function PurchaseOrderWizard({ session }) {
 
                   {/* Inline Bill View */}
                   <div className="rounded-2xl border border-slate-200 bg-slate-100/70 p-4 shadow-sm overflow-x-auto">
-                    <div className="mx-auto w-full max-w-6xl bg-white border border-slate-200 p-6 md:p-8 shadow-sm print:max-w-none print:border-0 print:p-0 print:shadow-none">
+                    <div className="mx-auto w-full max-w-5xl bg-white border border-slate-200 p-5 md:p-6 shadow-sm print:max-w-none print:border-0 print:p-0 print:shadow-none">
                           <div className="mb-6 overflow-hidden rounded-xl border border-slate-200">
                             <div className="flex flex-col gap-4 bg-slate-950 px-5 py-4 text-white md:flex-row md:items-center md:justify-between">
                               <div>
@@ -4485,7 +4492,7 @@ export function PurchaseOrderWizard({ session }) {
                       </div>
 
                       {/* Account Verification & Transfer Info */}
-                  <div className="mx-auto w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Ledger Routing Details</h4>
                     <div className="space-y-3 text-[9px]">
                       <div className="bg-slate-50 border border-slate-200 rounded p-3">
@@ -4520,7 +4527,7 @@ export function PurchaseOrderWizard({ session }) {
                   </div>
 
                   {/* User Info */}
-                  <div className="mx-auto w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">User & Session Information</h4>
                     <div className="bg-slate-50 border border-slate-200 rounded p-3 space-y-2 text-[9px]">
                       <div className="flex justify-between"><span className="text-slate-500 font-bold uppercase text-[8px]">User ID:</span> <span className="font-semibold text-slate-900 font-mono">{form.userId || "USR-1001"}</span></div>
@@ -4531,7 +4538,7 @@ export function PurchaseOrderWizard({ session }) {
                   </div>
 
                   {/* Remarks Input */}
-                  <div>
+                  <div className="mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 block border-b border-slate-100 pb-1">Remarks (Report)</span>
                     <textarea
                       value={form.orderReportRemarks}
@@ -4746,7 +4753,7 @@ export function PurchaseOrderWizard({ session }) {
         </div>
       )}
 
-      {/* ── NEW COUNTRY MODAL ───────────────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ NEW COUNTRY MODAL Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {newCountryModal && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-xs rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
@@ -4759,7 +4766,7 @@ export function PurchaseOrderWizard({ session }) {
                 type="button"
                 onClick={() => { setNewCountryModal(false); setNewCountryError(""); setNewCountryForm({ name: "" }); }}
                 className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
-              >✕</button>
+              >Ã¢Å“â€¢</button>
             </div>
             <div className="p-5 space-y-3">
               {newCountryError && (
@@ -4790,13 +4797,13 @@ export function PurchaseOrderWizard({ session }) {
                 onClick={handleAddNewCountry}
                 disabled={newCountryLoading}
                 className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
-              >{newCountryLoading ? "Saving…" : "Save Country"}</button>
+              >{newCountryLoading ? "SavingÃ¢â‚¬Â¦" : "Save Country"}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── NEW GOOD MODAL ──────────────────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ NEW GOOD MODAL Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {newGoodModal && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
@@ -4809,7 +4816,7 @@ export function PurchaseOrderWizard({ session }) {
                 type="button"
                 onClick={() => { setNewGoodModal(false); setNewGoodError(""); setNewGoodForm({ goodsName: "", chsCode: "" }); }}
                 className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
-              >✕</button>
+              >Ã¢Å“â€¢</button>
             </div>
             <div className="p-5 space-y-3">
               {newGoodError && (
@@ -4850,13 +4857,13 @@ export function PurchaseOrderWizard({ session }) {
                 onClick={handleAddNewGood}
                 disabled={newGoodLoading}
                 className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
-              >{newGoodLoading ? "Saving…" : "Save Good"}</button>
+              >{newGoodLoading ? "SavingÃ¢â‚¬Â¦" : "Save Good"}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── NEW PORT / BORDER / AIRPORT MODAL ───────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ NEW PORT / BORDER / AIRPORT MODAL Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {newPortModal && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-xs rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
@@ -4873,7 +4880,7 @@ export function PurchaseOrderWizard({ session }) {
                 type="button"
                 onClick={() => { setNewPortModal(false); setNewPortError(""); setNewPortForm(p => ({ ...p, portName: "" })); }}
                 className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
-              >✕</button>
+              >Ã¢Å“â€¢</button>
             </div>
             <div className="p-5 space-y-3">
               {newPortError && (
@@ -4932,7 +4939,7 @@ export function PurchaseOrderWizard({ session }) {
         </div>
       )}
 
-      {/* ── NEW GOOD VARIATION MODAL ───────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ NEW GOOD VARIATION MODAL Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {customVariationModal && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-xs rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
@@ -4949,7 +4956,7 @@ export function PurchaseOrderWizard({ session }) {
                 type="button"
                 onClick={() => setCustomVariationModal(false)}
                 className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
-              >✕</button>
+              >Ã¢Å“â€¢</button>
             </div>
             <div className="p-5 space-y-3">
               <div>
@@ -5004,7 +5011,7 @@ export function PurchaseOrderWizard({ session }) {
         </div>
       )}
 
-      {/* ── CREATE NEW ACCOUNT MODAL ────────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ CREATE NEW ACCOUNT MODAL Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {createAccountModalOpen && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
@@ -5021,7 +5028,7 @@ export function PurchaseOrderWizard({ session }) {
                 type="button"
                 onClick={() => setCreateAccountModalOpen(false)}
                 className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
-              >✕</button>
+              >Ã¢Å“â€¢</button>
             </div>
             <div className="p-5 space-y-3">
               {createAccountError && (
@@ -5110,7 +5117,7 @@ export function PurchaseOrderWizard({ session }) {
                 disabled={createAccountLoading}
                 className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
               >
-                {createAccountLoading ? "Saving…" : "Save Account"}
+                {createAccountLoading ? "SavingÃ¢â‚¬Â¦" : "Save Account"}
               </button>
             </div>
           </div>
@@ -5186,7 +5193,7 @@ export function PurchaseOrderWizard({ session }) {
         </div>
       )}
 
-      {/* ── CREATE NEW COMPANY MODAL ────────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ CREATE NEW COMPANY MODAL Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {createCompanyModalOpen && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150">
@@ -5203,7 +5210,7 @@ export function PurchaseOrderWizard({ session }) {
                 type="button"
                 onClick={() => setCreateCompanyModalOpen(false)}
                 className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none font-bold"
-              >✕</button>
+              >Ã¢Å“â€¢</button>
             </div>
             <div className="p-5 space-y-3">
               {createCompanyError && (
@@ -5263,7 +5270,7 @@ export function PurchaseOrderWizard({ session }) {
                 disabled={createCompanyLoading}
                 className="px-4 py-1.5 text-[11px] rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
               >
-                {createCompanyLoading ? "Saving…" : "Save Company"}
+                {createCompanyLoading ? "SavingÃ¢â‚¬Â¦" : "Save Company"}
               </button>
             </div>
           </div>
@@ -5272,7 +5279,7 @@ export function PurchaseOrderWizard({ session }) {
         </>
       )}
 
-      {/* ── TRANSFER CONFIRMATION MODAL ──────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ TRANSFER CONFIRMATION MODAL Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {transferConfirmModal && (
         <div className="fixed inset-0 z-[150] grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-lg animate-in zoom-in-95 duration-200">
