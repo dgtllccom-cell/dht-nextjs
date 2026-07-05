@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { rtlLanguages, type SupportedLanguage } from "@/lib/i18n/languages";
 import { cn } from "@/lib/utils";
 
-/* ─── Types ─────────────────────────────────────────────────────────────── */
+/* Types */
 type AccountRow = {
   accountId: string;
   accountCode: string;
@@ -70,13 +70,13 @@ type SessionInfo = {
   };
 };
 
-/* ─── Helpers ────────────────────────────────────────────────────────────── */
+/* Helpers */
 function fmt(date: string) {
-  if (!date) return "—";
+  if (!date) return "-";
   return new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 function fmtTime(date: string) {
-  if (!date) return "—";
+  if (!date) return "-";
   return new Date(date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 }
 function exportCSV(rows: AccountRow[]) {
@@ -89,14 +89,14 @@ function exportCSV(rows: AccountRow[]) {
     r.branchSerialNumber ?? "-",
     r.manualReferenceNumber ?? "",
     r.accountName,
-    r.customerName && r.customerName !== "-" ? r.customerName : "—",
+    r.customerName && r.customerName !== "-" ? r.customerName : "-",
     r.subType,
     r.accountCategory,
     r.branchName,
     r.branchCode,
     r.countryName,
     r.currency,
-    r.companyName && r.companyName !== "—" ? "Yes" : "No",
+    r.companyName && r.companyName !== "-" ? "Yes" : "No",
     r.accountCategory.toLowerCase().includes("asset") || r.accountCategory.toLowerCase().includes("bank") ? "Yes" : "No"
   ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
   const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), header.join(",") + "\n" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -108,7 +108,7 @@ function exportCSV(rows: AccountRow[]) {
   URL.revokeObjectURL(url);
 }
 
-/* ─── Component ──────────────────────────────────────────────────────────── */
+/* Component */
 export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguage }) {
   const router = useRouter();
 
@@ -123,14 +123,14 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
 
   const isRtl = useMemo(() => rtlLanguages.includes(lang), [lang]);
 
-  /* ── Data ─────────────────────────────────────────────────── */
+  /* Data */
   const [rows, setRows] = useState<AccountRow[]>([]);
-  const [meta, setMeta] = useState<ReportMeta>({ companyName: "—", companyOwner: "—" });
+  const [meta, setMeta] = useState<ReportMeta>({ companyName: "-", companyOwner: "-" });
   const [generatedAt, setGeneratedAt] = useState("");
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [loading, setLoading] = useState(false);
 
-  /* ── Filter state ─────────────────────────────────────────── */
+  /* Filter state */
   const [draftAccNo, setDraftAccNo] = useState("");
   const [draftName, setDraftName] = useState("");
   const [draftCountry, setDraftCountry] = useState("all");
@@ -150,7 +150,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const actionRef = useRef<HTMLDivElement>(null);
 
-  /* ── Fetch ────────────────────────────────────────────────── */
+  /* Fetch */
   async function fetchSessionInfo() {
     try {
       const res = await fetch("/api/erp/auth/session", { cache: "no-store" });
@@ -173,8 +173,8 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
       if (json?.ok && json?.data) {
         setRows(json.data.rows ?? []);
         setMeta({
-          companyName: json.data.workspace?.companyName ?? "—",
-          companyOwner: json.data.workspace?.companyOwner ?? "—",
+          companyName: json.data.workspace?.companyName ?? "-",
+          companyOwner: json.data.workspace?.companyOwner ?? "-",
         });
         setGeneratedAt(json.data.generatedAt ?? new Date().toISOString());
       } else {
@@ -207,7 +207,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
     return () => document.removeEventListener("mousedown", handleClick);
   }, [lang]);
 
-  /* ── Filter options ───────────────────────────────────────── */
+  /* Filter options */
   const uniqueCountries = useMemo(() => [...new Set(rows.map(r => r.countryName).filter(Boolean))].sort(), [rows]);
   const branchMatches = (row: AccountRow, value: string) => {
     const q = value.toLowerCase();
@@ -222,7 +222,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
   const uniqueTypes     = useMemo(() => [...new Set(rows.map(r => r.accountCategory).filter(Boolean))].sort(), [rows]);
   const uniqueSubs      = useMemo(() => [...new Set(rows.map(r => r.subType).filter(Boolean))].sort(), [rows]);
 
-  /* ── Filtered rows ────────────────────────────────────────── */
+  /* Filtered rows */
   const filtered = useMemo(() => rows.filter(r => {
     if (accNo) {
       const q = accNo.toLowerCase();
@@ -250,12 +250,12 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
     return true;
   }), [rows, accNo, searchField, accName, country, branch, accType, subType]);
 
-  /* ── Counts ───────────────────────────────────────────────── */
+  /* Counts */
   const customers = useMemo(() => filtered.filter(r => r.accountCategory.toLowerCase().includes("customer") || r.customerNumber?.startsWith("CUST")).length, [filtered]);
-  const companies = useMemo(() => filtered.filter(r => r.companyName && r.companyName !== "—").length, [filtered]);
+  const companies = useMemo(() => filtered.filter(r => r.companyName && r.companyName !== "-").length, [filtered]);
   const banks     = useMemo(() => filtered.filter(r => r.accountCategory.toLowerCase().includes("bank") || r.accountCategory.toLowerCase().includes("asset")).length, [filtered]);
 
-  /* ── Country-Wise Breakdown ─────────────────────────────────── */
+  /* Country-Wise Breakdown */
   const countryBreakdowns = useMemo(() => {
     const map = new Map<string, { total: number; customers: number; companies: number; banks: number; personal: number; currency: string }>();
     for (const r of filtered) {
@@ -268,7 +268,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
       const cat = (r.accountCategory || "").toLowerCase();
       if (cat.includes("bank") || cat.includes("asset")) {
         item.banks += 1;
-      } else if (r.companyName && r.companyName !== "—") {
+      } else if (r.companyName && r.companyName !== "-") {
         item.companies += 1;
       } else if (cat.includes("customer") || (r.customerNumber || "").startsWith("CUST")) {
         item.customers += 1;
@@ -318,7 +318,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
       {titlePortalNode && createPortal(
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-xs font-black text-slate-900 dark:text-slate-100 whitespace-nowrap">Account Setup Report</h1>
-          <span className="asr-badge text-[9px] px-1.5 py-0.5">{loading ? "…" : filtered.length} accounts</span>
+          <span className="asr-badge text-[9px] px-1.5 py-0.5">{loading ? "..." : filtered.length} accounts</span>
           {hasActiveFilters && (
             <span className="asr-badge asr-badge-orange text-[9px] px-1.5 py-0.5">{activeFilterCount} active</span>
           )}
@@ -449,7 +449,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
         portalNode
       )}
 
-      {/* ─── Filter Panel ─────────────────────────────────────────────── */}
+      {/* Filter Panel */}
       {filtersOpen && (
         <div className="asr-filter-panel">
           <div className="asr-filter-grid">
@@ -458,7 +458,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
               <label className="asr-filter-label">Account Number</label>
               <div className="relative">
                 <Search className="asr-filter-icon" />
-                <input className="asr-filter-input" placeholder="Search account no…" value={draftAccNo} onChange={e => setDraftAccNo(e.target.value)} />
+                <input className="asr-filter-input" placeholder="Search account no..." value={draftAccNo} onChange={e => setDraftAccNo(e.target.value)} />
               </div>
             </div>
             {/* Account Name */}
@@ -466,7 +466,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
               <label className="asr-filter-label">Account Name</label>
               <div className="relative">
                 <Search className="asr-filter-icon" />
-                <input className="asr-filter-input" placeholder="Search name…" value={draftName} onChange={e => setDraftName(e.target.value)} />
+                <input className="asr-filter-input" placeholder="Search name..." value={draftName} onChange={e => setDraftName(e.target.value)} />
               </div>
             </div>
             {/* Country */}
@@ -511,12 +511,12 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
         </div>
       )}
 
-      {/* ─── Country-Wise Breakdown Summary Report ─────────────────────────────── */}
+      {/* Country-Wise Breakdown */}
       <div className="asr-executive-panel">
         <div className="flex flex-col gap-3 p-3.5">
           <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
             <div className="flex items-center gap-2">
-              <span className="grid h-5 w-5 place-items-center rounded-md bg-blue-600 text-white font-black text-[10px] shadow-sm">🌐</span>
+              <span className="grid h-5 w-5 place-items-center rounded-md bg-blue-600 text-white font-black text-[10px] shadow-sm">Global</span>
               <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
                 Country-Wise Accounts Summary Report ({countryBreakdowns.length} {countryBreakdowns.length === 1 ? "Country" : "Countries"})
               </h2>
@@ -596,7 +596,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
           </div>
         </div>
       </div>
-      {/* ─── Table ────────────────────────────────────────────────────── */}
+      {/* Table */}
       <div className="asr-table-wrap">
         <div className="overflow-x-auto">
           <table className="asr-table">
@@ -632,7 +632,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                   <td colSpan={18} className="asr-empty-cell">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin text-[#1f5eff]" />
-                      <span>Loading accounts report…</span>
+                      <span>Loading accounts report...</span>
                     </div>
                   </td>
                 </tr>
@@ -644,7 +644,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                 </tr>
               ) : filtered.length > 0 ? (
                 filtered.map((row, idx) => {
-                  const hasCompany = Boolean(row.companyName && row.companyName !== "—");
+                  const hasCompany = Boolean(row.companyName && row.companyName !== "-");
                   const hasBank = row.accountCategory.toLowerCase().includes("asset") || row.accountCategory.toLowerCase().includes("bank");
 
                   return (
@@ -686,7 +686,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
                       {/* Manual Ref No */}
                       <td className="asr-td">
                         <span className="font-mono text-[10px] font-semibold text-slate-500">
-                          {row.manualReferenceNumber || "—"}
+                          {row.manualReferenceNumber || "-"}
                         </span>
                       </td>
 
@@ -703,7 +703,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
 
                       {/* Owner */}
                       <td className="asr-td">
-                        <span className="font-bold text-[#10b981] text-[11px]">{row.customerName && row.customerName !== "-" ? row.customerName : "—"}</span>
+                        <span className="font-bold text-[#10b981] text-[11px]">{row.customerName && row.customerName !== "-" ? row.customerName : "-"}</span>
                       </td>
 
                       {/* Account Type */}
@@ -732,7 +732,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
 
                       {/* Branch Code */}
                       <td className="asr-td">
-                        <span className="font-mono font-black text-[10px] text-[#1455ff]">{row.branchCode || "—"}</span>
+                        <span className="font-mono font-black text-[10px] text-[#1455ff]">{row.branchCode || "-"}</span>
                       </td>
 
                       {/* Country */}
@@ -858,7 +858,7 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
   );
 }
 
-/* ─── Styles ─────────────────────────────────────────────────────────────── */
+/* Styles */
 function AsrStyles() {
   return (
     <style>{`
@@ -876,8 +876,11 @@ function AsrStyles() {
         background: var(--asr-bg);
         padding: 12px 16px;
         min-height: 100%;
-        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        font-family: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
         font-size: 12px;
+        font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
       }
       .dark .asr-shell {
         --asr-bg: #071120;
@@ -1183,49 +1186,65 @@ function AsrStyles() {
       .asr-table-wrap {
         background: var(--asr-card);
         border: 1px solid var(--asr-line);
-        border-radius: 12px;
+        border-radius: 14px;
         overflow: hidden;
-        box-shadow: 0 4px 16px rgba(15,23,42,.06);
+        box-shadow: 0 14px 34px rgba(15,23,42,.08);
       }
       .asr-table {
-        width: 100%; border-collapse: collapse;
-        font-size: 10.5px; text-align: left;
-        min-width: 1400px;
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 11px;
+        text-align: left;
+        min-width: 1480px;
         font-family: inherit;
       }
       .asr-th {
-        background: linear-gradient(180deg, var(--asr-head), var(--asr-card));
-        padding: 7px 8px;
-        font-size: 8.5px; font-weight: 950;
-        text-transform: uppercase; letter-spacing: .07em;
-        color: var(--asr-muted);
-        border-bottom: 2px solid var(--asr-line);
-        border-right: 1px solid var(--asr-line);
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: linear-gradient(180deg, #f8fbff, #eef4ff);
+        padding: 10px 10px;
+        font-size: 9px;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: #53627a;
+        border-bottom: 1px solid #cbd8ec;
+        border-right: 1px solid #dbe5f4;
         white-space: nowrap;
+        box-shadow: inset 0 -1px 0 rgba(15,23,42,.04);
       }
+      .dark .asr-th { background: linear-gradient(180deg, #17243a, #101b2f); color: #9eb2d0; border-color: #253852; }
       .asr-th:last-child { border-right: none; }
-      .asr-row { background: var(--asr-card); transition: background .12s ease; }
-      .asr-row:hover { background: var(--asr-hover); }
+      .asr-row { background: var(--asr-card); transition: background .14s ease, box-shadow .14s ease; }
+      .asr-row:nth-child(even) { background: rgba(247,250,255,.72); }
+      .dark .asr-row:nth-child(even) { background: rgba(15,23,42,.36); }
+      .asr-row:hover { background: #eef6ff; box-shadow: inset 3px 0 0 #2563eb; }
+      .dark .asr-row:hover { background: rgba(30,64,175,.18); }
       .asr-td {
-        padding: 5.5px 8px;
-        border-bottom: 1px solid var(--asr-line);
-        border-right: 1px solid var(--asr-line);
+        padding: 9px 10px;
+        border-bottom: 1px solid #dbe5f4;
+        border-right: 1px solid #e2eaf7;
         color: var(--asr-title);
         vertical-align: middle;
         white-space: nowrap;
-        font-size: 10.5px;
+        font-size: 11px;
+        line-height: 1.35;
       }
+      .dark .asr-td { border-color: #24344c; }
       .asr-td:last-child { border-right: none; }
       .asr-td-num { font-weight: 800; color: var(--asr-muted); text-align: center; width: 34px; font-size: 10px; }
       .asr-empty-cell { padding: 48px; text-align: center; color: var(--asr-muted); font-weight: 600; }
 
       /* Avatar */
       .asr-avatar {
-        width: 24px; height: 24px;
-        border-radius: 50%;
+        width: 28px; height: 28px;
+        border-radius: 10px;
         background: linear-gradient(135deg, #1f5eff, #7c3aed);
-        color: white; font-size: 9px; font-weight: 900;
+        color: white; font-size: 10px; font-weight: 950;
         display: grid; place-items: center; flex-shrink: 0;
+        box-shadow: 0 8px 18px rgba(37,99,235,.22);
       }
 
       /* Badges */
@@ -1257,12 +1276,14 @@ function AsrStyles() {
 
       /* Action buttons */
       .asr-action-btn {
-        display: inline-flex; align-items: center; gap: 4px;
-        height: 26px; padding: 0 8px; border-radius: 6px;
-        font-size: 10px; font-weight: 800;
-        border: 1.5px solid; transition: all .15s;
+        display: inline-flex; align-items: center; gap: 5px;
+        height: 28px; padding: 0 10px; border-radius: 8px;
+        font-size: 10px; font-weight: 900;
+        border: 1px solid; transition: all .15s;
         white-space: nowrap;
+        box-shadow: 0 2px 6px rgba(15,23,42,.04);
       }
+      .asr-action-btn:hover { transform: translateY(-1px); }
       .asr-action-view {
         background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe;
       }
@@ -1292,3 +1313,5 @@ function AsrStyles() {
     `}</style>
   );
 }
+
+
