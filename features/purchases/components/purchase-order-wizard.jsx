@@ -2839,6 +2839,193 @@ export function PurchaseOrderWizard({ session }) {
     }
   };
 
+  const handleUpdateHsCode = async () => {
+    const selectedGood = dbGoods.find(g => (g.goods_name || g.goodsName || "").trim().toUpperCase() === (form.goodsName || "").trim().toUpperCase());
+    if (!selectedGood) return;
+    
+    setSavingOrder(true);
+    setSaveMessage("Updating HS Code...");
+    try {
+      const response = await fetch(`/api/erp/goods/${selectedGood.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chsCode: form.hsCode })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(data?.error || data?.error?.message || "Failed to update HS Code.");
+      
+      const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
+      const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+      if (goodsData) setDbGoods(goodsData);
+      
+      setSaveMessage("HS Code updated successfully.");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error updating HS Code.");
+    } finally {
+      setSavingOrder(false);
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
+  };
+
+  const handleAddNewVariationItem = async (type) => {
+    const selectedGood = dbGoods.find(g => (g.goods_name || g.goodsName || "").trim().toUpperCase() === (form.goodsName || "").trim().toUpperCase());
+    if (!selectedGood) {
+       alert(`Please select a Good first before adding a new ${type}.`);
+       return;
+    }
+    
+    const value = window.prompt(`Enter New ${type === 'brand' ? 'Brand' : 'Size'}:`);
+    if (!value || !value.trim()) return;
+    
+    setSavingOrder(true);
+    setSaveMessage(`Saving new ${type}...`);
+    try {
+      const response = await fetch("/api/erp/goods/variations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goodsId: selectedGood.id,
+          size: type === 'size' ? value.trim().toUpperCase() : (form.size || "-").trim().toUpperCase(),
+          brand: type === 'brand' ? value.trim().toUpperCase() : (form.brand || "-").trim().toUpperCase()
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || `Failed to save ${type}.`);
+      }
+      
+      const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
+      const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+      if (goodsData) setDbGoods(goodsData);
+      
+      setValue(type, value.trim().toUpperCase());
+      setSaveMessage(`New ${type} saved successfully.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : `Error saving ${type}.`);
+    } finally {
+      setSavingOrder(false);
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
+  };
+
+  const handleAddNewLocationItem = async (type, targetField) => {
+    const value = window.prompt(`Enter New ${type === 'country' ? 'Country' : 'Port'} Name:`);
+    if (!value || !value.trim()) return;
+    const trimmed = value.trim();
+
+    setSavingOrder(true);
+    setSaveMessage(`Saving new ${type}...`);
+
+    try {
+      if (type === "country") {
+        const iso2 = trimmed.slice(0, 2).toUpperCase();
+        const iso3 = trimmed.slice(0, 3).toUpperCase();
+        const code = iso2.toLowerCase();
+        
+        const response = await fetch("/api/erp/locations/countries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: trimmed,
+            iso2,
+            iso3,
+            currencyCode: "USD",
+            officialEmail: `official.${code}@dgtllc.com`,
+            adminEmail: `admin.${code}@dgtllc.com`,
+            whatsappNumber: null
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || payload?.error || "Failed to create country.");
+        
+        const reloadRes = await fetch("/api/erp/locations/countries?all=true&limit=500").then(r => r.json()).catch(() => ({}));
+        const countriesData = reloadRes?.data?.countries || reloadRes?.countries;
+        if (countriesData) setAllCountries(countriesData);
+        
+        if (targetField === "loadingCountry") {
+          setValue("loadingCountry", trimmed);
+          setValue("originCountry", trimmed);
+          setValue("origin", trimmed);
+          setValue("loadingPort", "");
+          setValue("loadingLocation", "");
+        } else if (targetField === "receivingCountry") {
+          setValue("receivingCountry", trimmed);
+          setValue("receivedCountry", trimmed);
+          setValue("destinationCountry", trimmed);
+          setValue("receivingPort", "");
+          setValue("destinationPort", "");
+          setValue("receivedPort", "");
+        }
+      } else if (type === "port") {
+        let countryName = "";
+        let isReceiving = false;
+        if (targetField === "loadingPort") {
+           countryName = form.loadingCountry;
+        } else if (targetField === "receivingPort") {
+           countryName = form.receivingCountry;
+           isReceiving = true;
+        }
+        
+        const countryObj = allCountries.find(c => c.name === countryName);
+        const countryId = countryObj ? countryObj.id : null;
+        
+        const transportTypeMapping = {
+          "By Sea": "sea",
+          "By Road": "road",
+          "By Air": "air"
+        };
+        const transportType = transportTypeMapping[form.shippingMode] || "sea";
+
+        const endpoint = isReceiving ? "/api/erp/ports/received" : "/api/erp/ports/loading";
+        
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            portName: trimmed,
+            countryId: countryId,
+            portCode: trimmed.slice(0, 3).toUpperCase(),
+            transportType: transportType,
+            isActive: true
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || payload?.error || "Failed to create port.");
+
+        const [loadRes, recRes] = await Promise.all([
+          fetch("/api/erp/ports/loading?all=true&limit=500"),
+          fetch("/api/erp/ports/received?all=true&limit=500")
+        ]);
+        const loadPorts = await loadRes.json().then(r => r?.data?.ports || r?.ports).catch(() => null);
+        const recPorts = await recRes.json().then(r => r?.data?.ports || r?.ports).catch(() => null);
+        
+        if (loadPorts) setDbLoadingPorts(loadPorts);
+        if (recPorts) setDbReceivedPorts(recPorts);
+
+        if (targetField === "loadingPort") {
+          setValue("loadingPort", trimmed);
+          setValue("loadingLocation", trimmed);
+          if (form.shippingMode === "By Air") setValue("airportName", trimmed);
+          if (form.shippingMode === "By Road") setValue("loadingBorder", trimmed);
+        } else if (targetField === "receivingPort") {
+          setValue("receivingPort", trimmed);
+          setValue("destinationPort", trimmed);
+          setValue("receivedPort", trimmed);
+          if (form.shippingMode === "By Air") setValue("destinationAirportName", trimmed);
+          if (form.shippingMode === "By Road") setValue("receivingBorder", trimmed);
+        }
+      }
+      
+      setSaveMessage(`New ${type} saved successfully.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : `Error saving ${type}.`);
+    } finally {
+      setSavingOrder(false);
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
+  };
+
   const headerTitle = (
     <div className="flex items-center gap-3 shrink-0">
       <div className="flex items-center gap-2">
@@ -3882,7 +4069,24 @@ export function PurchaseOrderWizard({ session }) {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">HS Code</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[10px] text-muted-foreground">HS Code</label>
+                          {form.goodsName && (() => {
+                            const selectedGood = dbGoods.find(g => (g.goods_name || g.goodsName || "").trim().toUpperCase() === form.goodsName.trim().toUpperCase());
+                            if (selectedGood && (selectedGood.chs_code || selectedGood.chsCode || "") !== (form.hsCode || "")) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={handleUpdateHsCode}
+                                  className="text-[9px] bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground px-1.5 py-0.5 rounded transition-colors"
+                                >
+                                  Save to Master
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                         <input
                           type="text"
                           value={form.hsCode || ""}
@@ -3904,13 +4108,16 @@ export function PurchaseOrderWizard({ session }) {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Brand</label>
-                        <select
+                        <SearchableSelect
                           value={form.brand || ""}
-                          onChange={(e) => setValue("brand", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
-                        >
-                          <option value="">Select Brand</option>
-                          {(() => {
+                          onChange={(val) => {
+                            if (val === "__ADD_NEW__") {
+                              handleAddNewVariationItem("brand");
+                            } else {
+                              setValue("brand", val);
+                            }
+                          }}
+                          options={(() => {
                             const selGood = dbGoods.find(g => (g.goods_name || g.goodsName) === form.goodsName);
                             const brands = Array.from(new Set([
                               ...BRAND_OPTIONS,
@@ -3918,19 +4125,24 @@ export function PurchaseOrderWizard({ session }) {
                               ...dbGoods.flatMap(g => (g.variations || []).map(v => v.brand)).filter(Boolean),
                               form.brand
                             ].filter(Boolean))).sort();
-                            return brands.map(b => <option key={b} value={b}>{b}</option>);
+                            return brands.map(b => ({ label: b, value: b }));
                           })()}
-                        </select>
+                          placeholder="Select Brand"
+                          addOptionLabel="Add New Brand"
+                        />
                       </div>
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Size Specification</label>
-                        <select
+                        <SearchableSelect
                           value={form.size || ""}
-                          onChange={(e) => setValue("size", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
-                        >
-                          <option value="">Select Size</option>
-                          {(() => {
+                          onChange={(val) => {
+                            if (val === "__ADD_NEW__") {
+                              handleAddNewVariationItem("size");
+                            } else {
+                              setValue("size", val);
+                            }
+                          }}
+                          options={(() => {
                             const selGood = dbGoods.find(g => (g.goods_name || g.goodsName) === form.goodsName);
                             const sizes = Array.from(new Set([
                               ...SIZE_OPTIONS,
@@ -3938,9 +4150,11 @@ export function PurchaseOrderWizard({ session }) {
                               ...dbGoods.flatMap(g => (g.variations || []).map(v => v.size)).filter(Boolean),
                               form.size
                             ].filter(Boolean))).sort();
-                            return sizes.map(s => <option key={s} value={s}>{s}</option>);
+                            return sizes.map(s => ({ label: s, value: s }));
                           })()}
-                        </select>
+                          placeholder="Select Size"
+                          addOptionLabel="Add New Size"
+                        />
                       </div>
                     </div>
 
@@ -4127,39 +4341,43 @@ export function PurchaseOrderWizard({ session }) {
                           <div className="grid gap-3 sm:grid-cols-3">
                             <label className="space-y-1">
                               <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Loading Country</span>
-                              <select
+                              <SearchableSelect
                                 value={form.loadingCountry || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setValue("loadingCountry", val);
-                                  setValue("originCountry", val);
-                                  setValue("origin", val);
-                                  setValue("loadingPort", "");
-                                  setValue("loadingLocation", "");
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
+                                    handleAddNewLocationItem("country", "loadingCountry");
+                                  } else {
+                                    setValue("loadingCountry", val);
+                                    setValue("originCountry", val);
+                                    setValue("origin", val);
+                                    setValue("loadingPort", "");
+                                    setValue("loadingLocation", "");
+                                  }
                                 }}
-                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
-                              >
-                                <option value="">Select Country</option>
-                                {masterCountryOptions.map((c) => <option key={c.id || c.name} value={c.name}>{c.name} {c.iso2 ? `(${c.iso2})` : ""}</option>)}
-                              </select>
+                                options={masterCountryOptions.map((c) => ({ label: `${c.name} ${c.iso2 ? `(${c.iso2})` : ""}`, value: c.name }))}
+                                placeholder="Select Country"
+                                addOptionLabel="Add New Country"
+                              />
                             </label>
                             <label className="space-y-1">
                               <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Loading Port</span>
-                              <select
+                              <SearchableSelect
                                 value={form.loadingPort || form.airportName || form.loadingBorder || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setValue("loadingPort", val);
-                                  setValue("loadingLocation", val);
-                                  if (form.shippingMode === "By Air") setValue("airportName", val);
-                                  if (form.shippingMode === "By Road") setValue("loadingBorder", val);
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
+                                    handleAddNewLocationItem("port", "loadingPort");
+                                  } else {
+                                    setValue("loadingPort", val);
+                                    setValue("loadingLocation", val);
+                                    if (form.shippingMode === "By Air") setValue("airportName", val);
+                                    if (form.shippingMode === "By Road") setValue("loadingBorder", val);
+                                  }
                                 }}
+                                options={currentLoadingPorts.map((p, idx) => ({ label: `${p.port_name} ${p.port_code ? `[${p.port_code}]` : ""}`, value: p.port_name }))}
+                                placeholder="Select Port"
+                                addOptionLabel="Add New Port"
                                 disabled={!form.loadingCountry && currentLoadingPorts.length === 0}
-                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
-                              >
-                                <option value="">Select Port</option>
-                                {currentLoadingPorts.map((p, idx) => <option key={p.id || p.port_name || idx} value={p.port_name}>{p.port_name} {p.port_code ? `[${p.port_code}]` : ""}</option>)}
-                              </select>
+                              />
                             </label>
                             <label className="space-y-1">
                               <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Loading Date</span>
@@ -4181,39 +4399,45 @@ export function PurchaseOrderWizard({ session }) {
                           <div className="grid gap-3 sm:grid-cols-3">
                             <label className="space-y-1">
                               <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Receiving Country</span>
-                              <select
+                              <SearchableSelect
                                 value={form.receivingCountry || form.destinationCountry || form.receivedCountry || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setValue("receivingCountry", val);
-                                  setValue("receivedCountry", val);
-                                  setValue("destinationCountry", val);
-                                  setValue("receivingPort", "");
-                                  setValue("destinationPort", "");
-                                  setValue("receivedPort", "");
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
+                                    handleAddNewLocationItem("country", "receivingCountry");
+                                  } else {
+                                    setValue("receivingCountry", val);
+                                    setValue("receivedCountry", val);
+                                    setValue("destinationCountry", val);
+                                    setValue("receivingPort", "");
+                                    setValue("destinationPort", "");
+                                    setValue("receivedPort", "");
+                                  }
                                 }}
-                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
-                              >
-                                <option value="">Select Country</option>
-                                {masterCountryOptions.map((c) => <option key={c.id || c.name} value={c.name}>{c.name} {c.iso2 ? `(${c.iso2})` : ""}</option>)}
-                              </select>
+                                options={masterCountryOptions.map((c) => ({ label: `${c.name} ${c.iso2 ? `(${c.iso2})` : ""}`, value: c.name }))}
+                                placeholder="Select Country"
+                                addOptionLabel="Add New Country"
+                              />
                             </label>
                             <label className="space-y-1">
                               <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Receiving Port</span>
-                              <select
+                              <SearchableSelect
                                 value={form.receivingPort || form.destinationPort || form.receivedPort || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setValue("receivingPort", val);
-                                  setValue("destinationPort", val);
-                                  setValue("receivedPort", val);
+                                onChange={(val) => {
+                                  if (val === "__ADD_NEW__") {
+                                    handleAddNewLocationItem("port", "receivingPort");
+                                  } else {
+                                    setValue("receivingPort", val);
+                                    setValue("destinationPort", val);
+                                    setValue("receivedPort", val);
+                                    if (form.shippingMode === "By Air") setValue("destinationAirportName", val);
+                                    if (form.shippingMode === "By Road") setValue("receivingBorder", val);
+                                  }
                                 }}
+                                options={currentReceivedPorts.map((p, idx) => ({ label: `${p.port_name} ${p.port_code ? `[${p.port_code}]` : ""}`, value: p.port_name }))}
+                                placeholder="Select Port"
+                                addOptionLabel="Add New Port"
                                 disabled={!(form.receivingCountry || form.destinationCountry || form.receivedCountry) && currentReceivedPorts.length === 0}
-                                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-900 outline-none focus:border-blue-500 disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
-                              >
-                                <option value="">Select Port</option>
-                                {currentReceivedPorts.map((p, idx) => <option key={p.id || p.port_name || idx} value={p.port_name}>{p.port_name} {p.port_code ? `[${p.port_code}]` : ""}</option>)}
-                              </select>
+                              />
                             </label>
                             <label className="space-y-1">
                               <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Receiving Date</span>
