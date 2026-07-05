@@ -169,97 +169,86 @@ type CurrencyBookingSummary = {
 };
 
 type CountryBookingSummary = {
-  country: string;
-  totalOrders: number;
-  currencies: CurrencyBookingSummary[];
   key: string;
+  country: string;
+  purchaseCurrency: string;
+  baseCurrency: string;
+  totalBills: number;
+  
+  totalPurchaseAmountUSD: number;
+  advancePurchaseAmountUSD: number;
+  pendingAmountUSD: number;
+
+  totalAmountLocal: number;
+  advanceLocal: number;
+  pendingLocal: number;
 };
 
-function countryBookingSummaries(rows: PurchaseReport[]): CountryBookingSummary[] {
-  const map = new Map<string, { country: string, totalOrders: number, currencies: Map<string, CurrencyBookingSummary> }>();
+function countryBookingSummaries(rows: PurchaseReport[], defaultBaseCurrency: string = "PKR"): CountryBookingSummary[] {
+  const map = new Map<string, CountryBookingSummary>();
   
   rows.forEach((row) => {
     const country = row.countryName || "UNKNOWN";
-    const currency = String(row.currency || row.form_data?.form?.currencyType || row.form_data?.form?.purchaseCurrency || "USD").toUpperCase();
+    let purchaseCurrency = String(row.currency || row.form_data?.form?.currencyType || row.form_data?.form?.purchaseCurrency || "").toUpperCase();
+    if (!purchaseCurrency || purchaseCurrency === "UNDEFINED") {
+      const c = country.toUpperCase();
+      if (c.includes("PAKISTAN") || c === "PK") purchaseCurrency = "PKR";
+      else if (c.includes("AFGHANISTAN") || c === "AF") purchaseCurrency = "AFN";
+      else if (c.includes("INDIA") || c === "IN") purchaseCurrency = "INR";
+      else if (c.includes("UNITED ARAB") || c === "UAE") purchaseCurrency = "AED";
+      else purchaseCurrency = "USD";
+    }
     
-    const invoiceAmount = Number(row.totalPurchaseAmount || 0);
+    // Determine local base currency
+    let baseCurrency = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0];
+    if (!baseCurrency || baseCurrency === purchaseCurrency) {
+      const c = country.toUpperCase();
+      if (c.includes("UNITED ARAB") || c === "UAE") baseCurrency = "AED";
+      else if (c.includes("INDIA") || c === "IN") baseCurrency = "INR";
+      else if (c.includes("AFGHANISTAN") || c === "AF") baseCurrency = "AFN";
+      else if (c.includes("PAKISTAN") || c === "PK") baseCurrency = "PKR";
+      else baseCurrency = defaultBaseCurrency;
+    }
+
+    const key = `${country.toLowerCase()}`;
+    const current = map.get(key) || { 
+      key, 
+      country, 
+      purchaseCurrency, 
+      baseCurrency, 
+      totalBills: 0, 
+      totalPurchaseAmountUSD: 0, 
+      advancePurchaseAmountUSD: 0, 
+      pendingAmountUSD: 0,
+      totalAmountLocal: 0,
+      advanceLocal: 0,
+      pendingLocal: 0
+    };
+    
+    const invoiceAmount = Number(row.totalPurchaseAmount || row.purchaseAmount || 0);
     const advancePaidRaw = Number((row as any).advance_paid || 0);
-    const remainingPaidRaw = Number((row as any).remaining_paid || 0);
-    const creditAmountRaw = Number((row as any).credit_amount || 0);
-    const exRate = Number((row as any).exchange_rate || (row as any).exchangeRate || 1);
+    const exRate = Number((row as any).exchange_rate || row.form_data?.goodsEntries?.[0]?.exchangeRate || row.form_data?.goodsEntries?.[0]?.rate2 || 1);
     
-    const advancePaid = (exRate > 1 && advancePaidRaw > invoiceAmount * 1.05) ? advancePaidRaw / exRate : advancePaidRaw;
-    const totalPaidLocal = advancePaidRaw + remainingPaidRaw + creditAmountRaw;
-    const totalPaidUsd = (exRate > 1 && totalPaidLocal > invoiceAmount * 1.05) ? totalPaidLocal / exRate : totalPaidLocal;
+    const advancePaidUSD = (exRate > 1 && advancePaidRaw > invoiceAmount * 1.05) ? advancePaidRaw / exRate : advancePaidRaw;
     
-    const isPosted = row.status === "Posted"
-      || (row as any).ledgerPostingStatus === "Posted"
-      || (row as any).ledger_posting_status === "Posted"
-      || (row as any).ledger_posting_status === "posted"
-      || (row as any).journalStatus === "Posted"
-      || (row as any).journalStatus?.toLowerCase() === "posted"
-      || row.form_data?.workflow?.journalStatus === "Posted"
-      || row.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
-      || (row as any).ledger_posting_status === "transferred";
-      
-    const isVerified = row.status === "Verified" || row.confirmationStatus === "Confirmed" || row.form_data?.workflow?.confirmationStatus === "Confirmed" || row.status?.toLowerCase().includes("confirm");
-    const isPaymentDone = row.paymentStatus === "Paid" || row.paymentStatus === "completed" || row.paymentStatus?.toLowerCase().includes("full") || row.paymentStatus?.toLowerCase().includes("paid");
-    const hasBill = !!(row.form_data?.form?.billNo || row.form_data?.form?.invoiceNo || row.purchaseContractNo);
+    // Final Amount (Local)
+    const finalAmount = invoiceAmount * exRate;
+    
+    const advanceLocal = advancePaidUSD * exRate;
 
-    if (!map.has(country)) {
-        map.set(country, { country, totalOrders: 0, currencies: new Map() });
-    }
-    
-    const countryData = map.get(country)!;
-    countryData.totalOrders += 1;
-    
-    if (!countryData.currencies.has(currency)) {
-        countryData.currencies.set(currency, { 
-            currency, totalOrders: 0, totalAmount: 0, totalInvoiceAmount: 0, paidAmount: 0, dueAmount: 0, advanceAmount: 0, pendingPayment: 0, billsCount: 0,
-            bookedCount: 0, bookedAmount: 0, transferredCount: 0, transferredAmount: 0, verifiedCount: 0, verifiedAmount: 0, paymentDoneCount: 0, paymentDoneAmount: 0, pendingCount: 0, pendingAmount: 0 
-        });
-    }
-    
-    const currData = countryData.currencies.get(currency)!;
-    
-    // Top Row Metrics
-    currData.totalOrders += 1;
-    currData.totalAmount += invoiceAmount;
-    currData.totalInvoiceAmount += Number(row.finalAmount || row.workflowTotals?.invoiceAmount || row.totalPurchaseAmount || 0);
-    currData.paidAmount += totalPaidUsd;
-    currData.dueAmount += Math.max(0, invoiceAmount - totalPaidUsd);
-    currData.advanceAmount += advancePaid;
-    currData.pendingPayment += Math.max(0, (invoiceAmount - totalPaidUsd) - advancePaid);
-    if (hasBill) currData.billsCount += 1;
+    current.totalBills += 1;
+    current.totalPurchaseAmountUSD += invoiceAmount;
+    current.advancePurchaseAmountUSD += advancePaidUSD;
+    current.pendingAmountUSD += Math.max(0, invoiceAmount - advancePaidUSD);
 
-    // Detailed Metrics
-    currData.bookedCount += 1;
-    currData.bookedAmount += invoiceAmount;
+    current.totalAmountLocal += finalAmount;
+    current.advanceLocal += advanceLocal;
+    current.pendingLocal += Math.max(0, finalAmount - advanceLocal);
     
-    if (isPosted) {
-        currData.transferredCount += 1;
-        currData.transferredAmount += invoiceAmount;
-    } else {
-        currData.pendingCount += 1;
-        currData.pendingAmount += invoiceAmount;
-    }
-    
-    if (isVerified) {
-        currData.verifiedCount += 1;
-        currData.verifiedAmount += invoiceAmount;
-    }
-    
-    if (isPaymentDone) {
-        currData.paymentDoneCount += 1;
-        currData.paymentDoneAmount += invoiceAmount;
-    }
+    map.set(key, current);
   });
   
-  return Array.from(map.values()).map(c => ({
-    ...c,
-    key: c.country,
-    currencies: Array.from(c.currencies.values()).sort((a, b) => a.currency.localeCompare(b.currency))
-  })).sort((a, b) => a.country.localeCompare(b.country));
+  return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
 }
 
 function money(value: unknown, currency = "") {
@@ -974,63 +963,71 @@ const formatAmount = (num: number) => {
 
 function CountryDashboardCard({ summary, branchFilter }: { summary: CountryBookingSummary, branchFilter?: string }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white text-sm shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl drop-shadow-sm">{getFlag(summary.country)}</span>
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Country Purchase Summary</div>
-            <div className="font-black uppercase tracking-wide text-slate-900 dark:text-slate-100">
-              {summary.country}
-              {branchFilter ? <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{branchFilter}</span> : null}
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-900 flex flex-col">
+      {/* Header */}
+      <div className="bg-slate-50 dark:bg-slate-900/50 px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xl leading-none">
+            {getFlag(summary.country)}
+          </span>
+          <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
+            {summary.country}
+            {branchFilter ? <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">{branchFilter}</span> : null}
+          </h3>
+        </div>
+        <div className="px-2.5 py-1 rounded-full bg-blue-100/50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
+          {summary.totalBills} {summary.totalBills === 1 ? 'Transaction' : 'Transactions'}
+        </div>
+      </div>
+      
+      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800/60">
+        
+        {/* Section 1: PURCHASE CURR */}
+        <div className="space-y-3 pt-3 md:pt-0">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1 h-3 rounded-full bg-indigo-500"></div>
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">PURCHASE CURR</h4>
+            <span className="ml-auto text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">{summary.purchaseCurrency}</span>
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-400">Total</span>
+              <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(summary.totalPurchaseAmountUSD, summary.purchaseCurrency)}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-400">Advance</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(summary.advancePurchaseAmountUSD, summary.purchaseCurrency)}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
+              <span className="font-bold text-slate-500">Remaining</span>
+              <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(summary.pendingAmountUSD, summary.purchaseCurrency)}</span>
             </div>
           </div>
         </div>
-        <div className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
-          <BarChart3 className="h-3.5 w-3.5" /> {summary.totalOrders} Transactions
-        </div>
-      </div>
-
-      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-        {summary.currencies.map((curr) => {
-          const outstanding = Math.max(0, curr.totalAmount - curr.paidAmount);
-          const metrics = [
-            { label: "Total Purchase", value: money(curr.totalAmount, curr.currency), tone: "blue" },
-            { label: "Purchase Currency Total", value: money(curr.totalAmount, curr.currency), tone: "slate" },
-            { label: "Total Invoice", value: money(curr.totalInvoiceAmount || curr.totalAmount, curr.currency), tone: "violet" },
-            { label: "Total Invoice Paid", value: money(curr.paidAmount, curr.currency), tone: "emerald" },
-            { label: "Purchase Outstanding Balance", value: money(outstanding, curr.currency), tone: "rose" },
-            { label: "Total Transactions", value: curr.totalOrders.toLocaleString(), tone: "amber" }
-          ];
-
-          return (
-            <div key={curr.currency} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-              <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-700/60">
-                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Currency</span>
-                <span className="rounded-lg bg-blue-50 px-2 py-1 text-xs font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{curr.currency}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {metrics.map((metric) => (
-                  <div
-                    key={metric.label}
-                    className={cn(
-                      "rounded-lg border p-2",
-                      metric.tone === "emerald" && "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300",
-                      metric.tone === "rose" && "border-rose-100 bg-rose-50 text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300",
-                      metric.tone === "blue" && "border-blue-100 bg-blue-50 text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300",
-                      metric.tone === "violet" && "border-violet-100 bg-violet-50 text-violet-800 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300",
-                      metric.tone === "amber" && "border-amber-100 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300",
-                      metric.tone === "slate" && "border-slate-100 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                    )}
-                  >
-                    <div className="text-[9px] font-black uppercase tracking-[0.14em] opacity-70">{metric.label}</div>
-                    <div className="mt-1 truncate font-mono text-[12px] font-black">{metric.value}</div>
-                  </div>
-                ))}
-              </div>
+        
+        {/* Section 2: FINAL OFFICE */}
+        <div className="space-y-3 pt-3 md:pt-0 md:pl-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1 h-3 rounded-full bg-teal-500"></div>
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">FINAL OFFICE</h4>
+            <span className="ml-auto text-[10px] font-black text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-1.5 py-0.5 rounded">{summary.baseCurrency}</span>
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-400">Total</span>
+              <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(summary.totalAmountLocal, summary.baseCurrency)}</span>
             </div>
-          );
-        })}
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-400">Advance</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(summary.advanceLocal, summary.baseCurrency)}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
+              <span className="font-bold text-slate-500">Remaining</span>
+              <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(summary.pendingLocal, summary.baseCurrency)}</span>
+            </div>
+          </div>
+        </div>
+        
       </div>
     </div>
   );

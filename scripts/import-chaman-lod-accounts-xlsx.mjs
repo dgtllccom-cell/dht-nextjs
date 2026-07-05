@@ -107,11 +107,15 @@ loadEnv();
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is missing.");
 if (!fs.existsSync(SOURCE_JSON)) throw new Error(`Missing parsed Excel JSON: ${SOURCE_JSON}`);
 
-const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 1, idle_timeout: 1 });
+console.log("Connecting to database...");
+const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 1, idle_timeout: 1, prepare: false });
+console.log("Connected! Setting timeout...");
 await sql`set statement_timeout = 0`;
+console.log("Parsing rows...");
 const rows = parseRows();
 const refs = rows.map((row) => row.manualReferenceNumber);
 
+console.log("Looking up country and branches...");
 const [pakistan] = await sql`select id, name, currency_code from countries where name ilike '%Pakistan%' and deleted_at is null limit 1`;
 if (!pakistan) throw new Error("Pakistan country not found.");
 const [mainBranch] = await sql`select id, name, code from country_branches where country_id=${pakistan.id} and deleted_at is null and (name ilike '%Pakistan%' or code ilike '%PAK%') order by created_at asc limit 1`;
@@ -119,20 +123,34 @@ if (!mainBranch) throw new Error("Pakistan main branch not found.");
 const [chamanBranch] = await sql`select id, name, code, city_name from city_branches where country_id=${pakistan.id} and country_branch_id=${mainBranch.id} and deleted_at is null and (city_name ilike '%Chaman%' or name ilike '%Chaman%' or code ilike '%CHM%' or code ilike '%CH%') order by created_at asc limit 1`;
 if (!chamanBranch) throw new Error("Chaman branch not found.");
 
-const existingRows = await sql`select manual_reference_number from enterprise_accounts where manual_reference_number in ${sql(refs)} and deleted_at is null`;
-const existingRefs = new Set(existingRows.map((r) => r.manual_reference_number));
-const rowsToInsert = rows.filter((row) => !existingRefs.has(row.manualReferenceNumber));
+console.log("Checking for existing rows in Chaman Branch...");
+const existingRows = await sql`
+  select manual_reference_number, name 
+  from enterprise_accounts 
+  where manual_reference_number in ${sql(refs)} 
+    and city_branch_id=${chamanBranch.id} 
+    and deleted_at is null
+`;
+const existingMap = new Map(existingRows.map(r => [r.manual_reference_number, r.name]));
+const rowsToInsert = rows.filter((row) => {
+  const existingName = existingMap.get(row.manualReferenceNumber);
+  if (existingName !== undefined && existingName === row.accountName) {
+    return false; // Exact duplicate in Chaman Branch
+  }
+  return true; // Not in Chaman Branch, or different name
+});
+console.log(`Found ${rowsToInsert.length} new accounts to insert into Chaman Branch.`);
 
+console.log("Fetching max sequences...");
 const [maxes] = await sql`
   select
     coalesce(max(account_serial_number),0)::bigint as max_account_serial,
     coalesce(max(branch_account_sequence) filter (where city_branch_id=${chamanBranch.id}),0)::bigint as max_branch_sequence,
     coalesce(max((regexp_match(country_serial_number, '([0-9]+)$'))[1]::bigint) filter (where country_id=${pakistan.id}),0)::bigint as max_country_serial
   from enterprise_accounts
-  where deleted_at is null
 `;
 
-const usedCodeRows = await sql`select code from enterprise_accounts where scope='city_branch' and country_id=${pakistan.id} and country_branch_id=${mainBranch.id} and city_branch_id=${chamanBranch.id} and deleted_at is null`;
+const usedCodeRows = await sql`select code from enterprise_accounts where scope='city_branch' and country_id=${pakistan.id} and country_branch_id=${mainBranch.id} and city_branch_id=${chamanBranch.id}`;
 const usedCodes = new Set(usedCodeRows.map((row) => row.code));
 function nextFreeCode(seq) {
   let n = seq;
@@ -155,6 +173,7 @@ let globalSeq = Number(maxes.max_account_serial ?? 0) + 1;
 let countrySeq = Number(maxes.max_country_serial ?? 0) + 1;
 let codeSeed = branchSeq;
 
+console.log("Inserting records...");
 await sql.begin(async (tx) => {
   for (const row of rowsToInsert) {
     const { code, sequence } = nextFreeCode(codeSeed);
@@ -260,7 +279,7 @@ const verifySample = await sql`
 await sql.end();
 console.log(JSON.stringify({
   sourceRows: rows.length,
-  existingSkipped: existingRefs.size,
+  existingSkipped: existingMap.size,
   inserted,
   translationsUpserted: translations,
   target: { country: pakistan.name, mainBranch: mainBranch.name, cityBranch: chamanBranch.name, cityName: chamanBranch.city_name, branchCode: chamanBranch.code },
@@ -271,3 +290,4 @@ console.log(JSON.stringify({
   insertedSample: sample,
   verifySample
 }, null, 2));
+console.log("Done!");

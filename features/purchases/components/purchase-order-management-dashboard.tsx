@@ -98,20 +98,59 @@ type ApiPayload = {
 type CountryTransferSummary = {
   key: string;
   country: string;
-  currency: string;
+  purchaseCurrency: string;
+  baseCurrency: string;
   totalOrders: number;
-  totalBill: number;
-  transferredAmount: number;
-  pendingAmount: number;
+  
+  totalPurchaseAmountUSD: number;
+  transferredAmountUSD: number;
+  pendingAmountUSD: number;
+
+  totalAmountLocal: number;
+  transferredLocal: number;
+  pendingLocal: number;
 };
 
-function countryTransferSummaries(rows: PurchaseReport[]): CountryTransferSummary[] {
+function countryTransferSummaries(rows: PurchaseReport[], defaultBaseCurrency: string = "PKR"): CountryTransferSummary[] {
   const map = new Map<string, CountryTransferSummary>();
+  
   rows.forEach((row) => {
     const country = row.countryName || "UNKNOWN";
-    const currency = row.currency || "USD";
-    const key = `${country.toLowerCase()}::${currency}`;
-    const current = map.get(key) || { key, country, currency, totalOrders: 0, totalBill: 0, transferredAmount: 0, pendingAmount: 0 };
+    let purchaseCurrency = String(row.currency || row.form_data?.form?.currencyType || row.form_data?.form?.purchaseCurrency || "").toUpperCase();
+    if (!purchaseCurrency || purchaseCurrency === "UNDEFINED") {
+      const c = country.toUpperCase();
+      if (c.includes("PAKISTAN") || c === "PK") purchaseCurrency = "PKR";
+      else if (c.includes("AFGHANISTAN") || c === "AF") purchaseCurrency = "AFN";
+      else if (c.includes("INDIA") || c === "IN") purchaseCurrency = "INR";
+      else if (c.includes("UNITED ARAB") || c === "UAE") purchaseCurrency = "AED";
+      else purchaseCurrency = "USD";
+    }
+    
+    // Determine local base currency
+    let baseCurrency = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0];
+    if (!baseCurrency || baseCurrency === purchaseCurrency) {
+      const c = country.toUpperCase();
+      if (c.includes("UNITED ARAB") || c === "UAE") baseCurrency = "AED";
+      else if (c.includes("INDIA") || c === "IN") baseCurrency = "INR";
+      else if (c.includes("AFGHANISTAN") || c === "AF") baseCurrency = "AFN";
+      else if (c.includes("PAKISTAN") || c === "PK") baseCurrency = "PKR";
+      else baseCurrency = defaultBaseCurrency;
+    }
+
+    const key = `${country.toLowerCase()}`;
+    const current = map.get(key) || { 
+      key, 
+      country, 
+      purchaseCurrency, 
+      baseCurrency, 
+      totalOrders: 0, 
+      totalPurchaseAmountUSD: 0, 
+      transferredAmountUSD: 0, 
+      pendingAmountUSD: 0,
+      totalAmountLocal: 0,
+      transferredLocal: 0,
+      pendingLocal: 0
+    };
     
     const isPosted = row.status === "Posted"
       || (row as any).ledgerPostingStatus === "Posted"
@@ -123,26 +162,26 @@ function countryTransferSummaries(rows: PurchaseReport[]): CountryTransferSummar
       || row.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
       || (row as any).ledger_posting_status === "transferred";
       
-    // Use finalAmount (local currency) if available, otherwise totalPurchaseAmount (USD)
-    let localCur = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0];
-    let billAmount = Number(row.finalAmount || row.totalPurchaseAmount || 0);
-    
-    if (localCur && localCur !== row.currency) {
-        current.currency = localCur;
-    } else {
-        billAmount = Number(row.totalPurchaseAmount || 0);
-    }
+    const purchaseAmount = Number(row.totalPurchaseAmount || row.purchaseAmount || 0);
+    // Always calculate finalAmount accurately using exchangeRate.
+    const exRate = Number(row.exchange_rate || row.form_data?.goodsEntries?.[0]?.exchangeRate || row.form_data?.goodsEntries?.[0]?.rate2 || 1);
+    const finalAmount = purchaseAmount * exRate;
     
     current.totalOrders += 1;
-    current.totalBill += billAmount;
+    current.totalPurchaseAmountUSD += purchaseAmount;
+    current.totalAmountLocal += finalAmount;
+    
     if (isPosted) {
-        current.transferredAmount += billAmount;
+        current.transferredAmountUSD += purchaseAmount;
+        current.transferredLocal += finalAmount;
     } else {
-        current.pendingAmount += billAmount;
+        current.pendingAmountUSD += purchaseAmount;
+        current.pendingLocal += finalAmount;
     }
     
     map.set(key, current);
   });
+  
   return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
 }
 
@@ -1352,26 +1391,66 @@ export function PurchaseOrderManagementDashboard() {
         {/* Row 2: Country-wise Financial Summary. Never mix currencies across countries. */}
         <div className="grid gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {countryCards.length ? countryCards.map((card) => (
-            <div key={card.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{card.country}</div>
-                  <div className="text-xs font-black text-blue-700 dark:text-blue-300">{card.currency}</div>
+            <div key={card.key} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-900 flex flex-col">
+              <div className="bg-slate-50 dark:bg-slate-900/50 px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl leading-none">
+                    {getFlag(card.country)}
+                  </span>
+                  <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {card.country}
+                  </h3>
                 </div>
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{card.totalOrders} POs</span>
+                <div className="px-2.5 py-1 rounded-full bg-blue-100/50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
+                  {card.totalOrders} {card.totalOrders === 1 ? 'Transaction' : 'Transactions'}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-[10px] normal-case">
-                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
-                  <div className="font-bold uppercase text-slate-400">Total Bill</div>
-                  <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{money(card.totalBill, card.currency)}</div>
+              
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800/60">
+                {/* Section 1: PURCHASE CURR */}
+                <div className="space-y-3 pt-3 md:pt-0">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1 h-3 rounded-full bg-indigo-500"></div>
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">PURCHASE CURR</h4>
+                    <span className="ml-auto text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">{card.purchaseCurrency}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-semibold text-slate-400">Total</span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(card.totalPurchaseAmountUSD, card.purchaseCurrency)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-semibold text-slate-400">Transferred</span>
+                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(card.transferredAmountUSD, card.purchaseCurrency)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
+                      <span className="font-bold text-slate-500">Remaining</span>
+                      <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(card.pendingAmountUSD, card.purchaseCurrency)}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
-                  <div className="font-bold uppercase text-emerald-600">Transferred</div>
-                  <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">{money(card.transferredAmount, card.currency)}</div>
-                </div>
-                <div className="col-span-2 rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
-                  <div className="font-bold uppercase text-rose-600">Pending Transfer</div>
-                  <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(card.pendingAmount, card.currency)}</div>
+                
+                {/* Section 2: FINAL OFFICE */}
+                <div className="space-y-3 pt-3 md:pt-0 md:pl-4">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1 h-3 rounded-full bg-teal-500"></div>
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">FINAL OFFICE</h4>
+                    <span className="ml-auto text-[10px] font-black text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-1.5 py-0.5 rounded">{card.baseCurrency}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-semibold text-slate-400">Total</span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(card.totalAmountLocal, card.baseCurrency)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-semibold text-slate-400">Transferred</span>
+                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(card.transferredLocal, card.baseCurrency)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
+                      <span className="font-bold text-slate-500">Remaining</span>
+                      <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(card.pendingLocal, card.baseCurrency)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1507,10 +1586,18 @@ export function PurchaseOrderManagementDashboard() {
                   const finalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || 0), 0) : Number(row.finalAmount || 0);
                   const invoicePercent = row.form_data?.form?.advancePercent || row.form_data?.form?.invoicePercent;
                   const payCondition = row.form_data?.form?.paymentType || row.form_data?.form?.paymentCondition || row.paymentStatus || "-";
-                  const rowCurrency = row.currency || "USD";
+                  let purchaseCurrency = String(row.currency || row.form_data?.form?.currencyType || row.form_data?.form?.purchaseCurrency || "").toUpperCase();
+                  if (!purchaseCurrency || purchaseCurrency === "UNDEFINED") {
+                    const c = countryName.toUpperCase();
+                    if (c.includes("PAKISTAN") || c === "PK") purchaseCurrency = "PKR";
+                    else if (c.includes("AFGHANISTAN") || c === "AF") purchaseCurrency = "AFN";
+                    else if (c.includes("INDIA") || c === "IN") purchaseCurrency = "INR";
+                    else if (c.includes("UNITED ARAB") || c === "UAE") purchaseCurrency = "AED";
+                    else purchaseCurrency = "USD";
+                  }
                   let localCur = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0];
                   // If secondaryCurrency wasn't set or incorrectly set to the primary currency, fallback to localCurrencyLabel
-                  if (!localCur || localCur === rowCurrency) {
+                  if (!localCur || localCur === purchaseCurrency) {
                     localCur = localCurrencyLabel;
                   }
 
@@ -1575,13 +1662,13 @@ export function PurchaseOrderManagementDashboard() {
                       <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalNet.toLocaleString()}</td>
                       {/* Financial */}
                       <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${rowCurrency}` : "-"}
+                        {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${purchaseCurrency}` : "-"}
                       </td>
                       <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {totalAmt > 0 ? `${money(totalAmt)} ${rowCurrency}` : "-"}
+                        {totalAmt > 0 ? `${money(totalAmt)} ${purchaseCurrency}` : "-"}
                       </td>
                       <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {purchaseAmt > 0 ? `${money(purchaseAmt)} ${rowCurrency}` : "-"}
+                        {purchaseAmt > 0 ? `${money(purchaseAmt)} ${purchaseCurrency}` : "-"}
                       </td>
                       <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
                         {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
