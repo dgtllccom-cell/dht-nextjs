@@ -859,7 +859,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="manualReferenceNumber">{getLabel("manualReference", lang)}</Label>
-                  <Input id="manualReferenceNumber" value={manualReferenceNumber} onChange={(event) => setManualReferenceNumber(event.target.value.toUpperCase())} placeholder={getLabel("manualReferencePlaceholder", lang)} />
+                  <Input id="manualReferenceNumber" value={manualReferenceNumber} onChange={(event) => setManualReferenceNumber(event.target.value.replace(/[^A-Za-z0-9_-]/g, '').toUpperCase())} placeholder={getLabel("manualReferencePlaceholder", lang)} />
                 </div>
               </div>
 

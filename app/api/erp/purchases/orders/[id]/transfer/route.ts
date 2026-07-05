@@ -210,23 +210,23 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       .maybeSingle();
 
     if (!existingRoz) {
-      const baseUrl = request.nextUrl.origin;
-      const roznamchaRes = await fetch(`${baseUrl}/api/erp/roznamcha`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          cookie: request.headers.get("cookie") || ""
-        },
-        body: JSON.stringify({
-          ...roznamchaPayload,
-          // Append a timestamp or unique suffix to ensure it doesn't violate unique constraints if voucherNo was used elsewhere
-          voucherNo: `${manualBillNumber || systemBillNumber}-TRF-${Date.now()}`
-        })
-      });
-      
-      const roznamchaData = await roznamchaRes.json().catch(() => ({}));
-      if (!roznamchaRes.ok || !roznamchaData.success) {
-        throw new Error(roznamchaData?.error?.message || roznamchaData?.error || "Failed to post to Roznamcha automatically.");
+      const { postRoznamchaWithErpSession } = await import("@/app/api/erp/roznamcha/route");
+      const { roznamchaPostingSchema } = await import("@/lib/api/erp-validation");
+
+      const payloadToParse = {
+        ...roznamchaPayload,
+        voucherNo: `${manualBillNumber || systemBillNumber}-TRF-${Date.now()}`
+      };
+
+      try {
+        const parsedBody = roznamchaPostingSchema.parse(payloadToParse);
+        await postRoznamchaWithErpSession({
+          sessionUserId: session.userId,
+          body: parsedBody
+        });
+      } catch (err: any) {
+        console.error("Roznamcha auto-post error:", err);
+        throw new Error(`Failed to post to Roznamcha automatically: ${err.message || err}`);
       }
     }
 

@@ -270,6 +270,39 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       .update(ledgerUpdate)
       .eq("enterprise_account_id", id);
 
+    if (body.name !== undefined) {
+      const actorLanguage = (session.preferredLanguage || "en") as "en" | "ar" | "ur" | "fa" | "ps";
+      supabase.from("ledgers").select("id").eq("enterprise_account_id", id).maybeSingle().then(({ data: ledger }) => {
+        import("@/lib/services/enterprise-multilingual-service")
+          .then(({ saveEnterpriseRecordTranslations }) => {
+            const promises = [
+              saveEnterpriseRecordTranslations({
+                recordTable: "enterprise_accounts",
+                recordId: id,
+                originalLanguage: actorLanguage,
+                fields: [{ fieldName: "name", value: body.name }],
+                actorId,
+                source: "auto"
+              })
+            ];
+            if (ledger?.id) {
+              promises.push(
+                saveEnterpriseRecordTranslations({
+                  recordTable: "ledgers",
+                  recordId: ledger.id,
+                  originalLanguage: actorLanguage,
+                  fields: [{ fieldName: "name", value: body.name }],
+                  actorId,
+                  source: "auto"
+                })
+              );
+            }
+            return Promise.all(promises);
+          })
+          .catch((err) => console.error("Failed to auto-translate updated account names:", err));
+      });
+    }
+
     return apiOk({ account: updatedAccount });
   } catch (error) {
     return handleApiError(error);

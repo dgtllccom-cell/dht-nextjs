@@ -298,15 +298,8 @@ export async function postRoznamchaWithErpSession(input: {
     if (!isLedgerScopeCompatible(body.type, ledger.scope)) {
       throw new Error("Ledger belongs to a different financial scope");
     }
-    if (body.countryId && ledger.country_id && ledger.country_id !== body.countryId) {
-      throw new Error("Ledger belongs to a different country");
-    }
-    if (body.countryBranchId && ledger.country_branch_id && ledger.country_branch_id !== body.countryBranchId) {
-      throw new Error("Ledger belongs to a different branch");
-    }
-    if (body.cityBranchId && ledger.city_branch_id && ledger.city_branch_id !== body.cityBranchId) {
-      throw new Error("Ledger belongs to a different city branch");
-    }
+    // Strict branch/country checks removed to allow inter-branch and inter-country 
+    // ledger postings (e.g. Afghanistan order paid from Pakistan account).
 
     const { data: currentLedger, error: currentLedgerError } = await admin
       .from("ledgers")

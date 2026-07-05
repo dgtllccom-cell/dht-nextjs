@@ -470,6 +470,30 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    const actorLanguage = (session.preferredLanguage || "en") as "en" | "ar" | "ur" | "fa" | "ps";
+    import("@/lib/services/enterprise-multilingual-service")
+      .then(({ saveEnterpriseRecordTranslations }) => {
+        return Promise.all([
+          saveEnterpriseRecordTranslations({
+            recordTable: "enterprise_accounts",
+            recordId: accountId,
+            originalLanguage: actorLanguage,
+            fields: [{ fieldName: "name", value: body.name }],
+            actorId,
+            source: "auto"
+          }),
+          saveEnterpriseRecordTranslations({
+            recordTable: "ledgers",
+            recordId: ledgerId,
+            originalLanguage: actorLanguage,
+            fields: [{ fieldName: "name", value: body.name }],
+            actorId,
+            source: "auto"
+          })
+        ]);
+      })
+      .catch((err) => console.error("Failed to auto-translate new account names:", err));
+
     return apiCreated({
       accountId,
       ledgerId,
