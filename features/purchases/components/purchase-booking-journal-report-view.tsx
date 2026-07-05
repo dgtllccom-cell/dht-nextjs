@@ -991,15 +991,15 @@ function CountryDashboardCard({ summary, branchFilter }: { summary: CountryBooki
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center text-[11px]">
-              <span className="font-semibold text-slate-400">Total</span>
+              <span className="font-semibold text-slate-400">Total Purchase</span>
               <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(summary.totalPurchaseAmountUSD, summary.purchaseCurrency)}</span>
             </div>
             <div className="flex justify-between items-center text-[11px]">
-              <span className="font-semibold text-slate-400">Advance</span>
+              <span className="font-semibold text-slate-400">Advance / Invoice</span>
               <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(summary.advancePurchaseAmountUSD, summary.purchaseCurrency)}</span>
             </div>
             <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
-              <span className="font-bold text-slate-500">Remaining</span>
+              <span className="font-bold text-slate-500">Remaining / Not Transferred</span>
               <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(summary.pendingAmountUSD, summary.purchaseCurrency)}</span>
             </div>
           </div>
@@ -1014,15 +1014,15 @@ function CountryDashboardCard({ summary, branchFilter }: { summary: CountryBooki
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center text-[11px]">
-              <span className="font-semibold text-slate-400">Total</span>
+              <span className="font-semibold text-slate-400">Total {summary.baseCurrency}</span>
               <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(summary.totalAmountLocal, summary.baseCurrency)}</span>
             </div>
             <div className="flex justify-between items-center text-[11px]">
-              <span className="font-semibold text-slate-400">Advance</span>
+              <span className="font-semibold text-slate-400">Advance / Invoice</span>
               <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(summary.advanceLocal, summary.baseCurrency)}</span>
             </div>
             <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
-              <span className="font-bold text-slate-500">Remaining</span>
+              <span className="font-bold text-slate-500">Remaining / Not Transferred</span>
               <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(summary.pendingLocal, summary.baseCurrency)}</span>
             </div>
           </div>
@@ -1712,7 +1712,7 @@ export function PurchaseBookingJournalReportView({
             tableGroups={[
               { label: "General Information", span: 10, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Product Information", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
-              { label: "Financial Information", span: isSuperAdmin ? 9 : 8, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
+              { label: "Financial Information", span: 8, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Route & Loading", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Status", span: 4, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Actions", span: 1, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
@@ -1744,7 +1744,6 @@ export function PurchaseBookingJournalReportView({
               "EX. RATE",
               "FINAL CURR",
               "FINAL AMT",
-              ...(isSuperAdmin ? ["USD EQ."] : []),
               "INV. %",
               "PAY. CONDITION",
               // ── Route & Loading ──────────────────────────────────────────
@@ -1824,10 +1823,19 @@ export function PurchaseBookingJournalReportView({
                 || report.form_data?.form?.paymentCondition
                 || report.paymentStatus || "-";
               const currency = report.currency || "USD";
-              const localCurrency = report.finalCurrency
+              let localCurrency = report.finalCurrency
+                || report.form_data?.form?.secondaryCurrency?.split(" ")?.[0]
                 || report.form_data?.form?.purchaseAccountCurrency 
-                || report.form_data?.form?.salesAccountCurrency || "PKR";
-
+                || report.form_data?.form?.salesAccountCurrency;
+              
+              if (!localCurrency || localCurrency === currency) {
+                const c = countryName.toUpperCase();
+                if (c.includes("UNITED ARAB") || c === "UAE") localCurrency = "AED";
+                else if (c.includes("INDIA") || c === "IN") localCurrency = "INR";
+                else if (c.includes("AFGHANISTAN") || c === "AF") localCurrency = "AFN";
+                else if (c.includes("PAKISTAN") || c === "PK") localCurrency = "PKR";
+                else localCurrency = "PKR"; // Default to PKR if unknown
+              }
               // ── Route & Loading ──────────────────────────────────────────
               const routeRaw = report.form_data?.form?.shippingMode
                 || report.form_data?.form?.shippingType
@@ -1960,11 +1968,6 @@ export function PurchaseBookingJournalReportView({
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
                     {finalAmt > 0 ? `${formatMoney(finalAmt)} ${localCurrency}` : "-"}
                   </Td>
-                  {isSuperAdmin && (
-                    <Td right className={`font-mono font-bold text-blue-500 text-[10px]`}>
-                      {finalAmt > 0 ? `${formatMoney(exchangeRate > 0 ? finalAmt / exchangeRate : finalAmt)} USD` : "-"}
-                    </Td>
-                  )}
                   <Td center className="text-[10px]">
                     {invoicePercent !== "-" ? (
                       <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>

@@ -185,6 +185,22 @@ function countryTransferSummaries(rows: PurchaseReport[], defaultBaseCurrency: s
   return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
 }
 
+const getFlag = (country: string) => {
+  if (!country) return "🏳️";
+  const c = country.toUpperCase();
+  if (c.includes("PAKISTAN")) return "🇵🇰";
+  if (c.includes("UNITED ARAB") || c === "UAE") return "🇦🇪";
+  if (c.includes("UNITED STATES") || c === "USA") return "🇺🇸";
+  if (c.includes("SAUDI")) return "🇸🇦";
+  if (c.includes("CHINA")) return "🇨🇳";
+  if (c.includes("INDIA")) return "🇮🇳";
+  if (c.includes("AFGHANISTAN")) return "🇦🇫";
+  if (c.includes("UNITED KINGDOM") || c === "UK") return "🇬🇧";
+  if (c.includes("CANADA")) return "🇨🇦";
+  if (c.includes("AUSTRALIA")) return "🇦🇺";
+  return "🏳️";
+};
+
 const sampleReports: PurchaseReport[] = [
   {
     id: "sample-po-1",
@@ -1416,15 +1432,15 @@ export function PurchaseOrderManagementDashboard() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center text-[11px]">
-                      <span className="font-semibold text-slate-400">Total</span>
+                      <span className="font-semibold text-slate-400">Total Purchase</span>
                       <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(card.totalPurchaseAmountUSD, card.purchaseCurrency)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[11px]">
-                      <span className="font-semibold text-slate-400">Transferred</span>
+                      <span className="font-semibold text-slate-400">Advance / Invoice</span>
                       <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(card.transferredAmountUSD, card.purchaseCurrency)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
-                      <span className="font-bold text-slate-500">Remaining</span>
+                      <span className="font-bold text-slate-500">Remaining / Not Transferred</span>
                       <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(card.pendingAmountUSD, card.purchaseCurrency)}</span>
                     </div>
                   </div>
@@ -1439,15 +1455,15 @@ export function PurchaseOrderManagementDashboard() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center text-[11px]">
-                      <span className="font-semibold text-slate-400">Total</span>
+                      <span className="font-semibold text-slate-400">Total {card.baseCurrency}</span>
                       <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(card.totalAmountLocal, card.baseCurrency)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[11px]">
-                      <span className="font-semibold text-slate-400">Transferred</span>
+                      <span className="font-semibold text-slate-400">Advance / Invoice</span>
                       <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(card.transferredLocal, card.baseCurrency)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
-                      <span className="font-bold text-slate-500">Remaining</span>
+                      <span className="font-bold text-slate-500">Remaining / Not Transferred</span>
                       <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(card.pendingLocal, card.baseCurrency)}</span>
                     </div>
                   </div>
@@ -1595,10 +1611,17 @@ export function PurchaseOrderManagementDashboard() {
                     else if (c.includes("UNITED ARAB") || c === "UAE") purchaseCurrency = "AED";
                     else purchaseCurrency = "USD";
                   }
-                  let localCur = row.form_data?.form?.secondaryCurrency?.split(" ")?.[0];
-                  // If secondaryCurrency wasn't set or incorrectly set to the primary currency, fallback to localCurrencyLabel
+                  let localCur = row.finalCurrency
+                    || row.form_data?.form?.secondaryCurrency?.split(" ")?.[0]
+                    || row.form_data?.form?.purchaseAccountCurrency 
+                    || row.form_data?.form?.salesAccountCurrency;
                   if (!localCur || localCur === purchaseCurrency) {
-                    localCur = localCurrencyLabel;
+                    const c = countryName.toUpperCase();
+                    if (c.includes("UNITED ARAB") || c === "UAE") localCur = "AED";
+                    else if (c.includes("INDIA") || c === "IN") localCur = "INR";
+                    else if (c.includes("AFGHANISTAN") || c === "AF") localCur = "AFN";
+                    else if (c.includes("PAKISTAN") || c === "PK") localCur = "PKR";
+                    else localCur = "PKR"; // Default to PKR if unknown
                   }
 
                   // Route

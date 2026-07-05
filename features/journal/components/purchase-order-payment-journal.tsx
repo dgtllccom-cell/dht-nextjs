@@ -810,71 +810,88 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
   );
 }
 
+const getFlag = (country: string) => {
+  if (!country) return "🏳️";
+  const c = country.toUpperCase();
+  if (c.includes("PAKISTAN")) return "🇵🇰";
+  if (c.includes("UNITED ARAB") || c === "UAE") return "🇦🇪";
+  if (c.includes("UNITED STATES") || c === "USA") return "🇺🇸";
+  if (c.includes("SAUDI")) return "🇸🇦";
+  if (c.includes("CHINA")) return "🇨🇳";
+  if (c.includes("INDIA")) return "🇮🇳";
+  if (c.includes("AFGHANISTAN")) return "🇦🇫";
+  if (c.includes("UNITED KINGDOM") || c === "UK") return "🇬🇧";
+  if (c.includes("CANADA")) return "🇨🇦";
+  if (c.includes("AUSTRALIA")) return "🇦🇺";
+  return "🏳️";
+};
+
 function CountrySummaryCard({ card }: { card: CountryPaymentSummary }) {
   return (
     <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-all duration-200 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-        <div className="flex items-center gap-3">
-          <div>
-            <div className="text-base font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">{card.country}</div>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xl leading-none">
+            {getFlag(card.country)}
+          </span>
+          <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
+            {card.country}
+          </h3>
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">{card.totalOrders} POs</span>
+          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+            {card.totalOrders} {card.totalOrders === 1 ? 'Transaction' : 'Transactions'}
+          </span>
         </div>
       </div>
       
       {/* Currency Summaries */}
-      <div className="p-4 grid gap-4 grid-cols-1 md:grid-cols-2">
-        {/* Foreign Currency */}
-        <div className="flex flex-col gap-3 bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
-           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/50 pb-2">
-             <div className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Foreign Currency</div>
-             <div className="text-sm font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded">{card.currency}</div>
-           </div>
-           
-           <div className="grid grid-cols-2 gap-3 mt-1">
-             <div className="flex flex-col gap-1">
-               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Total Purchase</span>
-               <span className="text-[13px] font-black text-slate-900 dark:text-slate-100 font-mono">{money(card.invoiceAmountFC, card.currency)}</span>
-             </div>
-             
-             <div className="flex flex-col gap-1">
-               <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600">Advance Paid</span>
-               <span className="text-[13px] font-black text-emerald-700 dark:text-emerald-400 font-mono">{money(card.advancePaidFC, card.currency)}</span>
-             </div>
-           </div>
-           
-           <div className="flex flex-col gap-1 mt-2 bg-rose-50 dark:bg-rose-950/30 p-3 rounded-lg border border-rose-100 dark:border-rose-900/50">
-             <span className="text-[10px] uppercase font-bold tracking-wider text-rose-600 flex items-center gap-1.5">Remaining Balance</span>
-             <span className="text-lg font-black text-rose-700 dark:text-rose-400 font-mono">{money(card.remainingBalanceFC, card.currency)}</span>
-           </div>
+      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800/60">
+        {/* Section 1: PURCHASE CURR */}
+        <div className="space-y-3 pt-3 md:pt-0">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1 h-3 rounded-full bg-indigo-500"></div>
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">PURCHASE CURR</h4>
+            <span className="ml-auto text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">{card.currency}</span>
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-400">Total Purchase</span>
+              <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(card.invoiceAmountFC, card.currency)}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-400">Advance / Invoice</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(card.advancePaidFC, card.currency)}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
+              <span className="font-bold text-slate-500">Remaining / Not Transferred</span>
+              <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(card.remainingBalanceFC, card.currency)}</span>
+            </div>
+          </div>
         </div>
-
-        {/* Local Currency */}
-        <div className="flex flex-col gap-3 bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
-           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/50 pb-2">
-             <div className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Local Currency</div>
-             <div className="text-sm font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded">{card.localCurrency}</div>
-           </div>
-           
-           <div className="grid grid-cols-2 gap-3 mt-1">
-             <div className="flex flex-col gap-1">
-               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Total Purchase</span>
-               <span className="text-[13px] font-black text-slate-900 dark:text-slate-100 font-mono">{money(card.invoiceAmountLC, card.localCurrency)}</span>
-             </div>
-             
-             <div className="flex flex-col gap-1">
-               <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600">Advance Paid</span>
-               <span className="text-[13px] font-black text-emerald-700 dark:text-emerald-400 font-mono">{money(card.advancePaidLC, card.localCurrency)}</span>
-             </div>
-           </div>
-           
-           <div className="flex flex-col gap-1 mt-2 bg-rose-50 dark:bg-rose-950/30 p-3 rounded-lg border border-rose-100 dark:border-rose-900/50">
-             <span className="text-[10px] uppercase font-bold tracking-wider text-rose-600 flex items-center gap-1.5">Remaining Balance</span>
-             <span className="text-lg font-black text-rose-700 dark:text-rose-400 font-mono">{money(card.remainingBalanceLC, card.localCurrency)}</span>
-           </div>
+        
+        {/* Section 2: FINAL OFFICE */}
+        <div className="space-y-3 pt-3 md:pt-0 md:pl-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1 h-3 rounded-full bg-teal-500"></div>
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">FINAL OFFICE</h4>
+            <span className="ml-auto text-[10px] font-black text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-1.5 py-0.5 rounded">{card.localCurrency}</span>
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-400">Total {card.localCurrency}</span>
+              <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{money(card.invoiceAmountLC, card.localCurrency)}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-400">Advance / Invoice</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{money(card.advancePaidLC, card.localCurrency)}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px] pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
+              <span className="font-bold text-slate-500">Remaining / Not Transferred</span>
+              <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(card.remainingBalanceLC, card.localCurrency)}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
