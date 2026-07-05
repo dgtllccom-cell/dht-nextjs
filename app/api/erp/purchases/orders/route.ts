@@ -93,6 +93,19 @@ export async function GET(request: NextRequest) {
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
+    // Apply strict DB-level scoping based on user session BEFORE limit
+    if (!session.isSuperAdmin) {
+      if (session.cityBranchIds.length > 0) {
+        q = q.in("city_branch_id", session.cityBranchIds);
+      } else if (session.countryBranchIds.length > 0) {
+        q = q.in("country_branch_id", session.countryBranchIds);
+      } else if (session.countryIds.length > 0) {
+        q = q.in("country_id", session.countryIds);
+      } else {
+        q = q.eq("id", "00000000-0000-0000-0000-000000000000"); // Fail-safe empty state
+      }
+    }
+
     if (query.cityBranchId) q = q.eq("city_branch_id", query.cityBranchId);
     else if (query.countryBranchId) q = q.eq("country_branch_id", query.countryBranchId);
     else if (query.countryId) q = q.eq("country_id", query.countryId);

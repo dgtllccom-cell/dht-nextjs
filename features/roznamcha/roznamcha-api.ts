@@ -51,7 +51,13 @@ export type RoznamchaLineRow = {
   usd_rate: number;
   usd_amount: number;
   accounts?: { id: string; code: string; name: string } | null;
-  ledgers?: { id: string; code: string; name: string } | null;
+  ledgers?: { 
+    id: string; 
+    code: string; 
+    name: string;
+    city_branches?: { name: string } | null;
+    country_branches?: { name: string } | null;
+  } | null;
 };
 
 export async function listRoznamchaEntries(params: {

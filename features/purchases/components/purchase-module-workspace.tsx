@@ -247,17 +247,33 @@ export function PurchaseModuleWorkspace({
   }, [countryFilter, query, stageRows, statusFilter]);
 
   const countryCards = useMemo(() => {
-    const map = new Map<string, { country: string; currency: string; count: number; invoice: number; advance: number; remaining: number }>();
+    const map = new Map<string, { country: string; totalOrders: number; currencies: Map<string, { currency: string; count: number; invoice: number; advance: number; remaining: number }> }>();
     rows.forEach((row) => {
-      const key = `${country(row)}::${currency(row)}`;
-      const current = map.get(key) || { country: country(row), currency: currency(row), count: 0, invoice: 0, advance: 0, remaining: 0 };
-      current.count += 1;
-      current.invoice += amount(row);
-      current.advance += advance(row);
-      current.remaining += remaining(row);
-      map.set(key, current);
+      const cntry = country(row) || "Unknown Country";
+      const curr = currency(row) || "USD";
+      
+      if (!map.has(cntry)) {
+        map.set(cntry, { country: cntry, totalOrders: 0, currencies: new Map() });
+      }
+      
+      const countryData = map.get(cntry)!;
+      countryData.totalOrders += 1;
+      
+      if (!countryData.currencies.has(curr)) {
+        countryData.currencies.set(curr, { currency: curr, count: 0, invoice: 0, advance: 0, remaining: 0 });
+      }
+      
+      const currData = countryData.currencies.get(curr)!;
+      currData.count += 1;
+      currData.invoice += amount(row);
+      currData.advance += advance(row);
+      currData.remaining += remaining(row);
     });
-    return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
+    
+    return Array.from(map.values()).map(c => ({
+      ...c,
+      currencies: Array.from(c.currencies.values()).sort((a, b) => a.currency.localeCompare(b.currency))
+    })).sort((a, b) => a.country.localeCompare(b.country));
   }, [rows]);
 
   const totals = useMemo(() => ({
@@ -329,22 +345,29 @@ export function PurchaseModuleWorkspace({
           <span>Date: <b className="text-foreground">{reportNow?.date || "-"}</b></span>
           <span>Time: <b className="text-foreground">{reportNow?.time || "-"}</b></span>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-          {countryCards.length ? countryCards.map((card) => (
-            <div key={`${card.country}-${card.currency}`} className="rounded-xl border bg-background p-3 shadow-sm">
-              <div className="mb-1 flex items-center justify-between">
-                <div className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">{card.country}</div>
-                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">{card.count} POs</span>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {countryCards.length ? countryCards.map((countryCard) => (
+            <div key={countryCard.country} className="rounded-xl border bg-background p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between border-b pb-2">
+                <div className="font-black uppercase tracking-wide text-primary">{countryCard.country}</div>
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">{countryCard.totalOrders} POs</span>
               </div>
-              <div className="text-sm font-black text-primary">{card.currency}</div>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
-                <div className="rounded-lg bg-slate-50 p-2"><span className="block text-muted-foreground">Invoice</span><b>{money(card.invoice, card.currency)}</b></div>
-                <div className="rounded-lg bg-emerald-50 p-2"><span className="block text-emerald-700">Advance</span><b>{money(card.advance, card.currency)}</b></div>
-                <div className="col-span-2 rounded-lg bg-red-50 p-2 text-red-700"><span className="block">Remaining Balance</span><b>{money(card.remaining, card.currency)}</b></div>
+              
+              <div className="space-y-4">
+                {countryCard.currencies.map(curr => (
+                  <div key={curr.currency} className="space-y-2">
+                    <div className="text-[11px] font-black uppercase text-muted-foreground">{curr.currency} <span className="font-semibold lowercase text-slate-400">({curr.count} POs)</span></div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div className="rounded-lg bg-slate-50 p-2"><span className="block text-muted-foreground">Total Purchase</span><b className="text-slate-800">{money(curr.invoice, curr.currency)}</b></div>
+                      <div className="rounded-lg bg-emerald-50 p-2"><span className="block text-emerald-700">Advance</span><b className="text-emerald-800">{money(curr.advance, curr.currency)}</b></div>
+                      <div className="col-span-2 rounded-lg bg-red-50 p-2 text-red-700"><span className="block">Remaining Balance</span><b className="text-[11px]">{money(curr.remaining, curr.currency)}</b></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )) : (
-            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No purchase records found for this dashboard scope.</div>
+            <div className="col-span-full rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No purchase records found for this dashboard scope.</div>
           )}
         </div>
       </section>

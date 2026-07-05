@@ -2344,6 +2344,58 @@ export function PurchaseOrderWizard({ session }) {
     }
   };
 
+  const handleTransferEmpty = async () => {
+    setSavingOrder(true);
+    setSaveMessage("");
+    try {
+      const isAccepting = false && form.purchaseOrderNo;
+      const ledgerStatus = isAccepting ? "Pending" : "Pending";
+      const nextOrderNo = (form.purchaseOrderNo || await fetchNextPurchaseOrderNo()).trim();
+      const transferPayload = buildPurchaseOrderPayload(ledgerStatus, nextOrderNo);
+      const response = await fetch(savedOrderId ? `/api/erp/purchases/orders/${savedOrderId}` : "/api/erp/purchases/orders", {
+        method: savedOrderId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(transferPayload)
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        const errDetails = payload?.error?.details ? JSON.stringify(payload.error.details) : "";
+        throw new Error(`${payload?.error?.message || payload?.error || "Purchase order failed to save."} ${errDetails}`);
+      }
+      const returnedOrderId = payload.data?.purchaseOrderId || savedOrderId || payload.data?.id;
+      const returnedOrderNo = payload.data?.purchaseOrderNo || savedOrderNo || form.purchaseOrderNo;
+      
+      // Now call the transfer API to actually post to Roznamcha
+      if (returnedOrderId) {
+        const transferResponse = await fetch(`/api/erp/purchases/orders/${returnedOrderId}/transfer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        });
+        const transferPayload = await transferResponse.json().catch(() => ({}));
+        if (!transferResponse.ok || !transferPayload.ok) {
+          throw new Error(transferPayload?.error?.message || transferPayload?.error || "Roznamcha/Ledger Transfer failed.");
+        }
+      }
+
+      setSavedOrderId(returnedOrderId || "");
+      setSavedOrderNo(returnedOrderNo);
+      setSaveMessage(`Transferred Purchase Order ${returnedOrderNo}.`);
+      setTransferredData(payload.data || { purchaseOrderNo: returnedOrderNo });
+      setIsTransferred(true);
+      setRegisterRefreshKey((key) => key + 1);
+      
+      // Redirect to Purchase Transfer Payment screen (Empty form, no pre-fill)
+      window.location.href = `/dashboard/journal/purchase-order-payment/advance`;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error saving order.";
+      setSaveMessage(msg);
+      alert(msg);
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!savedOrderId) return;
     if (!window.confirm("Are you sure you want to permanently delete this booking? All associated ledger transfers will be reverted.")) {
@@ -3422,6 +3474,22 @@ export function PurchaseOrderWizard({ session }) {
             >
               + New Booking
             </Button>
+            <Button
+              type="button"
+              onClick={handleTransfer}
+              disabled={savingOrder || isTransferred}
+              className="font-bold text-[10px] h-8 px-6 bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {savingOrder ? "Saving..." : isTransferred ? "Transferred" : "Save & Transfer to Journal"}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleTransferEmpty}
+              disabled={savingOrder || isTransferred}
+              className="font-bold text-[10px] h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {savingOrder ? "Saving..." : isTransferred ? "Transferred" : "Transfer to Payment Form (Empty)"}
+            </Button>
           </div>
         </div>
       ) : (
@@ -3453,14 +3521,28 @@ export function PurchaseOrderWizard({ session }) {
               )}
 
               {savedOrderId && !isTransferred && (
-                <Button
-                  type="button"
-                  onClick={() => setTransferConfirmModal(true)}
-                  disabled={savingOrder}
-                  className="h-10 text-[11px] font-black tracking-wider uppercase px-8 bg-blue-600 hover:bg-blue-700 text-white shadow-[0_4px_14px_0_rgb(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] hover:-translate-y-0.5 transition-all duration-200"
-                >
-                  <CheckCircle2 className="h-4 w-4"/> TRANSFER TO PAYMENT
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => setTransferConfirmModal(true)}
+                    disabled={savingOrder}
+                    className="h-10 text-[11px] font-black tracking-wider uppercase px-8 bg-blue-600 hover:bg-blue-700 text-white shadow-[0_4px_14px_0_rgb(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] hover:-translate-y-0.5 transition-all duration-200"
+                  >
+                    <CheckCircle2 className="h-4 w-4"/> TRANSFER TO PAYMENT
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Transfer to Payment Module and go to empty form?")) {
+                        handleTransferEmpty();
+                      }
+                    }}
+                    disabled={savingOrder}
+                    className="h-10 text-[11px] font-black tracking-wider uppercase px-8 bg-indigo-600 hover:bg-indigo-700 text-white shadow-[0_4px_14px_0_rgb(79,70,229,0.39)] hover:shadow-[0_6px_20px_rgba(79,70,229,0.23)] hover:-translate-y-0.5 transition-all duration-200"
+                  >
+                    <CheckCircle2 className="h-4 w-4"/> TRANSFER TO PAYMENT (EMPTY FORM)
+                  </Button>
+                </div>
               )}
             </>,
             document.getElementById("erp-page-actions-slot")
@@ -4332,13 +4414,13 @@ export function PurchaseOrderWizard({ session }) {
                         </label>
                       </div>
 
-                      <div className="grid gap-3 lg:grid-cols-2">
+                      <div className="flex flex-col gap-3">
                         <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-3 dark:border-amber-900/50 dark:bg-amber-950/10">
                           <div className="mb-3 flex items-center gap-2 border-b border-amber-100 pb-2 dark:border-amber-900/40">
                             <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
                             <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Loading / Departure</h5>
                           </div>
-                          <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="grid gap-4 sm:grid-cols-3">
                             <label className="space-y-1">
                               <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Loading Country</span>
                               <SearchableSelect
@@ -4396,7 +4478,7 @@ export function PurchaseOrderWizard({ session }) {
                             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                             <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Receiving / Arrival</h5>
                           </div>
-                          <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="grid gap-4 sm:grid-cols-3">
                             <label className="space-y-1">
                               <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Receiving Country</span>
                               <SearchableSelect

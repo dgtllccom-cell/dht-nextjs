@@ -26,7 +26,13 @@ import {
   Globe,
   Clock3,
   FileText,
-  Plus
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  ArrowRight,
+  CheckCircle,
+  Wallet,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
@@ -73,7 +79,9 @@ type PurchaseReport = {
   workflowTotals?: Record<string, unknown>;
   workflowAuditTrail?: Array<Record<string, unknown>>;
   branchName: string;
+  branchCode?: string;
   countryName: string;
+  countryCode?: string;
   createdAt: string;
   totalGrossWeight?: number;
   totalNetWeight?: number;
@@ -137,23 +145,42 @@ function initialPurchaseOrderFromUrl() {
   return new URLSearchParams(window.location.search).get("purchaseOrderNo") ?? "";
 }
 
-type CountryBookingSummary = {
-  key: string;
-  country: string;
+type CurrencyBookingSummary = {
   currency: string;
   totalOrders: number;
-  invoiceAmount: number;
-  advancePaid: number;
-  remainingBalance: number;
+  totalAmount: number;
+  totalInvoiceAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  advanceAmount: number;
+  pendingPayment: number;
+  billsCount: number;
+
+  bookedCount: number;
+  bookedAmount: number;
+  transferredCount: number;
+  transferredAmount: number;
+  verifiedCount: number;
+  verifiedAmount: number;
+  paymentDoneCount: number;
+  paymentDoneAmount: number;
+  pendingCount: number;
+  pendingAmount: number;
+};
+
+type CountryBookingSummary = {
+  country: string;
+  totalOrders: number;
+  currencies: CurrencyBookingSummary[];
+  key: string;
 };
 
 function countryBookingSummaries(rows: PurchaseReport[]): CountryBookingSummary[] {
-  const map = new Map<string, CountryBookingSummary>();
+  const map = new Map<string, { country: string, totalOrders: number, currencies: Map<string, CurrencyBookingSummary> }>();
+  
   rows.forEach((row) => {
     const country = row.countryName || "UNKNOWN";
-    const currency = (row.currency && row.currency !== "PKR" && row.currency !== "AED" && row.currency !== "AFN" && row.currency !== "INR") ? row.currency : "USD";
-    const key = `${country.toLowerCase()}::${currency}`;
-    const current = map.get(key) || { key, country, currency, totalOrders: 0, invoiceAmount: 0, advancePaid: 0, remainingBalance: 0 };
+    const currency = String(row.currency || row.form_data?.form?.currencyType || row.form_data?.form?.purchaseCurrency || "USD").toUpperCase();
     
     const invoiceAmount = Number(row.totalPurchaseAmount || 0);
     const advancePaidRaw = Number((row as any).advance_paid || 0);
@@ -165,13 +192,74 @@ function countryBookingSummaries(rows: PurchaseReport[]): CountryBookingSummary[
     const totalPaidLocal = advancePaidRaw + remainingPaidRaw + creditAmountRaw;
     const totalPaidUsd = (exRate > 1 && totalPaidLocal > invoiceAmount * 1.05) ? totalPaidLocal / exRate : totalPaidLocal;
     
-    current.totalOrders += 1;
-    current.invoiceAmount += invoiceAmount;
-    current.advancePaid += advancePaid;
-    current.remainingBalance += Math.max(0, invoiceAmount - totalPaidUsd);
-    map.set(key, current);
+    const isPosted = row.status === "Posted"
+      || (row as any).ledgerPostingStatus === "Posted"
+      || (row as any).ledger_posting_status === "Posted"
+      || (row as any).ledger_posting_status === "posted"
+      || (row as any).journalStatus === "Posted"
+      || (row as any).journalStatus?.toLowerCase() === "posted"
+      || row.form_data?.workflow?.journalStatus === "Posted"
+      || row.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
+      || (row as any).ledger_posting_status === "transferred";
+      
+    const isVerified = row.status === "Verified" || row.confirmationStatus === "Confirmed" || row.form_data?.workflow?.confirmationStatus === "Confirmed" || row.status?.toLowerCase().includes("confirm");
+    const isPaymentDone = row.paymentStatus === "Paid" || row.paymentStatus === "completed" || row.paymentStatus?.toLowerCase().includes("full") || row.paymentStatus?.toLowerCase().includes("paid");
+    const hasBill = !!(row.form_data?.form?.billNo || row.form_data?.form?.invoiceNo || row.purchaseContractNo);
+
+    if (!map.has(country)) {
+        map.set(country, { country, totalOrders: 0, currencies: new Map() });
+    }
+    
+    const countryData = map.get(country)!;
+    countryData.totalOrders += 1;
+    
+    if (!countryData.currencies.has(currency)) {
+        countryData.currencies.set(currency, { 
+            currency, totalOrders: 0, totalAmount: 0, totalInvoiceAmount: 0, paidAmount: 0, dueAmount: 0, advanceAmount: 0, pendingPayment: 0, billsCount: 0,
+            bookedCount: 0, bookedAmount: 0, transferredCount: 0, transferredAmount: 0, verifiedCount: 0, verifiedAmount: 0, paymentDoneCount: 0, paymentDoneAmount: 0, pendingCount: 0, pendingAmount: 0 
+        });
+    }
+    
+    const currData = countryData.currencies.get(currency)!;
+    
+    // Top Row Metrics
+    currData.totalOrders += 1;
+    currData.totalAmount += invoiceAmount;
+    currData.totalInvoiceAmount += Number(row.finalAmount || row.workflowTotals?.invoiceAmount || row.totalPurchaseAmount || 0);
+    currData.paidAmount += totalPaidUsd;
+    currData.dueAmount += Math.max(0, invoiceAmount - totalPaidUsd);
+    currData.advanceAmount += advancePaid;
+    currData.pendingPayment += Math.max(0, (invoiceAmount - totalPaidUsd) - advancePaid);
+    if (hasBill) currData.billsCount += 1;
+
+    // Detailed Metrics
+    currData.bookedCount += 1;
+    currData.bookedAmount += invoiceAmount;
+    
+    if (isPosted) {
+        currData.transferredCount += 1;
+        currData.transferredAmount += invoiceAmount;
+    } else {
+        currData.pendingCount += 1;
+        currData.pendingAmount += invoiceAmount;
+    }
+    
+    if (isVerified) {
+        currData.verifiedCount += 1;
+        currData.verifiedAmount += invoiceAmount;
+    }
+    
+    if (isPaymentDone) {
+        currData.paymentDoneCount += 1;
+        currData.paymentDoneAmount += invoiceAmount;
+    }
   });
-  return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
+  
+  return Array.from(map.values()).map(c => ({
+    ...c,
+    key: c.country,
+    currencies: Array.from(c.currencies.values()).sort((a, b) => a.currency.localeCompare(b.currency))
+  })).sort((a, b) => a.country.localeCompare(b.country));
 }
 
 function money(value: unknown, currency = "") {
@@ -862,7 +950,91 @@ function ReportActions({ rows }: { rows: PurchaseReport[] }) {
     </details>
   );
 }
+const getFlag = (country: string) => {
+  if (!country) return "🏳️";
+  const c = country.toUpperCase();
+  if (c.includes("PAKISTAN")) return "🇵🇰";
+  if (c.includes("UNITED ARAB") || c === "UAE") return "🇦🇪";
+  if (c.includes("UNITED STATES") || c === "USA") return "🇺🇸";
+  if (c.includes("SAUDI")) return "🇸🇦";
+  if (c.includes("CHINA")) return "🇨🇳";
+  if (c.includes("INDIA")) return "🇮🇳";
+  if (c.includes("AFGHANISTAN")) return "🇦🇫";
+  if (c.includes("UNITED KINGDOM") || c === "UK") return "🇬🇧";
+  if (c.includes("CANADA")) return "🇨🇦";
+  if (c.includes("AUSTRALIA")) return "🇦🇺";
+  return "🏳️";
+};
 
+const formatAmount = (num: number) => {
+  if (num >= 1000000) return (num / 1000000).toFixed(2) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(2) + "K";
+  return num.toFixed(2);
+};
+
+function CountryDashboardCard({ summary, branchFilter }: { summary: CountryBookingSummary, branchFilter?: string }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white text-sm shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl drop-shadow-sm">{getFlag(summary.country)}</span>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Country Purchase Summary</div>
+            <div className="font-black uppercase tracking-wide text-slate-900 dark:text-slate-100">
+              {summary.country}
+              {branchFilter ? <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{branchFilter}</span> : null}
+            </div>
+          </div>
+        </div>
+        <div className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+          <BarChart3 className="h-3.5 w-3.5" /> {summary.totalOrders} Transactions
+        </div>
+      </div>
+
+      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+        {summary.currencies.map((curr) => {
+          const outstanding = Math.max(0, curr.totalAmount - curr.paidAmount);
+          const metrics = [
+            { label: "Total Purchase", value: money(curr.totalAmount, curr.currency), tone: "blue" },
+            { label: "Purchase Currency Total", value: money(curr.totalAmount, curr.currency), tone: "slate" },
+            { label: "Total Invoice", value: money(curr.totalInvoiceAmount || curr.totalAmount, curr.currency), tone: "violet" },
+            { label: "Total Invoice Paid", value: money(curr.paidAmount, curr.currency), tone: "emerald" },
+            { label: "Purchase Outstanding Balance", value: money(outstanding, curr.currency), tone: "rose" },
+            { label: "Total Transactions", value: curr.totalOrders.toLocaleString(), tone: "amber" }
+          ];
+
+          return (
+            <div key={curr.currency} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-700/60">
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Currency</span>
+                <span className="rounded-lg bg-blue-50 px-2 py-1 text-xs font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{curr.currency}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {metrics.map((metric) => (
+                  <div
+                    key={metric.label}
+                    className={cn(
+                      "rounded-lg border p-2",
+                      metric.tone === "emerald" && "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300",
+                      metric.tone === "rose" && "border-rose-100 bg-rose-50 text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300",
+                      metric.tone === "blue" && "border-blue-100 bg-blue-50 text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300",
+                      metric.tone === "violet" && "border-violet-100 bg-violet-50 text-violet-800 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300",
+                      metric.tone === "amber" && "border-amber-100 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300",
+                      metric.tone === "slate" && "border-slate-100 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    )}
+                  >
+                    <div className="text-[9px] font-black uppercase tracking-[0.14em] opacity-70">{metric.label}</div>
+                    <div className="mt-1 truncate font-mono text-[12px] font-black">{metric.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 export function PurchaseBookingJournalReportView({
   onNewBooking,
   refreshKey = 0,
@@ -1128,7 +1300,36 @@ export function PurchaseBookingJournalReportView({
     if (match) setSelectedId(match.id);
   }, [highlightPurchaseOrderNo, reports]);
 
-  const sourceReports = reports;
+  const processedReports = useMemo(() => {
+    // Sort chronologically (oldest first) to assign stable scoped serial numbers.
+    const sorted = [...reports].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const countryCounts = new Map<string, number>();
+    const branchCounts = new Map<string, number>();
+    const cleanPrefix = (value: unknown, fallback: string) => {
+      const raw = String(value || fallback).toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return raw.slice(0, 12) || fallback;
+    };
+
+    return sorted.map((report) => {
+      const countryPrefix = cleanPrefix(report.countryCode || report.countryName, "CTY");
+      const branchPrefix = cleanPrefix(report.branchCode || report.branchName, "BR");
+      const countryKey = countryPrefix;
+      const branchKey = `${countryPrefix}::${branchPrefix}`;
+      const countrySequence = (countryCounts.get(countryKey) || 0) + 1;
+      const branchSequence = (branchCounts.get(branchKey) || 0) + 1;
+
+      countryCounts.set(countryKey, countrySequence);
+      branchCounts.set(branchKey, branchSequence);
+
+      return {
+        ...report,
+        computedCountrySerial: `${countryPrefix}-${String(countrySequence).padStart(6, "0")}`,
+        computedBranchSerial: `${branchPrefix}-${String(branchSequence).padStart(6, "0")}`
+      };
+    });
+  }, [reports]);
+
+  const sourceReports = processedReports;
   const suppliers = useMemo(() => Array.from(new Set(sourceReports.map((report) => report.supplierName))).filter(Boolean), [sourceReports]);
   const branches = useMemo(() => Array.from(new Set(sourceReports.map((report) => report.branchName))).filter(Boolean), [sourceReports]);
   const countries = useMemo(() => Array.from(new Set(sourceReports.map((report) => report.countryName))).filter(Boolean), [sourceReports]);
@@ -1142,7 +1343,7 @@ export function PurchaseBookingJournalReportView({
     const currency = safeTerm(filters.currency);
     const draftStatus = safeTerm(filters.draftStatus);
     const search = safeTerm(searchText);
-    return sourceReports.filter((report) => {
+    const filtered = sourceReports.filter((report) => {
       if (draftStatus && !report.status.toLowerCase().includes(draftStatus)) return false;
       if (
         search &&
@@ -1176,6 +1377,31 @@ export function PurchaseBookingJournalReportView({
       if (status && !report.status.toLowerCase().includes(status)) return false;
       if (currency && report.currency.toLowerCase() !== currency) return false;
       return true;
+    });
+
+    return filtered.sort((a, b) => {
+      const isPostedA = a.status === "Posted"
+        || (a as any).ledgerPostingStatus === "Posted"
+        || (a as any).ledger_posting_status === "Posted"
+        || (a as any).ledger_posting_status === "posted"
+        || (a as any).journalStatus === "Posted"
+        || (a as any).journalStatus?.toLowerCase() === "posted"
+        || a.form_data?.workflow?.journalStatus === "Posted"
+        || a.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
+        || (a as any).ledger_posting_status === "transferred";
+      
+      const isPostedB = b.status === "Posted"
+        || (b as any).ledgerPostingStatus === "Posted"
+        || (b as any).ledger_posting_status === "Posted"
+        || (b as any).ledger_posting_status === "posted"
+        || (b as any).journalStatus === "Posted"
+        || (b as any).journalStatus?.toLowerCase() === "posted"
+        || b.form_data?.workflow?.journalStatus === "Posted"
+        || b.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
+        || (b as any).ledger_posting_status === "transferred";
+
+      if (isPostedA === isPostedB) return 0;
+      return isPostedA ? 1 : -1;
     });
   }, [filters.branch, filters.country, filters.currency, filters.draftStatus, filters.status, filters.supplier, searchText, sourceReports]);
 
@@ -1398,31 +1624,9 @@ export function PurchaseBookingJournalReportView({
         </div>
 
         {/* Row 2: Country-wise Financial Summary. Never mix currencies across countries. */}
-        <div className="grid gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-          {countryCards.length ? countryCards.map((card) => (
-            <div key={card.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{card.country}</div>
-                  <div className="text-xs font-black text-blue-700 dark:text-blue-300">{card.currency}</div>
-                </div>
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{card.totalOrders} POs</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-[10px] normal-case">
-                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
-                  <div className="font-bold uppercase text-slate-400">Invoice</div>
-                  <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{money(card.invoiceAmount, card.currency)}</div>
-                </div>
-                <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
-                  <div className="font-bold uppercase text-emerald-600">Advance</div>
-                  <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">{money(card.advancePaid, card.currency)}</div>
-                </div>
-                <div className="col-span-2 rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
-                  <div className="font-bold uppercase text-rose-600">Outstanding Balance</div>
-                  <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(card.remainingBalance, card.currency)}</div>
-                </div>
-              </div>
-            </div>
+        <div className="grid gap-4 pt-1">
+          {countryCards.length > 0 ? countryCards.map((countryCard) => (
+             <CountryDashboardCard key={countryCard.key} summary={countryCard} branchFilter={filters.branch} />
           )) : (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-semibold normal-case text-slate-500 dark:border-slate-800 dark:bg-slate-900/40">
               No country-wise purchase booking records found for this scope.
@@ -1575,13 +1779,8 @@ export function PurchaseBookingJournalReportView({
                 || report.form_data?.form?.superAdminSerialNo
                 || report.form_data?.form?.globalSerialNo
                 || `GBL-${codeSuffix}`;
-              const countrySerialNo = (report as any).countrySerialNo
-                || report.form_data?.form?.countrySerialNo
-                || (report.countryName ? `${report.countryName.substring(0,3).toUpperCase()}-${codeSuffix}` : "-");
-              const branchSerialNo = (report as any).branchSerialNo
-                || report.form_data?.form?.branchSerialNo
-                || report.audit?.branchCode
-                || (report.branchName ? `${report.branchName.substring(0,3).toUpperCase()}-${codeSuffix}` : "-");
+              const countrySerialNo = (report as any).computedCountrySerial || "-";
+              const branchSerialNo = (report as any).computedBranchSerial || "-";
               const salesCode = report.form_data?.form?.salesOrderNo || "-";
               const purchaseAccCode = report.purchaseAccountNumber || report.form_data?.form?.purchaseAccountNo || (report as any).purchaseAccountCode || "-";
               const salesAccCode = report.salesAccountNumber || report.form_data?.form?.salesAccountNo || (report as any).salesAccountCode || "-";
@@ -1711,7 +1910,7 @@ export function PurchaseBookingJournalReportView({
               );
 
               const getRowColor = () => {
-                return isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
+                return isPosted ? "text-slate-900 dark:text-slate-200" : "text-amber-600 dark:text-amber-500";
               };
 
               return (

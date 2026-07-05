@@ -44,7 +44,7 @@ export function PurchaseLoadingFormView() {
       const poPayload = await poRes.json().catch(() => ({}));
       const lrPayload = await lrRes.json().catch(() => ({}));
 
-      const allOrders = poPayload.data?.orders || poPayload.orders || [];
+      const allOrders = Array.isArray(poPayload.data) ? poPayload.data : (poPayload.data?.orders || poPayload.orders || []);
       const allLoadingRecords = lrPayload.data?.records || [];
 
       setOrders(allOrders);

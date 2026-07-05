@@ -132,7 +132,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const getAccountInfo = async (accountCode: string) => {
       const { data: entAccount, error } = await supabase
         .from("enterprise_accounts")
-        .select("id, currency")
+        .select("id, currency, country_id, country_branch_id, city_branch_id")
         .eq("account_number", accountCode)
         .is("deleted_at", null)
         .limit(1)
@@ -143,13 +143,17 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         .from("ledgers")
         .select("id")
         .eq("enterprise_account_id", entAccount.id)
+        .is("deleted_at", null)
         .limit(1)
         .maybeSingle();
-      
+
       return {
         enterpriseAccountId: entAccount.id,
         ledgerId: ledger?.id || null,
-        currency: entAccount.currency || "USD"
+        currency: entAccount.currency || "USD",
+        countryId: entAccount.country_id,
+        countryBranchId: entAccount.country_branch_id,
+        cityBranchId: entAccount.city_branch_id
       };
     };
 
@@ -163,14 +167,18 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       throw new Error(`Could not resolve ledger for Sales Account: ${form.salesAccountNo}. Please ensure the account exists and has a ledger.`);
     }
 
-    const roznamchaType = orderRow.city_branch_id ? "branch" : orderRow.country_branch_id ? "country" : orderRow.country_id ? "country" : "super_admin";
+    const finalCityBranchId = orderRow.city_branch_id || purchaseAccountInfo.cityBranchId;
+    const finalCountryBranchId = orderRow.country_branch_id || purchaseAccountInfo.countryBranchId;
+    const finalCountryId = orderRow.country_id || purchaseAccountInfo.countryId;
+
+    const roznamchaType = finalCityBranchId ? "branch" : finalCountryBranchId ? "country" : finalCountryId ? "country" : "super_admin";
 
     const roznamchaPayload = {
       mode: "post",
       type: roznamchaType,
-      countryId: orderRow.country_id,
-      countryBranchId: orderRow.country_branch_id,
-      cityBranchId: orderRow.city_branch_id,
+      countryId: finalCountryId,
+      countryBranchId: finalCountryBranchId,
+      cityBranchId: finalCityBranchId,
       entryDate: now.split("T")[0],
       journalNo: systemBillNumber,
       voucherNo: manualBillNumber || systemBillNumber,

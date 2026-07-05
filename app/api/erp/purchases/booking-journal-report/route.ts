@@ -87,84 +87,107 @@ function normalizeOrder(row: any) {
   const purchaseAmount = goods.reduce((sum: number, item: any) => sum + Number(item.totalAmount ?? 0), 0) || Number(totals.grandPrimaryFinal ?? row.order_total ?? 0);
   const finalAmount = goods.reduce((sum: number, item: any) => sum + Number(item.finalAmount ?? 0), 0) || Number(totals.grandFinal ?? row.order_total ?? 0);
 
-  const purchCurRaw = row.purchase_currency ?? form.currencyType ?? row.currency_code ?? "USD";
-  const purchCur = (purchCurRaw === "PKR" || purchCurRaw === "AED" || purchCurRaw === "AFN" || purchCurRaw === "INR") ? "USD" : purchCurRaw;
-  const finalCurRaw = row.payment_currency ?? form.secondaryCurrency?.split(" ")[0] ?? (row.countries?.name?.toUpperCase().includes("PAKISTAN") || row.countries?.iso2 === "PK" ? "PKR" : row.countries?.name?.toUpperCase().includes("EMIRATES") || row.countries?.name?.toUpperCase().includes("DUBAI") || row.countries?.iso2 === "AE" ? "AED" : row.countries?.name?.toUpperCase().includes("INDIA") || row.countries?.iso2 === "IN" ? "INR" : "PKR");
-  const finalCur = (finalCurRaw === "USD") ? "PKR" : finalCurRaw;
+  const countryIso = String(row.countries?.iso2 || "").toUpperCase();
+  const countryName = String(row.countries?.name || form.countryName || "").toUpperCase();
+  const baseCurrency = countryIso === "AE" || countryName.includes("EMIRATES") || countryName.includes("DUBAI")
+    ? "AED"
+    : countryIso === "PK" || countryName.includes("PAKISTAN")
+      ? "PKR"
+      : countryIso === "AF" || countryName.includes("AFGHANISTAN")
+        ? "AFN"
+        : countryIso === "IN" || countryName.includes("INDIA")
+          ? "INR"
+          : countryIso === "IR" || countryName.includes("IRAN")
+            ? "IRR"
+            : "USD";
+  const purchCurRaw = row.purchase_currency ?? form.currencyType ?? form.purchaseCurrency ?? row.currency_code ?? baseCurrency;
+  const purchCur = String(purchCurRaw || baseCurrency).split(" ")[0].toUpperCase();
+  const finalCurRaw = row.payment_currency ?? form.secondaryCurrency?.split(" ")[0] ?? form.baseCurrency ?? baseCurrency;
+  const finalCur = String(finalCurRaw || baseCurrency).split(" ")[0].toUpperCase();
+
+  const extractedBranchCode = typeof form.branchName === "string" ? (form.branchName.match(/\(([^)]+)\)$/)?.[1] || null) : null;
+  const extractedCountryCode = typeof form.countryName === "string" ? (form.countryName.match(/\(([^)]+)\)$/)?.[1] || null) : null;
+
+  const finalBranchName = form.branchName ?? form.purchaseAccountBranch ?? form.salesAccountBranch ?? row.country_branches?.name ?? row.city_branches?.name ?? "-";
+  const finalBranchCode = form.branchCode ?? row.country_branches?.code ?? row.city_branches?.code ?? extractedBranchCode ?? "-";
+  const finalCountryName = form.branchCountry ?? form.countryName ?? form.destinationCountry ?? form.originCountry ?? row.countries?.name ?? "-";
+  const finalCountryCode = form.countryCode ?? row.countries?.iso2 ?? extractedCountryCode ?? "-";
 
   return {
     id: row.id,
-      purchaseBookingOrderNumber: systemBillNumber,
-      systemBillNumber,
-      manualBillNumber,
-      billNumber: displayBillNumber,
-      displayBillNumber,
-      referenceNo: displayBillNumber,
-      purchaseDate: form.purchaseDate ?? row.created_at,
-      bookingDate: row.created_at,
-      purchaseAccountName: form.purchaseAccountName ?? "-",
-      purchaseAccountNumber: form.purchaseAccountNo ?? "-",
-      salesAccountName: form.salesAccountName ?? "-",
-      salesAccountNumber: form.salesAccountNo ?? "-",
-      supplierName: form.supplierName ?? row.companies?.name ?? "-",
-      buyerName: form.customerName ?? "-",
-      productName: goods.map((item: any) => item.goodsName).filter(Boolean).join(", ") || "-",
-      goodsDescription: goods
-        .map((item: any) => [item.goodsName, item.size, item.brand, item.origin, item.hsCode ? `HS ${item.hsCode}` : ""].filter(Boolean).join(" / "))
-        .filter(Boolean)
-        .join("; ") || "-",
-      quantity,
-      unit: form.qtyName ?? goods[0]?.qtyName ?? "-",
-      totalWeight,
-      totalGrossWeight,
-      totalNetWeight,
-      purchaseAmount,
-      finalAmount,
-      containerCount: Number(purchaseBooking.totalContainersBooked ?? form.bookedContainerCount ?? 0),
-      purchaseRate: Number(goods[0]?.coursePrice ?? goods[0]?.rateOriginal ?? form.coursePrice ?? (quantity > 0 ? purchaseAmount / quantity : 0)),
-      totalPurchaseAmount: purchaseAmount,
-      currency: purchCur,
-      finalCurrency: finalCur,
-      exchange_rate: Number(row.exchange_rate ?? form.exchangeRate ?? 1),
-      status: workflow.lifecycleStatus ?? purchaseBooking.loadingStatus ?? row.payment_status ?? form.salesStatus ?? "Draft",
-      currentStep: workflow.currentStepName ?? "Booking Purchase Order",
-      nextStep: workflow.nextStepName ?? "Booking Confirm",
-      bookingStatus: workflow.bookingStatus ?? form.salesStatus ?? "Draft",
-      confirmationStatus: workflow.confirmationStatus ?? (purchaseBooking.totalContainersBooked ? "Booking Confirmed" : "Awaiting Containers"),
-      journalStatus: workflow.journalStatus ?? row.ledger_posting_status ?? "Draft",
-      paymentStatus: workflow.paymentStatus ?? row.payment_status ?? form.paymentType ?? "-",
-      containerStatus: workflow.containerStatus ?? purchaseBooking.loadingStatus ?? "Draft",
-      inventoryStatus: workflow.inventoryStatus ?? "Inventory Pending",
-      deliveryStatus: workflow.deliveryStatus ?? workflow.finalDeliveryStatus ?? "Pending",
-      finalDeliveryStatus: workflow.finalDeliveryStatus ?? workflow.deliveryStatus ?? "Pending",
-      workflowDates: workflow.workflowDates ?? {},
-      workflowTotals: workflow.workflowTotals ?? {},
-      workflowAuditTrail: Array.isArray(workflow.workflowAuditTrail) ? workflow.workflowAuditTrail : [],
-      workflow,
-      form_data: row.form_data ?? {},
-      superAdminSerialNo: row.super_admin_serial_number ?? null,
-      countrySerialNo: row.country_transaction_serial_number ?? null,
-      branchSerialNo: row.branch_transaction_serial_number ?? null,
-      advance_paid: Number(row.advance_paid || 0),
-      remaining_paid: Number(row.remaining_paid || 0),
-      credit_amount: Number(row.credit_amount || 0),
-      remaining_due: Number(row.remaining_due || 0),
-      is_edited_since_transfer: row.is_edited_since_transfer ?? false,
-      branchName: form.branchName ?? row.country_branches?.name ?? row.city_branches?.name ?? "-",
-      branchCode: form.branchCode ?? row.country_branches?.code ?? row.city_branches?.code ?? "-",
-      countryName: form.branchCountry ?? row.countries?.name ?? "-",
-      countryCode: form.countryCode ?? row.countries?.iso2 ?? "-",
-      cityName: form.cityName ?? row.city_branches?.city_name ?? "-",
-      cityCode: form.cityCode ?? row.city_branches?.code ?? "-",
-      createdByName: form.userName ?? "-",
-      createdAt: row.created_at,
-      ledger_posting_status: row.ledger_posting_status,
-      audit: {
-        userName: form.userName ?? "-",
-        userId: form.userId ?? "-",
-        branchCode: form.branchCode ?? row.country_branches?.code ?? row.city_branches?.code ?? "-"
-      }
-    };
+    purchase_order_no: row.purchase_order_no ?? "-",
+    purchase_contract_no: row.purchase_contract_no ?? "-",
+    purchaseBookingOrderNumber: systemBillNumber,
+    systemBillNumber,
+    manualBillNumber,
+    billNumber: displayBillNumber,
+    displayBillNumber,
+    referenceNo: displayBillNumber,
+    purchaseDate: form.purchaseDate ?? row.created_at,
+    bookingDate: row.created_at,
+    purchaseAccountName: form.purchaseAccountName ?? "-",
+    purchaseAccountNumber: form.purchaseAccountNo ?? "-",
+        salesAccountName: form.salesAccountName ?? "-",
+        salesAccountNumber: form.salesAccountNo ?? "-",
+        supplierName: form.supplierName ?? row.companies?.name ?? "-",
+        buyerName: form.customerName ?? "-",
+        productName: goods.map((item: any) => item.goodsName).filter(Boolean).join(", ") || "-",
+        goodsDescription: goods
+          .map((item: any) => [item.goodsName, item.size, item.brand, item.origin, item.hsCode ? `HS ${item.hsCode}` : ""].filter(Boolean).join(" / "))
+          .filter(Boolean)
+          .join("; ") || "-",
+        quantity,
+        unit: form.qtyName ?? goods[0]?.qtyName ?? "-",
+        totalWeight,
+        totalGrossWeight,
+        totalNetWeight,
+        purchaseAmount,
+        finalAmount,
+        containerCount: Number(purchaseBooking.totalContainersBooked ?? form.bookedContainerCount ?? 0),
+        purchaseRate: Number(goods[0]?.coursePrice ?? goods[0]?.rateOriginal ?? form.coursePrice ?? (quantity > 0 ? purchaseAmount / quantity : 0)),
+        totalPurchaseAmount: purchaseAmount,
+        currency: purchCur,
+        finalCurrency: finalCur,
+        exchange_rate: Number(row.exchange_rate ?? form.exchangeRate ?? 1),
+        status: workflow.lifecycleStatus ?? purchaseBooking.loadingStatus ?? row.payment_status ?? form.salesStatus ?? "Draft",
+        currentStep: workflow.currentStepName ?? "Booking Purchase Order",
+        nextStep: workflow.nextStepName ?? "Booking Confirm",
+        bookingStatus: workflow.bookingStatus ?? form.salesStatus ?? "Draft",
+        confirmationStatus: workflow.confirmationStatus ?? (purchaseBooking.totalContainersBooked ? "Booking Confirmed" : "Awaiting Containers"),
+        journalStatus: workflow.journalStatus ?? row.ledger_posting_status ?? "Draft",
+        paymentStatus: workflow.paymentStatus ?? row.payment_status ?? form.paymentType ?? "-",
+        containerStatus: workflow.containerStatus ?? purchaseBooking.loadingStatus ?? "Draft",
+        inventoryStatus: workflow.inventoryStatus ?? "Inventory Pending",
+        deliveryStatus: workflow.deliveryStatus ?? workflow.finalDeliveryStatus ?? "Pending",
+        finalDeliveryStatus: workflow.finalDeliveryStatus ?? workflow.deliveryStatus ?? "Pending",
+        workflowDates: workflow.workflowDates ?? {},
+        workflowTotals: workflow.workflowTotals ?? {},
+        workflowAuditTrail: Array.isArray(workflow.workflowAuditTrail) ? workflow.workflowAuditTrail : [],
+        workflow,
+        form_data: row.form_data ?? {},
+        superAdminSerialNo: row.super_admin_serial_number ?? null,
+        countrySerialNo: row.country_transaction_serial_number ?? null,
+        branchSerialNo: row.branch_transaction_serial_number ?? null,
+        advance_paid: Number(row.advance_paid || 0),
+        remaining_paid: Number(row.remaining_paid || 0),
+        credit_amount: Number(row.credit_amount || 0),
+        remaining_due: Number(row.remaining_due || 0),
+        is_edited_since_transfer: row.is_edited_since_transfer ?? false,
+        branchName: finalBranchName,
+        branchCode: finalBranchCode,
+        countryName: finalCountryName,
+        countryCode: finalCountryCode,
+        cityName: form.cityName ?? row.city_branches?.city_name ?? "-",
+        cityCode: form.cityCode ?? row.city_branches?.code ?? "-",
+        createdByName: form.userName ?? "-",
+        createdAt: row.created_at,
+        ledger_posting_status: row.ledger_posting_status,
+        audit: {
+          userName: form.userName ?? "-",
+          userId: form.userId ?? "-",
+          branchCode: finalBranchCode
+        }
+      };
   }
 
   export async function GET(request: NextRequest) {

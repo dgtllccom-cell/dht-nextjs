@@ -345,30 +345,60 @@ type CountryPaymentSummary = {
   key: string;
   country: string;
   currency: string;
+  localCurrency: string;
   totalOrders: number;
-  invoiceAmount: number;
-  advancePaid: number;
-  remainingBalance: number;
+  invoiceAmountFC: number;
+  advancePaidFC: number;
+  remainingBalanceFC: number;
+  invoiceAmountLC: number;
+  advancePaidLC: number;
+  remainingBalanceLC: number;
 };
 
-function countryPaymentSummaries(rows: PurchaseOrderRow[]): CountryPaymentSummary[] {
+function countryPaymentSummaries(rows: PurchaseOrderRow[], baseCurrencyFallback = "PKR"): CountryPaymentSummary[] {
   const map = new Map<string, CountryPaymentSummary>();
   rows.forEach((row) => {
     const country = rowCountryName(row);
+    
+    const localCurRaw = row.payment_currency ?? row.form_data?.form?.secondaryCurrency?.split(" ")[0] ?? (country.toUpperCase().includes("PAKISTAN") || row.countries?.iso2 === "PK" ? "PKR" : country.toUpperCase().includes("EMIRATES") || country.toUpperCase().includes("DUBAI") || row.countries?.iso2 === "AE" ? "AED" : country.toUpperCase().includes("INDIA") || row.countries?.iso2 === "IN" ? "INR" : baseCurrencyFallback);
+    const localCur = (localCurRaw === "USD") ? "PKR" : localCurRaw;
+
     const currRaw = rowCurrency(row);
-    const currency = (currRaw && currRaw !== "PKR" && currRaw !== "AED" && currRaw !== "AFN" && currRaw !== "INR") ? currRaw : "USD";
-    const key = `${country.toLowerCase()}::${currency}`;
-    const current = map.get(key) || { key, country, currency, totalOrders: 0, invoiceAmount: 0, advancePaid: 0, remainingBalance: 0 };
-    const invoiceAmount = orderTotal(row);
+    const foreignCur = (currRaw && currRaw !== localCur) ? currRaw : "USD";
+    
+    const key = `${country.toLowerCase()}::${foreignCur}`;
+    const current = map.get(key) || { 
+        key, country, currency: foreignCur, localCurrency: localCur, totalOrders: 0, 
+        invoiceAmountFC: 0, advancePaidFC: 0, remainingBalanceFC: 0,
+        invoiceAmountLC: 0, advancePaidLC: 0, remainingBalanceLC: 0 
+    };
+
+    const exRate = Number(row.exchange_rate || row.form_data?.form?.exchangeRate || 1);
+    
+    const invoiceAmountRaw = orderTotal(row);
+    const invoiceAmountFC = (exRate > 1 && invoiceAmountRaw > 1000000) ? invoiceAmountRaw / exRate : invoiceAmountRaw;
+    const invoiceAmountLC = invoiceAmountFC * exRate;
+
     const advancePaidRaw = Number(row.advance_paid || 0);
-    const exRate = Number(row.exchange_rate || 1);
-    const advancePaid = (exRate > 1 && advancePaidRaw > invoiceAmount * 1.05) ? advancePaidRaw / exRate : advancePaidRaw;
+    const advancePaidFC = (exRate > 1 && advancePaidRaw > invoiceAmountFC * 1.05) ? advancePaidRaw / exRate : advancePaidRaw;
+    const advancePaidLC = advancePaidFC * exRate;
+
     const explicitRemainingRaw = Number(row.remaining_due || 0);
-    const explicitRemaining = (exRate > 1 && explicitRemainingRaw > invoiceAmount * 1.05) ? explicitRemainingRaw / exRate : explicitRemainingRaw;
+    const explicitRemainingFC = (exRate > 1 && explicitRemainingRaw > invoiceAmountFC * 1.05) ? explicitRemainingRaw / exRate : explicitRemainingRaw;
+    const explicitRemainingLC = explicitRemainingFC * exRate;
+
+    const remainingFC = explicitRemainingFC > 0 ? explicitRemainingFC : Math.max(0, invoiceAmountFC - advancePaidFC);
+    const remainingLC = remainingFC * exRate;
+
     current.totalOrders += 1;
-    current.invoiceAmount += invoiceAmount;
-    current.advancePaid += advancePaid;
-    current.remainingBalance += explicitRemaining > 0 ? explicitRemaining : Math.max(0, invoiceAmount - advancePaid);
+    current.invoiceAmountFC += invoiceAmountFC;
+    current.advancePaidFC += advancePaidFC;
+    current.remainingBalanceFC += remainingFC;
+
+    current.invoiceAmountLC += invoiceAmountLC;
+    current.advancePaidLC += advancePaidLC;
+    current.remainingBalanceLC += remainingLC;
+
     map.set(key, current);
   });
   return Array.from(map.values()).sort((a, b) => a.country.localeCompare(b.country));
@@ -780,6 +810,77 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
   );
 }
 
+function CountrySummaryCard({ card }: { card: CountryPaymentSummary }) {
+  return (
+    <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-all duration-200 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+        <div className="flex items-center gap-3">
+          <div>
+            <div className="text-base font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">{card.country}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">{card.totalOrders} POs</span>
+        </div>
+      </div>
+      
+      {/* Currency Summaries */}
+      <div className="p-4 grid gap-4 grid-cols-1 md:grid-cols-2">
+        {/* Foreign Currency */}
+        <div className="flex flex-col gap-3 bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/50 pb-2">
+             <div className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Foreign Currency</div>
+             <div className="text-sm font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded">{card.currency}</div>
+           </div>
+           
+           <div className="grid grid-cols-2 gap-3 mt-1">
+             <div className="flex flex-col gap-1">
+               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Total Purchase</span>
+               <span className="text-[13px] font-black text-slate-900 dark:text-slate-100 font-mono">{money(card.invoiceAmountFC, card.currency)}</span>
+             </div>
+             
+             <div className="flex flex-col gap-1">
+               <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600">Advance Paid</span>
+               <span className="text-[13px] font-black text-emerald-700 dark:text-emerald-400 font-mono">{money(card.advancePaidFC, card.currency)}</span>
+             </div>
+           </div>
+           
+           <div className="flex flex-col gap-1 mt-2 bg-rose-50 dark:bg-rose-950/30 p-3 rounded-lg border border-rose-100 dark:border-rose-900/50">
+             <span className="text-[10px] uppercase font-bold tracking-wider text-rose-600 flex items-center gap-1.5">Remaining Balance</span>
+             <span className="text-lg font-black text-rose-700 dark:text-rose-400 font-mono">{money(card.remainingBalanceFC, card.currency)}</span>
+           </div>
+        </div>
+
+        {/* Local Currency */}
+        <div className="flex flex-col gap-3 bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/50 pb-2">
+             <div className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Local Currency</div>
+             <div className="text-sm font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded">{card.localCurrency}</div>
+           </div>
+           
+           <div className="grid grid-cols-2 gap-3 mt-1">
+             <div className="flex flex-col gap-1">
+               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Total Purchase</span>
+               <span className="text-[13px] font-black text-slate-900 dark:text-slate-100 font-mono">{money(card.invoiceAmountLC, card.localCurrency)}</span>
+             </div>
+             
+             <div className="flex flex-col gap-1">
+               <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600">Advance Paid</span>
+               <span className="text-[13px] font-black text-emerald-700 dark:text-emerald-400 font-mono">{money(card.advancePaidLC, card.localCurrency)}</span>
+             </div>
+           </div>
+           
+           <div className="flex flex-col gap-1 mt-2 bg-rose-50 dark:bg-rose-950/30 p-3 rounded-lg border border-rose-100 dark:border-rose-900/50">
+             <span className="text-[10px] uppercase font-bold tracking-wider text-rose-600 flex items-center gap-1.5">Remaining Balance</span>
+             <span className="text-lg font-black text-rose-700 dark:text-rose-400 font-mono">{money(card.remainingBalanceLC, card.localCurrency)}</span>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
   const router = useRouter();
   const activeMode: PaymentMode = mode === "charges" ? "credit" : mode;
@@ -1024,8 +1125,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       const response = await fetch("/api/erp/purchases/orders?limit=200", { cache: "no-store", credentials: "include" });
       const body = await response.json();
       if (!response.ok || body?.ok === false) throw new Error(body?.error?.message ?? body?.message ?? "Unable to load purchase orders.");
-      const payload = (body?.data ?? body) as OrdersPayload;
-      const rows = payload.orders ?? [];
+      const payload = (body?.data ?? body) as OrdersPayload | PurchaseOrderRow[];
+      const rows = Array.isArray(payload) ? payload : payload.orders ?? [];
       setOrders(rows);
       // Auto-select by URL param
       const urlOrderNo = getInitialPurchaseOrderNo();
@@ -1054,6 +1155,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }).toUpperCase()
     });
   }, []);
+  
   useEffect(() => {
     setPageIndex(0);
   }, [activeMode]);
@@ -1065,7 +1167,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       const postingStatus = row.ledger_posting_status?.toLowerCase();
       const workflowTransferStatus = row.form_data?.workflow?.transferStatus?.toLowerCase();
       const hasTransferAudit = Boolean(row.form_data?.form?.transferAudit);
-      const isEligibleForPayment = postingStatus === "posted" || postingStatus === "transferred" || workflowTransferStatus === "transferred" || hasTransferAudit;
+      const isPosted = row.status === "Posted"
+        || row.status?.toLowerCase() === "posted"
+        || postingStatus === "posted"
+        || postingStatus === "transferred"
+        || workflowTransferStatus === "transferred"
+        || hasTransferAudit
+        || row.form_data?.workflow?.journalStatus === "Posted"
+        || row.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
+        || (row as any).journalStatus?.toLowerCase() === "posted";
+      const isEligibleForPayment = isPosted;
       if (!isEligibleForPayment) return false;
       if (draft && !(row.payment_status ?? "").toLowerCase().includes(draft)) return false;
       if (countryFilter && rowCountryName(row) !== countryFilter) return false;
@@ -1124,7 +1235,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       if (!needle) return true;
       const supplierName = form.salesAccountName || "";
       const supplierCode = form.salesAccountNo || "";
-      return [row.purchase_order_no, row.purchase_contract_no, row.payment_status, row.currency_code, supplierName, supplierCode]
+      return [row.purchase_order_no, row.purchase_contract_no, row.payment_status, row.currency_code, supplierName, supplierCode, rowCountryName(row), rowBranchName(row)]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle));
     });
@@ -1252,7 +1363,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const countryOptions = useMemo(() => Array.from(new Set(orders.map(rowCountryName))).filter(Boolean).sort(), [orders]);
   const branchOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowBranchName))).filter(Boolean).sort(), [orders, countryFilter]);
   const currencyOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowCurrency))).filter(Boolean).sort(), [orders, countryFilter]);
-  const countryCards = useMemo(() => countryPaymentSummaries(filtered), [filtered]);
+  const countryCards = useMemo(() => {
+    return countryPaymentSummaries(filtered, session?.currency).filter(card => {
+      // Omit UNKNOWN COUNTRY as requested
+      const cName = card.country.toUpperCase();
+      if (cName === "UNKNOWN COUNTRY" || cName === "UNKNOWN" || cName === "-") return false;
+      // Omit countries that have effectively $0 purchase amount (empty drafts/cancelled)
+      if (card.invoiceAmountFC <= 0 && card.advancePaidFC <= 0 && card.remainingBalanceFC <= 0) return false;
+      return true;
+    });
+  }, [filtered, session?.currency]);
 
   const isLocalCurrency = currency.trim().toUpperCase() === baseCurrency;
   const showCalcPanel = !isLocalCurrency;
@@ -1512,6 +1632,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       return;
     }
 
+    const paymentAmountFC = showCalcPanel ? Number(calcAmount) : Number(amount);
+    const paymentAmountLocal = showCalcPanel ? Number(calcFinal) : Number(amount);
+
     // Validate that the payment amount does not exceed the remaining balance to prevent duplicate/excess postings
     if (activeMode === "advance") {
       const form = selected.form_data?.form || {};
@@ -1520,19 +1643,49 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         : Number(form.totalAmount || 0);
       const advancePercent = Number(form.advancePercent || 0);
       const requiredAdvanceBC = (totalPrice * advancePercent) / 100;
-      const paidAdvanceBC = Number(selected.advance_paid || 0) / (selected.exchange_rate || 1);
-      const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
-      const remainingAdvanceLocal = remainingAdvanceBC * (selected.exchange_rate || 1);
+      
+      const poExchangeRate = selected.exchange_rate || 1;
+      const finalAmount = Number(selected.order_total || 0);
+      const effectiveRate = poExchangeRate !== 1 ? poExchangeRate : (finalAmount > 0 && totalPrice > 0 ? (finalAmount / totalPrice) : 1);
 
-      if (Number(amount) > remainingAdvanceLocal + 1) {
-        setPaymentError(`Payment amount (${Number(amount).toFixed(2)} ${baseCurrency}) cannot exceed the remaining advance amount (${remainingAdvanceLocal.toFixed(2)} ${baseCurrency}).`);
-        return;
+      const paidAdvanceBC = Number(selected.advance_paid || 0) / effectiveRate;
+      const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
+      const remainingAdvanceLocal = remainingAdvanceBC * effectiveRate;
+
+      if (showCalcPanel) {
+        if (paymentAmountFC > remainingAdvanceBC + 0.01) {
+          setPaymentError(`Payment amount (${paymentAmountFC.toFixed(2)} ${currency}) cannot exceed the remaining advance amount (${remainingAdvanceBC.toFixed(2)} ${currency}).`);
+          return;
+        }
+      } else {
+        if (paymentAmountLocal > remainingAdvanceLocal + 1) {
+          setPaymentError(`Payment amount (${paymentAmountLocal.toFixed(2)} ${baseCurrency}) cannot exceed the remaining advance amount (${remainingAdvanceLocal.toFixed(2)} ${baseCurrency}).`);
+          return;
+        }
       }
     } else if (activeMode === "remaining") {
       const remainingDueLocal = Number(selected.remaining_due || 0);
-      if (Number(amount) > remainingDueLocal + 1) {
-        setPaymentError(`Payment amount (${Number(amount).toFixed(2)} ${baseCurrency}) cannot exceed the remaining due balance (${remainingDueLocal.toFixed(2)} ${baseCurrency}).`);
-        return;
+      
+      const form = selected.form_data?.form || {};
+      const totalPrice = (selected as any).form_data?.goodsEntries?.length
+        ? (selected as any).form_data.goodsEntries.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
+        : Number(form.totalAmount || 0);
+      const poExchangeRate = selected.exchange_rate || 1;
+      const finalAmount = Number(selected.order_total || 0);
+      const effectiveRate = poExchangeRate !== 1 ? poExchangeRate : (finalAmount > 0 && totalPrice > 0 ? (finalAmount / totalPrice) : 1);
+      
+      const remainingDueBC = remainingDueLocal / effectiveRate;
+
+      if (showCalcPanel) {
+        if (paymentAmountFC > remainingDueBC + 0.01) {
+          setPaymentError(`Payment amount (${paymentAmountFC.toFixed(2)} ${currency}) cannot exceed the remaining due balance (${remainingDueBC.toFixed(2)} ${currency}).`);
+          return;
+        }
+      } else {
+        if (paymentAmountLocal > remainingDueLocal + 1) {
+          setPaymentError(`Payment amount (${paymentAmountLocal.toFixed(2)} ${baseCurrency}) cannot exceed the remaining due balance (${remainingDueLocal.toFixed(2)} ${baseCurrency}).`);
+          return;
+        }
       }
     }
 
@@ -1544,7 +1697,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       
       let auditTrail = "";
       if (showCalcPanel && calcFinal !== null) {
-        const opSymbol = calcOp === "mul" ? "Ãƒâ€”" : "ÃƒÂ·";
+        const opSymbol = calcOp === "mul" ? "×" : "÷";
         auditTrail = `[Audit Trail - Qty: ${calcAmount} | Currency: ${currency.toUpperCase()} | Rate: ${exchangeRate} | Op: ${opSymbol} | Converted: ${amount.toFixed(2)} ${baseCurrency}]`;
       } else {
         auditTrail = `[Audit Trail - Final Amount: ${amount.toFixed(2)} ${baseCurrency} (Local Currency Entry)]`;
@@ -1564,7 +1717,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               ? {
                   kind: activeMode,
                   entryDate: paymentDate,
-                  amount: Number(amount),
+                  amount: paymentAmountFC,
                   currencyCode: currency,
                   exchangeRate: Number(exchangeRate || 1),
                   debitLedgerId: finalDebitLedgerId,
@@ -1766,31 +1919,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </div>
 
         {/* Row 2: Country-wise Financial Summary. Never mix currencies across countries. */}
-        <div className="grid gap-3 pt-1 md:grid-cols-2 xl:grid-cols-3">
+        {/* Row 2: Country-wise Financial Summary. Never mix currencies across countries. */}
+        <div className="grid gap-4 pt-1 lg:grid-cols-2 xl:grid-cols-2">
           {countryCards.length ? countryCards.map((card) => (
-            <div key={card.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{card.country}</div>
-                  <div className="text-xs font-black text-blue-700 dark:text-blue-300">{card.currency}</div>
-                </div>
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{card.totalOrders} POs</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-[10px] normal-case">
-                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
-                  <div className="font-bold uppercase text-slate-400">Total Bill</div>
-                  <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{money(card.invoiceAmount, card.currency)}</div>
-                </div>
-                <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
-                  <div className="font-bold uppercase text-emerald-600">Paid</div>
-                  <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">{money(card.advancePaid, card.currency)}</div>
-                </div>
-                <div className="col-span-2 rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
-                  <div className="font-bold uppercase text-rose-600">Remaining Balance</div>
-                  <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(card.remainingBalance, card.currency)}</div>
-                </div>
-              </div>
-            </div>
+            <CountrySummaryCard key={card.key} card={card} />
           )) : (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-semibold normal-case text-slate-500 dark:border-slate-800 dark:bg-slate-900/40">
               No country-wise purchase payment records found for this scope.
@@ -1911,10 +2043,15 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 
                 const superSerialNo = row.superAdminSerialNo || row.super_admin_serial_number || form.superAdminSerialNo || "-";
                 const countrySerialNo = row.countrySerialNo || row.country_transaction_serial_number || form.countrySerialNo || "-";
-                const branchSerialNo = row.branchSerialNo || row.branch_transaction_serial_number || form.branchSerialNo || row.audit?.branchCode || form.branchCode || "-";
+                const branchSerialNo = row.branchSerialNo || row.branch_transaction_serial_number || form.branchSerialNo || "-";
                 
-                const branchName = row.branchName || form.branchName || "-";
-                const countryName = form.destinationCountry || row.countryName || form.countryName || "-";
+                const rawBranchName = row.branchName || form.branchName || "-";
+                const branchCode = (row as any).audit?.branchCode || form.branchCode;
+                const branchName = branchCode ? `${rawBranchName} (${branchCode})` : rawBranchName;
+
+                const rawCountryName = form.destinationCountry || row.countryName || form.countryName || form.originCountry || "-";
+                const countryCode = (row as any).audit?.countryCode || form.countryCode;
+                const countryName = countryCode ? `${rawCountryName} (${countryCode})` : rawCountryName;
 
                 const goodsName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || form.goodsName || "-";
                 const grossWeight = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);

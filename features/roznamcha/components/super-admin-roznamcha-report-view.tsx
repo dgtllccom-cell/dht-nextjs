@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -371,10 +371,10 @@ function toBaseRow(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]): SuperAd
     countryName: getEntryCountry(entry),
     countryCurrency: entry.countries?.currency_code ?? "-",
     countryBranchId: entry.country_branch_id,
-    countryBranchName: entry.country_branches?.name ?? "-",
+    countryBranchName: entry.country_branches?.name ?? lines[0]?.ledgers?.country_branches?.name ?? "-",
     countryBranchCode: entry.country_branches?.code ?? "-",
     cityBranchId: entry.city_branch_id,
-    cityBranchName: entry.city_branches?.name ?? "-",
+    cityBranchName: entry.city_branches?.name ?? lines[0]?.ledgers?.city_branches?.name ?? "-",
     cityBranchCode: entry.city_branches?.code ?? "-",
     journalNo: entry.journal_no,
     voucherNo: entry.voucher_no,
@@ -438,10 +438,10 @@ function lineToRow(
     countryName: getEntryCountry(entry),
     countryCurrency: entry.countries?.currency_code ?? "-",
     countryBranchId: entry.country_branch_id,
-    countryBranchName: entry.country_branches?.name ?? "-",
+    countryBranchName: entry.country_branches?.name ?? line.ledgers?.country_branches?.name ?? "-",
     countryBranchCode: entry.country_branches?.code ?? "-",
     cityBranchId: entry.city_branch_id,
-    cityBranchName: entry.city_branches?.name ?? "-",
+    cityBranchName: entry.city_branches?.name ?? line.ledgers?.city_branches?.name ?? "-",
     cityBranchCode: entry.city_branches?.code ?? "-",
     journalNo: entry.journal_no,
     voucherNo: entry.voucher_no,
@@ -1581,38 +1581,43 @@ export function SuperAdminRoznamchaReportView({
         }
       `}</style>
 
-      {/* Grouped Report KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-3">
-        {/* Financial Summary */}
-        <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="bg-slate-900 px-4 py-2 text-white font-bold text-xs uppercase tracking-wider">Financial Summary</div>
-          <CardContent className="p-4 space-y-3">
-             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Total Debit</span><span className="font-black text-rose-600">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalDebitSum)}` : `USD ${fmtNumber(totalDebitSum)}`}</span></div>
-             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Total Credit</span><span className="font-black text-emerald-600">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalCreditSum)}` : `USD ${fmtNumber(totalCreditSum)}`}</span></div>
-             <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs font-bold text-slate-500 uppercase">Balance</span><span className="text-lg font-black text-slate-900">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}` : `USD ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}`}</span></div>
-          </CardContent>
-        </Card>
-
-        {/* Overview Metrics */}
-        <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="bg-slate-900 px-4 py-2 text-white font-bold text-xs uppercase tracking-wider">Overview Metrics</div>
-          <CardContent className="p-4 space-y-3">
-             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Total Transactions</span><span className="font-black text-slate-900">{visibleRows.length}</span></div>
-             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Active Branches</span><span className="font-black text-slate-900">{branchesIncludedCount}</span></div>
-             <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs font-bold text-slate-500 uppercase">Exchange Rate Mode</span><span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{showUsd ? "USD Enabled" : "Local Currency"}</span></div>
-          </CardContent>
-        </Card>
-
-        {/* Session Info */}
-        <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="bg-slate-900 px-4 py-2 text-white font-bold text-xs uppercase tracking-wider">Session Info</div>
-          <CardContent className="p-4 space-y-3">
-             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">User</span><span className="font-black text-slate-900">{sessionInfo?.user?.fullName || sessionInfo?.user?.email || "-"}</span></div>
-             <div className="flex justify-between items-center"><span className="text-xs font-semibold text-slate-500">Country</span><span className="font-black text-slate-900">{selectedCountryLabel}</span></div>
-             <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs font-bold text-slate-500 uppercase">Branch</span><span className="text-xs font-black text-slate-900 truncate max-w-[120px]">{selectedBranchLabel}</span></div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Grouped Report KPI Cards (Compact) */}
+      <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-4">
+        <div className="bg-slate-900 px-4 py-2 text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center flex-wrap gap-2">
+          <span>Global Financial Summary</span>
+          <span className="text-[10px] font-semibold text-slate-300">
+            Session: <span className="text-white">{sessionInfo?.user?.fullName || sessionInfo?.user?.email || "-"}</span> | Country: <span className="text-white">{selectedCountryLabel}</span> | Branch: <span className="text-white truncate max-w-[120px] inline-block align-bottom">{selectedBranchLabel}</span>
+          </span>
+        </div>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 items-center">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Total Debit</span>
+              <div className="font-black text-rose-600 text-sm">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalDebitSum)}` : `USD ${fmtNumber(totalDebitSum)}`}</div>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Total Credit</span>
+              <div className="font-black text-emerald-600 text-sm">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalCreditSum)}` : `USD ${fmtNumber(totalCreditSum)}`}</div>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Balance</span>
+              <div className="font-black text-slate-900 text-sm">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}` : `USD ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}`}</div>
+            </div>
+            <div className="space-y-1 md:border-l md:border-slate-100 md:pl-4">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Transactions</span>
+              <div className="font-black text-slate-900 text-sm">{visibleRows.length}</div>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Active Branches</span>
+              <div className="font-black text-slate-900 text-sm">{branchesIncludedCount}</div>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Rate Mode</span>
+              <div className="font-black text-blue-700 text-[10px] bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-0.5">{showUsd ? "USD Enabled" : "Local Currency"}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Middle Layout based on role */}
       {typeFilter === "super_admin" ? (
@@ -1625,7 +1630,7 @@ export function SuperAdminRoznamchaReportView({
             {countryOverview.map((item) => (
               <Card key={item.name} className="overflow-hidden rounded-2xl border-0 bg-white shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 text-white flex justify-between items-center">
-                  <span className="font-black tracking-wide text-sm">{item.name}</span>
+                  <span className="font-black tracking-wide text-sm">{item.name === "Pakistan" ? "Pakistani All Branches" : `${item.name} All Branches`}</span>
                   <span className="bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded-full">{item.entries} Trx</span>
                 </div>
                 <CardContent className="p-4 space-y-3 bg-white">
