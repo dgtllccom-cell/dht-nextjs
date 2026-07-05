@@ -1549,7 +1549,11 @@ export function SuperAdminRoznamchaReportView({
     <div className="flex items-center gap-2">
       <h1 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">
         {typeFilter === "super_admin"
-          ? "Super Admin Roznamcha Report"
+          ? sessionInfo?.role === "branch_admin" || sessionInfo?.role === "city_admin" || typeFilter === "branch"
+            ? "City Branch Roznamcha"
+            : sessionInfo?.role === "country_admin" || typeFilter === "country"
+              ? "Country Roznamcha Report"
+              : "Super Admin Roznamcha Report"
           : typeFilter === "country"
             ? "Country Roznamcha Report"
             : "City Roznamcha Report"}
@@ -1557,7 +1561,7 @@ export function SuperAdminRoznamchaReportView({
       <span className="text-[10px] text-slate-400">-</span>
       <span className="hidden lg:block text-[10px] text-slate-500 font-semibold truncate max-w-[400px]">
         {typeFilter === "super_admin"
-          ? "Country + Branch daily journal - USD rate used in table columns only (not in summary)"
+          ? "Daily journal details - USD rate used in table columns only (not in summary)"
           : typeFilter === "country"
             ? "Country wise daily Roznamcha details with account, branch, debit and credit activity."
             : "Branch wise daily Roznamcha details with account, debit and credit activity."}

@@ -249,6 +249,19 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       throw new Error("Purchase payment was created but the linked Journal/Roznamcha entry is missing.");
     }
 
+    // Fix: Ensure the roznamcha entry has the correct branch and country scopes assigned
+    // so it shows up in branch-specific Roznamcha reports.
+    let rozType = "super_admin";
+    if (orderRow.city_branch_id) rozType = "branch";
+    else if (orderRow.country_branch_id || orderRow.country_id) rozType = "country";
+
+    await supabase.from("roznamcha_entries").update({
+      country_id: orderRow.country_id || null,
+      country_branch_id: orderRow.country_branch_id || null,
+      city_branch_id: orderRow.city_branch_id || null,
+      type: rozType
+    }).eq("id", paymentRecord.roznamcha_entry_id);
+
     const journalRecord = await requireSupabaseData(
       supabase
         .from("roznamcha_entries")
