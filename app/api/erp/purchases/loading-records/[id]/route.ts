@@ -79,3 +79,50 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return handleApiError(error);
   }
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const session = await requireErpSession();
+
+    const supabase = createSupabaseAdminClient() as any;
+    const existing = await requireSupabaseData(
+      supabase
+        .from("purchase_loading_records")
+        .select("*")
+        .eq("id", params.id)
+        .is("deleted_at", null)
+        .single()
+    );
+
+    authorizeApiScope(session, {
+      resource: "purchases",
+      action: "delete",
+      countryId: existing.country_id,
+      countryBranchId: existing.country_branch_id,
+      cityBranchId: existing.city_branch_id
+    });
+
+    const deletedAt = new Date().toISOString();
+    const updated = await requireSupabaseData(
+      supabase
+        .from("purchase_loading_records")
+        .update({ deleted_at: deletedAt })
+        .eq("id", params.id)
+        .select("id, loading_record_no")
+        .single()
+    );
+
+    await writeAuditLog({
+      action: "delete",
+      entityTable: "purchase_loading_records",
+      entityId: updated.id,
+      before: existing,
+      after: { ...existing, deleted_at: deletedAt },
+      ipAddress: request.headers.get("x-forwarded-for") ?? null
+    });
+
+    return apiOk({ loadingRecordId: updated.id, message: "Record deleted." });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileText, Link2, MoreVertical, Plus, Printer, RefreshCcw, Search, Ship, Building2, ArrowDownLeft, ArrowUpRight, Pencil } from "lucide-react";
+import { Download, FileText, Link2, MoreVertical, Plus, Printer, RefreshCcw, Search, Ship, Building2, ArrowDownLeft, ArrowUpRight, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
 import { Card, CardContent } from "@/components/ui/card";
@@ -65,6 +65,22 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
   const [showNewLoading, setShowNewLoading] = useState(false);
   const [formStep, setFormStep] = useState<1 | 2 | 3>(1);
   const [editingLoadingId, setEditingLoadingId] = useState<string | null>(null);
+
+  async function handleDeleteHistory(h: LoadingRecord) {
+    if (!confirm("Are you sure you want to delete this loading record?")) return;
+    try {
+      setSavingNewLoading(true);
+      const res = await fetch(`/api/erp/purchases/loading-records/${h.id}`, { method: "DELETE" });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload.ok) throw new Error(payload.error?.message || payload.error || "Failed to delete.");
+      setLoadingMessage("Record deleted.");
+      window.dispatchEvent(new CustomEvent("erp:purchase-loading-saved"));
+    } catch (e: any) {
+      alert(e.message || "Failed to delete record.");
+    } finally {
+      setSavingNewLoading(false);
+    }
+  }
 
   function handleEditHistory(h: LoadingRecord) {
     setShowNewLoading(true);
@@ -1085,9 +1101,12 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                    {history.map((h, i) => (
                       <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                        <td className="px-6 py-3 text-center">
+                        <td className="px-6 py-3 text-center flex items-center justify-center gap-1">
                           <button onClick={() => handleEditHistory(h)} className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition" title="Edit Entry">
                             <Pencil className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDeleteHistory(h)} disabled={savingNewLoading} className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50 transition disabled:opacity-50" title="Delete Entry">
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
                         <td className="px-6 py-3 font-medium text-slate-400">{String(i + 1).padStart(2, '0')}</td>
