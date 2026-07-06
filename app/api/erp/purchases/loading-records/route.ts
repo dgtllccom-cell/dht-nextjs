@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
     let recordsQuery = supabase
       .from("purchase_loading_records")
       .select(
-        "id, loading_record_no, purchase_order_id, purchase_order_no, container_number, container_type, loading_status, loaded_at, loading_location, receiving_location, shipment_status, carrier_name, remarks, country_id, country_branch_id, city_branch_id, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), purchase_orders(form_data)"
+        "id, loading_record_no, purchase_order_id, purchase_order_no, container_number, container_type, loading_status, loaded_at, loading_location, receiving_location, shipment_status, carrier_name, remarks, report_payload, country_id, country_branch_id, city_branch_id, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), purchase_orders(form_data)"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -236,8 +236,10 @@ export async function POST(request: NextRequest) {
         const formData = po.form_data || {};
         const workflow = formData.workflow || {};
         
-        const totalContainers = Number(formData.form?.containerCount || formData.totals?.totalContainers || 0);
-        const totalQuantity = Number(formData.totals?.grandTotalWeight || formData.totals?.grandNetWeight || formData.form?.quantity || 0);
+        const goodsEntries = Array.isArray(formData.goodsEntries) ? formData.goodsEntries : [];
+        const goodsQuantity = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.qtyNo || item.quantity || 0), 0);
+        const totalContainers = Number(workflow.totalContainers || formData.form?.containerCount || formData.totals?.totalContainers || 0);
+        const totalQuantity = Number(workflow.totalQuantity || formData.totals?.totalQuantity || goodsQuantity || formData.form?.quantity || 0);
 
         const currentLoadedContainers = Number(workflow.loadedContainers || 0);
         const currentLoadedQuantity = Number(workflow.loadedQuantity || 0);
