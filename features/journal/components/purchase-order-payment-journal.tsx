@@ -24,7 +24,8 @@ import {
   CheckCircle,
   XCircle,
   WalletCards,
-  Edit3
+  Edit3,
+  Truck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -2375,6 +2376,18 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                 </span>
                               )}
                               {getStatusBadge(statusText)}
+                              {activeMode === "advance" && isPosted && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/dashboard/purchase/loading-form`);
+                                  }}
+                                  className="mt-1 flex items-center justify-center gap-1 rounded bg-blue-600 px-2 py-1 text-[9px] font-bold text-white shadow hover:bg-blue-700 transition"
+                                >
+                                  <Truck className="h-3 w-3" />
+                                  Loading
+                                </button>
+                              )}
                             </>
                           )}
                           <div className={cn("relative inline-block text-left", activeMode !== "advance_completed" && "mt-1")} onClick={(e) => e.stopPropagation()}>
@@ -2411,6 +2424,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     </div>
                                   )}
                                   <div className="py-1">
+                                    {activeMode === "advance" && isPosted && (
+                                      <button className="flex w-full items-center px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition" onClick={() => { 
+                                        setOpenDropdownId(null);
+                                        router.push(`/dashboard/purchase/loading-form`);
+                                      }}>
+                                        <Truck className="mr-2.5 h-4 w-4 text-blue-600 dark:text-blue-400" /> Transfer to Loading
+                                      </button>
+                                    )}
                                     <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setViewingRow(row); setOpenDropdownId(null); }}>
                                       <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> View Detailed Bill
                                     </button>
