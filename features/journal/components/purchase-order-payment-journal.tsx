@@ -1044,7 +1044,6 @@ function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryDa
   );
 }
 
-export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
   const router = useRouter();
   const activeMode: PaymentMode = mode === "charges" ? "credit" : mode;
   const [orders, setOrders] = useState<PurchaseOrderRow[]>([]);
@@ -1236,6 +1235,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }, [selectedId]);
 /* ===== DUPLICATED BLOCK REMOVED =====
 export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
+export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
+export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
   const router = useRouter();
   const activeMode: PaymentMode = mode === "charges" ? "credit" : mode;
   const [orders, setOrders] = useState<PurchaseOrderRow[]>([]);
@@ -1259,7 +1260,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [error, setError] = useState("");
   const [session, setSession] = useState<any>(null);
   const [reportNow, setReportNow] = useState<{ date: string; time: string } | null>(null);
-  const [liveRates, setLiveRates] = useState<any[]>([]);
   const [liveRates, setLiveRates] = useState<any[]>([]);
 
   // Super Admin Filtering for Source Ledger
@@ -1738,33 +1738,130 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const countryOptions = useMemo(() => Array.from(new Set(orders.map(rowCountryName))).filter(Boolean).sort(), [orders]);
   const branchOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowBranchName))).filter(Boolean).sort(), [orders, countryFilter]);
   const currencyOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowCurrency))).filter(Boolean).sort(), [orders, countryFilter]);
-  return null;
-}
-/*
-    return getDashboardSummaryData(filtered, session, activeMode);
-                const effectiveRate = exchangeRate !== 1 ? exchangeRate : (rawFinalAmount > 0 && totalPrice > 0 ? (rawFinalAmount / totalPrice) : 1);
-                
-                const finalAmount = totalPrice * effectiveRate;
 
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
+      {/* Header / Title Portal */}
+      {titleSlot && createPortal(
+        <span className="font-semibold text-slate-800 dark:text-slate-100">
+          {activeMode === "advance" ? "Purchase Advance Payment" :
+           activeMode === "advance_completed" ? "Advance Completed" :
+           activeMode === "remaining" ? "Remaining Payment" :
+           activeMode === "credit" ? "Credit/Charges" : "Payment History"}
+        </span>,
+        titleSlot
+      )}
+      {actionsSlot && createPortal(
+        <div className="flex items-center gap-2">
+          <button id="refresh-btn" type="button" onClick={() => void loadOrders()} className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition">
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </button>
+          <ReportActions rows={filtered} mode={activeMode} />
+        </div>,
+        actionsSlot
+      )}
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 gap-4 p-6 pb-0 sm:grid-cols-3 lg:grid-cols-6">
+        {cards.map((card) => (
+          <Metric key={card.label} {...card} />
+        ))}
+      </div>
+
+      {/* Main Table Card */}
+      <div className="m-6 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setPageIndex(0); }}
+                placeholder="Search orders..."
+                className="h-9 w-64 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((o) => !o)}
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition"
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Filters
+            </button>
+            {(query || draftFilter || countryFilter || branchFilter || currencyFilter) && (
+              <button type="button" onClick={reset} className="flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-600 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400 transition">
+                <XCircle className="h-3.5 w-3.5" />
+                Clear
+              </button>
+            )}
+          </div>
+          {isSuperAdmin && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <select value={saCountryId} onChange={(e) => { setSaCountryId(e.target.value); setSaBranchId(""); }} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                <option value="">All Countries</option>
+                {saCountries.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select value={saBranchId} onChange={(e) => setSaBranchId(e.target.value)} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                <option value="">All Branches</option>
+                {saBranches.filter((b: any) => !saCountryId || b.country_id === saCountryId).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+          )}
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{filtered.length} records</span>
+        </div>
+
+        {filtersOpen && (
+          <div className="grid grid-cols-2 gap-4 border-b border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50 sm:grid-cols-4">
+            <MiniFilter label="Status" value={draftFilter} options={["pending", "posted", "partial"]} onChange={(v) => { setDraftFilter(v); setPageIndex(0); }} />
+            <MiniFilter label="Country" value={countryFilter} options={countryOptions as string[]} onChange={(v) => { setCountryFilter(v); setPageIndex(0); }} />
+            <MiniFilter label="Branch" value={branchFilter} options={branchOptions as string[]} onChange={(v) => { setBranchFilter(v); setPageIndex(0); }} />
+            <MiniFilter label="Currency" value={currencyFilter} options={currencyOptions as string[]} onChange={(v) => { setCurrencyFilter(v); setPageIndex(0); }} />
+          </div>
+        )}
+
+        {error && (
+          <div className="mx-6 my-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1400px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/80">
+                {["PO No.", "S/No.", "Cty S/N", "Br. S/N", "Bill / Date", "Branch / Country", "Purchase A/C", "Sales A/C", "Goods", "Wt & Qty", "Total / Rate", "Adv Details", "Balance", "Status"].map((h) => (
+                  <th key={h} className="px-3 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pageRows.map((row, index) => {
+                const form = row.form_data?.form || {};
+                const goods = row.form_data?.goodsEntries || [];
+                const rawFinalAmount = Number(row.form_data?.totals?.finalAmount || 0);
+                const totalPrice = orderTotal(row);
+                const effectiveRate = getEffectiveRate(row);
+                const finalAmount = totalPrice * effectiveRate;
                 const advancePercent = Number(form.advancePercent || 0);
                 const requiredAdvance = (finalAmount * advancePercent) / 100;
                 const paidAdvance = Number(row.advance_paid || 0);
                 const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
-
                 const requiredAdvanceBC = (totalPrice * advancePercent) / 100;
-                const paidAdvanceBC = paidAdvance / effectiveRate;
+                const paidAdvanceBC = paidAdvance / (effectiveRate || 1);
                 const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
                 const remainingDue = Number(row.remaining_due || 0);
-
                 const totalAmountBC = totalPrice;
                 const rowLocalCurrency = rowCurrency(row);
                 const totalAmountLocal = finalAmount;
-
                 let paidAmountBC = 0;
                 let paidAmountLocal = 0;
                 let balanceAmountBC = 0;
                 let balanceAmountLocal = 0;
-
                 if (activeMode === "advance") {
                   paidAmountBC = paidAdvanceBC;
                   paidAmountLocal = paidAdvance;
@@ -1773,36 +1870,46 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 } else if (activeMode === "remaining") {
                   const remPaid = Number(row.remaining_paid || 0);
                   paidAmountLocal = remPaid;
-                  paidAmountBC = remPaid / effectiveRate;
+                  paidAmountBC = remPaid / (effectiveRate || 1);
                   balanceAmountLocal = remainingDue;
-                  balanceAmountBC = remainingDue / effectiveRate;
+                  balanceAmountBC = remainingDue / (effectiveRate || 1);
                 } else {
-                  // credit or history
                   const credPaid = Number(row.credit_amount || 0);
                   paidAmountLocal = credPaid;
-                  paidAmountBC = credPaid / exchangeRate;
+                  paidAmountBC = credPaid / (effectiveRate || 1);
                   balanceAmountLocal = Math.max(0, finalAmount - credPaid);
                   balanceAmountBC = Math.max(0, totalPrice - paidAmountBC);
                 }
-
                 const statusText = row.payment_status || "Pending";
                 const isSelected = selected?.id === row.id;
                 const isExpanded = Boolean(expandedIds[row.id]);
                 const rowBg = isSelected ? "#eff6ff" : index % 2 === 0 ? "#ffffff" : "#f8fafc";
-
                 const getLedgerLabel = (id: string) => {
                   const led = ledgers.find((l) => l.id === id);
-                  if (!led) return "Ã¢â‚¬â€";
+                  if (!led) return "—";
                   return `${led.code} - ${led.name}`;
                 };
-
-                const isPosted = row.ledger_posting_status === "Posted" 
+                const isPosted = row.ledger_posting_status === "Posted"
                   || row.ledger_posting_status === "posted"
                   || row.ledger_posting_status === "Transferred"
                   || row.ledger_posting_status === "transferred";
-                const getRowColor = () => {
-                  return isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
-                };
+                const getRowColor = () => isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
+
+                // Per-row derived display values
+                const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "—";
+                const grossWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
+                const netWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
+                const billNo = form.billNo || form.invoiceNo || row.purchase_contract_no || "—";
+                const dateStr = form.purchaseDate ? new Date(form.purchaseDate).toLocaleDateString("en-GB") : row.created_at ? new Date(row.created_at).toLocaleDateString("en-GB") : "—";
+                const branchName = rowBranchName(row) || "—";
+                const countryName = rowCountryName(row) || "—";
+
+                // Serial numbers
+                const superSerialNo = index + 1 + pageIndex * pageSize;
+                const countryRows = filtered.filter((r) => rowCountryName(r) === countryName);
+                const countrySerialNo = countryRows.findIndex((r) => r.id === row.id) + 1;
+                const branchRows = filtered.filter((r) => rowBranchName(r) === branchName);
+                const branchSerialNo = branchRows.findIndex((r) => r.id === row.id) + 1;
 
                 return (
                   <React.Fragment key={row.id}>
@@ -2122,9 +2229,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             </button>
           </div>
         </div>
-      </section>
+        </div>
+      </div>
 
-      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Ledger Cash Entry Panel (Modal) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
+
+      {/* Ledger Cash Entry Panel (Modal) */}
+
       {selected && (
         <SimpleModal
           title={`Payment Entry - PO ${selected.purchase_order_no}`}
@@ -3421,6 +3531,201 @@ function MenuAction({ icon, label, onClick }: { icon: React.ReactNode; label: st
 }
 
 function InfoRow({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
+          row={editingPayment.row}
+          session={session}
+          ledgers={ledgers}
+          baseCurrency={baseCurrency}
+          onSuccess={() => {
+            const el = document.getElementById("refresh-btn");
+            if (el) el.click();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Metric({ label, value, sublabel, icon, tone }: KpiCard) {
+  const colorClasses = {
+    blue: {
+      text: "text-blue-800 dark:text-blue-400",
+      iconBg: "bg-blue-50 dark:bg-blue-950/30",
+      iconText: "text-blue-800 dark:text-blue-400"
+    },
+    green: {
+      text: "text-emerald-700 dark:text-emerald-400",
+      iconBg: "bg-emerald-50 dark:bg-emerald-950/30",
+      iconText: "text-emerald-700 dark:text-emerald-400"
+    },
+    amber: {
+      text: "text-amber-700 dark:text-amber-400",
+      iconBg: "bg-amber-50 dark:bg-amber-950/30",
+      iconText: "text-amber-700 dark:text-amber-400"
+    },
+    red: {
+      text: "text-red-700 dark:text-red-400",
+      iconBg: "bg-red-50 dark:bg-red-950/30",
+      iconText: "text-red-700 dark:text-red-400"
+    },
+    slate: {
+      text: "text-slate-700 dark:text-slate-300",
+      iconBg: "bg-slate-50 dark:bg-slate-800",
+      iconText: "text-slate-600 dark:text-slate-400"
+    }
+  }[tone];
+
+  return (
+    <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+      <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl", colorClasses.iconBg, colorClasses.iconText)}>
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider dark:text-slate-400">{label}</p>
+        <p className={cn("mt-1 text-[22px] font-black tracking-tight", colorClasses.text)}>{value}</p>
+        <p className="mt-0.5 text-xs font-semibold text-slate-400 dark:text-slate-500">{sublabel}</p>
+      </div>
+    </div>
+  );
+}
+
+function MiniFilter({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-primary">
+        <option value="">All</option>
+        {options.map((option) => <option key={option} value={option.toLowerCase()}>{option}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function ReportActions({ rows, mode }: { rows: PurchaseOrderRow[]; mode: PaymentMode }) {
+  function handleReportAction(fn: () => void) {
+    fn();
+    const details = document.activeElement?.closest("details");
+    if (details) (details as HTMLDetailsElement).open = false;
+  }
+  return (
+    <details className="relative">
+      <summary className="flex h-9 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-input bg-background text-foreground transition hover:bg-muted [&::-webkit-details-marker]:hidden" aria-label="Payment report actions" title="Payment report actions">
+        <MoreVertical className="h-4 w-4" />
+      </summary>
+      <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
+        <MenuAction icon={<Eye />} label="Plate View" onClick={() => handleReportAction(() => undefined)} />
+        <MenuAction icon={<DownloadActionIcon />} label="Download" onClick={() => handleReportAction(() => exportRows(rows, mode))} />
+        <MenuAction icon={<FileSpreadsheet />} label="Export Excel" onClick={() => handleReportAction(() => exportRows(rows, mode))} />
+        <MenuAction icon={<DownloadActionIcon />} label="Export PDF" onClick={() => handleReportAction(() => window.print())} />
+        <MenuAction icon={<Printer />} label="Print" onClick={() => handleReportAction(() => window.print())} />
+      </div>
+    </details>
+  );
+}
+
+function RowActions({ onSelect, rowId }: { onSelect: () => void; rowId: string }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+
+  function openMenu(e: React.MouseEvent) {
+    e.stopPropagation();
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (rect) {
+      setPos({ top: rect.bottom + window.scrollY + 4, left: rect.right + window.scrollX - 192 });
+    }
+    setOpen((o) => !o);
+  }
+
+  function handleItem(fn: () => void) {
+    fn();
+    setOpen(false);
+  }
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handleClick() { setOpen(false); }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={openMenu}
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          height: 32, width: 32, borderRadius: 8,
+          border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer",
+          color: "#64748b", transition: "background 0.15s"
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f1f5f9"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff"; }}
+        aria-label="Row actions"
+      >
+        <MoreVertical style={{ width: 15, height: 15 }} />
+      </button>
+
+      {open && typeof document !== "undefined" && (
+        <div
+          style={{
+            position: "fixed",
+            top: pos.top,
+            left: pos.left,
+            zIndex: 9999,
+            minWidth: 192,
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 12,
+            boxShadow: "0 10px 40px rgba(0,0,0,0.14)",
+            padding: "4px",
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {[
+            { icon: <Eye style={{ width: 14, height: 14 }} />, label: "View Details", color: "#2563eb", fn: () => handleItem(onSelect) },
+            { icon: <WalletCards style={{ width: 14, height: 14 }} />, label: "Payment History", color: "#7c3aed", fn: () => handleItem(onSelect) },
+            { icon: <Banknote style={{ width: 14, height: 14 }} />, label: "Journal Entry", color: "#059669", fn: () => handleItem(onSelect) },
+            { icon: <Printer style={{ width: 14, height: 14 }} />, label: "Print", color: "#475569", fn: () => handleItem(() => window.print()) },
+            { icon: <DownloadActionIcon />, label: "Export PDF", color: "#dc2626", fn: () => handleItem(() => window.print()) },
+          ].map(({ icon, label, color, fn }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={fn}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                width: "100%", padding: "9px 12px",
+                background: "none", border: "none", borderRadius: 8,
+                cursor: "pointer", textAlign: "left",
+                fontSize: 12, fontWeight: 600, color: "#1e293b",
+                transition: "background 0.12s"
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f8fafc"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+            >
+              <span style={{ color, flexShrink: 0 }}>{icon}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function MenuAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-muted">
+      <span className="text-primary [&>svg]:h-4 [&>svg]:w-4">{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function InfoRow({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border pb-1.5 last:border-b-0 dark:border-slate-800">
       <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
@@ -3428,5 +3733,3 @@ function InfoRow({ label, value, highlight = false }: { label: string; value: st
     </div>
   );
 }
-*/
-
