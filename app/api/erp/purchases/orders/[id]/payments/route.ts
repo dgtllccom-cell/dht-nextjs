@@ -213,6 +213,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if ((body.kind === "remaining" || body.kind === "credit") && bodyAmountUSD > remainingDueUSD + tolerance) {
       throw new Error(`Payment amount cannot exceed remaining payable balance (${remainingDueUSD.toFixed(2)}).`);
     }
+
+    const effectiveRoznamchaExchangeRate = isForeignCurrency ? Number(body.exchangeRate || 1) : 1;
+
     // Transaction-safe posting via RPC using the security definer wrapper post_purchase_booking_transfer.
     // This wrapper sets config('request.jwt.claims', ...) so audit log triggers find auth.uid().
     const { data, error } = await supabase.rpc("post_purchase_booking_transfer", {
@@ -222,7 +225,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       p_entry_date: body.entryDate,
       p_amount: body.amount,
       p_currency_code: body.currencyCode,
-      p_exchange_rate: body.exchangeRate,
+      p_exchange_rate: effectiveRoznamchaExchangeRate,
       p_debit_ledger_id: body.debitLedgerId,
       p_credit_ledger_id: body.creditLedgerId,
       p_reference_no: postingReferenceNo,

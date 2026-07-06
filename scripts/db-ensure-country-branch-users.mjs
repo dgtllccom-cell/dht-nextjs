@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import postgres from "postgres";
+import { createClient } from "@supabase/supabase-js";
 
 function loadEnv() {
   return Object.fromEntries(
@@ -21,6 +22,11 @@ if (!env.DATABASE_URL) {
 }
 
 const sql = postgres(env.DATABASE_URL, { max: 1, prepare: false, connect_timeout: 15 });
+const supabaseAdmin = createClient(
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 const countryAdminPermissions = [
   "companies:read",
@@ -236,7 +242,7 @@ async function ensureMainBranch(setup, countryId) {
 }
 
 async function ensureCountryAdminAssignment(setup, countryId) {
-  const [profile] = await sql`
+  let [profile] = await sql`
     select id, full_name, user_code, raw_password
     from profiles
     where deleted_at is null
@@ -245,7 +251,39 @@ async function ensureCountryAdminAssignment(setup, countryId) {
   `;
 
   if (!profile?.id) {
-    return { status: "missing_profile", userCode: setup.adminUserCode };
+    // Create the user in Supabase auth
+    const email = ${'`${setup.adminUserCode.toLowerCase()}@test.com`'};
+    const password = "TestUser@1234";
+
+    let authUser;
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { user_code: setup.adminUserCode, full_name: ${'`${setup.countryName} Admin`'} }
+    });
+
+    if (error && error.message.includes('already registered')) {
+      const { data: searchData } = await supabaseAdmin.auth.admin.listUsers();
+      authUser = searchData?.users?.find(u => u.email === email);
+    } else if (error) {
+       return { status: ${'`auth_error: ${error.message}`'}, userCode: setup.adminUserCode };
+    } else {
+       authUser = data.user;
+    }
+
+    if (!authUser?.id) return { status: "missing_auth", userCode: setup.adminUserCode };
+
+    // Wait for trigger to create profile
+    await new Promise(r => setTimeout(r, 1000));
+    const [existingProfile] = await sql`select id from profiles where id = ${authUser.id}`;
+    if (!existingProfile?.id) {
+       await sql`insert into profiles (id, full_name, user_code, raw_password) values (${authUser.id}, ${setup.countryName + ' Admin'}, ${setup.adminUserCode}, ${password})`;
+    } else {
+       await sql`update profiles set user_code = ${setup.adminUserCode}, raw_password = ${password} where id = ${authUser.id}`;
+    }
+
+    [profile] = await sql`select id, full_name, user_code, raw_password from profiles where id = ${authUser.id}`;
   }
 
   await sql`
@@ -276,6 +314,55 @@ async function ensureCountryAdminAssignment(setup, countryId) {
     fullName: profile.full_name,
     password: profile.raw_password
   };
+}
+
+async function main() {
+  const results = [];
+
+  await sql.begin(async (tx) => {
+    for (const setup of countrySetups) {
+      const countryId = await ensureCountry(setup);
+      const branchId = await ensureMainBranch(setup, countryId);
+      const admin = await ensureCountryAdminAssignment(setup, countryId);
+
+      results.push({
+        country: setup.countryName,
+        countryId,
+        mainBranch: setup.branchName,
+        branchCode: setup.branchCode,
+        branchId,
+        admin
+      });
+    }
+  });
+
+  const counts = {
+    countries: (await sql`select count(*)::int as c from countries where deleted_at is null`)[0].c,
+    countryBranches: (await sql`select count(*)::int as c from country_branches where deleted_at is null`)[0].c,
+    cityBranches: (await sql`select count(*)::int as c from city_branches where deleted_at is null`)[0].c,
+    roleAssignments: (await sql`select count(*)::int as c from user_role_assignments where deleted_at is null`)[0].c
+  };
+
+  console.log("Country/main branch user stitching completed.");
+  console.table(results.map((row) => ({
+    country: row.country,
+    branch: row.mainBranch,
+    branchCode: row.branchCode,
+    adminUser: row.admin.userCode,
+    adminName: row.admin.fullName || row.admin.status,
+    password: row.admin.password || "-"
+  })));
+  console.log("Counts:", counts);
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error("Failed to ensure country branch users:");
+  console.error(error?.message || error);
+  process.exitCode = 1;
+} finally {
+  await sql.end();
 }
 
 async function main() {

@@ -1068,6 +1068,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [error, setError] = useState("");
   const [session, setSession] = useState<any>(null);
   const [reportNow, setReportNow] = useState<{ date: string; time: string } | null>(null);
+  const [liveRates, setLiveRates] = useState<any[]>([]);
 
   // Super Admin Filtering for Source Ledger
   const [saCountryId, setSaCountryId] = useState<string>("");
@@ -1233,6 +1234,185 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     void fetchPayments();
     return () => { cancelled = true; };
   }, [selectedId]);
+/* ===== DUPLICATED BLOCK REMOVED =====
+export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
+  const router = useRouter();
+  const activeMode: PaymentMode = mode === "charges" ? "credit" : mode;
+  const [orders, setOrders] = useState<PurchaseOrderRow[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const selectOrder = (id: string) => {
+    setSelectedId(id);
+    setTimeout(() => {
+      const el = document.getElementById("ledger-cash-entry-section");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 250);
+  };
+  const [query, setQuery] = useState("");
+  const [draftFilter, setDraftFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [session, setSession] = useState<any>(null);
+  const [reportNow, setReportNow] = useState<{ date: string; time: string } | null>(null);
+  const [liveRates, setLiveRates] = useState<any[]>([]);
+  const [liveRates, setLiveRates] = useState<any[]>([]);
+
+  // Super Admin Filtering for Source Ledger
+  const [saCountryId, setSaCountryId] = useState<string>("");
+  const [saBranchId, setSaBranchId] = useState<string>("");
+  const [saCountries, setSaCountries] = useState<any[]>([]);
+  const [saBranches, setSaBranches] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSaFilters() {
+      try {
+        const [cRes, bRes] = await Promise.all([
+          fetch("/api/erp/locations/countries").then(r => r.json()),
+          fetch("/api/erp/locations/city-branches?limit=1000").then(r => r.json())
+        ]);
+        if (!cancelled) {
+          if (cRes.ok) setSaCountries(cRes.data || []);
+          if (bRes.ok) setSaBranches(bRes.data?.data || bRes.data || []);
+        }
+      } catch (err) {
+        console.error("Failed to load SA filters", err);
+      }
+    }
+    loadSaFilters();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Redesign state hooks
+  const [viewingRow, setViewingRow] = useState<PurchaseOrderRow | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  
+  // Edit Payment State
+  const [editingPayment, setEditingPayment] = useState<{payment: any, row: any} | null>(null);
+
+  useEffect(() => {
+    const handleOpenEdit = (e: any) => {
+      setEditingPayment(e.detail);
+    };
+    window.addEventListener("open-edit-payment", handleOpenEdit);
+    return () => window.removeEventListener("open-edit-payment", handleOpenEdit);
+  }, []);
+
+  const handleOpenA4PDF = async (row: PurchaseOrderRow, autoPrint = false) => {
+    const form = row.form_data?.form || {};
+    const goods = row.form_data?.goodsEntries || [];
+    const totals = row.form_data?.totals || {};
+
+    let paymentHistory: any[] = [];
+    try {
+      const response = await fetch(`/api/erp/purchases/orders/${row.id}/payments`, { credentials: "include" });
+      const body = await response.json();
+      if (body?.ok && body.data?.payments) {
+        paymentHistory = body.data.payments.filter((p: any) => !p.narration?.toLowerCase().includes("initial booking transfer"));
+      }
+    } catch (err) {
+      console.error("Failed to load nested payments for statement:", err);
+    }
+
+    const purchaseData: PurchaseReportData = {
+      id: row.id,
+      purchaseBookingOrderNumber: row.purchase_order_no,
+      purchaseDate: form.purchaseDate || row.created_at || "",
+      bookingDate: form.bookingDate || form.purchaseDate || row.created_at || "",
+      purchaseAccountName: form.purchaseAccountName || "Dubai Purchase Account",
+      purchaseAccountNumber: form.purchaseAccountNo || "AE-AC-0001",
+      salesAccountName: form.salesAccountName || "Damaan Sales Account",
+      salesAccountNumber: form.salesAccountNo || "SA-2001",
+      supplierName: form.salesAccountName || "N/A",
+      buyerName: form.purchaseAccountName || "N/A",
+      productName: goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || form.goodsName || "N/A",
+      goodsDescription: form.orderReportRemarks || "",
+      quantity: goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0) : Number(form.qtyNo || 0),
+      unit: goods[0]?.qtyName || form.qtyName || "BAGS",
+      totalWeight: goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0),
+      containerCount: Number(form.containersCount || form.containerCount || 1),
+      purchaseRate: goods.length ? (goods.reduce((sum: number, g: any) => sum + Number(g.coursePrice || 0), 0) / goods.length) : Number(form.coursePrice || 0),
+      totalPurchaseAmount: goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) : Number(form.totalAmount || 0),
+      currency: row.currency_code || "USD",
+      status: row.payment_status || "Pending",
+      paymentStatus: row.payment_status || "Pending",
+      branchName: form.purchaseAccountBranch || "Kabul Main Branch",
+      countryName: form.loadingCountry || "N/A",
+      createdAt: row.created_at || "",
+      form_data: row.form_data || {},
+      paymentHistory,
+      audit: {
+        userName: session?.name || session?.username || "SUPER ADMIN",
+        userId: session?.id || "USR-1001",
+        branchCode: form.branchCode || "QTA-01"
+      }
+    };
+
+    openPurchaseA4ReportWindow({
+      title: "Purchase Master Verification Report",
+      purchaseData,
+      autoPrint,
+      lang: "en"
+    });
+  };
+
+  // Ledger Entry Panel state
+  const [paymentSourceLedgerId, setPaymentSourceLedgerId] = useState("");
+  const [roznamchaType, setRoznamchaType] = useState("Cash Book No.");
+  const [roznamchaNumber, setRoznamchaNumber] = useState("000123");
+  const [paymentType, setPaymentType] = useState<"" | "bank" | "business" | "invoice" | "cash" | "transfer">("");
+  const [currency, setCurrency] = useState("USD");
+  const [calcAmount, setCalcAmount] = useState("");
+  const [exchangeRate, setExchangeRate] = useState("1");
+  const [calcOp, setCalcOp] = useState<"mul" | "div">("mul");
+  const [finalPayment, setFinalPayment] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const [typeDetails, setTypeDetails] = useState<Record<string, string>>({});
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [pageSize, setPageSize] = useState(10);
+  const [pageIndex, setPageIndex] = useState(0);
+
+  // Local cache for Bank/Method quick add
+  const [savedBanks, setSavedBanks] = useState<SavedBankItem[]>([]);
+  const [savedMethods, setSavedMethods] = useState<string[]>([]);
+  const [addOptionOpen, setAddOptionOpen] = useState(false);
+  const [addOptionType, setAddOptionType] = useState<"bank" | "method">("bank");
+  const [activeTab, setActiveTab] = useState<"remaining" | "advance" | "history">("advance");
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  const [titleSlot, setTitleSlot] = useState<Element | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<Element | null>(null);
+
+  useEffect(() => {
+    setTitleSlot(document.getElementById("erp-page-title-slot"));
+    setActionsSlot(document.getElementById("erp-page-actions-slot"));
+  }, []);
+
+  const [addOptionValue, setAddOptionValue] = useState("");
+  const [addOptionAddress, setAddOptionAddress] = useState("");
+
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState("");
+  const [paymentError, setPaymentError] = useState("");
+  const [selectedOrderPayments, setSelectedOrderPayments] = useState<any[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedOrderPayments([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchPayments();
+    return () => { cancelled = true; };
+  }, [selectedId]);
+===== END DUPLICATED BLOCK ===== */
 
   useEffect(() => {
     let cancelled = false;
@@ -1280,6 +1460,38 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     fetchLedgers();
     return () => { cancelled = true; };
   }, [isSuperAdmin, saCountryId, saBranchId, selectedOrderForLedger?.country_id, selectedOrderForLedger?.country_branch_id, selectedOrderForLedger?.city_branch_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchRates() {
+      try {
+        const res = await fetch("/api/erp/currency/monitoring?limit=100");
+        const body = await res.json();
+        if (!cancelled && body?.countries) {
+          setLiveRates(body.countries);
+        }
+      } catch (e) {
+        console.error("Failed to load live currency rates", e);
+      }
+    }
+    fetchRates();
+    return () => { cancelled = true; };
+  }, []);
+
+  const getEffectiveRate = React.useCallback((row: any) => {
+    const countryName = rowCountryName(row) || "";
+    const countryId = row.country_id;
+    const rateData = liveRates.find((c: any) => 
+      c.countryId === countryId || 
+      (c.countryName && countryName && c.countryName.toLowerCase() === countryName.toLowerCase())
+    );
+    if (rateData) {
+       const live = rateData.latestSellRate || rateData.latestDebitRate || rateData.latestBuyRate || rateData.latestCreditRate;
+       if (live && live > 0) return live;
+    }
+    const form = row.form_data?.form || {};
+    return row.exchange_rate || form.exchangeRate || 1;
+  }, [liveRates]);
 
   async function loadOrders() {
     setLoading(true);
@@ -1457,7 +1669,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }, [ledgers, paymentSourceLedgerId, cashLedger]);
 
   const sourceBalanceText = useMemo(() => {
-    if (!selectedSourceLedger) return "Ã¢â‚¬â€";
+    if (!selectedSourceLedger) return "Ã¢â‚¬â€ ";
     const bal = Number(selectedSourceLedger.current_balance ?? 0);
     return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${ledgerCurrency(selectedSourceLedger) || "PKR"}`;
   }, [selectedSourceLedger]);
@@ -1514,675 +1726,25 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   // Sync PO currency and exchange rate when order changes
   useEffect(() => {
     if (selected) {
-      const rate = String(selected.exchange_rate || 1);
+      const rate = String(getEffectiveRate(selected));
       setExchangeRate(rate);
       const poCur = selected.currency_code || "USD";
       // Auto-enforce local currency for payment
       setCurrency(baseCurrency || poCur.toUpperCase());
     }
-  }, [selectedId, selected, baseCurrency]);
+  }, [selectedId, selected, baseCurrency, getEffectiveRate]);
 
   const cards = useMemo(() => kpis(filtered, activeMode, baseCurrency), [activeMode, filtered, baseCurrency]);
   const countryOptions = useMemo(() => Array.from(new Set(orders.map(rowCountryName))).filter(Boolean).sort(), [orders]);
   const branchOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowBranchName))).filter(Boolean).sort(), [orders, countryFilter]);
   const currencyOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowCurrency))).filter(Boolean).sort(), [orders, countryFilter]);
-  const dashboardSummary = useMemo(() => {
+  return null;
+}
+/*
     return getDashboardSummaryData(filtered, session, activeMode);
-  }, [filtered, session, activeMode]);
-
-  const isLocalCurrency = currency.trim().toUpperCase() === baseCurrency;
-  const showCalcPanel = !isLocalCurrency;
-
-  const calcFinal = useMemo(() => {
-    if (!showCalcPanel) return null;
-    const a = Number(calcAmount);
-    const p = Number(exchangeRate);
-    if (!Number.isFinite(a) || !Number.isFinite(p) || a <= 0 || p <= 0) return null;
-    if (calcOp === "div" && p === 0) return null;
-    const v = calcOp === "mul" ? a * p : a / p;
-    return Number.isFinite(v) ? v : null;
-  }, [calcAmount, calcOp, exchangeRate, showCalcPanel]);
-
-  const amount = useMemo(() => {
-    if (showCalcPanel && calcFinal !== null) return calcFinal;
-    return Number(finalPayment || 0);
-  }, [finalPayment, showCalcPanel, calcFinal]);
-
-  const detailsString = useMemo(() => {
-    if (!paymentType) return "";
-    if (paymentType === "bank") {
-      const bankName = typeDetails.bankName || "";
-      const method = typeDetails.method || "";
-      const refNo = typeDetails.refNo || "";
-      const payDate = typeDetails.payDate || paymentDate;
-      const formattedDate = payDate ? payDate.split("-").reverse().join("/") : "";
-      const attachment = attachmentFile?.name || typeDetails.bankAttachmentName || "";
-      const bankAccount = typeDetails.bankAccount || "";
-      
-      const parts = [
-        bankName && `Bank: ${bankName}`,
-        bankAccount && `A/C: ${bankAccount}`,
-        method && `Method: ${method}`,
-        refNo && `Ref: ${refNo}`,
-        formattedDate && `Date: ${formattedDate}`,
-        attachment && `Attachment: ${attachment}`
-      ].filter(Boolean);
-      
-      return parts.length ? `Bank Details: ${parts.join(" | ")}` : "";
-    }
-    if (paymentType === "cash") {
-      const receiver = typeDetails.receiverSenderName || "";
-      const mobile = typeDetails.mobileNumber || "";
-      const whatsapp = typeDetails.whatsappNumber || "";
-      
-      const parts = [
-        receiver && `Receiver/Sender: ${receiver}`,
-        mobile && `Mobile: ${mobile}`,
-        whatsapp && `WhatsApp: ${whatsapp}`
-      ].filter(Boolean);
-      
-      return parts.length ? `Cash Details: ${parts.join(" | ")}` : "";
-    }
-    if (paymentType === "transfer") {
-      const fromVal = typeDetails.from || "";
-      const toVal = typeDetails.to || "";
-      const refVal = typeDetails.ref || "";
-      
-      const parts = [
-        fromVal && `From: ${fromVal}`,
-        toVal && `To: ${toVal}`,
-        refVal && `Ref: ${refVal}`
-      ].filter(Boolean);
-      
-      return parts.length ? `Transfer Details: ${parts.join(" | ")}` : "";
-    }
-    if (paymentType === "business" || paymentType === "invoice") {
-      const invNo = typeDetails.invoiceNumber || "";
-      const purInfo = typeDetails.purchaseInfo || typeDetails.businessName || "";
-      
-      const parts = [
-        invNo && `Invoice #: ${invNo}`,
-        purInfo && `Info: ${purInfo}`
-      ].filter(Boolean);
-      
-      return parts.length ? `Invoice/Business Details: ${parts.join(" | ")}` : "";
-    }
-    return "";
-  }, [paymentType, typeDetails, paymentDate, attachmentFile]);
-
-  // Sync all system metadata (accounts, details, calculation) to remarks textarea dynamically
-  useEffect(() => {
-    setRemarks((prev) => {
-      // 1. Extract user's custom lines (filter out any system-generated lines)
-      const userLines = prev.split("\n").map((l) => l.trim()).filter((l) => {
-        return !l.startsWith("Debit Account:") &&
-               !l.startsWith("Credit Account:") &&
-               !l.startsWith("Bank Details:") &&
-               !l.startsWith("Cash Details:") &&
-               !l.startsWith("Transfer Details:") &&
-               !l.startsWith("Invoice/Business Details:") &&
-               !l.startsWith("Invoice Details:") &&
-               !l.startsWith("Calculation:") &&
-               !l.startsWith("Advance payment of") &&
-               !l.startsWith("Remaining payment of") &&
-               !l.startsWith("Credit payment of");
-      });
-
-      const systemLines: string[] = [];
-
-      // 2. Add clean payment summary for the PO
-      if (selected?.purchase_order_no) {
-        const modeLabel = activeMode === "advance" ? "Advance" : activeMode === "remaining" ? "Remaining" : "Credit";
-        const amtFC = showCalcPanel && calcAmount ? calcAmount : (finalPayment || "0");
-        const curr = currency.toUpperCase();
-        const rateStr = (showCalcPanel && exchangeRate && Number(exchangeRate) !== 1) ? ` at exchange rate ${exchangeRate}` : "";
-        systemLines.push(`${modeLabel} payment of ${Number(amtFC || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${curr}${rateStr} processed for Bill No. ${selected.purchase_order_no}`);
-      }
-
-      // 3. Add Category Details (remarks note)
-      if (detailsString) {
-        systemLines.push(detailsString);
-      }
-
-      // 4. Add Calculation Details
-      if (showCalcPanel && calcAmount && exchangeRate && calcFinal !== null) {
-        const opSymbol = calcOp === "mul" ? "Ãƒâ€”" : "ÃƒÂ·";
-        systemLines.push(`Calculation: ${Number(calcAmount).toLocaleString()} ${currency.toUpperCase()} ${opSymbol} ${Number(exchangeRate).toLocaleString()} = ${calcFinal.toFixed(2)} ${baseCurrency}`);
-      }
-
-      return [...systemLines, ...userLines].filter(Boolean).join("\n");
-    });
-  }, [
-    selected,
-    activeMode,
-    finalPayment,
-    detailsString,
-    showCalcPanel,
-    calcAmount,
-    exchangeRate,
-    calcOp,
-    currency,
-    calcFinal,
-    baseCurrency
-  ]);
-
-  // Load saved bank/method options
-  useEffect(() => {
-    setSavedBanks(readLocalBankList(SAVED_BANKS_KEY));
-    setSavedMethods(readLocalList(SAVED_METHODS_KEY));
-  }, []);
-
-  function commitAddOption() {
-    const value = addOptionValue.trim();
-    if (!value) return;
-
-    if (addOptionType === "bank") {
-      const exists = savedBanks.some((b) => b.name.toLowerCase() === value.toLowerCase());
-      if (!exists) {
-        const next = [...savedBanks, { name: value, address: addOptionAddress.trim() }];
-        setSavedBanks(next);
-        writeLocalBankList(SAVED_BANKS_KEY, next);
-      }
-      setTypeDetails((prev) => ({ ...prev, bankName: value }));
-    } else {
-      const exists = savedMethods.some((m) => m.toLowerCase() === value.toLowerCase());
-      if (!exists) {
-        const next = [...savedMethods, value];
-        setSavedMethods(next);
-        writeLocalList(SAVED_METHODS_KEY, next);
-      }
-      setTypeDetails((prev) => ({ ...prev, method: value }));
-    }
-
-    setAddOptionOpen(false);
-  }
-
-  function renameCustomMethod(oldName: string, newName: string) {
-    const cleanedNew = newName.trim();
-    if (!cleanedNew) return;
-    const next = savedMethods.map((m) => (m === oldName ? cleanedNew : m));
-    setSavedMethods(next);
-    writeLocalList(SAVED_METHODS_KEY, next);
-    if (typeDetails.method === oldName) {
-      setTypeDetails((prev) => ({ ...prev, method: cleanedNew }));
-    }
-  }
-
-  function deleteCustomMethod(name: string) {
-    const next = savedMethods.filter((m) => m !== name);
-    setSavedMethods(next);
-    writeLocalList(SAVED_METHODS_KEY, next);
-    if (typeDetails.method === name) {
-      setTypeDetails((prev) => ({ ...prev, method: "" }));
-    }
-  }
-
-  function openAddOption(type: "bank" | "method") {
-    setAddOptionType(type);
-    setAddOptionValue("");
-    setAddOptionAddress("");
-    setAddOptionOpen(true);
-  }
-
-  const suggestedAdvance = useMemo(() => {
-    if (!selected) return 0;
-    const totals = (selected as any).form_data?.totals || {};
-    const goods = (selected as any).form_data?.goodsEntries || [];
-    const form = (selected as any).form_data?.form || {};
-    
-    const totalPrice = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) : Number(form.totalAmount || 0);
-    const required = (totalPrice * (Number(form.advancePercent || 10))) / 100;
-    
-    const exchangeRate = selected.exchange_rate || form.exchangeRate || 1;
-    const paidAdvance = Number(selected.advance_paid || 0);
-    const paidAdvanceBC = paidAdvance / exchangeRate;
-    
-    return Math.max(0, required - paidAdvanceBC);
-  }, [selected]);
-
-  const canSave =
-    Boolean(selected) &&
-    Boolean(paymentSourceLedgerId) &&
-    Boolean(paymentType) &&
-    Boolean(amount && amount > 0) &&
-    currency.trim().length === 3 &&
-    Number(exchangeRate) > 0 &&
-    !processingPayment;
-
-  const ledgerOptions = useMemo(() => {
-    return ledgers.map(toLedgerOption);
-  }, [ledgers]);
-
-  const currencyValue = currency;
-
-  async function handleProcessPayment() {
-    if (!selected) return;
-    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-      setPaymentError("Please enter a valid payment amount.");
-      return;
-    }
-
-    let finalDebitLedgerId = doubleEntry.debitLedgerId;
-    let finalCreditLedgerId = doubleEntry.creditLedgerId;
-
-    if (!finalDebitLedgerId && selected) {
-      const selectedForm = selected.form_data?.form || {};
-      const code = selectedForm.purchaseAccountNumber || selectedForm.purchaseAccountNo;
-      if (code) {
-        setProcessingPayment(true);
-        try {
-          const res = await fetch(`/api/erp/accounting/accounts/lookup?q=${encodeURIComponent(code)}&limit=1`, { credentials: "include" });
-          const payload = await res.json();
-          if (res.ok && payload.ok && payload.data?.found) {
-            finalDebitLedgerId = payload.data.account.ledgerId || payload.data.account.id;
-          }
-        } catch (e) {
-          console.error("Failed to resolve missing ledger", e);
-        }
-        setProcessingPayment(false);
-      }
-    }
-
-    if ((activeMode === "advance" || activeMode === "remaining") && (!finalDebitLedgerId || !finalCreditLedgerId)) {
-      setPaymentError("Unable to resolve supplier or cash account ledgers. Please check your accounting setup.");
-      return;
-    }
-
-    const paymentAmountFC = showCalcPanel ? Number(calcAmount) : Number(amount);
-    const paymentAmountLocal = showCalcPanel ? Number(calcFinal) : Number(amount);
-
-    // Validate that the payment amount does not exceed the remaining balance to prevent duplicate/excess postings
-    if (activeMode === "advance") {
-      const form = selected.form_data?.form || {};
-      const totalPrice = (selected as any).form_data?.goodsEntries?.length
-        ? (selected as any).form_data.goodsEntries.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
-        : Number(form.totalAmount || 0);
-      const advancePercent = Number(form.advancePercent || 0);
-      const requiredAdvanceBC = (totalPrice * advancePercent) / 100;
-      
-      const poExchangeRate = selected.exchange_rate || 1;
-      const finalAmount = Number(selected.order_total || 0);
-      const effectiveRate = poExchangeRate !== 1 ? poExchangeRate : (finalAmount > 0 && totalPrice > 0 ? (finalAmount / totalPrice) : 1);
-
-      const paidAdvanceBC = Number(selected.advance_paid || 0) / effectiveRate;
-      const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
-      const remainingAdvanceLocal = remainingAdvanceBC * effectiveRate;
-
-      if (showCalcPanel) {
-        if (paymentAmountFC > remainingAdvanceBC + 0.01) {
-          setPaymentError(`Payment amount (${paymentAmountFC.toFixed(2)} ${currency}) cannot exceed the remaining advance amount (${remainingAdvanceBC.toFixed(2)} ${currency}).`);
-          return;
-        }
-      } else {
-        if (paymentAmountLocal > remainingAdvanceLocal + 1) {
-          setPaymentError(`Payment amount (${paymentAmountLocal.toFixed(2)} ${baseCurrency}) cannot exceed the remaining advance amount (${remainingAdvanceLocal.toFixed(2)} ${baseCurrency}).`);
-          return;
-        }
-      }
-    } else if (activeMode === "remaining") {
-      const remainingDueLocal = Number(selected.remaining_due || 0);
-      
-      const form = selected.form_data?.form || {};
-      const totalPrice = (selected as any).form_data?.goodsEntries?.length
-        ? (selected as any).form_data.goodsEntries.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
-        : Number(form.totalAmount || 0);
-      const poExchangeRate = selected.exchange_rate || 1;
-      const finalAmount = Number(selected.order_total || 0);
-      const effectiveRate = poExchangeRate !== 1 ? poExchangeRate : (finalAmount > 0 && totalPrice > 0 ? (finalAmount / totalPrice) : 1);
-      
-      const remainingDueBC = remainingDueLocal / effectiveRate;
-
-      if (showCalcPanel) {
-        if (paymentAmountFC > remainingDueBC + 0.01) {
-          setPaymentError(`Payment amount (${paymentAmountFC.toFixed(2)} ${currency}) cannot exceed the remaining due balance (${remainingDueBC.toFixed(2)} ${currency}).`);
-          return;
-        }
-      } else {
-        if (paymentAmountLocal > remainingDueLocal + 1) {
-          setPaymentError(`Payment amount (${paymentAmountLocal.toFixed(2)} ${baseCurrency}) cannot exceed the remaining due balance (${remainingDueLocal.toFixed(2)} ${baseCurrency}).`);
-          return;
-        }
-      }
-    }
-
-    setProcessingPayment(true);
-    setPaymentError("");
-    setPaymentSuccess("");
-    try {
-      const isPostPaymentApi = activeMode === "advance" || activeMode === "remaining" || activeMode === "credit";
-      
-      let auditTrail = "";
-      if (showCalcPanel && calcFinal !== null) {
-        const opSymbol = calcOp === "mul" ? "×" : "÷";
-        auditTrail = `[Audit Trail - Qty: ${calcAmount} | Currency: ${currency.toUpperCase()} | Rate: ${exchangeRate} | Op: ${opSymbol} | Converted: ${amount.toFixed(2)} ${baseCurrency}]`;
-      } else {
-        auditTrail = `[Audit Trail - Final Amount: ${amount.toFixed(2)} ${baseCurrency} (Local Currency Entry)]`;
-      }
-      const combinedNarration = remarks.trim();
-      const finalNarration = `${combinedNarration.trim()}\n${auditTrail}`;
-
-      const response = await fetch(
-        isPostPaymentApi
-          ? `/api/erp/purchases/orders/${selected.id}/payments`
-          : `/api/erp/purchases/orders/${selected.id}`,
-        {
-          method: isPostPaymentApi ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            isPostPaymentApi
-              ? {
-                  kind: activeMode,
-                  entryDate: paymentDate,
-                  amount: paymentAmountFC,
-                  currencyCode: currency,
-                  exchangeRate: Number(exchangeRate || 1),
-                  debitLedgerId: finalDebitLedgerId,
-                  creditLedgerId: finalCreditLedgerId,
-                  referenceNo: typeDetails.refNo || selected.purchase_contract_no || undefined,
-                  narration: finalNarration.trim() || `PO ${selected.purchase_order_no} Ã¢â‚¬â€œ ${activeMode === "advance" ? "Advance" : "Remaining"} Payment`
-                }
-              : {
-                  paymentStatus: "credit_posted",
-                  ledgerPostingStatus: "Posted",
-                  creditAmount: Number(amount),
-                  paymentDate,
-                  paymentMethod: typeDetails.method || "Cash",
-                  paymentNarration: finalNarration.trim() || `Credit payment for PO ${selected.purchase_order_no} on ${paymentDate}`,
-                  ledgerEntry: {
-                    type: "credit",
-                    debitAccount: selectedForm.salesAccountNo || "-",
-                    debitAccountName: selectedForm.salesAccountName || "Supplier Payable Account",
-                    creditAccount: ledgerCode(selectedSourceLedger) || "CASH-001",
-                    creditAccountName: ledgerName(selectedSourceLedger) || "General Cash Account",
-                    amount: Number(amount),
-                    currency,
-                    date: paymentDate,
-                    narration: finalNarration.trim() || `PO ${selected.purchase_order_no} Ã¢â‚¬â€œ Sales Credit Payment`
-                  }
-                }
-          )
-        }
-      );
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload?.error?.message || payload?.error || "Payment posting failed.");
-      }
-      setPaymentSuccess(`Ã¢Å“â€¦ Payment posted successfully for PO ${selected.purchase_order_no}.`);
-      
-      // Reset Roznamcha fields
-      setCalcAmount("");
-      setFinalPayment("");
-      setRemarks("");
-      setTypeDetails({});
-      setAttachmentFile(null);
-
-      void loadOrders();
-    } catch (err) {
-      setPaymentError(err instanceof Error ? err.message : "Payment processing failed.");
-    } finally {
-      setProcessingPayment(false);
-    }
-  }
-
-  const pageTitle = activeMode === "advance" ? "Purchase Order Advance Payment"
-    : activeMode === "advance_completed" ? "Advance Payment Nil Receipt"
-    : activeMode === "remaining" ? "Purchase Order Remaining Payment"
-    : activeMode === "credit" ? "Purchase Order Credit Payment"
-    : "Purchase Order Payment History";
-
-  const pageDescription = activeMode === "advance" ? "Manage advance payments made against purchase orders."
-    : activeMode === "advance_completed" ? "View final bills with completed advance payments."
-    : activeMode === "remaining" ? "Manage remaining payments made against purchase orders."
-    : activeMode === "credit" ? "Manage credit payments made against purchase orders."
-    : "Trace and audit historical payments made against purchase orders.";
-
-  const handleNewPaymentClick = () => {
-    if (selected) {
-      const el = document.getElementById("ledger-cash-entry-section");
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    } else if (filtered.length > 0) {
-      selectOrder(filtered[0].id);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const val = status.toLowerCase();
-    let badgeClass = "text-red-700 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/20 dark:border-red-900/30";
-    let displayLabel = "Pending";
-
-    if (val.includes("paid") || val.includes("posted") || val.includes("clear")) {
-      badgeClass = "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/20 dark:border-emerald-900/30";
-      displayLabel = "Paid";
-    } else if (val.includes("partial")) {
-      badgeClass = "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/20 dark:border-amber-900/30";
-      displayLabel = "Partial";
-    }
-
-    return (
-      <span className={cn("inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold shadow-sm", badgeClass)}>
-        {displayLabel}
-      </span>
-    );
-  };
-
-  const renderDualCurrency = (amountFC: number, amountLocal: number, currencyCode: string, colorClass = "text-slate-800 dark:text-slate-200") => {
-    const isLocal = (currencyCode || baseCurrency).toUpperCase() === baseCurrency;
-    if (isLocal) {
-      return (
-        <span className={cn("font-mono font-bold text-xs", colorClass)}>
-          {money(amountLocal, baseCurrency)}
-        </span>
-      );
-    }
-    return (
-      <span className="flex flex-col text-right">
-        <span className={cn("font-mono font-bold text-xs", colorClass)}>
-          {money(amountFC, currencyCode)}
-        </span>
-        <span className="text-[10px] text-slate-400 font-mono mt-0.5">
-          {money(amountLocal, baseCurrency)}
-        </span>
-      </span>
-    );
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Portals for Top Navigation Strip */}
-      {titleSlot && createPortal(
-        <div className="min-w-0">
-          <h1 className="truncate text-sm font-black text-slate-900 dark:text-slate-100">{pageTitle}</h1>
-          <p className="hidden text-[10px] font-semibold text-slate-400 sm:block">{pageDescription}</p>
-        </div>,
-        titleSlot
-      )}
-
-      {actionsSlot && createPortal(
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Search box input */}
-          <div className="relative min-w-[200px] sm:min-w-[240px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPageIndex(0);
-              }}
-              placeholder="Search PO, Supplier..."
-              className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-[10px] font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
-            />
-          </div>
-          {/* Filter toggle button */}
-          <button
-            onClick={() => setFiltersOpen(!filtersOpen)}
-            className={cn(
-              "flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
-              filtersOpen && "border-blue-500 bg-blue-50/50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-300"
-            )}
-          >
-            <Filter className="h-3 w-3" />
-            Filter
-            <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", filtersOpen && "rotate-180")} />
-          </button>
-          {/* Combined Reset & Refresh Button */}
-          <button
-            onClick={() => {
-              reset();
-              void loadOrders();
-            }}
-            className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
-          >
-            <RefreshCw className={loading ? "h-3 w-3 animate-spin text-slate-550" : "h-3 w-3 text-slate-550"} />
-            Reset & Refresh
-          </button>
-          
-          <ReportActions rows={filtered} mode={activeMode} />
-          <div className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-            <CalendarDays className="h-3 w-3 text-slate-400" />
-            <span>17 Jun 2026, 08:54 PM</span>
-          </div>
-        </div>,
-        actionsSlot
-      )}
-
-      {dashboardSummary && (
-        <DashboardSummaryHeader summary={dashboardSummary} mode={activeMode} />
-      )}
-
-      {error && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      {/* Ã¢â€ â‚¬Ã¢â€ â‚¬ Report Section Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬Ã¢â€ â‚¬ */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-        {/* Table Header */}
-        <div className="flex flex-col items-center justify-center text-center w-full py-4 border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-950">
-          <h2 className="text-sm font-extrabold text-slate-950 dark:text-slate-100">Purchase Orders</h2>
-          <p className="text-[10px] text-slate-400 mt-0.5">List of purchase orders requiring payment action</p>
-        </div>
-
-        {/* Collapsible Filter Panel */}
-        {filtersOpen && (
-          <div className="grid gap-4 border-b border-slate-100 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-900/10 md:grid-cols-3 xl:grid-cols-5">
-            <label className="block">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">Payment Status</span>
-              <select
-                value={draftFilter}
-                onChange={(event) => setDraftFilter(event.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
-              >
-                <option value="">Draft Dropdown</option>
-                <option value="pending">Pending</option>
-                <option value="paid">Paid</option>
-                <option value="posted">Posted</option>
-                <option value="overdue">Overdue</option>
-              </select>
-            </label>
-            <MiniFilter label="Country" value={countryFilter} options={countryOptions} onChange={(value) => { setCountryFilter(value); setBranchFilter(""); setPageIndex(0); }} />
-            <MiniFilter label="Branch" value={branchFilter} options={branchOptions} onChange={(value) => { setBranchFilter(value); setPageIndex(0); }} />
-            <MiniFilter label="Currency" value={currencyFilter} options={currencyOptions} onChange={(value) => { setCurrencyFilter(value); setPageIndex(0); }} />
-            <div className="flex items-end">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={reset}
-                className="h-9 w-full border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 font-bold text-xs"
-              >
-                <RefreshCw className="mr-2 h-3.5 w-3.5" />
-                Reset Filters
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Table Container */}
-        <div style={{ minHeight: 600, overflowX: "auto", overflowY: "visible" }}>
-          <table style={{ width: "100%", minWidth: "1600px", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 12, color: "#1e293b" }}>
-            <colgroup>
-              <col style={{ width: "6%" }} />  {/* Order ID */}
-              <col style={{ width: "5%" }} />  {/* Super S/N */}
-              <col style={{ width: "5%" }} />  {/* Cty S/N */}
-              <col style={{ width: "5%" }} />  {/* Br. S/N */}
-              <col style={{ width: "7%" }} />  {/* Bill & Date */}
-              <col style={{ width: "8%" }} />  {/* Branch & Country */}
-              <col style={{ width: "9%" }} /> {/* Purchase Account */}
-              <col style={{ width: "9%" }} /> {/* Sales Account */}
-              <col style={{ width: "9%" }} /> {/* Goods & Brand */}
-              <col style={{ width: "8%" }} />  {/* Weights & Qty */}
-              <col style={{ width: "10%" }} /> {/* Total & Exchange */}
-              <col style={{ width: "9%" }} /> {/* Advance Details */}
-              <col style={{ width: "9%" }} /> {/* Remaining Balance */}
-              <col style={{ width: "5%" }} />  {/* Status & Action */}
-            </colgroup>
-            <thead>
-              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 2 }}>
-                {[
-                  { label: "Order ID", className: "text-left" },
-                  { label: "Super S/N", className: "text-left" },
-                  { label: "Cty S/N", className: "text-left" },
-                  { label: "Br. S/N", className: "text-left" },
-                  { label: "Bill & Date", className: "text-left" },
-                  { label: "Branch & Country", className: "text-left" },
-                  { label: "Purchase Account", className: "text-left" },
-                  { label: "Sales Account", className: "text-left" },
-                  { label: "Goods & Brand", className: "text-left" },
-                  { label: "Weights & Qty", className: "text-left" },
-                  { label: "Total & Exchange", className: "text-right" },
-                  { label: "Advance Details", className: "text-right" },
-                  { label: "Remaining Balance", className: "text-right" },
-                  { label: "Action", className: "text-center" }
-                ].map((h, idx) => (
-                  <th
-                    key={idx}
-                    className={cn(
-                      "px-3 py-3.5 font-bold text-[10px] uppercase text-slate-500 dark:text-slate-400 select-none border-b border-slate-100 dark:border-slate-800",
-                      h.className
-                    )}
-                    style={{
-                      whiteSpace: "nowrap",
-                      letterSpacing: "0.07em"
-                    }}
-                  >
-                    {h.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.map((row, index) => {
-                const goods = (row as any).form_data?.goodsEntries || [];
-                const form = (row as any).form_data?.form || {};
-                const totals = (row as any).form_data?.totals || {};
-
-                const billNo = form.billNo || "-";
-                const dateStr = date(form.purchaseDate || row.created_at);
+                const effectiveRate = exchangeRate !== 1 ? exchangeRate : (rawFinalAmount > 0 && totalPrice > 0 ? (rawFinalAmount / totalPrice) : 1);
                 
-                const superSerialNo = row.superAdminSerialNo || row.super_admin_serial_number || form.superAdminSerialNo || "-";
-                const countrySerialNo = row.countrySerialNo || row.country_transaction_serial_number || form.countrySerialNo || "-";
-                const branchSerialNo = row.branchSerialNo || row.branch_transaction_serial_number || form.branchSerialNo || "-";
-                
-                const rawBranchName = row.branchName || form.branchName || "-";
-                const branchCode = (row as any).audit?.branchCode || form.branchCode;
-                const branchName = branchCode ? `${rawBranchName} (${branchCode})` : rawBranchName;
-
-                const rawCountryName = form.destinationCountry || row.countryName || form.countryName || form.originCountry || "-";
-                const countryCode = (row as any).audit?.countryCode || form.countryCode;
-                const countryName = countryCode ? `${rawCountryName} (${countryCode})` : rawCountryName;
-
-                const goodsName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || form.goodsName || "-";
-                const grossWeight = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
-                const netWeight = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
-
-                const totalPrice = goods.length ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0) : Number(form.totalAmount || 0);
-                const exchangeRate = row.exchange_rate || form.exchangeRate || 1;
-                const finalAmount = orderTotal(row);
-                // When exchangeRate is 1 but we clearly have a different total vs finalAmount, calculate the real effective rate
-                const effectiveRate = exchangeRate !== 1 ? exchangeRate : (finalAmount > 0 && totalPrice > 0 ? (finalAmount / totalPrice) : 1);
+                const finalAmount = totalPrice * effectiveRate;
 
                 const advancePercent = Number(form.advancePercent || 0);
                 const requiredAdvance = (finalAmount * advancePercent) / 100;
@@ -3866,4 +3428,5 @@ function InfoRow({ label, value, highlight = false }: { label: string; value: st
     </div>
   );
 }
+*/
 

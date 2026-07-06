@@ -961,13 +961,10 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Quantity</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Net Weight</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Gross Weight</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Purchase Amount</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Purchase Amount (PKR)</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Exchange Rate</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Final Amount (PKR)</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Advance Amount</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Advance (PKR)</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Balance Amount</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Balance (PKR)</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Advance Amount (PKR)</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Balance Amount (PKR)</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500">Payment Date</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Loading Country</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Loading Port</th>
@@ -1009,12 +1006,9 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{g.qtyNo || g.quantity || 0}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{g.netWeight || 0}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{g.grossWeight || 0}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{itemPurchaseAmount > 0 ? itemPurchaseAmount.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{exRate > 1 ? exRate.toLocaleString() : "-"}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{itemFinalAmountPKR > 0 ? itemFinalAmountPKR.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400 text-right">{advAmt > 0 ? advAmt.toLocaleString() : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{exRate > 1 ? exRate.toLocaleString() : "-"}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400 text-right">{advPKR > 0 ? advPKR.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-rose-600 dark:text-rose-400 text-right">{balAmt !== 0 ? balAmt.toLocaleString() : "-"}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-rose-600 dark:text-rose-400 text-right">{balPKR !== 0 ? balPKR.toLocaleString() : "-"}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{payDate}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{loadingCountry}</td>
@@ -1055,12 +1049,9 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{form.quantity || 0}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{form.netWeight || 0}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{form.grossWeight || 0}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{itemPurchaseAmount > 0 ? itemPurchaseAmount.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{exRate > 1 ? exRate.toLocaleString() : "-"}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{itemFinalAmountPKR > 0 ? itemFinalAmountPKR.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400 text-right">{advAmt > 0 ? advAmt.toLocaleString() : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{exRate > 1 ? exRate.toLocaleString() : "-"}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400 text-right">{advPKR > 0 ? advPKR.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-rose-600 dark:text-rose-400 text-right">{balAmt !== 0 ? balAmt.toLocaleString() : "-"}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-rose-600 dark:text-rose-400 text-right">{balPKR !== 0 ? balPKR.toLocaleString() : "-"}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{payDate}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{loadingCountry}</td>
@@ -1389,13 +1380,10 @@ export function PurchaseLoadingRecordsView() {
                       "Quantity",
                       "Net Weight",
                       "Gross Weight",
-                      "Purchase Amount",
+                      "Purchase Amount (PKR)",
                       "Exchange Rate",
-                      "Final Amount (PKR)",
-                      "Advance Amount",
-                      "Advance (PKR)",
-                      "Balance Amount",
-                      "Balance (PKR)",
+                      "Advance Amount (PKR)",
+                      "Balance Amount (PKR)",
                       "Payment Date",
                       "Loading Country",
                       "Loading Port",
@@ -1492,12 +1480,9 @@ export function PurchaseLoadingRecordsView() {
                           <td className="whitespace-nowrap px-4 py-2 font-mono">{totalQty || "-"}</td>
                           <td className="whitespace-nowrap px-4 py-2 font-mono">{totalNet || "-"}</td>
                           <td className="whitespace-nowrap px-4 py-2 font-mono">{totalGross || "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-emerald-600">{purchaseAmtStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-emerald-600 dark:text-emerald-400">{finalAmtPKRStr}</td>
                           <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px] font-semibold text-slate-400">{exchangeRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-[#0f2942] dark:text-blue-400">{finalAmtPKRStr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-amber-600">{advanceAmtStr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-[#0f2942] dark:text-amber-400">{advanceFinalPKRStr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-rose-600">{balanceAmtStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-[#0f2942] dark:text-amber-400">{advanceFinalPKRStr}</td>
                           <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-rose-700 dark:text-rose-500">{balanceFinalPKRStr}</td>
                           <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px]">{paymentDate}</td>
                           <td className="whitespace-nowrap px-4 py-2">{loadingCountry}</td>

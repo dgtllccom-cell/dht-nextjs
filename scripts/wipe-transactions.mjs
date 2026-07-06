@@ -20,60 +20,67 @@ async function wipeTransactions() {
     console.log("Starting Transaction Data Wipe...");
     console.log("WARNING: This will permanently delete all transactions, ledgers, and purchase data.");
     
-    // Start transaction
     await sql.begin(async sql => {
+      // Helper function to safely delete tables if they exist
+      const tryDelete = async (table) => {
+        try {
+          const [{ exists }] = await sql`SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = ${table}
+          )`;
+          if (exists) {
+            console.log(`Deleting ${table}...`);
+            await sql.unsafe(`DELETE FROM ${table}`);
+          }
+        } catch (e) {
+          console.log(`Failed to delete ${table}: ${e.message}`);
+        }
+      };
+
+      // 1. Delete Child / Detail Tables First
+      await tryDelete('audit_logs');
+      await tryDelete('erp_activity_events');
+      await tryDelete('erp_record_transfers');
       
-      // 1. Delete Purchase Payments and related dependencies
-      console.log("Deleting Purchase Order Payments...");
-      await sql`DELETE FROM purchase_order_payments`;
+      // Purchases
+      await tryDelete('purchase_loading_records');
+      await tryDelete('purchase_order_payments');
+      await tryDelete('purchase_order_expenses');
+      await tryDelete('purchase_order_items');
+      await tryDelete('purchase_order_reports');
+      await tryDelete('purchase_orders');
+
+      // Sales
+      await tryDelete('sales_order_payments');
+      await tryDelete('sales_orders');
+
+      // Shipping
+      await tryDelete('shipping_line_records');
+      await tryDelete('shipping_bl_records');
+      await tryDelete('shipment_documents');
+
+      // Accounting and Journals (Child before parent)
+      await tryDelete('ledger_transaction_audit_trail');
+      await tryDelete('inter_branch_ledger_transfers');
+      await tryDelete('roznamcha_reversals');
+      await tryDelete('journal_reversals');
+      await tryDelete('ledger_posting_lines');
+      await tryDelete('ledger_posting_batches');
       
-      // 2. Delete Purchase Orders
-      console.log("Deleting Purchase Orders...");
-      await sql`DELETE FROM purchase_orders`;
-
-      // 3. Delete Sales Orders (If exists)
-      console.log("Deleting Sales Orders (if exists)...");
-      try {
-        await sql`DELETE FROM sales_orders`;
-      } catch (e) {
-        // Table might not exist, ignore
-      }
-
-      // 4. Delete Roznamcha Entries and Lines
-      console.log("Deleting Roznamcha Lines...");
-      await sql`DELETE FROM roznamcha_lines`;
+      await tryDelete('roznamcha_lines');
+      await tryDelete('roznamcha_entries');
       
-      console.log("Deleting Roznamcha Entries...");
-      await sql`DELETE FROM roznamcha_entries`;
-
-      // 5. Delete Ledger Entries and Balances
-      console.log("Deleting Ledger Entries...");
-      try {
-        await sql`DELETE FROM ledger_entries`;
-      } catch(e) {}
+      await tryDelete('ledger_entries');
+      await tryDelete('journal_lines');
+      await tryDelete('journal_entries');
       
-      console.log("Deleting Ledger Balances...");
-      try {
-        await sql`DELETE FROM ledger_balances`;
-      } catch(e) {}
+      await tryDelete('ledger_balances');
+      await tryDelete('ledger_opening_balances');
+      
+      await tryDelete('transactions');
+      await tryDelete('cash_transactions');
 
-      console.log("Deleting Journal Lines and Entries...");
-      try {
-        await sql`DELETE FROM journal_lines`;
-        await sql`DELETE FROM journal_entries`;
-      } catch(e) {}
-
-      console.log("Deleting General Transactions...");
-      try {
-        await sql`DELETE FROM transactions`;
-      } catch(e) {}
-
-      console.log("Deleting Cash Transactions...");
-      try {
-        await sql`DELETE FROM cash_transactions`;
-      } catch(e) {}
-
-      // 6. Reset Ledgers and Enterprise Accounts balances to 0
+      // 2. Reset Ledger Totals
       console.log("Resetting Ledger Totals to 0...");
       try {
         await sql`UPDATE ledgers SET debit_total = 0, credit_total = 0, current_balance = 0`;
@@ -84,13 +91,7 @@ async function wipeTransactions() {
         await sql`UPDATE enterprise_accounts SET current_balance = 0`;
       } catch (e) {}
 
-      // 7. Delete Audit Logs
-      console.log("Deleting Audit Logs...");
-      try {
-        await sql`DELETE FROM audit_logs WHERE entity_table IN ('purchase_orders', 'purchase_order_payments', 'roznamcha_entries', 'ledgers', 'enterprise_accounts', 'transactions')`;
-      } catch(e) {}
-      
-      console.log("Transaction Data Wipe Complete!");
+      console.log("Transaction Data Wipe Complete! Master data preserved.");
     });
     
   } catch(e) {

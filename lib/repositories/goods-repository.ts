@@ -268,8 +268,8 @@ export class GoodsRepository {
       .from("goods_variations")
       .select("id")
       .eq("goods_id", input.goodsId)
-      .eq("size", cleanSize)
-      .eq("brand", cleanBrand)
+      .ilike("size", cleanSize)
+      .ilike("brand", cleanBrand)
       .is("deleted_at", null);
 
     const { data: existing, error: checkError } = await dupCheckQuery;

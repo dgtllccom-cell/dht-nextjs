@@ -327,7 +327,12 @@ export function CurrencyMonitoringDashboard() {
                 <tr>
                   <th className="px-3 py-2">Country</th>
                   <th className="px-3 py-2">Currency</th>
-                  <th className="px-3 py-2 text-right">Sell Rate</th>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Time</th>
+                  <th className="px-3 py-2 text-right">Sales Rate</th>
+                  <th className="px-3 py-2 text-right">Purchase Rate</th>
+                  <th className="px-3 py-2 text-right">Credit Rate</th>
+                  <th className="px-3 py-2 text-right">Debit Rate</th>
                   <th className="px-3 py-2 text-right">Local Debit</th>
                   <th className="px-3 py-2 text-right">Local Credit</th>
                   <th className="px-3 py-2 text-right">Local Balance</th>
@@ -335,15 +340,30 @@ export function CurrencyMonitoringDashboard() {
                   <th className="px-3 py-2 text-right">USD Credit</th>
                   <th className="px-3 py-2 text-right">USD Balance</th>
                   <th className="px-3 py-2 text-right">Entries</th>
-                  <th className="px-3 py-2">Rate Updated</th>
                 </tr>
               </thead>
               <tbody>
-                {(data?.countries ?? []).map((row) => (
+                {(data?.countries ?? []).map((row) => {
+                  let dateStr = "-";
+                  let timeStr = "-";
+                  if (row.rateUpdatedAt) {
+                    const d = new Date(row.rateUpdatedAt);
+                    dateStr = d.toLocaleDateString();
+                    timeStr = d.toLocaleTimeString();
+                  } else if (row.rateDate) {
+                    dateStr = new Date(row.rateDate).toLocaleDateString();
+                  }
+                  
+                  return (
                   <tr key={row.countryId} className="border-t">
                     <td className="px-3 py-2 font-black">{row.countryName}</td>
                     <td className="px-3 py-2">{row.currency}</td>
+                    <td className="px-3 py-2 text-xs">{dateStr}</td>
+                    <td className="px-3 py-2 text-xs">{timeStr}</td>
                     <td className="px-3 py-2 text-right">{money(row.latestSellRate, 4)}</td>
+                    <td className="px-3 py-2 text-right">{money(row.latestBuyRate, 4)}</td>
+                    <td className="px-3 py-2 text-right">{money(row.latestCreditRate, 4)}</td>
+                    <td className="px-3 py-2 text-right">{money(row.latestDebitRate, 4)}</td>
                     <td className="px-3 py-2 text-right">{money(row.localDebit)}</td>
                     <td className="px-3 py-2 text-right">{money(row.localCredit)}</td>
                     <td className="px-3 py-2 text-right font-bold">{money(row.localBalance)}</td>
@@ -351,9 +371,8 @@ export function CurrencyMonitoringDashboard() {
                     <td className="px-3 py-2 text-right text-blue-700 dark:text-blue-300">${money(row.usdCredit)}</td>
                     <td className="px-3 py-2 text-right font-black text-emerald-700 dark:text-emerald-300">${money(row.usdBalance)}</td>
                     <td className="px-3 py-2 text-right">{row.transactionCount}</td>
-                    <td className="px-3 py-2 text-xs">{row.rateUpdatedAt ? new Date(row.rateUpdatedAt).toLocaleString() : "-"}</td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
@@ -498,7 +517,7 @@ function RateInput({ label, value, onChange }: { label: string; value: string; o
       <Input
         type="number"
         min="0"
-        step="0.0001"
+        step="any"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-9 text-xs font-bold"

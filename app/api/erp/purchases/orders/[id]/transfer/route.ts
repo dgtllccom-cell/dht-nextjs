@@ -190,8 +190,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           ledgerId: purchaseAccountInfo.ledgerId,
           debit: totalPurchaseAmount,
           credit: 0,
-          currency: form.purchaseCurrency || form.currencyType || purchaseAccountInfo.currency,
-          exchangeRate: form.exchangeRate || 1,
+          currency: form.salesAccountCurrency || form.secondaryCurrency || form.baseCurrency || "PKR",
+          exchangeRate: 1,
           paymentEntryType: "transfer",
           description: `Purchase Auto Debit - ${partyName}`
         },
@@ -200,8 +200,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           ledgerId: salesAccountInfo.ledgerId,
           debit: 0,
           credit: totalPurchaseAmount,
-          currency: form.salesAccountCurrency || form.secondaryCurrency || salesAccountInfo.currency,
-          exchangeRate: form.exchangeRate || 1,
+          currency: form.salesAccountCurrency || form.secondaryCurrency || form.baseCurrency || "PKR",
+          exchangeRate: 1,
           paymentEntryType: "transfer",
           description: `Purchase Auto Credit - ${partyName}`
         }
@@ -217,35 +217,64 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       .limit(1)
       .maybeSingle();
 
-    if (!existingRoz) {
-      const { postRoznamchaWithErpSession } = await import("@/app/api/erp/roznamcha/route");
-      const { roznamchaPostingSchema } = await import("@/lib/api/erp-validation");
-
-      const payloadToParse = {
-        ...roznamchaPayload,
-        voucherNo: `${manualBillNumber || systemBillNumber}-TRF-${Date.now()}`
-      };
-
-      try {
-        const parsedBody = roznamchaPostingSchema.parse(payloadToParse);
-        await postRoznamchaWithErpSession({
-          sessionUserId: session.userId,
-          body: parsedBody
-        });
-      } catch (err: any) {
-        console.error("Roznamcha auto-post error:", err);
-        throw new Error(`Failed to post to Roznamcha automatically: ${err.message || err}`);
+    if (existingRoz) {
+      // Reversing the old auto-transfer entry ensures ledger balances are correctly adjusted back.
+      // We inject auth config for the RPC
+      const actorId = session.userId ?? null;
+      if (actorId) {
+        try {
+          await supabase.rpc("set_config", {
+            setting: "request.jwt.claims",
+            value: JSON.stringify({ sub: actorId, role: "authenticated" }),
+            is_local: true
+          });
+        } catch (e) {}
       }
+
+      await supabase.rpc("reverse_roznamcha_entry", {
+        p_original_entry_id: existingRoz.id,
+        p_reason: "Purchase booking edited and re-transferred",
+        p_approval_request_id: null
+      });
+
+      // Optionally, we can hard-delete both the original and reversal if we want a clean slate without clutter,
+      // but keeping them provides an audit trail of the edits. Let's keep them.
+    }
+
+    const { postRoznamchaWithErpSession } = await import("@/app/api/erp/roznamcha/route");
+    const { roznamchaPostingSchema } = await import("@/lib/api/erp-validation");
+
+    const payloadToParse = {
+      ...roznamchaPayload,
+      voucherNo: `${manualBillNumber || systemBillNumber}-TRF-${Date.now()}`
+    };
+
+    try {
+      const parsedBody = roznamchaPostingSchema.parse(payloadToParse);
+      await postRoznamchaWithErpSession({
+        sessionUserId: session.userId,
+        body: parsedBody
+      });
+    } catch (err: any) {
+      console.error("Roznamcha auto-post error:", err);
+      throw new Error(`Failed to post to Roznamcha automatically: ${err.message || err}`);
     }
 
     // --- END ROZNAMCHA POSTING LOGIC ---
 
+    const existingAdvance = Number(orderRow.advance_paid) || 0;
+    const newRemainingDue = totalPurchaseAmount - existingAdvance;
+    
+    let newPaymentStatus = "pending";
+    if (newRemainingDue <= 0) newPaymentStatus = "completed";
+    else if (existingAdvance > 0) newPaymentStatus = "partial";
+
     const patch = {
       ledger_posting_status: "posted",
-      payment_status: "pending",
+      payment_status: newPaymentStatus,
       is_edited_since_transfer: false,
-      advance_paid: 0,
-      remaining_due: orderRow.order_total,
+      advance_paid: existingAdvance,
+      remaining_due: newRemainingDue,
       updated_at: now,
       form_data: updatedFormData
     };

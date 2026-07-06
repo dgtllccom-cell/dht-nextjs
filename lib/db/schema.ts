@@ -341,6 +341,22 @@ export const currencyRates = pgTable(
   })
 );
 
+export const dailyUsdRates = pgTable(
+  "daily_usd_rates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    countryId: uuid("country_id").references(() => countries.id),
+    countryBranchId: uuid("country_branch_id"),
+    rateDate: date("rate_date").notNull(),
+    buyingRate: numeric("buying_rate", { precision: 18, scale: 8 }).notNull(),
+    sellingRate: numeric("selling_rate", { precision: 18, scale: 8 }).notNull(),
+    creditRate: numeric("credit_rate", { precision: 18, scale: 8 }).notNull(),
+    debitRate: numeric("debit_rate", { precision: 18, scale: 8 }).notNull(),
+    createdBy: uuid("created_by").references(() => profiles.id),
+    ...timestamps
+  }
+);
+
 export const transactions = pgTable(
   "transactions",
   {

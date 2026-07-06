@@ -577,6 +577,7 @@ export function PurchaseOrderWizard({ session }) {
   const [cityBranches, setCityBranches] = useState([]);
   const [scopeConfirmed, setScopeConfirmed] = useState(false);
   const [dbAccounts, setDbAccounts] = useState([]);
+  const [customQtyNames, setCustomQtyNames] = useState([]);
 
   const mapEnterpriseAccount = (acc) => ({
     accountCode: acc.code || acc.account_number || "",
@@ -1431,9 +1432,16 @@ export function PurchaseOrderWizard({ session }) {
           setSavedOrderId(poData.id || orderId || "");
           setSavedOrderNo(poNumber);
 
+          const mergedCountryId = loadedForm.countryId || poData.country_id || poData.countryId || "";
+          const mergedCountryBranchId = loadedForm.countryBranchId || poData.country_branch_id || poData.countryBranchId || poData.branch_id || poData.branchId || "";
+          const mergedCityBranchId = loadedForm.cityBranchId || poData.city_branch_id || poData.cityBranchId || "";
+
           setForm((prev) => ({
             ...prev,
             ...loadedForm,
+            countryId: mergedCountryId,
+            countryBranchId: mergedCountryBranchId,
+            cityBranchId: mergedCityBranchId,
             // Retain PO/Contract identification numbers
             purchaseOrderNo: poNumber,
             purchaseContractNo: contractNumber,
@@ -1989,50 +1997,7 @@ export function PurchaseOrderWizard({ session }) {
     const brandStr = (form.brand || "").trim();
 
     if (selectedGood && sizeStr && brandStr) {
-      const originCountry = transitCountryOptions.find(c => c.name === form.origin);
-      const originCountryId = originCountry?.id || null;
-      const variations = selectedGood.variations || selectedGood.goods_variations || [];
-
-      const exists = variations.some(v =>
-        (v.size || "").trim().toLowerCase() === sizeStr.toLowerCase() &&
-        (v.brand || "").trim().toLowerCase() === brandStr.toLowerCase()
-      );
-
-      if (!exists) {
-        try {
-          setSavingOrder(true);
-          setSaveMessage("Registering brand & size combination under Goods Master...");
-          const res = await fetch("/api/erp/goods/variations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              goodsId: selectedGood.id,
-              originCountryId,
-              size: sizeStr.toUpperCase(),
-              brand: brandStr.toUpperCase()
-            })
-          });
-          const payload = await res.json().catch(() => ({}));
-          if (!res.ok || !payload.ok) {
-            throw new Error(payload?.error?.message || payload?.error || "Failed to auto-register variation.");
-          }
-
-          // Reload goods list to update local state
-          const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
-          const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
-          if (goodsData) {
-            setDbGoods(goodsData);
-          }
-          setSaveMessage("Variation registered successfully.");
-        } catch (err) {
-          console.error("Auto-registering variation failed:", err);
-          alert(err instanceof Error ? err.message : "Failed to auto-register variation. Please try again.");
-          setSavingOrder(false);
-          return;
-        } finally {
-          setSavingOrder(false);
-        }
-      }
+      // Variation creation logic is now handled in the Brand/Size SearchSelect components.
     }
 
     const calculated = calculateItemTotals(form);
@@ -2058,9 +2023,9 @@ export function PurchaseOrderWizard({ session }) {
         currencyType: form.currencyType || "USD",
         purchaseCurrency: form.purchaseCurrency || form.currencyType || "USD",
         exchangeRate: Number(form.exchangeRate || 1),
-        totalAmount: calculated.totalAmount,
+        totalAmount: form.manualTotalAmount !== undefined && form.manualTotalAmount !== "" ? Number(form.manualTotalAmount) : calculated.totalAmount,
         op: form.operator || "*",
-        finalAmount: calculated.finalAmount
+        finalAmount: form.manualFinalAmount !== undefined && form.manualFinalAmount !== "" ? Number(form.manualFinalAmount) : calculated.finalAmount
       }
     ]);
     setSaveMessage("Item added to live report draft list.");
@@ -2076,7 +2041,9 @@ export function PurchaseOrderWizard({ session }) {
       qtyKgs: 0,
       emptyKgs: 0,
       coursePrice: 0,
-      allotName: `ALT-${Math.floor(4424 + Math.random() * 1000)}`
+      allotName: `ALT-${Math.floor(4424 + Math.random() * 1000)}`,
+      manualTotalAmount: "",
+      manualFinalAmount: ""
     }));
   };
 
@@ -2101,7 +2068,9 @@ export function PurchaseOrderWizard({ session }) {
       purchaseCurrency: row.purchaseCurrency,
       exchangeRate: row.exchangeRate,
       operator: row.op,
-      allotName: row.allotName
+      allotName: row.allotName,
+      manualTotalAmount: row.totalAmount,
+      manualFinalAmount: row.finalAmount
     }));
     setGoodsEntries((prev) => prev.filter((_, idx) => idx !== index));
     setActiveTab("goods");
@@ -2496,6 +2465,8 @@ export function PurchaseOrderWizard({ session }) {
       purchaseReportRemarks: "",
       purchaseInvoiceRemarks: "",
       showRemarksOnA4: true,
+      manualTotalAmount: "",
+      manualFinalAmount: "",
     });
     setGoodsEntries([]);
     setSavedOrderId("");
@@ -3893,7 +3864,12 @@ export function PurchaseOrderWizard({ session }) {
                                   </div>
                                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 text-[9px] text-muted-foreground">
                                     <div><span className="font-semibold text-foreground/80">Branch:</span> {acc.cityBranchName || "Main Branch"}</div>
-                                    <div><span className="font-semibold text-foreground/80">Curr:</span> <span className="font-bold text-emerald-600 dark:text-emerald-400">{acc.ledgerCurrency || "PKR"}</span></div>
+                                    <div>
+                                      {acc.manualReferenceNumber && (
+                                        <div className="mb-0.5"><span className="font-semibold text-foreground/80">Manual A/C:</span> <span className="font-bold text-slate-700 dark:text-slate-300">{acc.manualReferenceNumber}</span></div>
+                                      )}
+                                      <div><span className="font-semibold text-foreground/80">Curr:</span> <span className="font-bold text-emerald-600 dark:text-emerald-400">{acc.ledgerCurrency || "PKR"}</span></div>
+                                    </div>
                                     <div><span className="font-semibold text-foreground/80">Company:</span> <span className="truncate inline-block max-w-[120px] align-bottom">{compName}</span></div>
                                   </div>
                                 </button>
@@ -3964,7 +3940,12 @@ export function PurchaseOrderWizard({ session }) {
                                   </div>
                                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 text-[9px] text-muted-foreground">
                                     <div><span className="font-semibold text-foreground/80">Branch:</span> {acc.cityBranchName || "Main Branch"}</div>
-                                    <div><span className="font-semibold text-foreground/80">Curr:</span> <span className="font-bold text-emerald-600 dark:text-emerald-400">{acc.ledgerCurrency || "PKR"}</span></div>
+                                    <div>
+                                      {acc.manualReferenceNumber && (
+                                        <div className="mb-0.5"><span className="font-semibold text-foreground/80">Manual A/C:</span> <span className="font-bold text-slate-700 dark:text-slate-300">{acc.manualReferenceNumber}</span></div>
+                                      )}
+                                      <div><span className="font-semibold text-foreground/80">Curr:</span> <span className="font-bold text-emerald-600 dark:text-emerald-400">{acc.ledgerCurrency || "PKR"}</span></div>
+                                    </div>
                                     <div><span className="font-semibold text-foreground/80">Company:</span> <span className="truncate inline-block max-w-[120px] align-bottom">{compName}</span></div>
                                   </div>
                                 </button>
@@ -4243,13 +4224,23 @@ export function PurchaseOrderWizard({ session }) {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Qty Name</label>
-                        <select
+                        <SearchableSelect
                           value={form.qtyName || "BAGS"}
-                          onChange={(e) => setValue("qtyName", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
-                        >
-                          {QTY_TYPE_OPTIONS.map(q => <option key={q} value={q}>{q}</option>)}
-                        </select>
+                          onChange={(val) => {
+                            if (val === "__ADD_NEW__") {
+                              const newQty = window.prompt("Enter New Qty Name:");
+                              if (newQty && newQty.trim()) {
+                                setValue("qtyName", newQty.trim());
+                                setCustomQtyNames(prev => [...prev, newQty.trim()]);
+                              }
+                            } else {
+                              setValue("qtyName", val);
+                            }
+                          }}
+                          options={Array.from(new Set([...QTY_TYPE_OPTIONS, ...customQtyNames, form.qtyName])).filter(Boolean).map(q => ({ label: q, value: q }))}
+                          placeholder="Select Qty Name"
+                          addOptionLabel="Add New Qty Name"
+                        />
                       </div>
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-1">Quantity No</label>
@@ -4342,27 +4333,51 @@ export function PurchaseOrderWizard({ session }) {
 
                     <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-3 rounded-lg border border-emerald-100 dark:border-emerald-900 mt-2">
                       <h4 className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400 mb-2">Purchase Currency & Conversion</h4>
-                      <div>
-                        <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Pricing Currency</label>
-                        <select
-                          value={form.currencyType || "USD"}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setForm(prev => ({ ...prev, currencyType: val, purchaseCurrency: val }));
-                          }}
-                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
-                        >
-                          {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                      <div className="grid grid-cols-2 gap-3 mb-2">
+                        <div>
+                          <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Pricing Currency</label>
+                          <select
+                            value={form.currencyType || "USD"}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setForm(prev => ({ ...prev, currencyType: val, purchaseCurrency: val }));
+                            }}
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          >
+                            {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Exchange Rate to {form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || "PKR"}</label>
+                          <input
+                            type="number"
+                            value={form.exchangeRate || 1}
+                            onChange={(e) => setValue("exchangeRate", Number(e.target.value))}
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
+                          />
+                        </div>
                       </div>
-                      <div className="mt-2">
-                        <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Exchange Rate to {form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || "PKR"}</label>
-                        <input
-                          type="number"
-                          value={form.exchangeRate || 1}
-                          onChange={(e) => setValue("exchangeRate", Number(e.target.value))}
-                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
-                        />
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div>
+                          <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Amount ({form.currencyType || "USD"})</label>
+                          <input
+                            type="number"
+                            value={form.manualTotalAmount !== undefined ? form.manualTotalAmount : ""}
+                            onChange={(e) => setValue("manualTotalAmount", e.target.value === "" ? "" : Number(e.target.value))}
+                            placeholder={currentItemTotals.totalAmount.toFixed(2)}
+                            className="w-full bg-background border border-emerald-200 dark:border-emerald-800 rounded px-2.5 py-1.5 text-foreground outline-none focus:border-emerald-500 text-[10px] font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Final ({form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || "PKR"})</label>
+                          <input
+                            type="number"
+                            value={form.manualFinalAmount !== undefined ? form.manualFinalAmount : ""}
+                            onChange={(e) => setValue("manualFinalAmount", e.target.value === "" ? "" : Number(e.target.value))}
+                            placeholder={currentItemTotals.finalAmount.toFixed(2)}
+                            className="w-full bg-background border border-emerald-200 dark:border-emerald-800 rounded px-2.5 py-1.5 text-foreground outline-none focus:border-emerald-500 text-[10px] font-mono"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -133,6 +133,19 @@ try {
     let deletedOrders = 0;
     let deletedAudit = 0;
 
+    if (await tableExists(tx, "purchase_loading_records")) {
+      const rows = await tx`delete from purchase_loading_records returning id`;
+      deletedLoading = rows.length;
+    }
+    if (await tableExists(tx, "purchase_order_payments")) {
+      const rows = await tx`delete from purchase_order_payments returning id`;
+      deletedPayments = rows.length;
+    }
+    if (await tableExists(tx, "purchase_orders")) {
+      const rows = await tx`delete from purchase_orders returning id`;
+      deletedOrders = rows.length;
+    }
+
     if (await tableExists(tx, "journal_entries")) {
       const journalRows = await tx`
         select id
@@ -144,6 +157,9 @@ try {
       if (journalIds.length && await tableExists(tx, "journal_lines")) {
         const rows = await tx`delete from journal_lines where journal_entry_id in ${tx(journalIds)} returning id`;
         deletedJournalLines = rows.length;
+      }
+      if (journalIds.length && await tableExists(tx, "ledger_entries")) {
+        const rows = await tx`delete from ledger_entries where journal_entry_id in ${tx(journalIds)} returning id`;
       }
       if (journalIds.length) {
         const rows = await tx`delete from journal_entries where id in ${tx(journalIds)} returning id`;
@@ -160,19 +176,6 @@ try {
       deletedRoznamchaEntries = rows.length;
     }
 
-    if (await tableExists(tx, "purchase_loading_records")) {
-      const rows = await tx`delete from purchase_loading_records returning id`;
-      deletedLoading = rows.length;
-    }
-    if (await tableExists(tx, "purchase_order_payments")) {
-      const rows = await tx`delete from purchase_order_payments returning id`;
-      deletedPayments = rows.length;
-    }
-    if (await tableExists(tx, "purchase_orders")) {
-      const rows = await tx`delete from purchase_orders returning id`;
-      deletedOrders = rows.length;
-    }
-
     deletedAudit = await deleteAuditLogs(
       tx,
       [
@@ -185,7 +188,8 @@ try {
         "roznamcha_entries",
         "roznamcha_lines",
         "journal_entries",
-        "journal_lines"
+        "journal_lines",
+        "ledger_entries"
       ],
       [...orderIds, ...paymentIds, ...roznamchaIds]
     );

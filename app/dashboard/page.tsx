@@ -211,6 +211,44 @@ export default async function DashboardPage() {
         </Card>
       ) : null}
 
+      {/* Experimental Setup Quick Login Block */}
+      <section>
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              Experimental Setup: Test Accounts
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Use these credentials to quickly log in and test multi-country behaviors.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {[
+                { name: "United Arab Emirates", branch: "UAE / Dubai Main Branch", code: "ARE-CA-000001", cur: "AED" },
+                { name: "India", branch: "India Main Branch", code: "IND-CA-000001", cur: "INR" },
+                { name: "Iran", branch: "Iran Main Branch", code: "IRN-CA-000001", cur: "IRR" },
+                { name: "Pakistan", branch: "Pakistan Main Branch", code: "PAK-CA-000001", cur: "PKR" },
+                { name: "Afghanistan", branch: "Afghanistan Main Branch", code: "AFG-CA-000001", cur: "AFN" }
+              ].map((testUser) => (
+                <div key={testUser.code} className="flex flex-col gap-1 rounded-md border bg-card p-3 text-sm shadow-sm">
+                  <div className="flex items-center justify-between font-semibold">
+                    <span>{testUser.name}</span>
+                    <span className="text-xs text-muted-foreground">{testUser.cur}</span>
+                  </div>
+                  <div className="text-muted-foreground text-xs">{testUser.branch}</div>
+                  <div className="mt-2 flex items-center justify-between bg-muted/50 p-2 rounded text-xs font-mono">
+                    <span className="select-all">{testUser.code}@test.com</span>
+                    <span className="select-all">TestUser@1234</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Countries" value={String(data.counts.countries)} icon={Database} />
         <StatCard label={t(lang, "dash.total_branches")} value={String(data.counts.branches)} icon={GitBranch} />

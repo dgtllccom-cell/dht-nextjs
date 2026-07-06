@@ -1804,7 +1804,7 @@ export function PurchaseBookingJournalReportView({
             tableGroups={[
               { label: "General Information", span: 10, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Product Information", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
-              { label: "Financial Information", span: 8, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
+              { label: "Financial Information", span: 10, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Route & Loading", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Status", span: 4, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Actions", span: 1, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
@@ -1833,9 +1833,11 @@ export function PurchaseBookingJournalReportView({
               "PURCH. CURR",
               "PURCH. PRICE",
               "TOTAL AMT",
+              "ADVANCE (FC)",
               "EX. RATE",
               "FINAL CURR",
               "FINAL AMT",
+              "ADVANCE (LC)",
               "INV. %",
               "PAY. CONDITION",
               // ── Route & Loading ──────────────────────────────────────────
@@ -1911,6 +1913,9 @@ export function PurchaseBookingJournalReportView({
               const invoicePercent = report.form_data?.form?.advancePercent
                 || report.form_data?.form?.invoicePercent
                 || "-";
+              const invoicePercentNum = parseFloat(String(invoicePercent)) || 0;
+              const advanceAmtFC = invoicePercentNum > 0 ? (totalAmt * invoicePercentNum) / 100 : 0;
+              const advanceAmtLC = invoicePercentNum > 0 ? (finalAmt * invoicePercentNum) / 100 : 0;
               const payCondition = report.form_data?.form?.paymentType
                 || report.form_data?.form?.paymentCondition
                 || report.paymentStatus || "-";
@@ -2053,12 +2058,18 @@ export function PurchaseBookingJournalReportView({
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
                     {totalAmt > 0 ? `${formatMoney(totalAmt)} ${currency}` : "-"}
                   </Td>
+                  <Td right className={`font-mono font-bold text-amber-600 dark:text-amber-500 text-[10px]`}>
+                    {advanceAmtFC > 0 ? `${formatMoney(advanceAmtFC)} ${currency}` : "-"}
+                  </Td>
                   <Td right className={`font-mono ${getRowColor()} text-[10px]`}>
                     {exchangeRate > 0 ? exchangeRate.toLocaleString("en-US") : "-"}
                   </Td>
                   <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{localCurrency}</Td>
                   <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
                     {finalAmt > 0 ? `${formatMoney(finalAmt)} ${localCurrency}` : "-"}
+                  </Td>
+                  <Td right className={`font-mono font-bold text-indigo-600 dark:text-indigo-400 text-[10px]`}>
+                    {advanceAmtLC > 0 ? `${formatMoney(advanceAmtLC)} ${localCurrency}` : "-"}
                   </Td>
                   <Td center className="text-[10px]">
                     {invoicePercent !== "-" ? (
@@ -2184,14 +2195,14 @@ export function PurchaseBookingJournalReportView({
                   {accepting ? "Accepting..." : "Accept"}
                 </Button>
               )}
-              {!(selected && (selected.status === "Posted" || (selected as any).ledger_posting_status === "posted" || (selected as any).ledger_posting_status === "Transferred" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred")) && (
+              {(!selected || !(selected.status === "Posted" || (selected as any).ledger_posting_status === "posted" || (selected as any).ledger_posting_status === "Transferred" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred") || (selected as any).is_edited_since_transfer) && (
                 <Button
                   type="button"
                   onClick={handleTransfer}
                   disabled={transferring || selected?.form_data?.workflow?.confirmationStatus !== "Accepted"}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8"
                 >
-                  {transferring ? "Transferring..." : "Transfer"}
+                  {transferring ? "Processing..." : ((selected as any).is_edited_since_transfer ? "Update Transfer" : "Transfer")}
                 </Button>
               )}
             </div>
