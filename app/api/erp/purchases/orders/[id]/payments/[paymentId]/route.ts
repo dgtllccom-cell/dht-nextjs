@@ -63,11 +63,12 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
     }
 
     // 3. Reverse the old Roznamcha Entry using the admin RPC
+    // Function signature: reverse_roznamcha_entry(p_original_entry_id uuid, p_reason text, p_approval_request_id uuid default null)
     const adminSupabase = createSupabaseAdminClient() as any;
     const { error: reverseError } = await adminSupabase.rpc("reverse_roznamcha_entry", {
-      p_roznamcha_entry_id: existingPayment.roznamcha_entry_id,
-      p_actor_id: session.userId,
-      p_reversal_reason: "Edited Payment Journal Entry"
+      p_original_entry_id: existingPayment.roznamcha_entry_id,
+      p_reason: "Edited Payment Journal Entry",
+      p_approval_request_id: null
     });
     if (reverseError) {
       throw new Error(`Failed to reverse existing journal entry: ${reverseError.message}`);
@@ -83,15 +84,18 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
       throw new Error(`Failed to remove old payment record: ${deleteError.message}`);
     }
 
+    const isForeignCurrency = body.currencyCode?.toUpperCase() === ((order as any)?.currency_code?.toUpperCase() || "USD");
+    const amountUSD = isForeignCurrency ? Number(body.amount) : Number(body.amount) / Number(body.exchangeRate || 1);
+
     // 5. Post the new edited payment using the existing RPC
     const { data: newPaymentId, error: postError } = await supabase.rpc("post_purchase_booking_transfer", {
       p_actor_id: session.userId,
       p_purchase_order_id: params.id,
       p_kind: body.kind,
       p_entry_date: body.entryDate,
-      p_amount: body.amount,
+      p_amount: amountUSD,
       p_currency_code: body.currencyCode,
-      p_exchange_rate: body.exchangeRate,
+      p_exchange_rate: Number(body.exchangeRate || 1),
       p_debit_ledger_id: body.debitLedgerId,
       p_credit_ledger_id: body.creditLedgerId,
       p_reference_no: body.referenceNo ?? null,

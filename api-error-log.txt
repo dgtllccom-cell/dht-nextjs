@@ -11341,3 +11341,1115 @@ Error: Cannot coerce the result to a single JSON object
     at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
     at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
     at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:18:45.813Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:18:46.210Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:25:59.825Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:25:59.859Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:31:36.280Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:31:36.536Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:31:50.365Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:31:50.427Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:36:12.799Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:36:12.803Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:37:01.478Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T05:37:01.581Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:02:14.816Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:02:14.908Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:25:54.276Z] ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+    at get error (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:134:31)
+    at ZodObject.parse (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:209:22)
+    at POST (webpack-internal:///(rsc)/./app/api/erp/purchases/orders/[id]/payments/route.ts:120:106)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:28:32.583Z] ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+    at get error (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:134:31)
+    at ZodObject.parse (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:209:22)
+    at POST (webpack-internal:///(rsc)/./app/api/erp/purchases/orders/[id]/payments/route.ts:120:106)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:47:59.880Z] Error: Missing permission: purchases:read
+Error: Missing permission: purchases:read
+    at authorize (webpack-internal:///(rsc)/./lib/permissions/middleware.ts:47:15)
+    at authorizeApiScope (webpack-internal:///(rsc)/./lib/api/scope-middleware.ts:24:75)
+    at GET (webpack-internal:///(rsc)/./app/api/erp/purchases/orders/route.ts:84:85)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:48:01.815Z] Error: Missing permission: reports:read
+Error: Missing permission: reports:read
+    at authorize (webpack-internal:///(rsc)/./lib/permissions/middleware.ts:47:15)
+    at authorizeApiScope (webpack-internal:///(rsc)/./lib/api/scope-middleware.ts:24:75)
+    at GET (webpack-internal:///(rsc)/./app/api/erp/accounting/reports/ledger/ledgers/route.ts:49:85)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&page=%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&page=%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&page=%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:48:01.848Z] Error: Missing permission: reports:read
+Error: Missing permission: reports:read
+    at authorize (webpack-internal:///(rsc)/./lib/permissions/middleware.ts:47:15)
+    at authorizeApiScope (webpack-internal:///(rsc)/./lib/api/scope-middleware.ts:24:75)
+    at GET (webpack-internal:///(rsc)/./app/api/erp/accounting/reports/ledger/ledgers/route.ts:49:85)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&page=%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&page=%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&page=%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Faccounting%2Freports%2Fledger%2Fledgers%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:52:20.480Z] ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+    at get error (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:134:31)
+    at ZodObject.parse (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:209:22)
+    at POST (webpack-internal:///(rsc)/./app/api/erp/purchases/orders/[id]/payments/route.ts:120:106)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:52:54.165Z] ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+    at get error (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:134:31)
+    at ZodObject.parse (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:209:22)
+    at POST (webpack-internal:///(rsc)/./app/api/erp/purchases/orders/[id]/payments/route.ts:120:106)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T08:53:02.991Z] ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+ZodError: [
+  {
+    "expected": "'advance' | 'remaining' | 'credit' | 'booking'",
+    "received": "undefined",
+    "code": "invalid_type",
+    "path": [
+      "kind"
+    ],
+    "message": "Required"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "debitLedgerId"
+    ],
+    "message": "Required"
+  }
+]
+    at get error (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:134:31)
+    at ZodObject.parse (webpack-internal:///(rsc)/./node_modules/zod/v3/types.js:209:22)
+    at POST (webpack-internal:///(rsc)/./app/api/erp/purchases/orders/[id]/payments/route.ts:120:106)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T09:08:34.568Z] Error: Failed to reverse existing journal entry: Could not find the function public.reverse_roznamcha_entry(p_actor_id, p_reversal_reason, p_roznamcha_entry_id) in the schema cache
+Error: Failed to reverse existing journal entry: Could not find the function public.reverse_roznamcha_entry(p_actor_id, p_reversal_reason, p_roznamcha_entry_id) in the schema cache
+    at PUT (webpack-internal:///(rsc)/./app/api/erp/purchases/orders/[id]/payments/[paymentId]/route.ts:60:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T09:08:58.850Z] Error: Failed to reverse existing journal entry: Could not find the function public.reverse_roznamcha_entry(p_actor_id, p_reversal_reason, p_roznamcha_entry_id) in the schema cache
+Error: Failed to reverse existing journal entry: Could not find the function public.reverse_roznamcha_entry(p_actor_id, p_reversal_reason, p_roznamcha_entry_id) in the schema cache
+    at PUT (webpack-internal:///(rsc)/./app/api/erp/purchases/orders/[id]/payments/[paymentId]/route.ts:60:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2F%5BpaymentId%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T10:26:21.352Z] Error: Authentication is required
+Error: Authentication is required
+    at requireErpSession (webpack-internal:///(rsc)/./lib/auth/session.ts:231:15)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/auth/session/route.ts:13:25)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&page=%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fauth%2Fsession%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&page=%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fauth%2Fsession%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&page=%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fauth%2Fsession%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T10:26:21.531Z] Error: Authentication is required
+Error: Authentication is required
+    at requireErpSession (webpack-internal:///(rsc)/./lib/auth/session.ts:231:15)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/auth/session/route.ts:13:25)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&page=%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fauth%2Fsession%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&page=%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fauth%2Fsession%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&page=%2Fapi%2Ferp%2Fauth%2Fsession%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fauth%2Fsession%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T15:42:43.821Z] Error: Advance payment amount cannot exceed remaining advance balance (9653.75).
+Error: Advance payment amount cannot exceed remaining advance balance (9653.75).
+    at POST (webpack-internal:///(rsc)/./app/api/erp/purchases/orders/[id]/payments/route.ts:177:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Forders%2F%5Bid%5D%2Fpayments%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T15:43:29.251Z] Error: Authentication is required
+Error: Authentication is required
+    at requireErpSession (webpack-internal:///(rsc)/./lib/auth/session.ts:231:15)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/purchases/journal-booking-stock/route.ts:117:25)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T15:43:29.489Z] Error: Authentication is required
+Error: Authentication is required
+    at requireErpSession (webpack-internal:///(rsc)/./lib/auth/session.ts:231:15)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/purchases/journal-booking-stock/route.ts:117:25)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&page=%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fpurchases%2Fjournal-booking-stock%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T15:52:38.124Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T15:52:38.135Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T15:52:43.579Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T15:52:43.585Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T15:53:04.786Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T15:53:04.919Z] Error: Cannot coerce the result to a single JSON object
+Error: Cannot coerce the result to a single JSON object
+    at CustomersRepository.getById (webpack-internal:///(rsc)/./lib/repositories/customers-repository.ts:40:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CustomersService.getById (webpack-internal:///(rsc)/./lib/services/customers-service.ts:45:26)
+    at async GET (webpack-internal:///(rsc)/./app/api/erp/customers/[id]/route.ts:29:22)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&page=%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fcustomers%2F%5Bid%5D%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)
+
+[2026-07-07T16:31:06.755Z] Error: Missing permission: goods:read
+Error: Missing permission: goods:read
+    at authorize (webpack-internal:///(rsc)/./lib/permissions/middleware.ts:47:15)
+    at authorizeApiScope (webpack-internal:///(rsc)/./lib/api/scope-middleware.ts:24:75)
+    at GET (webpack-internal:///(rsc)/./app/api/erp/goods/route.ts:21:85)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async AppRouteRouteModule.do (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:38696)
+    at async AppRouteRouteModule.handle (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:5:45978)
+    at async responseGenerator (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fgoods%2Froute&page=%2Fapi%2Ferp%2Fgoods%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fgoods%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:203:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:1:195304)
+    at async handleResponse (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fgoods%2Froute&page=%2Fapi%2Ferp%2Fgoods%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fgoods%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:265:32)
+    at async handler (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Ferp%2Fgoods%2Froute&page=%2Fapi%2Ferp%2Fgoods%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Ferp%2Fgoods%2Froute.ts&appDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5Cdgtll%5COneDrive%5CDocuments%5CACCOUNTS.DGT.LLC&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!:317:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1430:9)
+    at async DevServer.renderPageComponent (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1482:24)
+    at async DevServer.renderToResponseImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1522:32)
+    at async DevServer.pipeImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:1026:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\base-server.js:917:17)
+    at async C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:400:20
+    at async Span.traceAsyncFn (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (C:\Users\dgtll\OneDrive\Documents\ACCOUNTS.DGT.LLC\node_modules\next\dist\server\lib\start-server.js:226:13)

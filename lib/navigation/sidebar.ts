@@ -417,6 +417,13 @@ export const sidebarTree: SidebarNode[] = [
     roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
   },
   {
+    key: "journal-booking-stock",
+    labelKey: "nav.journal_booking_stock",
+    iconKey: "clipboard-list",
+    href: "/dashboard/purchase/journal-booking-stock" as Route,
+    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
+  },
+  {
     key: "sales",
     labelKey: "nav.sales",
     iconKey: "gantt",
@@ -457,11 +464,6 @@ export const sidebarTree: SidebarNode[] = [
         key: "stock-import",
         labelKey: "nav.import_stock",
         href: "/dashboard/purchase/stock/import" as Route
-      },
-      {
-        key: "stock-journal",
-        labelKey: "nav.journal_stock",
-        href: "/dashboard/purchase/stock/journal" as Route
       },
       {
         key: "stock-warehouse",

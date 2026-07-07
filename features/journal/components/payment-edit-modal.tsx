@@ -129,8 +129,12 @@ export function PaymentEditModal({
   if (!open) return null;
 
   return (
-    <SimpleModal title="Edit Payment Journal Entry" onClose={() => onOpenChange(false)}>
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 py-2">
+    <SimpleModal 
+      title="Edit Payment Journal Entry" 
+      onClose={() => onOpenChange(false)}
+      className="max-w-[95vw] md:max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full"
+    >
+      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-x-6 gap-y-4 py-2">
         
         <div className="col-span-2 grid grid-cols-2 gap-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
           <div className="flex flex-col gap-1.5">

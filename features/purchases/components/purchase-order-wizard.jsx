@@ -223,6 +223,7 @@ const DEFAULT_FORM = {
   qtyNo: 100,
   qtyKgs: 50.00,
   emptyKgs: 0.10,
+  netWeight: 4990.00,
   divideType: "D/KGs",
   divideWeight: 1.0,
   priceType: "P/KGs",
@@ -313,16 +314,24 @@ function calculateItemTotals(form) {
   const coursePrice = Number(form.coursePrice || 0);
   const divideWeight = Number(form.divideWeight || 1);
   const exchangeRate = Number(form.exchangeRate || 1);
+  const operator = form.operator || "*";
 
   const grossWeight = qtyNo * qtyKgs;
   const totalEmptyDeduct = qtyNo * emptyKgs;
-  const netWeight = Math.max(0, grossWeight - totalEmptyDeduct);
+  const netWeight = form.netWeight !== undefined && form.netWeight !== "" && form.netWeight !== 0
+    ? Number(form.netWeight)
+    : Math.max(0, grossWeight - totalEmptyDeduct);
 
   // Amount in Purchase Currency (Original Amount)
   const originalAmount = (netWeight / divideWeight) * coursePrice;
 
   // Amount in Local Country Currency
-  const localAmount = originalAmount * exchangeRate;
+  let localAmount = 0;
+  if (operator === "/") {
+    localAmount = exchangeRate !== 0 ? originalAmount / exchangeRate : 0;
+  } else {
+    localAmount = originalAmount * exchangeRate;
+  }
 
   return {
     grossWeight,
@@ -1460,13 +1469,9 @@ export function PurchaseOrderWizard({ session }) {
             setGoodsEntries(loadedGoods);
           }
 
-          // Check and set transferred/posted status
-          const orderIsTransferred = poData.ledger_posting_status === "posted";
-          setIsTransferred(orderIsTransferred);
-          setTransferredData(orderIsTransferred ? {
-            transferDate: poData.created_at,
-            audit: (poData.form_data && poData.form_data.transferAudit) ? poData.form_data.transferAudit : null
-          } : null);
+          // When loading for edit, always show the editable form (not the transfer success screen)
+          setIsTransferred(false);
+          setTransferredData(null);
 
           // Render the editing wizard directly at Step 1 (booking) for editing
           setActiveTab("booking");
@@ -2040,6 +2045,7 @@ export function PurchaseOrderWizard({ session }) {
       qtyNo: 0,
       qtyKgs: 0,
       emptyKgs: 0,
+      netWeight: "",
       coursePrice: 0,
       allotName: `ALT-${Math.floor(4424 + Math.random() * 1000)}`,
       manualTotalAmount: "",
@@ -2060,6 +2066,7 @@ export function PurchaseOrderWizard({ session }) {
       qtyNo: row.qtyNo,
       qtyKgs: row.qtyKgs,
       emptyKgs: row.emptyKgs,
+      netWeight: row.netWeight,
       priceType: row.priceType,
       divideType: row.divideType,
       divideWeight: row.divideWeight,
@@ -2247,6 +2254,13 @@ export function PurchaseOrderWizard({ session }) {
       if (shouldClose) {
         setIsFormOpen(false);
         handleReset();
+        if (searchParams.get("id") || searchParams.get("purchaseOrderNo")) {
+          router.push("/dashboard/purchase/purchase-booking-journal-report");
+        }
+      } else if (savedOrderId) {
+        // Editing an existing order — close form and show the list
+        setIsFormOpen(false);
+        router.push("/dashboard/purchase/purchase-booking-journal-report");
       } else {
         setActiveTab("report");
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2386,6 +2400,7 @@ export function PurchaseOrderWizard({ session }) {
       setRegisterRefreshKey(k => k + 1);
       setIsFormOpen(false);
       handleReset();
+      router.push("/dashboard/purchase/purchase-booking-journal-report");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error deleting order.");
     } finally {
@@ -3136,6 +3151,9 @@ export function PurchaseOrderWizard({ session }) {
                 setViewDropdownOpen(false);
                 setIsFormOpen(false);
                 handleReset();
+                if (searchParams.get("id") || searchParams.get("purchaseOrderNo")) {
+                  router.push("/dashboard/purchase/purchase-booking-journal-report");
+                }
               }}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900 text-left transition border-b border-border/40 pb-2 mb-1"
             >
@@ -3757,7 +3775,7 @@ export function PurchaseOrderWizard({ session }) {
                                 <td className="px-3 py-2 text-center font-semibold">{row.qtyName}</td>
                                 <td className="px-3 py-2 text-right font-mono font-bold text-muted-foreground">{row.coursePrice.toFixed(2)}</td>
                                 <td className="px-3 py-2 text-right font-mono font-black text-yellow-600 dark:text-yellow-450">{row.totalAmount.toLocaleString()}</td>
-                                <td className="px-3 py-2 text-center font-mono text-muted-foreground">{row.exchangeRate}</td>
+                                <td className="px-3 py-2 text-center font-mono text-muted-foreground">{row.op || "*"} {row.exchangeRate}</td>
                                 <td className="px-3 py-2 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
                                   {row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
@@ -4062,12 +4080,21 @@ export function PurchaseOrderWizard({ session }) {
                   </div>
                   
                   <div className="grid grid-cols-1 gap-3">
-                    {/* Computed Net KGs */}
-                    <div className="bg-muted/30 p-2 rounded border border-border">
-                      <span className="block text-[9px] font-bold text-muted-foreground uppercase">Net KGs:</span>
-                      <span className="block text-xs font-black text-foreground">
-                        {((Number(form.qtyNo || 0) * Number(form.qtyKgs || 0)) - (Number(form.qtyNo || 0) * Number(form.emptyKgs || 0))).toFixed(2)}
-                      </span>
+                    {/* Manual Net KGs Input */}
+                    <div>
+                      <label className="block text-[10px] text-muted-foreground mb-1">Net KGs (Weight)</label>
+                      <input
+                        type="number"
+                        value={form.netWeight !== undefined && form.netWeight !== "" ? form.netWeight : ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setValue("netWeight", val === "" ? "" : Number(val));
+                          setValue("manualTotalAmount", "");
+                          setValue("manualFinalAmount", "");
+                        }}
+                        className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono font-bold"
+                        placeholder="0.00"
+                      />
                     </div>
 
                     <div>
@@ -4247,7 +4274,15 @@ export function PurchaseOrderWizard({ session }) {
                         <input
                           type="number"
                           value={form.qtyNo || ""}
-                          onChange={(e) => setValue("qtyNo", Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setValue("qtyNo", val);
+                            setValue("manualTotalAmount", "");
+                            setValue("manualFinalAmount", "");
+                            const qtyKgs = Number(form.qtyKgs || 0);
+                            const emptyKgs = Number(form.emptyKgs || 0);
+                            setValue("netWeight", val * qtyKgs - val * emptyKgs);
+                          }}
                           className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
                         />
                       </div>
@@ -4259,7 +4294,15 @@ export function PurchaseOrderWizard({ session }) {
                         <input
                           type="number"
                           value={form.qtyKgs || ""}
-                          onChange={(e) => setValue("qtyKgs", Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setValue("qtyKgs", val);
+                            setValue("manualTotalAmount", "");
+                            setValue("manualFinalAmount", "");
+                            const qtyNo = Number(form.qtyNo || 0);
+                            const emptyKgs = Number(form.emptyKgs || 0);
+                            setValue("netWeight", qtyNo * val - qtyNo * emptyKgs);
+                          }}
                           className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
                         />
                       </div>
@@ -4268,7 +4311,15 @@ export function PurchaseOrderWizard({ session }) {
                         <input
                           type="number"
                           value={form.emptyKgs || ""}
-                          onChange={(e) => setValue("emptyKgs", Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setValue("emptyKgs", val);
+                            setValue("manualTotalAmount", "");
+                            setValue("manualFinalAmount", "");
+                            const qtyNo = Number(form.qtyNo || 0);
+                            const qtyKgs = Number(form.qtyKgs || 0);
+                            setValue("netWeight", qtyNo * qtyKgs - qtyNo * val);
+                          }}
                           className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
                         />
                       </div>
@@ -4291,7 +4342,11 @@ export function PurchaseOrderWizard({ session }) {
                         <input
                           type="number"
                           value={form.divideWeight || 1}
-                          onChange={(e) => setValue("divideWeight", Number(e.target.value))}
+                          onChange={(e) => {
+                            setValue("divideWeight", Number(e.target.value));
+                            setValue("manualTotalAmount", "");
+                            setValue("manualFinalAmount", "");
+                          }}
                           className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
                         />
                       </div>
@@ -4314,7 +4369,11 @@ export function PurchaseOrderWizard({ session }) {
                         <input
                           type="number"
                           value={form.coursePrice || ""}
-                          onChange={(e) => setValue("coursePrice", Number(e.target.value))}
+                          onChange={(e) => {
+                            setValue("coursePrice", Number(e.target.value));
+                            setValue("manualTotalAmount", "");
+                            setValue("manualFinalAmount", "");
+                          }}
                           className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
                         />
                       </div>
@@ -4349,12 +4408,28 @@ export function PurchaseOrderWizard({ session }) {
                         </div>
                         <div>
                           <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Exchange Rate to {form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || "PKR"}</label>
-                          <input
-                            type="number"
-                            value={form.exchangeRate || 1}
-                            onChange={(e) => setValue("exchangeRate", Number(e.target.value))}
-                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono"
-                          />
+                          <div className="flex gap-1.5">
+                            <input
+                              type="number"
+                              value={form.exchangeRate || 1}
+                              onChange={(e) => {
+                                setValue("exchangeRate", Number(e.target.value));
+                                setValue("manualFinalAmount", "");
+                              }}
+                              className="flex-1 min-w-0 bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-mono h-8"
+                            />
+                            <select
+                              value={form.operator || "*"}
+                              onChange={(e) => {
+                                setValue("operator", e.target.value);
+                                setValue("manualFinalAmount", "");
+                              }}
+                              className="w-12 bg-background border border-input rounded text-center text-xs font-bold text-foreground outline-none focus:border-primary h-8"
+                            >
+                              <option value="*">*</option>
+                              <option value="/">/</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3 mt-2">
@@ -4362,7 +4437,7 @@ export function PurchaseOrderWizard({ session }) {
                           <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Amount ({form.currencyType || "USD"})</label>
                           <input
                             type="number"
-                            value={form.manualTotalAmount !== undefined ? form.manualTotalAmount : ""}
+                            value={form.manualTotalAmount !== undefined && form.manualTotalAmount !== "" ? form.manualTotalAmount : currentItemTotals.totalAmount}
                             onChange={(e) => setValue("manualTotalAmount", e.target.value === "" ? "" : Number(e.target.value))}
                             placeholder={currentItemTotals.totalAmount.toFixed(2)}
                             className="w-full bg-background border border-emerald-200 dark:border-emerald-800 rounded px-2.5 py-1.5 text-foreground outline-none focus:border-emerald-500 text-[10px] font-mono"
@@ -4372,7 +4447,7 @@ export function PurchaseOrderWizard({ session }) {
                           <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Final ({form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || "PKR"})</label>
                           <input
                             type="number"
-                            value={form.manualFinalAmount !== undefined ? form.manualFinalAmount : ""}
+                            value={form.manualFinalAmount !== undefined && form.manualFinalAmount !== "" ? form.manualFinalAmount : currentItemTotals.finalAmount}
                             onChange={(e) => setValue("manualFinalAmount", e.target.value === "" ? "" : Number(e.target.value))}
                             placeholder={currentItemTotals.finalAmount.toFixed(2)}
                             className="w-full bg-background border border-emerald-200 dark:border-emerald-800 rounded px-2.5 py-1.5 text-foreground outline-none focus:border-emerald-500 text-[10px] font-mono"

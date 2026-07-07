@@ -173,6 +173,7 @@ export type PurchaseCurrencySummaryFC = {
   totalPurchase: number;
   advancePaid: number;
   remainingBalance: number;
+  advanceRequired: number;
 };
 
 export type DashboardSummaryData = {
@@ -191,12 +192,14 @@ export type DashboardSummaryData = {
     totalPurchase: number;
     advancePaid: number;
     remainingBalance: number;
+    advanceRequired: number;
   };
   
   // Right side (Local Currency)
   totalPurchaseLC: number;
   advancePaidLC: number;
   remainingBalanceLC: number;
+  totalAdvanceRequiredLC: number;
 };
 
 function getDashboardSummaryData(rows: PurchaseReport[], session: any): DashboardSummaryData | null {
@@ -229,11 +232,12 @@ function getDashboardSummaryData(rows: PurchaseReport[], session: any): Dashboar
     localCurrency: localCur,
     
     foreignCurrencies: {},
-    totalAllFC: { totalPurchase: 0, advancePaid: 0, remainingBalance: 0 },
+    totalAllFC: { totalPurchase: 0, advancePaid: 0, remainingBalance: 0, advanceRequired: 0 },
     
     totalPurchaseLC: 0,
     advancePaidLC: 0,
     remainingBalanceLC: 0,
+    totalAdvanceRequiredLC: 0,
   };
 
   const parseNumber = (val: unknown): number => {
@@ -262,25 +266,34 @@ function getDashboardSummaryData(rows: PurchaseReport[], session: any): Dashboar
     const advancePaidLC = advancePaidFC * exRate;
     const remainingLC = remainingFC * exRate;
 
+    // Calculate advance required based on row advance percent (defaulting to 10)
+    const advancePercent = Number(row.form_data?.form?.advancePercent || row.form_data?.form?.invoicePercent || 10);
+    const advanceRequiredFC = (invoiceAmountFC * advancePercent) / 100;
+    const advanceRequiredLC = (invoiceAmountLC * advancePercent) / 100;
+
     if (!summary.foreignCurrencies[foreignCur]) {
       summary.foreignCurrencies[foreignCur] = {
         currency: foreignCur,
         totalPurchase: 0,
         advancePaid: 0,
-        remainingBalance: 0
+        remainingBalance: 0,
+        advanceRequired: 0
       };
     }
     summary.foreignCurrencies[foreignCur].totalPurchase += invoiceAmountFC;
     summary.foreignCurrencies[foreignCur].advancePaid += advancePaidFC;
     summary.foreignCurrencies[foreignCur].remainingBalance += remainingFC;
+    summary.foreignCurrencies[foreignCur].advanceRequired += advanceRequiredFC;
     
     summary.totalAllFC.totalPurchase += invoiceAmountFC;
     summary.totalAllFC.advancePaid += advancePaidFC;
     summary.totalAllFC.remainingBalance += remainingFC;
+    summary.totalAllFC.advanceRequired += advanceRequiredFC;
 
     summary.totalPurchaseLC += invoiceAmountLC;
     summary.advancePaidLC += advancePaidLC;
     summary.remainingBalanceLC += remainingLC;
+    summary.totalAdvanceRequiredLC += advanceRequiredLC;
   });
 
   return summary;
@@ -1074,6 +1087,15 @@ function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryDa
               <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalAllFC.totalPurchase.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
             </div>
             <div className="flex justify-between items-center">
+              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-blue-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg></div> Total Advance Required (All):</span>
+              <span className="font-black text-blue-600 dark:text-blue-400 font-mono">
+                {(summary.totalAllFC.advanceRequired || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold ml-1">
+                  ({(summary.totalAllFC.totalPurchase > 0 ? (summary.totalAllFC.advanceRequired / summary.totalAllFC.totalPurchase) * 100 : 0).toFixed(2)}%)
+                </span>
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
               <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div> Total Invoice / Advance (All):</span>
               <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalAllFC.advancePaid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
             </div>
@@ -1101,7 +1123,16 @@ function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryDa
               <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div> Total Amount ({summary.localCurrency}):</span>
               <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalPurchaseLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
             </div>
-            <div className="flex justify-between items-center mt-4">
+            <div className="flex justify-between items-center">
+              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-blue-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg></div> Total Advance Required ({summary.localCurrency}):</span>
+              <span className="font-black text-blue-600 dark:text-blue-400 font-mono">
+                {(summary.totalAdvanceRequiredLC || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold ml-1">
+                  ({(summary.totalPurchaseLC > 0 ? (summary.totalAdvanceRequiredLC / summary.totalPurchaseLC) * 100 : 0).toFixed(2)}%)
+                </span>
+              </span>
+            </div>
+            <div className="flex justify-between items-center mt-2">
               <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div> Invoice / Advance ({summary.localCurrency}):</span>
               <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.advancePaidLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
             </div>
@@ -2093,8 +2124,7 @@ export function PurchaseBookingJournalReportView({
                   {/* ── Actions ─────────────────────────────────── */}
                   <Td center onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
-                      {(!isCountryAdmin || isSuperAdmin) && (
-                        <button
+                      <button
                           type="button"
                           onClick={() => {
                             router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
@@ -2104,7 +2134,6 @@ export function PurchaseBookingJournalReportView({
                         >
                           <Edit3 className="h-3.5 w-3.5" />
                         </button>
-                      )}
                       <RowActionsMenu
                         report={report}
                         onSelect={() => {
@@ -2185,7 +2214,7 @@ export function PurchaseBookingJournalReportView({
                   </button>
                 </div>
               </details>
-              {(!selected || selected?.form_data?.workflow?.confirmationStatus !== "Accepted") && (
+              {selected && (
                 <Button
                   type="button"
                   onClick={handleAccept}
@@ -2195,14 +2224,14 @@ export function PurchaseBookingJournalReportView({
                   {accepting ? "Accepting..." : "Accept"}
                 </Button>
               )}
-              {(!selected || !(selected.status === "Posted" || (selected as any).ledger_posting_status === "posted" || (selected as any).ledger_posting_status === "Transferred" || (selected as any).ledgerPostingStatus === "Posted" || (selected as any).ledgerPostingStatus === "Transferred") || (selected as any).is_edited_since_transfer) && (
+              {selected && (
                 <Button
                   type="button"
                   onClick={handleTransfer}
-                  disabled={transferring || selected?.form_data?.workflow?.confirmationStatus !== "Accepted"}
+                  disabled={transferring}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8"
                 >
-                  {transferring ? "Processing..." : ((selected as any).is_edited_since_transfer ? "Update Transfer" : "Transfer")}
+                  {transferring ? "Processing..." : ((selected as any)?.is_edited_since_transfer ? "Update Transfer" : "Transfer")}
                 </Button>
               )}
             </div>

@@ -54,6 +54,7 @@ export type UiKey =
   | "nav.confirmed_stock"
   | "nav.import_stock"
   | "nav.journal_stock"
+  | "nav.journal_booking_stock"
   | "nav.warehouse_stock"
   | "nav.in_transit_stock"
   | "nav.export_stock"
@@ -403,6 +404,7 @@ const en: Dict = {
   "nav.confirmed_stock": "Confirmed Stock",
   "nav.import_stock": "Import Stock",
   "nav.journal_stock": "Journal Stock",
+  "nav.journal_booking_stock": "Journal Booking Stock",
   "nav.warehouse_stock": "Warehouse Stock",
   "nav.in_transit_stock": "In Transit Stock",
   "nav.export_stock": "Export Stock",

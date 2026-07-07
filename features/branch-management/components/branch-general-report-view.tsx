@@ -6,6 +6,7 @@ import {
   ChevronRight, 
   Eye,
   Expand,
+  Download,
   FileSpreadsheet, 
   KeyRound,
   LogIn,
@@ -1024,6 +1025,21 @@ export function BranchGeneralReportView({
             variant="outline"
             size="sm"
             className="h-8 text-[10px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500"
+            onClick={() => {
+              const link = document.createElement("a");
+              link.href = "/exports/DGT_Standard_Branch_Users.pdf";
+              link.download = "DGT_Standard_Branch_Users.pdf";
+              link.click();
+            }}
+          >
+            <Download className="h-3.5 w-3.5 text-blue-600" />
+            Download PDF
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-[10px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500"
             onClick={() => setExpandedView((current) => !current)}
           >
             {expandedView ? <Minimize2 className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
@@ -1474,16 +1490,14 @@ export function BranchGeneralReportView({
                                 <table className="w-full text-left border-collapse">
                                   <thead>
                                     <tr className="bg-slate-100/80 border-b text-slate-500 font-bold text-[9px] text-center tracking-wider">
-                                      <th className="p-2 border-r border-slate-200">CTY</th>
                                       <th className="p-2 border-r border-slate-200 text-left">Country</th>
-                                      <th className="p-2 border-r border-slate-200">Main Code</th>
+                                      <th className="p-2 border-r border-slate-200 text-left">Main Branch</th>
+                                      <th className="p-2 border-r border-slate-200 text-left">City Branch</th>
                                       <th className="p-2 border-r border-slate-200 text-left">Branch Code</th>
-                                      <th className="p-2 border-r border-slate-200 text-left">Branch Name</th>
-                                      <th className="p-2 border-r border-slate-200">Company</th>
-                                      <th className="p-2 border-r border-slate-200">Owner</th>
-                                      <th className="p-2 border-r border-slate-200">City</th>
-                                      <th className="p-2 border-r border-slate-200">User</th>
-                                      <th className="p-2">Action</th>
+                                      <th className="p-2 border-r border-slate-200">Currency</th>
+                                      <th className="p-2 border-r border-slate-200 text-left">Country User</th>
+                                      <th className="p-2 border-r border-slate-200 text-left">Branch User</th>
+                                      <th className="p-2">Contact / Action</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -1491,38 +1505,81 @@ export function BranchGeneralReportView({
                                       mainBranch.cityBranches.map((cityBranch) => {
                                         const cityUserScopeId = `city-users-${cityBranch.id}`;
                                         const cityUsers = cityBranch.users ?? [];
+                                        const countryAdminUser = country.users?.find((u) => u.role === "country_admin");
+                                        const branchAdminUser = cityBranch.users?.find((u) => u.role === "city_branch_admin") || cityBranch.users?.[0];
+                                        const phoneContact = findContactValue(cityBranch.contacts, "phone") || findContactValue(cityBranch.contacts, "mobile") || cityBranch.phone || branchAdminUser?.mobile || "";
+                                        const emailContact = findContactValue(cityBranch.contacts, "email") || cityBranch.email || branchAdminUser?.email || "";
 
                                         return (
                                           <Fragment key={cityBranch.id}>
-                                            <tr className="border-b text-[9px] text-center text-slate-700 hover:bg-slate-50/50">
-                                              <td className="p-2 border-r border-slate-200 font-bold text-slate-900">{country.code}</td>
-                                              <td className="p-2 border-r border-slate-200 text-left">{country.name}</td>
-                                              <td className="p-2 border-r border-slate-200 font-semibold text-slate-500">{mainBranch.code}</td>
-                                              <td className="p-2 border-r border-slate-200 font-bold text-slate-800 text-left">{cityBranch.code}</td>
-                                              <td className="p-2 border-r border-slate-200 font-semibold text-slate-800 text-left">{cityBranch.name}</td>
-                                              <td className="p-2 border-r border-slate-200">{cityBranch.companyId ? "ABC Pvt Ltd" : "ABC Pvt Ltd"}</td>
-                                              <td className="p-2 border-r border-slate-200">{cityBranch.ownerName || "-"}</td>
-                                              <td className="p-2 border-r border-slate-200">{cityBranch.cityName}</td>
-                                              <td className="p-2 border-r border-slate-200 tabular-nums">
-                                                <UserCountButton
-                                                  count={cityUsers.length}
-                                                  expanded={expandedUserScope === cityUserScopeId}
-                                                  onClick={() => toggleUserScope(cityUserScopeId)}
-                                                  title={`Show users for ${cityBranch.name}`}
-                                                />
+                                            <tr className="border-b text-[9px] text-slate-700 hover:bg-slate-50/50">
+                                              <td className="p-2 border-r border-slate-200 text-left font-semibold">{country.name}</td>
+                                              <td className="p-2 border-r border-slate-200 text-left font-semibold text-slate-500">{mainBranch.name}</td>
+                                              <td className="p-2 border-r border-slate-200 text-left font-bold text-slate-800">{cityBranch.cityName} ({cityBranch.name})</td>
+                                              <td className="p-2 border-r border-slate-200 text-left font-mono font-bold text-slate-900">{cityBranch.code}</td>
+                                              <td className="p-2 border-r border-slate-200 text-center font-bold text-slate-600">{cityBranch.localCurrency}</td>
+                                              <td className="p-2 border-r border-slate-200 text-left">
+                                                {countryAdminUser ? (
+                                                  <div>
+                                                    <div className="font-bold text-slate-800">{countryAdminUser.name}</div>
+                                                    <div className="text-[7.5px] text-slate-400 font-medium font-mono">{countryAdminUser.email}</div>
+                                                  </div>
+                                                ) : (
+                                                  <span className="text-slate-400 font-medium">-</span>
+                                                )}
+                                              </td>
+                                              <td className="p-2 border-r border-slate-200 text-left">
+                                                {branchAdminUser ? (
+                                                  <div>
+                                                    <div className="font-bold text-slate-800">{branchAdminUser.name}</div>
+                                                    <div className="text-[7.5px] text-slate-400 font-medium font-mono">{branchAdminUser.email}</div>
+                                                  </div>
+                                                ) : (
+                                                  <span className="text-slate-400 font-medium">-</span>
+                                                )}
                                               </td>
                                               <td className="p-2">
-                                                <div className="flex items-center justify-center gap-1.5">
+                                                <div className="flex items-center justify-center gap-2">
+                                                  {phoneContact ? (
+                                                    <div className="relative popup-trigger">
+                                                      <button
+                                                        onClick={() => setActiveContactPopup(activeContactPopup?.id === cityBranch.id && activeContactPopup.type === "phone" ? null : { id: cityBranch.id, type: "phone" })}
+                                                        className="w-4.5 h-4.5 rounded-full flex items-center justify-center bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                                      >
+                                                        <PhoneCall className="h-2 w-2" />
+                                                      </button>
+                                                      {activeContactPopup?.id === cityBranch.id && activeContactPopup.type === "phone" && (
+                                                        <div className="absolute top-5 left-0 z-50 bg-slate-900 text-white border border-slate-800 rounded-md p-1.5 text-[8px] shadow-lg whitespace-nowrap popup-content font-semibold">
+                                                          {phoneContact}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  ) : null}
+                                                  {emailContact ? (
+                                                    <div className="relative popup-trigger">
+                                                      <button
+                                                        onClick={() => setActiveContactPopup(activeContactPopup?.id === cityBranch.id && activeContactPopup.type === "email" ? null : { id: cityBranch.id, type: "email" })}
+                                                        className="w-4.5 h-4.5 rounded-full flex items-center justify-center bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                                      >
+                                                        <Mail className="h-2 w-2" />
+                                                      </button>
+                                                      {activeContactPopup?.id === cityBranch.id && activeContactPopup.type === "email" && (
+                                                        <div className="absolute top-5 left-0 z-50 bg-slate-900 text-white border border-slate-800 rounded-md p-1.5 text-[8px] shadow-lg whitespace-nowrap popup-content font-semibold">
+                                                          {emailContact}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  ) : null}
                                                   <button
                                                     onClick={() => viewCityBranch(cityBranch.id, country.name, cityBranch.cityName)}
                                                     disabled={viewLoadingId !== null}
-                                                    className="rounded border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm transition-all"
+                                                    className="rounded border border-emerald-200 bg-white px-2 py-0.5 text-[8px] font-bold text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm transition-all"
                                                   >
-                                                    {viewLoadingId === cityBranch.id ? "Loading..." : "View"}
+                                                    {viewLoadingId === cityBranch.id ? "..." : "View"}
                                                   </button>
                                                   <button
                                                     onClick={() => openCityBranchEdit(cityBranch.id)}
-                                                    className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all"
+                                                    className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[8px] font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm transition-all"
                                                   >
                                                     Edit
                                                   </button>
@@ -1531,7 +1588,7 @@ export function BranchGeneralReportView({
                                             </tr>
                                             {expandedUserScope === cityUserScopeId ? (
                                               <tr className="bg-indigo-50/20">
-                                                <td colSpan={10} className="p-3">
+                                                <td colSpan={8} className="p-3">
                                                   <BranchUsersPanel
                                                     title={`${cityBranch.name} Users`}
                                                     hierarchy={[country.name, mainBranch.name, cityBranch.name, "User List"]}
@@ -1546,7 +1603,7 @@ export function BranchGeneralReportView({
                                       })
                                     ) : (
                                       <tr>
-                                        <td colSpan={10} className="p-3 text-center text-slate-400">
+                                        <td colSpan={8} className="p-3 text-center text-slate-400">
                                           No city branches configured under this main branch.
                                         </td>
                                       </tr>

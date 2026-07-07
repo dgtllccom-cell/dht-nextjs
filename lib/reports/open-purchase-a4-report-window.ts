@@ -22,6 +22,7 @@ export type PurchaseReportData = {
   purchaseRate: number;
   totalPurchaseAmount: number;
   currency: string;
+  finalCurrency?: string;
   status: string;
   currentStep?: string;
   nextStep?: string;
@@ -103,8 +104,8 @@ export function openPurchaseA4ReportWindow(input: {
       const amountUsd = Number(g.totalAmount || 0);
       const finalAmountPkr = Number(g.finalAmount || 0);
       
-      const purchCurr = g.purchaseCurrency || form.purchaseCurrency || form.currencyType || "USD";
-      const finalCurr = form.purchaseAccountCurrency || form.salesAccountCurrency || "PKR";
+      const purchCurr = g.purchaseCurrency || b.currency || form.purchaseCurrency || form.currencyType || "USD";
+      const finalCurr = b.finalCurrency || form.purchaseAccountCurrency || form.salesAccountCurrency || "PKR";
       const exRate = Number(g.exchangeRate || form.exchangeRate || g.rate2 || 1);
 
       return {
@@ -128,8 +129,8 @@ export function openPurchaseA4ReportWindow(input: {
     });
   } else {
     // Fallback if goods entries list is empty
-    const defaultPurchCurr = form.purchaseCurrency || form.currencyType || "USD";
-    const defaultFinalCurr = form.purchaseAccountCurrency || form.salesAccountCurrency || "PKR";
+    const defaultPurchCurr = b.currency || form.purchaseCurrency || form.currencyType || "USD";
+    const defaultFinalCurr = b.finalCurrency || form.purchaseAccountCurrency || form.salesAccountCurrency || "PKR";
     items = [{
       srNo: 1,
       goodsName: b.productName || "WALNUTS IN SHELL",

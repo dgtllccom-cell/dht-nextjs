@@ -156,13 +156,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (exchangeRate <= 0) exchangeRate = 1;
 
     const orderTotalUSD = Number(orderRow.order_total || 0) / exchangeRate;
-    const advancePaidUSD = Number(orderRow.advance_paid || 0) / exchangeRate;
-    const remainingPaidUSD = Number(orderRow.remaining_paid || 0) / exchangeRate;
-    const creditAmountUSD = Number(orderRow.credit_amount || 0) / exchangeRate;
+    const advancePaidUSD = Number(orderRow.advance_paid || 0);
+    const remainingPaidUSD = Number(orderRow.remaining_paid || 0);
+    const creditAmountUSD = Number(orderRow.credit_amount || 0);
     
     let remainingDueUSD = 0;
     if (orderRow.remaining_due != null) {
-      remainingDueUSD = Number(orderRow.remaining_due) / exchangeRate;
+      remainingDueUSD = Number(orderRow.remaining_due);
     } else {
       remainingDueUSD = Math.max(0, orderTotalUSD - advancePaidUSD - remainingPaidUSD - creditAmountUSD);
     }
