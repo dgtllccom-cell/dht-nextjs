@@ -2286,7 +2286,7 @@ export function PurchaseBookingJournalReportView({
             const purchaseCurrency = selected.currency || selected.form_data?.form?.currency || "USD";
             const purchaseCurrencySymbol = getCurrencySymbol(purchaseCurrency);
 
-            const displayCurrency = selected.form_data?.form?.purchaseAccountCurrency || selected.form_data?.form?.salesAccountCurrency || selected.form_data?.form?.baseCurrency || "PKR";
+            const displayCurrency = selected.form_data?.form?.secondaryCurrency || "PKR";
             const displayCurrencySymbol = getCurrencySymbol(displayCurrency);
 
             const avgRateKg = totalNet > 0 ? (totalUSDVal / totalNet) : 0;

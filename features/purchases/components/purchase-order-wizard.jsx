@@ -3559,7 +3559,7 @@ export function PurchaseOrderWizard({ session }) {
                             <th className="px-2 py-1.5 text-center font-bold">Origin</th>
                             <th className="px-2 py-1.5 text-right font-bold">Qty</th>
                             <th className="px-2 py-1.5 text-center font-bold">Unit</th>
-                            <th className="px-2 py-1.5 text-right font-bold">Final ({form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || form.paymentCurrency || "PKR"})</th>
+                            <th className="px-2 py-1.5 text-right font-bold">Final ({form.secondaryCurrency || "PKR"})</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3751,7 +3751,7 @@ export function PurchaseOrderWizard({ session }) {
                             <th className="px-3 py-2.5 text-right">Price ({form.currencyType || "USD"})</th>
                             <th className="px-3 py-2.5 text-right">Amount ({form.currencyType || "USD"})</th>
                             <th className="px-3 py-2.5 text-center">Ex. Rate</th>
-                            <th className="px-3 py-2.5 text-right bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Final ({form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || form.paymentCurrency || "PKR"})</th>
+                            <th className="px-3 py-2.5 text-right bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Final ({form.secondaryCurrency || "PKR"})</th>
                             <th className="px-3 py-2.5 text-center w-10">Action</th>
                           </tr>
                         </thead>
@@ -4407,7 +4407,7 @@ export function PurchaseOrderWizard({ session }) {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Exchange Rate to {form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || "PKR"}</label>
+                          <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Exchange Rate to {form.secondaryCurrency || "PKR"}</label>
                           <div className="flex gap-1.5">
                             <input
                               type="number"
@@ -4444,7 +4444,7 @@ export function PurchaseOrderWizard({ session }) {
                           />
                         </div>
                         <div>
-                          <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Final ({form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || "PKR"})</label>
+                          <label className="block text-[9px] text-emerald-700 dark:text-emerald-500 mb-1 font-bold">Final ({form.secondaryCurrency || "PKR"})</label>
                           <input
                             type="number"
                             value={form.manualFinalAmount !== undefined && form.manualFinalAmount !== "" ? form.manualFinalAmount : currentItemTotals.finalAmount}
@@ -4851,7 +4851,7 @@ export function PurchaseOrderWizard({ session }) {
                                   <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">N.Wt</th>
                                   <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">Rate</th>
                                   <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">Amount ({form.currencyType || "USD"})</th>
-                                  <th className="p-1.5 text-right font-bold uppercase text-emerald-800">Final ({form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || form.paymentCurrency || "PKR"})</th>
+                                  <th className="p-1.5 text-right font-bold uppercase text-emerald-800">Final ({form.secondaryCurrency || "PKR"})</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -5031,7 +5031,7 @@ export function PurchaseOrderWizard({ session }) {
                         <th className="border-r border-slate-300 p-1.5 text-center">Unit</th>
                         <th className="border-r border-slate-300 p-1.5 text-right">Price ({form.currencyType || "USD"})</th>
                         <th className="border-r border-slate-300 p-1.5 text-center">Ex. Rate</th>
-                        <th className="p-1.5 text-right">Final ({form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || form.paymentCurrency || "PKR"})</th>
+                        <th className="p-1.5 text-right">Final ({form.secondaryCurrency || "PKR"})</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5058,7 +5058,7 @@ export function PurchaseOrderWizard({ session }) {
                         <td colSpan={4} className="p-1.5 text-right">Total:</td>
                         <td className="border-r border-slate-200 p-1.5 text-right">{reportTotals.totalQty.toLocaleString()}</td>
                         <td colSpan={3} className="border-r border-slate-200 p-1.5 text-right text-[8px] text-slate-500 uppercase">Grand Total:</td>
-                        <td className="p-1.5 text-right">{form.purchaseAccountCurrency || form.salesAccountCurrency || form.secondaryCurrency || form.paymentCurrency || "PKR"} {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="p-1.5 text-right">{form.secondaryCurrency || "PKR"} {reportTotals.grandFinal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       </tr>
                     </tfoot>
                   </table>

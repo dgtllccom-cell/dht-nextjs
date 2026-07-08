@@ -17,6 +17,7 @@ export type RoznamchaEntryRow = {
   voucher_no: string;
   entry_date: string; // YYYY-MM-DD
   payment_method_id: string | null;
+  payment_methods?: { name: string; code: string } | null;
   reference_no: string | null;
   narration: string | null;
   status: string;
@@ -30,6 +31,10 @@ export type RoznamchaEntryRow = {
   branch_transaction_serial_number?: string | null;
   created_at: string;
   updated_at: string;
+  source_module?: string | null;
+  source_transaction_type?: string | null;
+  source_transaction_id?: string | null;
+  source_reference_no?: string | null;
   roznamcha_lines?: RoznamchaLineRow[] | null;
 };
 

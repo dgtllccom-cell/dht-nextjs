@@ -1051,7 +1051,7 @@ function DashboardSummaryHeader({
       const goods = row.form_data?.goodsEntries || [];
       const saleAmt = goods.reduce((sum: number, g: any) => sum + Number(g.saleAmount || g.sellingAmount || (Number(g.saleRate || g.sellingRate || g.salePrice || g.sellingPrice || 0) * Number(g.qtyNo || g.quantity || 0)) || 0), 0) || (purchaseAmt * 1.15);
 
-      const conversionRate = getConversionRate(row, currency, officeCur, liveRates);
+      const conversionRate = getConversionRate(row, currency, officeCur, []);
       const finalTotal = purchaseAmt * conversionRate;
       const usdRate = getUsdRate(currency, summary.localCurrency, row.exchange_rate || 1);
       const dollarTotal = (purchaseAmt + saleAmt) * usdRate;
@@ -1077,7 +1077,7 @@ function DashboardSummaryHeader({
     });
 
     return Object.values(groups).sort((a, b) => a.country.localeCompare(b.country) || a.branch.localeCompare(b.branch));
-  }, [rows, summary.localCurrency, liveRates]);
+  }, [rows, summary.localCurrency]);
 
   const renderSuperAdminSummaryTable = () => {
     if (!summaryRows || summaryRows.length === 0) {
@@ -1092,7 +1092,7 @@ function DashboardSummaryHeader({
       acc.purchaseUSD += cur.purchase * cur.dollarRate;
       acc.saleUSD += cur.sale * cur.dollarRate;
       // Convert cur.finalTotal (which is in cur.currency) to summary.localCurrency
-      const conversionRateToLocal = getConversionRate(null, cur.currency, summary.localCurrency, liveRates);
+      const conversionRateToLocal = getConversionRate(null, cur.currency, summary.localCurrency, []);
       acc.finalTotal += cur.finalTotal * conversionRateToLocal;
       acc.dollarTotal += cur.dollarTotal;
       return acc;
@@ -3039,14 +3039,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                             {money(balanceAmountBC, bookCur)}
                           </span>
                           <span className="text-[11px] font-bold text-indigo-500/80 dark:text-indigo-455">
-                            {money(balanceAmountLocal, rowLocalCurrency)}
-                          </span>
-                        </div>
-                      </td>no">
-                          <span className="font-black text-[12px] text-indigo-600 dark:text-indigo-400">
-                            {money(balanceAmountBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
-                          </span>
-                          <span className="text-[11px] font-bold text-indigo-500/80 dark:text-indigo-450">
                             {money(balanceAmountLocal, rowLocalCurrency)}
                           </span>
                         </div>

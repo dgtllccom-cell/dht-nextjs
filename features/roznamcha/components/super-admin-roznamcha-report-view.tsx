@@ -64,6 +64,8 @@ type SuperAdminRoznamchaRow = {
   countrySerialNo: string;
   branchSerialNo: string;
   accountNo: string;
+  accountCode: string;
+  partyName: string;
   referenceNo: string;
   narration: string;
   status: string;
@@ -231,6 +233,49 @@ function buildAccountPartyLabel(lines: RoznamchaLineRow[]) {
   return safeText(primary.description);
 }
 
+function buildAccountCode(lines: RoznamchaLineRow[]) {
+  const primary = getPrimaryLine(lines);
+  if (!primary) return "-";
+  if (primary.accounts?.code) return primary.accounts.code;
+  if (primary.ledgers?.code) return primary.ledgers.code;
+  if (primary.account_number) return primary.account_number;
+  return "-";
+}
+
+function buildPartyName(lines: RoznamchaLineRow[]) {
+  const primary = getPrimaryLine(lines);
+  if (!primary) return "-";
+  if (primary.accounts?.name) return primary.accounts.name;
+  if (primary.ledgers?.name) return primary.ledgers.name;
+  return safeText(primary.description);
+}
+
+/**
+ * Returns the label for the payment/cash/bank line.
+ * By convention, the cash/bank line is at index 1 (the balancing entry).
+ * Falls back to scanning for a line that looks like a payment account.
+ */
+function buildPaymentAccountLabel(lines: RoznamchaLineRow[]) {
+  if (!lines.length) return "-";
+  // The cash/bank line is typically the second line (index 1)
+  const payLine = lines[1] ?? null;
+  if (payLine) {
+    if (payLine.accounts) return `${payLine.accounts.code} - ${payLine.accounts.name}`;
+    if (payLine.ledgers) return `${payLine.ledgers.code} - ${payLine.ledgers.name}`;
+    if (payLine.description) return safeText(payLine.description);
+  }
+  // Fallback: scan all lines for a payment_entry_type hint
+  const found = lines.find(
+    (l) => l.payment_entry_type && ["cash", "bank", "payment"].some((t) => l.payment_entry_type?.toLowerCase().includes(t))
+  );
+  if (found) {
+    if (found.accounts) return `${found.accounts.code} - ${found.accounts.name}`;
+    if (found.ledgers) return `${found.ledgers.code} - ${found.ledgers.name}`;
+    return safeText(found.description);
+  }
+  return "-";
+}
+
 function buildPrimaryLedgerId(lines: RoznamchaLineRow[]) {
   for (const line of lines) {
     if (line.ledger_id) return line.ledger_id;
@@ -244,6 +289,15 @@ function buildPrimaryAccountId(lines: RoznamchaLineRow[]) {
     if (line.account_id) return line.account_id;
   }
   return null;
+}
+
+function getSourceDisplay(row: SuperAdminRoznamchaRow) {
+  if (!row.sourceModule) return "-";
+  const moduleLabel = titleCase(row.sourceModule);
+  if (row.sourceReferenceNo) {
+    return `${moduleLabel} (${row.sourceReferenceNo})`;
+  }
+  return moduleLabel;
 }
 
 function buildCountryOptions(rows: SuperAdminRoznamchaRow[]): SearchSelectOption[] {
@@ -348,8 +402,16 @@ function toBaseRow(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]): SuperAd
   const creditUsd = credit > 0 ? Number(primaryLine?.usd_amount || 0) : 0;
   const currency = primaryLine?.currency ?? entry.countries?.currency_code ?? "-";
   const accountParty = buildAccountPartyLabel(lines);
+  const accountCode = buildAccountCode(lines);
+  const partyName = buildPartyName(lines);
   const primaryLedgerId = buildPrimaryLedgerId(lines);
   const primaryAccountId = buildPrimaryAccountId(lines);
+
+  const paymentAccountName = buildPaymentAccountLabel(lines);
+  const accountDetails = `${entry.payment_methods?.name || "-"}${entry.reference_no ? ` (Ref: ${entry.reference_no})` : ""}`;
+  const sourceModule = entry.source_module ?? null;
+  const sourceTransactionType = entry.source_transaction_type ?? null;
+  const sourceReferenceNo = entry.source_reference_no ?? null;
 
   const superAdminSerialNo = entry.super_admin_serial_number ?? entry.journal_no ?? "-";
   const countrySerialNo = entry.country_transaction_serial_number ?? entry.journal_no ?? "-";
@@ -383,6 +445,8 @@ function toBaseRow(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]): SuperAd
     countrySerialNo,
     branchSerialNo,
     accountNo,
+    accountCode,
+    partyName,
     referenceNo: safeText(entry.reference_no),
     narration: safeText(entry.narration),
     status: safeText(entry.status),
@@ -390,6 +454,11 @@ function toBaseRow(entry: RoznamchaEntryRow, lines: RoznamchaLineRow[]): SuperAd
     postedAt: safeText(entry.posted_at),
     approvedAt: safeText(entry.approved_at),
     accountParty,
+    paymentAccountName,
+    accountDetails,
+    sourceModule,
+    sourceTransactionType,
+    sourceReferenceNo,
     currency,
     debit,
     credit,
@@ -422,8 +491,17 @@ function lineToRow(
       ? `${line.ledgers.code} - ${line.ledgers.name}`
       : safeText(line.description || entry.narration);
 
+  const accountCode = line.accounts?.code ?? line.ledgers?.code ?? line.account_number ?? "-";
+  const partyName = line.accounts?.name ?? line.ledgers?.name ?? safeText(line.description || entry.narration);
+
   const primaryLedgerId = line.ledger_id;
   const primaryAccountId = line.account_id;
+
+  const paymentAccountName = buildPaymentAccountLabel(allLines);
+  const accountDetails = `${entry.payment_methods?.name || "-"}${entry.reference_no ? ` (Ref: ${entry.reference_no})` : ""}`;
+  const sourceModule = entry.source_module ?? null;
+  const sourceTransactionType = entry.source_transaction_type ?? null;
+  const sourceReferenceNo = entry.source_reference_no ?? null;
 
   const superAdminSerialNo = entry.super_admin_serial_number ?? entry.journal_no ?? "-";
   const countrySerialNo = entry.country_transaction_serial_number ?? entry.journal_no ?? "-";
@@ -450,6 +528,8 @@ function lineToRow(
     countrySerialNo,
     branchSerialNo,
     accountNo,
+    accountCode,
+    partyName,
     referenceNo: safeText(entry.reference_no),
     narration: safeText(line.description || entry.narration),
     status: safeText(entry.status),
@@ -457,6 +537,11 @@ function lineToRow(
     postedAt: safeText(entry.posted_at),
     approvedAt: safeText(entry.approved_at),
     accountParty,
+    paymentAccountName,
+    accountDetails,
+    sourceModule,
+    sourceTransactionType,
+    sourceReferenceNo,
     currency,
     debit,
     credit,
@@ -1021,7 +1106,8 @@ export function SuperAdminRoznamchaReportView({
       "Branch Name",
       "Voucher Type",
       "Voucher No",
-      "Account / Party",
+      "Account No",
+      "Party Name",
       "Narration",
       "Currency",
       "Debit",
@@ -1043,7 +1129,8 @@ export function SuperAdminRoznamchaReportView({
           row.cityBranchId ? row.cityBranchName : row.countryBranchName,
           row.typeLabel,
           row.voucherNo,
-          row.accountParty,
+          row.accountCode,
+          row.partyName,
           row.narration,
           row.currency,
           fmtNumber(row.debit),
@@ -1739,6 +1826,7 @@ export function SuperAdminRoznamchaReportView({
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Branch Serial No</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">User Name</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account No</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Party Name</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Details</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Debit</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Credit</th>
@@ -1755,7 +1843,7 @@ export function SuperAdminRoznamchaReportView({
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={showUsd ? 13 : 10} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
+                        <td colSpan={showUsd ? 14 : 11} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
                           Loading entries...
                         </td>
                       </tr>
@@ -1781,7 +1869,8 @@ export function SuperAdminRoznamchaReportView({
                             <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold text-slate-800">{row.countrySerialNo}</td>
                             <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-700">{row.branchSerialNo}</td>
                             <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-700">{row.createdBy}</td>
-                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold text-blue-600 hover:underline">{row.accountNo}</td>
+                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-mono font-bold text-blue-600">{row.accountCode}</td>
+                            <td className="p-2.5 text-left max-w-[180px] truncate border border-slate-200 dark:border-slate-800 font-semibold text-slate-800" title={row.partyName}>{row.partyName}</td>
                             <td className="p-2.5 text-left max-w-[300px] truncate border border-slate-200 dark:border-slate-800 text-slate-600" title={row.narration}>{row.narration}</td>
                             <td className={cn(
                               "p-2.5 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
@@ -1883,7 +1972,7 @@ export function SuperAdminRoznamchaReportView({
                       })
                     ) : (
                       <tr>
-                        <td colSpan={showUsd ? 13 : 10} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
+                        <td colSpan={showUsd ? 14 : 11} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
                           {t(lang, "roz.no_entries")}
                         </td>
                       </tr>
@@ -1895,11 +1984,15 @@ export function SuperAdminRoznamchaReportView({
                   <thead className="bg-slate-900 text-white dark:bg-slate-800">
                     <tr className="whitespace-nowrap text-left">
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Date</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Payment Account</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account Details</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Country</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Branch Name</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Voucher Type</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Voucher No</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account / Party</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Source Document</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account No</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Party Name</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Details / Narration</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Currency</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Dr.</th>
@@ -1918,7 +2011,7 @@ export function SuperAdminRoznamchaReportView({
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={showUsd ? 15 : 11} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
+                        <td colSpan={showUsd ? 19 : 15} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
                           Loading entries...
                         </td>
                       </tr>
@@ -1944,12 +2037,16 @@ export function SuperAdminRoznamchaReportView({
                             }}
                           >
                             <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.entryDate}</td>
+                            <td className="p-2 text-left max-w-[150px] truncate border border-slate-200 dark:border-slate-800 text-slate-700 font-semibold" title={row.paymentAccountName}>{row.paymentAccountName}</td>
+                            <td className="p-2 text-left max-w-[150px] truncate border border-slate-200 dark:border-slate-800 text-slate-650" title={row.accountDetails}>{row.accountDetails}</td>
                             <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold">{row.countryName}</td>
                             <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.cityBranchId ? row.cityBranchName : row.countryBranchName}</td>
                             <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-medium text-slate-600">{row.typeLabel}</td>
                             <td className="p-2 text-center whitespace-nowrap font-mono border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100">{row.voucherNo}</td>
+                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-600">{getSourceDisplay(row)}</td>
+                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-mono font-bold text-blue-600">{row.accountCode}</td>
                             <td className="p-2 text-left max-w-[200px] truncate border border-slate-200 dark:border-slate-800">
-                              <span className="font-semibold text-blue-600 hover:underline">{row.accountParty}</span>
+                              <span className="font-semibold text-slate-800" title={row.partyName}>{row.partyName}</span>
                             </td>
                             <td className="p-2 text-left max-w-[300px] truncate border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-350" title={row.narration}>{row.narration}</td>
                             <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-extrabold text-slate-900 dark:text-slate-100">{row.countryCurrency || "PKR"}</td>
@@ -1993,7 +2090,7 @@ export function SuperAdminRoznamchaReportView({
                       })
                     ) : (
                       <tr>
-                        <td colSpan={showUsd ? 15 : 11} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
+                        <td colSpan={showUsd ? 19 : 15} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
                           {t(lang, "roz.no_entries")}
                         </td>
                       </tr>
