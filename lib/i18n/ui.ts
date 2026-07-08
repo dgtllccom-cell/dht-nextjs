@@ -172,6 +172,11 @@ export type UiKey =
   | "nav.template_green"
   | "nav.template_gold"
   | "nav.template_cyan"
+  | "nav.pakistan"
+  | "nav.afghanistan"
+  | "nav.india"
+  | "nav.uae_dubai"
+  | "nav.iran"
   // Common
   | "common.coming_soon"
   // Dashboard widgets
@@ -509,6 +514,11 @@ const en: Dict = {
   "nav.template_green": "Green",
   "nav.template_gold": "Gold",
   "nav.template_cyan": "Cyan",
+  "nav.pakistan": "Pakistan",
+  "nav.afghanistan": "Afghanistan",
+  "nav.india": "India",
+  "nav.uae_dubai": "UAE (Dubai)",
+  "nav.iran": "Iran",
   "dash.total_branches": "Total Branches",
   "dash.total_users": "Total Users",
   "dash.daily_sales": "Daily Sales",
@@ -839,6 +849,11 @@ const ur: Dict = {
   "nav.template_green": "گرین",
   "nav.template_gold": "گولڈ",
   "nav.template_cyan": "سایان",
+  "nav.pakistan": "پاکستان",
+  "nav.afghanistan": "افغانستان",
+  "nav.india": "بھارت",
+  "nav.uae_dubai": "دبئی (یو اے ای)",
+  "nav.iran": "ایران",
   "auth.welcome_back": "خوش آمدید",
   "auth.sign_in_continue": "اپنی اکاؤنٹ تک رسائی کے لیے سائن اِن کریں",
   "auth.user_id_or_email": "یوزر آئی ڈی / ای میل",

@@ -21,7 +21,20 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
   try {
     const session = await requireErpSession();
     const params = paramsSchema.parse(await context.params);
-    const body = purchaseOrderPaymentPostSchema.parse(await request.json());
+    const contentType = request.headers.get("content-type") || "";
+    let body: any;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const payloadStr = formData.get("payload");
+      if (!payloadStr) {
+        throw new Error("Missing payload in multipart request.");
+      }
+      body = purchaseOrderPaymentPostSchema.parse(JSON.parse(String(payloadStr)));
+    } else {
+      body = purchaseOrderPaymentPostSchema.parse(await request.json());
+    }
+
 
     if (!isSupabaseConfigured()) {
       throw new Error("Supabase is not configured. Purchase posting requires a real Supabase login.");

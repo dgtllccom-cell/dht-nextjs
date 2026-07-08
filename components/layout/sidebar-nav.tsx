@@ -72,10 +72,8 @@ function SidebarNodeItem({
           <Link
             href={href}
             onClick={onNavigate}
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pe-2 ps-3.5 transition-transform duration-200 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5",
-              depth > 0 ? "ps-7" : ""
-            )}
+            className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pe-2 ps-3.5 transition-transform duration-200 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5"
+            style={{ paddingInlineStart: depth > 0 ? `${14 + depth * 12}px` : undefined }}
           >
             <SidebarIcon name={node.iconKey} className={cn("transition-colors", isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300")} />
             <span className="truncate text-start">{t(lang, node.labelKey)}</span>
@@ -84,10 +82,8 @@ function SidebarNodeItem({
           <button
             type="button"
             onClick={() => (hasChildren ? onToggle(node.key) : undefined)}
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pe-2 ps-3.5 text-start transition-transform duration-200 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5",
-              depth > 0 ? "ps-7" : ""
-            )}
+            className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pe-2 ps-3.5 text-start transition-transform duration-200 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5"
+            style={{ paddingInlineStart: depth > 0 ? `${14 + depth * 12}px` : undefined }}
           >
             <SidebarIcon name={node.iconKey} className={cn("transition-colors", isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300")} />
             <span className="truncate">{t(lang, node.labelKey)}</span>

@@ -548,22 +548,124 @@ export const sidebarTree: SidebarNode[] = [
                 roles: ["super_admin"]
               },
               {
-                key: "reports-ledger-country",
-                labelKey: "nav.country_journal_report",
-                href: "/dashboard/ledger/country" as Route,
-                roles: ["super_admin", "country_admin", "country_user", "main_branch_admin"]
+                key: "reports-ledger-pakistan",
+                labelKey: "nav.pakistan",
+                children: [
+                  {
+                    key: "reports-ledger-pk-country",
+                    labelKey: "nav.country_journal_report",
+                    href: "/dashboard/ledger/country?country=Pakistan" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin"]
+                  },
+                  {
+                    key: "reports-ledger-pk-branch",
+                    labelKey: "nav.city_journal_report",
+                    href: "/dashboard/ledger/branch?country=Pakistan" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  },
+                  {
+                    key: "reports-ledger-pk-construction",
+                    labelKey: "nav.construction_journal_report",
+                    href: "/dashboard/ledger/construction?country=Pakistan" as Route,
+                    roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  }
+                ]
               },
               {
-                key: "reports-ledger-branch",
-                labelKey: "nav.city_journal_report",
-                href: "/dashboard/ledger/branch" as Route,
-                roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                key: "reports-ledger-afghanistan",
+                labelKey: "nav.afghanistan",
+                children: [
+                  {
+                    key: "reports-ledger-af-country",
+                    labelKey: "nav.country_journal_report",
+                    href: "/dashboard/ledger/country?country=Afghanistan" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin"]
+                  },
+                  {
+                    key: "reports-ledger-af-branch",
+                    labelKey: "nav.city_journal_report",
+                    href: "/dashboard/ledger/branch?country=Afghanistan" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  },
+                  {
+                    key: "reports-ledger-af-construction",
+                    labelKey: "nav.construction_journal_report",
+                    href: "/dashboard/ledger/construction?country=Afghanistan" as Route,
+                    roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  }
+                ]
               },
               {
-                key: "reports-ledger-construction",
-                labelKey: "nav.construction_journal_report",
-                href: "/dashboard/ledger/construction" as Route,
-                roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                key: "reports-ledger-india",
+                labelKey: "nav.india",
+                children: [
+                  {
+                    key: "reports-ledger-in-country",
+                    labelKey: "nav.country_journal_report",
+                    href: "/dashboard/ledger/country?country=India" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin"]
+                  },
+                  {
+                    key: "reports-ledger-in-branch",
+                    labelKey: "nav.city_journal_report",
+                    href: "/dashboard/ledger/branch?country=India" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  },
+                  {
+                    key: "reports-ledger-in-construction",
+                    labelKey: "nav.construction_journal_report",
+                    href: "/dashboard/ledger/construction?country=India" as Route,
+                    roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  }
+                ]
+              },
+              {
+                key: "reports-ledger-dubai",
+                labelKey: "nav.uae_dubai",
+                children: [
+                  {
+                    key: "reports-ledger-ae-country",
+                    labelKey: "nav.country_journal_report",
+                    href: "/dashboard/ledger/country?country=UAE" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin"]
+                  },
+                  {
+                    key: "reports-ledger-ae-branch",
+                    labelKey: "nav.city_journal_report",
+                    href: "/dashboard/ledger/branch?country=UAE" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  },
+                  {
+                    key: "reports-ledger-ae-construction",
+                    labelKey: "nav.construction_journal_report",
+                    href: "/dashboard/ledger/construction?country=UAE" as Route,
+                    roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  }
+                ]
+              },
+              {
+                key: "reports-ledger-iran",
+                labelKey: "nav.iran",
+                children: [
+                  {
+                    key: "reports-ledger-ir-country",
+                    labelKey: "nav.country_journal_report",
+                    href: "/dashboard/ledger/country?country=Iran" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin"]
+                  },
+                  {
+                    key: "reports-ledger-ir-branch",
+                    labelKey: "nav.city_journal_report",
+                    href: "/dashboard/ledger/branch?country=Iran" as Route,
+                    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  },
+                  {
+                    key: "reports-ledger-ir-construction",
+                    labelKey: "nav.construction_journal_report",
+                    href: "/dashboard/ledger/construction?country=Iran" as Route,
+                    roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+                  }
+                ]
               }
             ]
           },

@@ -26,6 +26,7 @@ import type { RoznamchaType } from "@/lib/accounting/roznamcha-flow";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
 import { Mail } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 type JournalScope = "country" | "city" | "construction";
 
@@ -239,6 +240,9 @@ function paymentConfigFor(scope: JournalScope): { postingType: RoznamchaType; sc
 }
 
 export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguage; scope: JournalScope }) {
+  const searchParams = useSearchParams();
+  const urlCountry = searchParams?.get("country") || "";
+
   const todayStr = new Date().toISOString().slice(0, 10);
   const [rows, setRows] = useState<JournalRow[]>([]);
   const [generatedAt, setGeneratedAt] = useState("");
@@ -248,7 +252,11 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
   const [search, setSearch] = useState("");
   const [draftStatus, setDraftStatus] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [country, setCountry] = useState("");
+  const [country, setCountry] = useState(urlCountry);
+
+  useEffect(() => {
+    setCountry(urlCountry);
+  }, [urlCountry]);
   const [city, setCity] = useState("");
   const [branch, setBranch] = useState("");
   const [project, setProject] = useState("");
@@ -319,7 +327,20 @@ export function AstraJournalReportView({ lang, scope }: { lang: SupportedLanguag
     const q = normalize(search);
     const list = rows.filter((row) => {
       if (draftStatus && normalize(row.status) !== normalize(draftStatus)) return false;
-      if (country && row.country !== country) return false;
+      if (country) {
+        const normRowCountry = normalize(row.country);
+        const normFilterCountry = normalize(country);
+        let match = normRowCountry === normFilterCountry || 
+                    normRowCountry.includes(normFilterCountry) || 
+                    normFilterCountry.includes(normRowCountry);
+        
+        // Special case for UAE / United Arab Emirates / Dubai
+        if (!match && (normFilterCountry === "uae" || normFilterCountry === "dubai" || normFilterCountry === "united arab emirates")) {
+          match = normRowCountry.includes("emirates") || normRowCountry.includes("uae") || normRowCountry.includes("dubai");
+        }
+        
+        if (!match) return false;
+      }
       if (city && row.city !== city) return false;
       if (branch && row.branch !== branch) return false;
       if (project && row.project !== project) return false;
