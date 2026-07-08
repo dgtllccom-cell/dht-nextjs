@@ -69,14 +69,18 @@ export function PaymentEditModal({
   useEffect(() => {
     async function loadData() {
       if (isSuperAdmin) {
-        const cRes = await fetch("/api/erp/locations/countries");
-        const cData = await cRes.json();
-        setCountries(cData?.data || []);
+        const cRes = await fetch("/api/branch-management/countries");
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          setCountries(cData.countries || []);
+        }
       }
       if (isSuperAdmin || isCountryAdmin) {
-        const bRes = await fetch("/api/erp/locations/city-branches?limit=1000");
-        const bData = await bRes.json();
-        setBranches(bData?.data?.data || bData?.data || []);
+        const bRes = await fetch("/api/branch-management/city-branches?limit=1000");
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          setBranches(bData.cityBranches || []);
+        }
       }
     }
     if (open) loadData();

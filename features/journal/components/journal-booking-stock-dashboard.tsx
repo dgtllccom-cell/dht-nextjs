@@ -155,13 +155,15 @@ export function JournalBookingStockDashboard({ session }: { session: any }) {
     async function loadLocations() {
       try {
         const [cRes, bRes] = await Promise.all([
-          fetch("/api/erp/locations/countries"),
-          fetch("/api/erp/locations/city-branches?limit=500")
+          fetch("/api/branch-management/countries"),
+          fetch("/api/branch-management/city-branches?limit=500")
         ]);
-        const cData = await cRes.json();
-        const bData = await bRes.json();
-        setCountries(cData?.data ?? []);
-        setBranches(bData?.data?.data ?? bData?.data ?? []);
+        if (cRes.ok && bRes.ok) {
+          const cData = await cRes.json();
+          const bData = await bRes.json();
+          setCountries(cData.countries ?? []);
+          setBranches(bData.cityBranches ?? []);
+        }
       } catch { /* silent */ }
     }
     loadLocations();

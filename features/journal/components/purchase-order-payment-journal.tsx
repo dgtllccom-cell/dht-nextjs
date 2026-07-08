@@ -1084,12 +1084,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     async function loadSaFilters() {
       try {
         const [cRes, bRes] = await Promise.all([
-          fetch("/api/erp/locations/countries").then(r => r.json()),
-          fetch("/api/erp/locations/city-branches?limit=1000").then(r => r.json())
+          fetch("/api/branch-management/countries"),
+          fetch("/api/branch-management/city-branches?limit=1000")
         ]);
-        if (!cancelled) {
-          if (cRes.ok) setSaCountries(cRes.data || []);
-          if (bRes.ok) setSaBranches(bRes.data?.data || bRes.data || []);
+        if (cRes.ok && bRes.ok) {
+          const cData = await cRes.json();
+          const bData = await bRes.json();
+          if (!cancelled) {
+            setSaCountries(cData.countries || []);
+            setSaBranches(bData.cityBranches || []);
+          }
         }
       } catch (err) {
         console.error("Failed to load SA filters", err);
