@@ -20,6 +20,7 @@ import {
   Save,
   Paperclip,
   Plus,
+  Minus,
   FileText,
   CheckCircle,
   XCircle,
@@ -709,8 +710,9 @@ function ledgerCurrency(row: any): string {
 function toLedgerOption(row: any): SearchSelectOption {
   const account = ledgerName(row);
   const accountNo = ledgerCode(row);
-  const label = `${accountNo} - ${account}`;
-  const keywords = [accountNo, account].filter(Boolean).join(" ");
+  const branch = row?.cityBranchName ?? row?.city_branch_name ?? row?.countryBranchName ?? row?.country_branch_name ?? "";
+  const label = branch ? `[${branch}] ${accountNo} - ${account}` : `${accountNo} - ${account}`;
+  const keywords = [accountNo, account, branch].filter(Boolean).join(" ");
   return { value: ledgerId(row) || "", label, keywords };
 }
 
@@ -1100,6 +1102,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   // Redesign state hooks
   const [viewingRow, setViewingRow] = useState<PurchaseOrderRow | null>(null);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
   
   // Edit Payment State
   const [editingPayment, setEditingPayment] = useState<{payment: any, row: any} | null>(null);
@@ -1268,10 +1271,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         const scopedCityBranchId = isSuperAdmin ? (saBranchId || null) : (selectedOrderForLedger?.city_branch_id ?? null);
         
         const res = await listLedgerReportLedgers({
-          reportScope: isSuperAdmin ? "super_admin" : scopedCityBranchId ? "branch" : "country",
+          reportScope: isSuperAdmin
+            ? (saBranchId ? "branch" : saCountryId ? "country" : "super_admin")
+            : (scopedCountryId ? "country" : "super_admin"),
           countryId: scopedCountryId,
-          countryBranchId: isSuperAdmin ? null : scopedCountryBranchId,
-          cityBranchId: scopedCityBranchId,
+          countryBranchId: null,
+          cityBranchId: isSuperAdmin ? (saBranchId || null) : null,
           limit: 1000
         });
         if (!cancelled) {
@@ -1442,6 +1447,20 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const pageRows = useMemo(() => {
     return filtered.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
   }, [filtered, pageIndex, pageSize]);
+
+  const countryGroups = useMemo(() => {
+    const groups: Array<{ country: string; rows: PurchaseOrderRow[] }> = [];
+    for (const row of pageRows) {
+      const c = rowCountryName(row) || "Unknown Country";
+      let group = groups.find(g => g.country === c);
+      if (!group) {
+        group = { country: c, rows: [] };
+        groups.push(group);
+      }
+      group.rows.push(row);
+    }
+    return groups;
+  }, [pageRows]);
 
   function reset() {
     setQuery("");
@@ -1789,6 +1808,223 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     }
   }
 
+  const renderRow = (row: PurchaseOrderRow, index: number) => {
+    const form = row.form_data?.form || {};
+    const goods = row.form_data?.goodsEntries || [];
+    const totalPrice = orderTotal(row);
+    const effectiveRate = getEffectiveRate(row);
+    
+    // Correctly resolve Book Currency (USD/FC) and Local Currency (PKR/LC)
+    const totalAmountBC = (effectiveRate > 1 && totalPrice > 1000000) ? (totalPrice / effectiveRate) : totalPrice;
+    const totalAmountLocal = totalAmountBC * effectiveRate;
+
+    const advancePercent = Number(form.advancePercent || 0);
+    const requiredAdvanceBC = (totalAmountBC * advancePercent) / 100;
+    const paidAdvanceBC = Number(row.advance_paid || 0);
+    const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
+    
+    const requiredAdvance = (totalAmountLocal * advancePercent) / 100;
+    const paidAdvance = paidAdvanceBC * effectiveRate;
+    const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
+    
+    const remainingDueBC = Number(row.remaining_due || 0);
+    const rowLocalCurrency = rowCurrency(row);
+    let paidAmountBC = 0;
+    let paidAmountLocal = 0;
+    let balanceAmountBC = 0;
+    let balanceAmountLocal = 0;
+    if (activeMode === "advance") {
+      paidAmountBC = paidAdvanceBC;
+      paidAmountLocal = paidAdvance;
+      balanceAmountBC = remainingAdvanceBC;
+      balanceAmountLocal = remainingAdvance;
+    } else if (activeMode === "remaining") {
+      const remPaidBC = Number(row.remaining_paid || 0);
+      paidAmountBC = remPaidBC;
+      paidAmountLocal = remPaidBC * effectiveRate;
+      balanceAmountBC = remainingDueBC;
+      balanceAmountLocal = remainingDueBC * effectiveRate;
+    } else {
+      const credPaidBC = Number(row.credit_amount || 0);
+      paidAmountBC = credPaidBC;
+      paidAmountLocal = credPaidBC * effectiveRate;
+      balanceAmountBC = Math.max(0, totalAmountBC - paidAmountBC);
+      balanceAmountLocal = balanceAmountBC * effectiveRate;
+    }
+    const statusText = row.payment_status || "Pending";
+    const isSelected = selected?.id === row.id;
+    const isExpanded = Boolean(expandedIds[row.id]);
+    const rowBg = isSelected ? "#eff6ff" : index % 2 === 0 ? "#ffffff" : "#f8fafc";
+    const isPosted = row.ledger_posting_status === "Posted"
+      || row.ledger_posting_status === "posted"
+      || row.ledger_posting_status === "Transferred"
+      || row.ledger_posting_status === "transferred";
+    const getRowColor = () => isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
+
+    // Per-row derived display values
+    const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "—";
+    const grossWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
+    const netWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
+    const billNo = form.billNo || form.invoiceNo || row.purchase_contract_no || "—";
+    const dateStr = form.purchaseDate ? new Date(form.purchaseDate).toLocaleDateString("en-GB") : row.created_at ? new Date(row.created_at).toLocaleDateString("en-GB") : "—";
+    const branchName = rowBranchName(row) || "—";
+    const countryName = rowCountryName(row) || "—";
+
+    // Serial numbers
+    const superSerialNo = index + 1 + pageIndex * pageSize;
+    const countryRows = filtered.filter((r) => rowCountryName(r) === countryName);
+    const countrySerialNo = countryRows.findIndex((r) => r.id === row.id) + 1;
+    const branchRows = filtered.filter((r) => rowBranchName(r) === branchName);
+    const branchSerialNo = branchRows.findIndex((r) => r.id === row.id) + 1;
+
+    return (
+      <React.Fragment key={row.id}>
+        <tr
+          onClick={() => selectOrder(row.id)}
+          style={{ background: rowBg, borderBottom: "1px solid #e2e8f0", cursor: "pointer", outline: isSelected ? "2px solid #3b82f6" : undefined, outlineOffset: -1 }}
+          onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "#f0f9ff"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}
+        >
+          {/* Order ID */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="font-mono text-[11px] font-black text-blue-600 dark:text-blue-400 whitespace-nowrap">
+              {row.purchase_order_no}
+            </div>
+          </td>
+          {/* Bill & Date */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="flex flex-col">
+              <span className="font-mono font-black text-[11px] text-slate-850 dark:text-slate-200">{billNo}</span>
+              <span className="text-[10px] text-slate-500 mt-1 font-semibold">{dateStr}</span>
+            </div>
+          </td>
+          {/* Branch & Country */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="flex flex-col">
+              <span className="font-black text-[11px] text-slate-850 dark:text-slate-200 uppercase tracking-wide">{branchName}</span>
+              <span className="text-[10px] text-slate-500 mt-1 font-semibold">{countryName}</span>
+            </div>
+          </td>
+          {/* Purchase Account */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200 truncate max-w-[130px]" title={form.purchaseAccountName || "N/A"}>
+                {form.purchaseAccountName || "N/A"}
+              </span>
+              <span className="font-mono text-[10px] text-slate-500 mt-1 font-bold">
+                {form.purchaseAccountNumber || "-"}
+              </span>
+            </div>
+          </td>
+          {/* Sales Account */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200 truncate max-w-[130px]" title={form.salesAccountName || form.supplierName || "N/A"}>
+                {form.salesAccountName || form.supplierName || "N/A"}
+              </span>
+              <span className="font-mono text-[10px] text-slate-500 mt-1 font-bold">
+                {form.salesAccountNumber || "-"}
+              </span>
+            </div>
+          </td>
+          {/* Goods & Brand */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="flex flex-col gap-0.5 text-[10px]">
+              <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200 truncate max-w-[145px]" title={goodsName}>{goodsName}</span>
+              <span className="text-slate-500 font-semibold">
+                Sz: <span className="font-extrabold text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.size || "").filter(Boolean).join(", ") || "-"}</span> | Br: <span className="font-extrabold text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.brand || "").filter(Boolean).join(", ") || "-"}</span>
+              </span>
+            </div>
+          </td>
+          {/* Weight & Qty */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="flex flex-col text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+              <span>Qty: <span className="font-extrabold text-slate-750 dark:text-slate-200">{form.quantity || 0} {form.quantityUnit || "BAGS"}</span></span>
+              <span>GW: <span className="font-extrabold text-slate-750 dark:text-slate-200">{grossWeight.toLocaleString()} KG</span></span>
+              <span>NW: <span className="font-extrabold text-slate-750 dark:text-slate-200">{netWeight.toLocaleString()} KG</span></span>
+            </div>
+          </td>
+          {/* Total / Rate */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200">{totalAmountLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span>
+              <span className="text-[10px] text-slate-500 mt-1 font-bold">
+                Rate: {effectiveRate.toFixed(4)}
+              </span>
+            </div>
+          </td>
+          {/* Adv Details */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="flex flex-col text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+              <span>Req: <span className="font-black text-slate-800 dark:text-slate-200">{requiredAdvance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span></span>
+              <span>Paid: <span className="font-black text-slate-800 dark:text-slate-200">{paidAdvance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span></span>
+              <span>Rem: <span className="font-black text-slate-800 dark:text-slate-200">{remainingAdvance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span></span>
+            </div>
+          </td>
+          {/* Balance */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
+            <div className="flex flex-col font-bold">
+              <span className="text-slate-800 dark:text-slate-200 text-[11px]">{balanceAmountLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span>
+            </div>
+          </td>
+          {/* Status / Action */}
+          <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-1.5 justify-end">
+              <span className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-xs",
+                statusText.toLowerCase() === "paid" || statusText.toLowerCase() === "completed" || statusText.toLowerCase() === "transferred"
+                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200"
+                  : statusText.toLowerCase() === "partial" || statusText.toLowerCase() === "partially_paid"
+                  ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200"
+                  : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200"
+              )}>
+                {statusText}
+              </span>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); toggleDropdown(row.id); }}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 transition"
+                >
+                  <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
+                </button>
+                {openDropdownId === row.id && (
+                  <div className="absolute right-0 mt-1 w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900 z-50">
+                    <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] })); setOpenDropdownId(null); }}>
+                      <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> Details & History
+                    </button>
+                    {!isPosted && (
+                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { handleSettlementClick(row); setOpenDropdownId(null); }}>
+                        <Banknote className="mr-2.5 h-4 w-4 text-red-500" /> Pay / Transfer
+                      </button>
+                    )}
+                    {isPosted && (
+                      <>
+                        <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { setOpenDropdownId(null); handleOpenA4PDF(row); }}>
+                          <Printer className="mr-2.5 h-4 w-4 text-indigo-500" /> Print Voucher (A4)
+                        </button>
+                        <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { setOpenDropdownId(null); handleRevertClick(row); }}>
+                          <RefreshCw className="mr-2.5 h-4 w-4 text-indigo-500" /> Revert & Edit Advance
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </td>
+        </tr>
+        {isExpanded && (
+          <tr onClick={(e) => e.stopPropagation()} style={{ background: "#f8fafc" }}>
+            <td colSpan={11} className="p-4 border-b border-slate-100 dark:border-slate-800">
+              <NestedPaymentHistory row={row} ledgers={ledgers} baseCurrency={baseCurrency} activeMode={activeMode} />
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    );
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
       {/* Header / Title Portal */}
@@ -1921,8 +2157,41 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               </tr>
             </thead>
             <tbody>
-              {pageRows.map((row, index) => {
-                const form = row.form_data?.form || {};
+              {isSuperAdmin ? (
+                countryGroups.map((group) => {
+                  const isExpandedCountry = expandedCountries[group.country] !== false;
+                  return (
+                    <React.Fragment key={group.country}>
+                      <tr
+                        onClick={() => {
+                          setExpandedCountries(prev => ({
+                            ...prev,
+                            [group.country]: !isExpandedCountry
+                          }));
+                        }}
+                        className="bg-slate-100/90 hover:bg-slate-200/90 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 cursor-pointer border-y border-slate-200 dark:border-slate-800 transition"
+                      >
+                        <td colSpan={11} className="px-3 py-3 select-none">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="flex h-5 w-5 items-center justify-center rounded bg-white dark:bg-slate-850 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 transition shadow-sm"
+                            >
+                              {isExpandedCountry ? (
+                                <Minus className="h-3 w-3 text-slate-600 dark:text-slate-300" />
+                              ) : (
+                                <Plus className="h-3 w-3 text-slate-600 dark:text-slate-300" />
+                              )}
+                            </button>
+                            <span className="font-extrabold text-[11px] uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                              {group.country} <span className="text-slate-400 font-medium">({group.rows.length} {group.rows.length === 1 ? "record" : "records"})</span>
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpandedCountry && group.rows.map((row) => {
+                        const index = pageRows.indexOf(row);
+                        const form = row.form_data?.form || {};
                 const goods = row.form_data?.goodsEntries || [];
                 const totalPrice = orderTotal(row);
                 const effectiveRate = getEffectiveRate(row);
@@ -2259,6 +2528,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </React.Fragment>
                 );
               })}
+            </React.Fragment>
+          );
+        })
+      ) : (
+        pageRows.map((row, index) => renderRow(row, index))
+      )}
               {!pageRows.length && !loading && (
                 <tr>
                   <td

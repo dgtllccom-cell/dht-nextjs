@@ -216,11 +216,30 @@ export function AccountSetupReport({ lang: propLang }: { lang?: SupportedLanguag
       .some((part) => part.toLowerCase() === q);
   };
   const uniqueBranches  = useMemo(() => {
-    const values = rows.flatMap(r => [r.branchName, r.mainBranchName, r.cityBranchName, r.branchCode]).filter(Boolean);
+    const filteredRowsForBranches = draftCountry !== "all"
+      ? rows.filter(r => r.countryName === draftCountry)
+      : rows;
+    const values = filteredRowsForBranches.map(r => r.branchName || r.cityBranchName || r.branchCode).filter(Boolean);
     return [...new Set(values)].sort();
-  }, [rows]);
+  }, [rows, draftCountry]);
   const uniqueTypes     = useMemo(() => [...new Set(rows.map(r => r.accountCategory).filter(Boolean))].sort(), [rows]);
   const uniqueSubs      = useMemo(() => [...new Set(rows.map(r => r.subType).filter(Boolean))].sort(), [rows]);
+
+  // Sync draft states when active states change
+  useEffect(() => {
+    setDraftCountry(country);
+  }, [country]);
+
+  useEffect(() => {
+    setDraftBranch(branch);
+  }, [branch]);
+
+  // Reset draftBranch if it is no longer valid in the selected country's branches list
+  useEffect(() => {
+    if (draftBranch !== "all" && !uniqueBranches.includes(draftBranch)) {
+      setDraftBranch("all");
+    }
+  }, [uniqueBranches, draftBranch]);
 
   /* Filtered rows */
   const filtered = useMemo(() => rows.filter(r => {

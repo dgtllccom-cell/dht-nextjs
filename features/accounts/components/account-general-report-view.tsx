@@ -611,13 +611,31 @@ export function AccountGeneralReportView({
   const branchOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; keywords: string }>();
     for (const row of rows) {
+      if (draftCountryName !== "all" && row.countryName !== draftCountryName) continue;
       if (!map.has(row.branchCode)) {
         const option = buildBranchOption(row);
         map.set(row.branchCode, option);
       }
     }
     return [{ value: "all", label: "All Branches", keywords: "all branches" }, ...map.values()];
-  }, [rows]);
+  }, [rows, draftCountryName]);
+
+  // Sync draft states when active states change
+  useEffect(() => {
+    setDraftCountryName(countryName);
+  }, [countryName]);
+
+  useEffect(() => {
+    setDraftBranchCode(branchCode);
+  }, [branchCode]);
+
+  // Reset draftBranchCode if it is no longer valid in the selected country's branches list
+  useEffect(() => {
+    const validCodes = branchOptions.map(opt => opt.value);
+    if (draftBranchCode !== "all" && !validCodes.includes(draftBranchCode)) {
+      setDraftBranchCode("all");
+    }
+  }, [branchOptions, draftBranchCode]);
 
   const scopedRows = useMemo(() => {
     return rows
