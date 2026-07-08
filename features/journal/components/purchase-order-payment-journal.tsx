@@ -338,7 +338,7 @@ function rowBranchName(row: PurchaseOrderRow) {
 
 function rowCurrency(row: PurchaseOrderRow) {
   const form = rowForm(row);
-  const explicit = normalizeCurrency(form.purchaseCurrency || form.baseCurrency || form.currencyType || form.currency || row.currency_code || form.purchaseAccountCurrency, "");
+  const explicit = normalizeCurrency(form.currency || row.currency_code || form.currencyType || form.purchaseCurrency || form.baseCurrency || form.purchaseAccountCurrency, "");
   if (explicit) return explicit;
   const country = rowCountryName(row).toLowerCase();
   return COUNTRY_CURRENCY[country] || "USD";
@@ -363,20 +363,10 @@ const USD_EXCHANGE: Record<string, number> = {
   "IRR": 1 / 42000
 };
 
-function getUsdExchangeRate(currencyCode: string, row: any, liveRates: any[] = []) {
-  const cur = currencyCode.toUpperCase();
+function getUsdExchangeRate(cur: string, row: any, liveRates: any[] = []) {
   if (cur === "USD") return 1.0;
-  
-  const rateData = liveRates.find((c: any) => 
-    (c.currencyCode && c.currencyCode.toUpperCase() === cur) ||
-    (c.countryName && cur === "PKR" && c.countryName.toLowerCase().includes("pakistan")) ||
-    (c.countryName && cur === "AED" && c.countryName.toLowerCase().includes("emirates"))
-  );
-  if (rateData) {
-    const live = rateData.latestSellRate || rateData.latestDebitRate || rateData.latestBuyRate || rateData.latestCreditRate;
-    if (live && live > 0) return 1 / live;
-  }
-  
+  const match = liveRates.find((r) => r.currency_code === cur);
+  if (match && Number(match.exchange_rate || 0) > 0) return Number(match.exchange_rate);
   const staticRate = USD_EXCHANGE[cur];
   if (staticRate !== undefined) return staticRate;
   
@@ -392,6 +382,16 @@ function getConversionRate(row: any, bookCur: string, officeCur: string, liveRat
   const bCur = bookCur.toUpperCase();
   const oCur = officeCur.toUpperCase();
   if (bCur === oCur) return 1.0;
+  
+  const form = row?.form_data?.form || {};
+  const rowRate = Number(row?.exchange_rate || form.exchangeRate || 0);
+  
+  if (rowRate > 0) {
+    if (bCur === "USD" && oCur === "PKR") return rowRate;
+    if (bCur === "USD" && oCur === "AED") return rowRate;
+    if (bCur === "PKR" && oCur === "AED") return 1 / rowRate;
+    if (bCur === "AED" && oCur === "PKR") return rowRate;
+  }
   
   const usdRateForBook = getUsdExchangeRate(bCur, row, liveRates);
   const usdRateForOffice = getUsdExchangeRate(oCur, row, liveRates);
@@ -1045,14 +1045,15 @@ function DashboardSummaryHeader({
       const country = rowCountryName(row);
       const branch = rowBranchName(row);
       const currency = rowCurrency(row);
+      const officeCur = rowOfficeCurrency(row);
 
       const purchaseAmt = orderTotal(row);
       const goods = row.form_data?.goodsEntries || [];
       const saleAmt = goods.reduce((sum: number, g: any) => sum + Number(g.saleAmount || g.sellingAmount || (Number(g.saleRate || g.sellingRate || g.salePrice || g.sellingPrice || 0) * Number(g.qtyNo || g.quantity || 0)) || 0), 0) || (purchaseAmt * 1.15);
 
-      const rate = row.exchange_rate || 1;
-      const finalTotal = purchaseAmt * rate;
-      const usdRate = getUsdRate(currency, summary.localCurrency, rate);
+      const conversionRate = getConversionRate(row, currency, officeCur, liveRates);
+      const finalTotal = purchaseAmt * conversionRate;
+      const usdRate = getUsdRate(currency, summary.localCurrency, row.exchange_rate || 1);
       const dollarTotal = (purchaseAmt + saleAmt) * usdRate;
 
       const key = `${country}-${branch}`;
@@ -1060,7 +1061,7 @@ function DashboardSummaryHeader({
         groups[key] = {
           country,
           branch,
-          currency,
+          currency: officeCur,
           purchase: 0,
           sale: 0,
           dollarRate: usdRate,
@@ -1076,7 +1077,7 @@ function DashboardSummaryHeader({
     });
 
     return Object.values(groups).sort((a, b) => a.country.localeCompare(b.country) || a.branch.localeCompare(b.branch));
-  }, [rows, summary.localCurrency]);
+  }, [rows, summary.localCurrency, liveRates]);
 
   const renderSuperAdminSummaryTable = () => {
     if (!summaryRows || summaryRows.length === 0) {
@@ -1090,7 +1091,9 @@ function DashboardSummaryHeader({
     const grandTotals = summaryRows.reduce((acc, cur) => {
       acc.purchaseUSD += cur.purchase * cur.dollarRate;
       acc.saleUSD += cur.sale * cur.dollarRate;
-      acc.finalTotal += cur.finalTotal;
+      // Convert cur.finalTotal (which is in cur.currency) to summary.localCurrency
+      const conversionRateToLocal = getConversionRate(null, cur.currency, summary.localCurrency, liveRates);
+      acc.finalTotal += cur.finalTotal * conversionRateToLocal;
       acc.dollarTotal += cur.dollarTotal;
       return acc;
     }, { purchaseUSD: 0, saleUSD: 0, finalTotal: 0, dollarTotal: 0 });
@@ -1105,7 +1108,7 @@ function DashboardSummaryHeader({
                 <th className={cn("px-2.5 py-2.5 font-extrabold", dir === "rtl" ? "text-right" : "text-left")}>{t("country", lang)}</th>
                 <th className={cn("px-2.5 py-2.5 font-extrabold", dir === "rtl" ? "text-right" : "text-left")}>{t("branch", lang)}</th>
                 <th className={cn("px-2.5 py-2.5 font-extrabold", dir === "rtl" ? "text-right" : "text-left")}>{t("col_currency", lang)}</th>
-                <th className={cn("px-2.5 py-2.5 font-extrabold", dir === "rtl" ? "text-left" : "text-right")}>{t("col_total_value", lang)} ({summary.localCurrency})</th>
+                <th className={cn("px-2.5 py-2.5 font-extrabold", dir === "rtl" ? "text-left" : "text-right")}>{t("col_total_value", lang)}</th>
               </tr>
             </thead>
             <tbody>
@@ -1137,7 +1140,7 @@ function DashboardSummaryHeader({
               })}
               {/* Grand Totals */}
               <tr className="bg-blue-50/40 dark:bg-blue-950/20 font-black text-slate-900 dark:text-slate-100 border-t-2 border-slate-200 dark:border-slate-700 text-[11px]">
-                <td colSpan={3} className={cn("px-2.5 py-3 uppercase tracking-wider text-[9.5px] text-slate-500 dark:text-slate-400", dir === "rtl" ? "text-left" : "text-right")}>{t("total_summary", lang)}</td>
+                <td colSpan={3} className={cn("px-2.5 py-3 uppercase tracking-wider text-[9.5px] text-slate-500 dark:text-slate-400", dir === "rtl" ? "text-left" : "text-right")}>{t("total_summary", lang)} ({summary.localCurrency})</td>
                 <td className={cn("px-2.5 py-3 font-sans tabular-nums text-slate-900 dark:text-slate-100", dir === "rtl" ? "text-left" : "text-right")}>{grandTotals.finalTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
               </tr>
             </tbody>
@@ -1681,6 +1684,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       createdAt: row.created_at || "",
       form_data: row.form_data || {},
       paymentHistory,
+      finalCurrency: rowOfficeCurrency(row),
       audit: {
         userName: session?.name || session?.username || "SUPER ADMIN",
         userId: session?.id || "USR-1001",
@@ -2809,11 +2813,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         const form = row.form_data?.form || {};
                 const goods = row.form_data?.goodsEntries || [];
                 const totalPrice = orderTotal(row);
-                const effectiveRate = getEffectiveRate(row);
+                
+                const bookCur = rowCurrency(row);
+                const rowLocalCurrency = rowOfficeCurrency(row);
+                const conversionRate = getConversionRate(row, bookCur, rowLocalCurrency, liveRates);
                 
                 // Correctly resolve Book Currency (USD/FC) and Local Currency (PKR/LC)
-                const totalAmountBC = (effectiveRate > 1 && totalPrice > 1000000) ? (totalPrice / effectiveRate) : totalPrice;
-                const totalAmountLocal = totalAmountBC * effectiveRate;
+                const totalAmountBC = totalPrice;
+                const totalAmountLocal = totalAmountBC * conversionRate;
 
                 const advancePercent = Number(form.advancePercent || 0);
                 const requiredAdvanceBC = (totalAmountBC * advancePercent) / 100;
@@ -2821,11 +2828,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
                 
                 const requiredAdvance = (totalAmountLocal * advancePercent) / 100;
-                const paidAdvance = paidAdvanceBC * effectiveRate;
+                const paidAdvance = paidAdvanceBC * conversionRate;
                 const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
                 
                 const remainingDueBC = Number(row.remaining_due || 0);
-                const rowLocalCurrency = rowCurrency(row);
                 let paidAmountBC = 0;
                 let paidAmountLocal = 0;
                 let balanceAmountBC = 0;
@@ -2838,15 +2844,15 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 } else if (activeMode === "remaining") {
                   const remPaidBC = Number(row.remaining_paid || 0);
                   paidAmountBC = remPaidBC;
-                  paidAmountLocal = remPaidBC * effectiveRate;
+                  paidAmountLocal = remPaidBC * conversionRate;
                   balanceAmountBC = remainingDueBC;
-                  balanceAmountLocal = remainingDueBC * effectiveRate;
+                  balanceAmountLocal = remainingDueBC * conversionRate;
                 } else {
                   const credPaidBC = Number(row.credit_amount || 0);
                   paidAmountBC = credPaidBC;
-                  paidAmountLocal = credPaidBC * effectiveRate;
+                  paidAmountLocal = credPaidBC * conversionRate;
                   balanceAmountBC = Math.max(0, totalAmountBC - paidAmountBC);
-                  balanceAmountLocal = balanceAmountBC * effectiveRate;
+                  balanceAmountLocal = balanceAmountBC * conversionRate;
                 }
                 const statusText = row.payment_status || "Pending";
                 const isSelected = selected?.id === row.id;
@@ -2933,7 +2939,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           </span>
                         </div>
                       </td>
-                      {/* Weights & Qty */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
                         <div className="flex flex-col gap-1 text-[10px] font-mono">
                           <span className="text-slate-500 font-semibold">Qty: <span className="font-black text-slate-800 dark:text-slate-200">{goods.length ? goods.reduce((s:number,g:any)=>s+Number(g.qtyNo||0),0).toLocaleString() : Number(form.quantity||0).toLocaleString()}</span></span>
@@ -2945,13 +2950,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
                         <div className="flex flex-col items-end gap-1 font-mono">
                           <span className="font-black text-[12px] text-slate-850 dark:text-slate-200">
-                            {money(totalAmountBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
+                            {money(totalAmountBC, bookCur)}
                           </span>
                           <span className="text-[11px] text-slate-500 font-bold">
                             {money(totalAmountLocal, rowLocalCurrency)}
                           </span>
                           <span className="text-[10px] text-slate-400 font-bold mt-1">
-                            Rate: {effectiveRate}
+                            Rate: {row.exchange_rate || form.exchangeRate || 1}
                           </span>
                         </div>
                       </td>
@@ -2962,31 +2967,31 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           <div className="flex-1 pr-2">
                             <div className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1 flex justify-between">
                               <span>Purchase Curr</span>
-                              <span>({(row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD"})</span>
+                              <span>({bookCur})</span>
                             </div>
                             <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px] font-bold">
                               <div className="flex flex-col">
                                 <span className="text-[8px] uppercase tracking-wider text-slate-400">Total</span>
                                 <span className="text-slate-700 dark:text-slate-350 truncate">
-                                  {money(totalAmountBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
+                                  {money(totalAmountBC, bookCur)}
                                 </span>
                               </div>
                               <div className="flex flex-col">
                                 <span className="text-[8px] uppercase tracking-wider text-slate-400">Adv Req ({advancePercent}%)</span>
                                 <span className="text-slate-850 dark:text-slate-200 truncate">
-                                  {money(requiredAdvanceBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
+                                  {money(requiredAdvanceBC, bookCur)}
                                 </span>
                               </div>
                               <div className="flex flex-col mt-0.5">
                                 <span className="text-[8px] uppercase tracking-wider text-slate-400">Paid/Recd</span>
                                 <span className="text-emerald-600 dark:text-emerald-450 truncate">
-                                  {money(paidAdvanceBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
+                                  {money(paidAdvanceBC, bookCur)}
                                 </span>
                               </div>
                               <div className="flex flex-col mt-0.5">
                                 <span className="text-[8px] uppercase tracking-wider text-slate-400">Remaining</span>
                                 <span className={cn("truncate font-bold", remainingAdvanceBC > 0 ? "text-amber-600 dark:text-amber-450" : "text-emerald-600 dark:text-emerald-450")}>
-                                  {money(remainingAdvanceBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
+                                  {money(remainingAdvanceBC, bookCur)}
                                 </span>
                               </div>
                             </div>
@@ -3030,6 +3035,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       {/* Remaining Balance */}
                       <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
                         <div className="flex flex-col items-end gap-1 font-mono">
+                          <span className="font-black text-[12px] text-indigo-600 dark:text-indigo-400">
+                            {money(balanceAmountBC, bookCur)}
+                          </span>
+                          <span className="text-[11px] font-bold text-indigo-500/80 dark:text-indigo-455">
+                            {money(balanceAmountLocal, rowLocalCurrency)}
+                          </span>
+                        </div>
+                      </td>no">
                           <span className="font-black text-[12px] text-indigo-600 dark:text-indigo-400">
                             {money(balanceAmountBC, (row as any).form_data?.form?.currencyType || (row as any).form_data?.form?.currency || "USD")}
                           </span>

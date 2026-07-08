@@ -2296,6 +2296,8 @@ export function PurchaseBookingJournalReportView({
             const advanceAmount = (totalUSDVal * advancePercent) / 100;
             const remainingPercent = 100 - advancePercent;
             const remainingAmount = totalUSDVal - advanceAmount;
+            const advanceAmountFinal = (totalPKRVal * advancePercent) / 100;
+            const remainingAmountFinal = totalPKRVal - advanceAmountFinal;
 
             const remarksText = selected.form_data?.form?.orderReportRemarks || selected.remarks || "No narration provided.";
             const reportDate = date(selected.bookingDate || selected.purchaseDate || selected.createdAt);
@@ -2594,9 +2596,9 @@ export function PurchaseBookingJournalReportView({
                         <tbody>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Payment Condition:</td><td className="px-2 py-1 text-slate-800 font-bold">{paymentConditionText}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Percent / Due:</td><td className="px-2 py-1 text-slate-800">{advancePercent}% / <span className="font-bold text-blue-700">{advanceDueDateText}</span></td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">{purchaseCurrencySymbol}{advanceAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Advance Amount:</td><td className="px-2 py-1 font-bold text-emerald-600 font-mono">{purchaseCurrencySymbol}{advanceAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {purchaseCurrency !== displayCurrency && `/ ${displayCurrencySymbol}${advanceAmountFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}</td></tr>
                           <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Balance / Due:</td><td className="px-2 py-1 text-slate-800">{remainingPercent}% / <span className="font-bold text-rose-600">{finalPaymentDueDateText}</span></td></tr>
-                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">{purchaseCurrencySymbol}{remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                          <tr className="border-b border-slate-100"><td className="px-2 py-1 text-slate-400">Remaining Amount:</td><td className="px-2 py-1 text-slate-800 font-mono">{purchaseCurrencySymbol}{remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {purchaseCurrency !== displayCurrency && `/ ${displayCurrencySymbol}${remainingAmountFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}</td></tr>
                           <tr>
                             <td className="px-2 py-1 text-slate-400">Payment Status:</td>
                             <td className="px-2 py-1">

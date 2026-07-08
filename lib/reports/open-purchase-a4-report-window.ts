@@ -102,11 +102,27 @@ export function openPurchaseA4ReportWindow(input: {
       const rateKg = Number(g.coursePrice || 0);
       const rateTon = rateKg * 1000;
       const amountUsd = Number(g.totalAmount || 0);
-      const finalAmountPkr = Number(g.finalAmount || 0);
       
       const purchCurr = g.purchaseCurrency || b.currency || form.purchaseCurrency || form.currencyType || "USD";
       const finalCurr = b.finalCurrency || form.purchaseAccountCurrency || form.salesAccountCurrency || "PKR";
       const exRate = Number(g.exchangeRate || form.exchangeRate || g.rate2 || 1);
+
+      let finalAmountPkr = Number(g.finalAmount || 0);
+      if (!finalAmountPkr) {
+        if (purchCurr === finalCurr) {
+          finalAmountPkr = amountUsd;
+        } else {
+          if (purchCurr === "USD" && finalCurr === "PKR") {
+            finalAmountPkr = amountUsd * exRate;
+          } else if (purchCurr === "PKR" && finalCurr === "AED" && exRate > 1) {
+            finalAmountPkr = amountUsd / exRate;
+          } else if (purchCurr === "USD") {
+            finalAmountPkr = amountUsd * exRate;
+          } else {
+            finalAmountPkr = amountUsd * exRate;
+          }
+        }
+      }
 
       return {
         srNo: index + 1,
@@ -131,6 +147,9 @@ export function openPurchaseA4ReportWindow(input: {
     // Fallback if goods entries list is empty
     const defaultPurchCurr = b.currency || form.purchaseCurrency || form.currencyType || "USD";
     const defaultFinalCurr = b.finalCurrency || form.purchaseAccountCurrency || form.salesAccountCurrency || "PKR";
+    const fallbackExRate = Number(form.exchangeRate || 280.00);
+    const fallbackAmountUsd = b.totalPurchaseAmount || 0;
+
     items = [{
       srNo: 1,
       goodsName: b.productName || "WALNUTS IN SHELL",
@@ -143,11 +162,18 @@ export function openPurchaseA4ReportWindow(input: {
       netWt: b.totalWeight || 0,
       rateKg: b.purchaseRate || 0,
       rateTon: (b.purchaseRate || 0) * 1000,
-      amountUsd: b.totalPurchaseAmount || 0,
-      exRate: Number(form.exchangeRate || 280.00),
+      amountUsd: fallbackAmountUsd,
+      exRate: fallbackExRate,
       purchCurr: defaultPurchCurr,
       finalCurr: defaultFinalCurr,
-      finalAmountPkr: b.finalAmount || (b.totalPurchaseAmount || 0) * 280.00
+      finalAmountPkr: (() => {
+        if (b.finalAmount) return b.finalAmount;
+        if (defaultPurchCurr === defaultFinalCurr) return fallbackAmountUsd;
+        if (defaultPurchCurr === "USD" && defaultFinalCurr === "PKR") return fallbackAmountUsd * fallbackExRate;
+        if (defaultPurchCurr === "PKR" && defaultFinalCurr === "AED" && fallbackExRate > 1) return fallbackAmountUsd / fallbackExRate;
+        if (defaultPurchCurr === "USD") return fallbackAmountUsd * fallbackExRate;
+        return fallbackAmountUsd * fallbackExRate;
+      })()
     }];
   }
 
