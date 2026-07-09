@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n/ui";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
+import { printStore } from "@/lib/store/print-store";
 
 export type AccountReportData = {
   accountName: string;
@@ -41,8 +42,6 @@ export function openAccountA4ReportWindow(input: {
   lang?: string;
 }) {
   if (typeof window === "undefined") return;
-  const w = window.open("", "_blank");
-  if (!w) return;
 
   const lang = (input.lang || "en") as SupportedLanguage;
   const isRtl = ["ur", "ar", "fa", "ps"].includes(lang);
@@ -439,7 +438,5 @@ export function openAccountA4ReportWindow(input: {
   </body>
 </html>`;
 
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  printStore.openPrint(html, input.title);
 }

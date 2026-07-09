@@ -1,6 +1,7 @@
 "use client";
  
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
+import { printStore } from "@/lib/store/print-store";
 import { createPortal } from "react-dom";
 import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -262,11 +263,7 @@ function handlePrintReceipt(payment: any, orderRow: any, ledgers: any[], localCu
     </body>
     </html>
   `;
-  const win = window.open("", "_blank");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
+  printStore.openPrint(html, receiptTitle + " " + receiptNo);
 }
 
 type OrdersPayload = {

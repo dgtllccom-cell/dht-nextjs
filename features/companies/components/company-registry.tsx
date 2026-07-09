@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { printStore } from "@/lib/store/print-store";
 import type { Route } from "next";
 import { Building2, Plus, Search, Eye, PencilLine, Printer, Trash2, X, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -120,9 +121,6 @@ export function CompanyRegistry() {
   }
 
   function handlePrint(c: CompanyIncorporationData & { id: string }) {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
     const contactsHTML = c.contacts.length > 0
       ? `<ul>` + c.contacts.map((x) => `<li><strong>${x.type}</strong><span>${x.value}</span></li>`).join("") + `</ul>`
       : `<div style="font-size: 11px; font-style: italic; color: #94a3b8; text-align: center; margin-top: 10px;">No registered contact methods</div>`;
@@ -135,7 +133,7 @@ export function CompanyRegistry() {
       ? `<ul>` + c.ownerIds.map((x) => `<li><strong>${x.type}</strong><span>${x.value}</span></li>`).join("") + `</ul>`
       : `<div style="font-size: 11px; font-style: italic; color: #94a3b8; text-align: center; margin-top: 10px;">No verified owner identifiers</div>`;
 
-    printWindow.document.write(`
+    const html = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -550,8 +548,8 @@ export function CompanyRegistry() {
           </script>
         </body>
       </html>
-    `);
-    printWindow.document.close();
+    `;
+    printStore.openPrint(html, `Certificate of Incorporation - ${c.companyName}`);
   }
 
   return (

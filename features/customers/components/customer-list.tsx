@@ -1,6 +1,7 @@
 "use client";
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
+import { printStore } from "@/lib/store/print-store";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
@@ -176,9 +177,6 @@ export function CustomerList({ lang }: { lang: SupportedLanguage }) {
 
   // Custom A4 printable window generator
   const handlePrint = (c: typeof parsedCustomers[0]) => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
     const contactsHtml = c.meta.contacts
       .map(
         (cn) => `
@@ -201,7 +199,7 @@ export function CustomerList({ lang }: { lang: SupportedLanguage }) {
       )
       .join("");
 
-    printWindow.document.write(`
+    const html = `
       <html>
         <head>
           <title>Customer Profile - ${c.customer_name}</title>
@@ -363,8 +361,8 @@ export function CustomerList({ lang }: { lang: SupportedLanguage }) {
           </script>
         </body>
       </html>
-    `);
-    printWindow.document.close();
+    `;
+    printStore.openPrint(html, `Customer Profile - ${c.customer_name}`);
   };
 
   const isRtl = lang !== "en";

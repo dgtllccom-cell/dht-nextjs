@@ -1,3 +1,5 @@
+import { printStore } from "@/lib/store/print-store";
+
 function escapeHtml(value: string) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -25,8 +27,6 @@ export type TradeDocType = "contract" | "proforma" | "commercial" | "packing";
 
 export function openTradeDocumentWindow(type: TradeDocType, b: any) {
   if (typeof window === "undefined") return;
-  const w = window.open("", "_blank");
-  if (!w) return;
 
   const form = b.form_data?.form || {};
   const goods = b.form_data?.goodsEntries || [];
@@ -555,7 +555,5 @@ export function openTradeDocumentWindow(type: TradeDocType, b: any) {
   </body>
 </html>`;
 
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  printStore.openPrint(html, type.toUpperCase() + " DOCUMENT");
 }

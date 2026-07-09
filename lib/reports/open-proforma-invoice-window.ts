@@ -1,6 +1,7 @@
 import { t } from "@/lib/i18n/ui";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
 import type { PurchaseReportData } from "./open-purchase-a4-report-window";
+import { printStore } from "@/lib/store/print-store";
 
 function escapeHtml(value: string) {
   return String(value ?? "")
@@ -480,9 +481,5 @@ export function openProformaInvoiceWindow(input: {
   </body>
 </html>`;
 
-  const win = window.open("", "_blank");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
+  printStore.openPrint(html, "PROFORMA INVOICE");
 }
