@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Download, FileText, Link2, MoreVertical, Plus, Printer, RefreshCcw, Search, Ship, Building2, ArrowDownLeft, ArrowUpRight, Pencil, Trash2 } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Download, FileText, Link2, MoreVertical, Plus, Printer, RefreshCcw, Search, Ship, Building2, ArrowDownLeft, ArrowUpRight, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +27,33 @@ function CustomDropdown({ record, onLoadDetails }: { record: LoadingRecord, onLo
       )}
     </ViewportActionMenu>
   );
+}
+
+function calcLoadingFinance(h: LoadingRecord, poData: any = {}, form: any = {}) {
+  const qty = Number(h.report_payload?.loadedQuantity || h.loadedQuantity || 0);
+  const qtyKgs = Number(h.report_payload?.oneQtyKgs || 0);
+  const emptyKgs = Number(h.report_payload?.oneEmptyKgs || 0);
+  const netWeight = qty * (qtyKgs - emptyKgs);
+  const priceRate = Number(h.report_payload?.priceRateC1 || 0);
+  let amountUSD = netWeight * priceRate;
+  const exRate = Number(h.report_payload?.exchangeRatePKR || form.exchangeRate || 1);
+  
+  const totalQuantity = Number(
+    poData.totals?.totalQuantity ||
+    (poData.goodsEntries || []).reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+    form.quantity ||
+    0
+  );
+  
+  if (amountUSD <= 0 && totalQuantity > 0) {
+    const poTotal = Number(poData.totals?.grandFinal || form.totalAmount || 0);
+    amountUSD = (qty / totalQuantity) * poTotal;
+  }
+  
+  const amountPKR = amountUSD * exRate;
+  const currency = h.report_payload?.pricingCurrency || form.currency || "USD";
+  
+  return { amountUSD, exRate, amountPKR, currency };
 }
 
 function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord; onClose: () => void; onSaved?: () => void }) {
@@ -1098,6 +1125,9 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500">BL Number</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500">Vessel Name</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Load Qty</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Purchase Payment</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Exchange Rate</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Final Payment</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Loading Port</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Load Date</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Receive Port</th>
@@ -1105,40 +1135,46 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                   {history.map((h, i) => (
-                      <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                        <td className="px-6 py-3 text-center flex items-center justify-center gap-1">
-                          <button onClick={() => handleEditHistory(h)} className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition" title="Edit Entry">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDeleteHistory(h)} disabled={savingNewLoading} className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50 transition disabled:opacity-50" title="Delete Entry">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          {h.report_payload?.loadedQuantity && (
-                            <button 
-                              onClick={() => {
-                                window.open(`/dashboard/journal/purchase-order-payment/remaining?purchaseOrderNo=${encodeURIComponent(record.purchase_order_no || '')}`, "_self");
-                              }}
-                              className="text-emerald-600 hover:text-emerald-800 p-1 rounded hover:bg-emerald-50 transition"
-                              title="Transfer Remaining Balance to Payment Journal"
-                            >
-                              <Link2 className="w-4 h-4" />
+                   {history.map((h, i) => {
+                      const { amountUSD, exRate, amountPKR, currency } = calcLoadingFinance(h, poData, form);
+                      return (
+                        <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                          <td className="px-6 py-3 text-center flex items-center justify-center gap-1">
+                            <button onClick={() => handleEditHistory(h)} className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition" title="Edit Entry">
+                              <Pencil className="w-4 h-4" />
                             </button>
-                          )}
-                        </td>
-                        <td className="px-6 py-3 font-medium text-slate-400">{String(i + 1).padStart(2, '0')}</td>
-                        <td className="px-6 py-3 font-bold text-slate-700 dark:text-slate-200">{h.report_payload?.blNumber || "-"}</td>
-                        <td className="px-6 py-3 font-bold text-slate-700 dark:text-slate-200">{h.carrier_name || h.report_payload?.vesselName || "-"}</td>
-                        <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{h.report_payload?.loadedQuantity || h.loadedQuantity || "-"}</td>
-                        <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{h.report_payload?.loadingPort || h.loading_location || "-"}</td>
-                        <td className="px-6 py-3 font-mono font-semibold text-blue-600 dark:text-blue-400">{h.report_payload?.loadingDate ? new Date(h.report_payload.loadingDate).toLocaleDateString() : (h.loaded_at ? new Date(h.loaded_at).toLocaleDateString() : "-")}</td>
-                        <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{h.report_payload?.receivingPort || h.receiving_location || "-"}</td>
-                        <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400">{h.report_payload?.receivingDate ? new Date(h.report_payload.receivingDate).toLocaleDateString() : "-"}</td>
-                      </tr>
-                   ))}
+                            <button onClick={() => handleDeleteHistory(h)} disabled={savingNewLoading} className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50 transition disabled:opacity-50" title="Delete Entry">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            {h.report_payload?.loadedQuantity && (
+                              <button 
+                                onClick={() => {
+                                  window.open(`/dashboard/journal/purchase-order-payment/remaining?purchaseOrderNo=${encodeURIComponent(record.purchase_order_no || '')}`, "_self");
+                                }}
+                                className="text-emerald-600 hover:text-emerald-800 p-1 rounded hover:bg-emerald-50 transition"
+                                title="Transfer Remaining Balance to Payment Journal"
+                              >
+                                <Link2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-6 py-3 font-medium text-slate-400">{String(i + 1).padStart(2, '0')}</td>
+                          <td className="px-6 py-3 font-bold text-slate-700 dark:text-slate-200">{h.report_payload?.blNumber || "-"}</td>
+                          <td className="px-6 py-3 font-bold text-slate-700 dark:text-slate-200">{h.carrier_name || h.report_payload?.vesselName || "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{h.report_payload?.loadedQuantity || h.loadedQuantity || "-"}</td>
+                          <td className="px-6 py-3 font-mono font-bold text-slate-750 dark:text-slate-300 text-right">{amountUSD > 0 ? `${amountUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}` : "-"}</td>
+                          <td className="px-6 py-3 font-mono text-slate-600 dark:text-slate-400 text-right">{exRate > 0 ? exRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-black text-emerald-650 dark:text-emerald-400 text-right">{amountPKR > 0 ? `${amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PKR` : "-"}</td>
+                          <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{h.report_payload?.loadingPort || h.loading_location || "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-blue-600 dark:text-blue-400">{h.report_payload?.loadingDate ? new Date(h.report_payload.loadingDate).toLocaleDateString() : (h.loaded_at ? new Date(h.loaded_at).toLocaleDateString() : "-")}</td>
+                          <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{h.report_payload?.receivingPort || h.receiving_location || "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400">{h.report_payload?.receivingDate ? new Date(h.report_payload.receivingDate).toLocaleDateString() : "-"}</td>
+                        </tr>
+                      );
+                   })}
                    {history.length === 0 && (
                       <tr>
-                        <td colSpan={9} className="px-6 py-6 text-center font-medium text-slate-500">No loading history found.</td>
+                        <td colSpan={12} className="px-6 py-6 text-center font-medium text-slate-500">No loading history found.</td>
                       </tr>
                    )}
                 </tbody>
@@ -1223,6 +1259,148 @@ export function PurchaseLoadingRecordsView() {
   const [message, setMessage] = useState("");
   const [form, setForm] = useState(() => emptyForm());
   const [selectedLoadDetailsRecord, setSelectedLoadDetailsRecord] = useState<LoadingRecord | null>(null);
+  const [expandedSummaryCountries, setExpandedSummaryCountries] = useState<Record<string, boolean>>({});
+
+  const loadingSummaryRows = useMemo(() => {
+    if (!records || records.length === 0) return [];
+    
+    const groups: Record<string, {
+      country: string;
+      currency: string;
+      totalPOs: Set<string>;
+      totalQuantity: number;
+      loadedQuantity: number;
+      purchaseValue: number;
+      loadedValue: number;
+      branches: Record<string, {
+        branch: string;
+        currency: string;
+        totalPOs: Set<string>;
+        totalQuantity: number;
+        loadedQuantity: number;
+        purchaseValue: number;
+        loadedValue: number;
+      }>;
+    }> = {};
+
+    records.forEach(r => {
+      const poData = (Array.isArray(r.purchase_orders) ? r.purchase_orders[0] : r.purchase_orders)?.form_data || {};
+      const form = poData.form || {};
+      const goods = poData.goodsEntries || [];
+
+      const country = String(r.countries?.name || form.branchCountry || "Unknown Country").trim();
+      const branch = String(r.country_branches?.name || form.branchName || "Unassigned Branch").trim();
+
+      const poQty = goods.length > 0 
+        ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || g.quantity || 0), 0) 
+        : Number(form.quantity || 0);
+
+      const loadedQty = Number(r.report_payload?.loadedQuantity || r.loadedQuantity || 0);
+
+      const poTotalUSD = goods.length > 0 
+        ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || g.totalAmount || 0), 0) 
+        : Number(form.totalAmount || form.finalAmount || 0);
+      const exRate = Number(r.report_payload?.exchangeRatePKR || form.exchangeRate || (poData as any).exchange_rate || 1);
+      const poValuePKR = poTotalUSD * exRate;
+
+      const loadedValPKR = poQty > 0 ? (loadedQty / poQty) * poValuePKR : 0;
+
+      if (!groups[country]) {
+        groups[country] = {
+          country,
+          currency: "PKR",
+          totalPOs: new Set(),
+          totalQuantity: 0,
+          loadedQuantity: 0,
+          purchaseValue: 0,
+          loadedValue: 0,
+          branches: {}
+        };
+      }
+
+      const g = groups[country];
+      if (r.purchase_order_no) g.totalPOs.add(r.purchase_order_no);
+      g.loadedQuantity += loadedQty;
+      
+      if (!g.branches[branch]) {
+        g.branches[branch] = {
+          branch,
+          currency: "PKR",
+          totalPOs: new Set(),
+          totalQuantity: 0,
+          loadedQuantity: 0,
+          purchaseValue: 0,
+          loadedValue: 0
+        };
+      }
+
+      const br = g.branches[branch];
+      if (r.purchase_order_no) br.totalPOs.add(r.purchase_order_no);
+      br.loadedQuantity += loadedQty;
+      br.loadedValue += loadedValPKR;
+    });
+
+    const poTotalsCountry: Record<string, { totalQuantity: number; purchaseValue: number }> = {};
+    const poTotalsBranch: Record<string, { totalQuantity: number; purchaseValue: number }> = {};
+
+    const uniquePOs: Record<string, { poQty: number; poValuePKR: number; country: string; branch: string }> = {};
+    records.forEach(r => {
+      if (!r.purchase_order_no) return;
+      if (uniquePOs[r.purchase_order_no]) return;
+      
+      const poData = (Array.isArray(r.purchase_orders) ? r.purchase_orders[0] : r.purchase_orders)?.form_data || {};
+      const form = poData.form || {};
+      const goods = poData.goodsEntries || [];
+      const country = String(r.countries?.name || form.branchCountry || "Unknown Country").trim();
+      const branch = String(r.country_branches?.name || form.branchName || "Unassigned Branch").trim();
+
+      const poQty = goods.length > 0 
+        ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || g.quantity || 0), 0) 
+        : Number(form.quantity || 0);
+
+      const poTotalUSD = goods.length > 0 
+        ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || g.totalAmount || 0), 0) 
+        : Number(form.totalAmount || form.finalAmount || 0);
+      const exRate = Number(r.report_payload?.exchangeRatePKR || form.exchangeRate || (poData as any).exchange_rate || 1);
+      const poValuePKR = poTotalUSD * exRate;
+
+      uniquePOs[r.purchase_order_no] = { poQty, poValuePKR, country, branch };
+    });
+
+    Object.values(uniquePOs).forEach(p => {
+      if (!poTotalsCountry[p.country]) {
+        poTotalsCountry[p.country] = { totalQuantity: 0, purchaseValue: 0 };
+      }
+      poTotalsCountry[p.country].totalQuantity += p.poQty;
+      poTotalsCountry[p.country].purchaseValue += p.poValuePKR;
+
+      const brKey = `${p.country}-${p.branch}`;
+      if (!poTotalsBranch[brKey]) {
+        poTotalsBranch[brKey] = { totalQuantity: 0, purchaseValue: 0 };
+      }
+      poTotalsBranch[brKey].totalQuantity += p.poQty;
+      poTotalsBranch[brKey].purchaseValue += p.poValuePKR;
+    });
+
+    return Object.values(groups).map(g => {
+      const uniquePoTotals = poTotalsCountry[g.country] || { totalQuantity: 0, purchaseValue: 0 };
+      g.totalQuantity = uniquePoTotals.totalQuantity;
+      g.purchaseValue = uniquePoTotals.purchaseValue;
+
+      const branchList = Object.values(g.branches).map(br => {
+        const brKey = `${g.country}-${br.branch}`;
+        const uniqueBrTotals = poTotalsBranch[brKey] || { totalQuantity: 0, purchaseValue: 0 };
+        br.totalQuantity = uniqueBrTotals.totalQuantity;
+        br.purchaseValue = uniqueBrTotals.purchaseValue;
+        return br;
+      }).sort((a, b) => a.branch.localeCompare(b.branch));
+
+      return {
+        ...g,
+        branches: branchList
+      };
+    }).sort((a, b) => a.country.localeCompare(b.country));
+  }, [records]);
 
   const filteredRecords = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1359,8 +1537,124 @@ export function PurchaseLoadingRecordsView() {
         </Button>
       </div>
 
+      {/* Super Admin Country Report Dashboard Header */}
+      {loadingSummaryRows.length > 0 && (
+        <div className="flex flex-col">
+          <div className="grid grid-cols-1 gap-4 items-stretch">
+            <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
+                <div className="bg-blue-600 p-1.5 rounded-full text-white">
+                  <Building2 className="h-3.5 w-3.5" />
+                </div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. SUPER ADMIN COUNTRY REPORT</h4>
+              </div>
+              <div className="p-4">
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
+                  <table className="w-full text-[10.5px] border-collapse bg-white dark:bg-slate-900 text-left">
+                    <thead>
+                      <tr className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[9.5px] text-slate-700 dark:text-slate-350 font-bold uppercase tracking-wider">
+                        <th className="px-2.5 py-2.5 font-extrabold">Country</th>
+                        <th className="px-2.5 py-2.5 font-extrabold text-right">Total PO Qty (Bags)</th>
+                        <th className="px-2.5 py-2.5 font-extrabold text-right">Loaded Qty (Bags)</th>
+                        <th className="px-2.5 py-2.5 font-extrabold text-right">Remaining Balance (Bags)</th>
+                        <th className="px-2.5 py-2.5 font-extrabold">Currency</th>
+                        <th className="px-2.5 py-2.5 font-extrabold text-right">Total Value (PKR)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingSummaryRows.map((r, idx) => {
+                        const isExpanded = !!expandedSummaryCountries[r.country];
+                        const totalQty = r.totalQuantity;
+                        const loadedQty = r.loadedQuantity;
+                        const balQty = Math.max(0, totalQty - loadedQty);
+
+                        return (
+                          <React.Fragment key={idx}>
+                            <tr 
+                              onClick={() => {
+                                setExpandedSummaryCountries(prev => ({
+                                  ...prev,
+                                  [r.country]: !prev[r.country]
+                                }));
+                              }}
+                              className="border-b border-slate-202 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-900/30 cursor-pointer font-extrabold text-slate-850 dark:text-slate-200 transition-all"
+                            >
+                              <td className="px-2.5 py-3 uppercase truncate max-w-[150px] flex items-center gap-1 select-none font-sans">
+                                <span className="text-slate-400 mr-0.5">
+                                  {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                </span>
+                                <span className="font-extrabold ml-1">{r.country}</span>
+                              </td>
+                              <td className="px-2.5 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{totalQty.toLocaleString()}</td>
+                              <td className="px-2.5 py-3 text-right font-mono text-emerald-600 font-bold">{loadedQty.toLocaleString()}</td>
+                              <td className={cn("px-2.5 py-3 text-right font-mono font-bold", balQty > 0 ? "text-rose-600" : "text-emerald-600")}>{balQty.toLocaleString()}</td>
+                              <td className="px-2.5 py-3 font-black text-slate-900 dark:text-slate-100">{r.currency}</td>
+                              <td className="px-2.5 py-3 font-sans font-black tabular-nums text-slate-900 dark:text-slate-100 text-right">{r.purchaseValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            </tr>
+
+                            {isExpanded && (
+                              <tr className="bg-slate-50/40 dark:bg-slate-950/20 border-b border-slate-200 dark:border-slate-800">
+                                <td colSpan={6} className="p-3">
+                                  <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-inner dark:border-slate-850 dark:bg-slate-950 space-y-3">
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                                      <span>{r.country} Branches Loading Status Details</span>
+                                      <span className="text-[9px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono font-bold dark:bg-blue-950/40 dark:text-blue-400">
+                                        {r.branches.length} Branches
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-left text-[10px] border-collapse">
+                                        <thead>
+                                          <tr className="border-b text-slate-450 font-bold uppercase text-[9px] tracking-wider bg-slate-50/80 dark:bg-slate-900/50">
+                                            <th className="px-2 py-1.5">Branch</th>
+                                            <th className="px-2 py-1.5 text-right">Total PO Qty</th>
+                                            <th className="px-2 py-1.5 text-right">Loaded Qty</th>
+                                            <th className="px-2 py-1.5 text-right">Balance Qty</th>
+                                            <th className="px-2 py-1.5 text-right">Total Purchase Value (PKR)</th>
+                                            <th className="px-2 py-1.5 text-right">Loaded Value (PKR)</th>
+                                            <th className="px-2 py-1.5 text-right">Remaining Value (Baqaya)</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                          {r.branches.map((b, bIdx) => {
+                                            const bBalQty = Math.max(0, b.totalQuantity - b.loadedQuantity);
+                                            const bBalValue = Math.max(0, b.purchaseValue - b.loadedValue);
+                                            return (
+                                              <tr key={bIdx} className="hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-350">
+                                                <td className="px-2 py-2 font-extrabold uppercase">{b.branch}</td>
+                                                <td className="px-2 py-2 text-right font-mono text-slate-500 dark:text-slate-400">{b.totalQuantity.toLocaleString()}</td>
+                                                <td className="px-2 py-2 text-right font-mono text-emerald-600 font-bold">{b.loadedQuantity.toLocaleString()}</td>
+                                                <td className={cn("px-2 py-2 text-right font-mono font-bold", bBalQty > 0 ? "text-rose-600" : "text-emerald-600")}>{bBalQty.toLocaleString()}</td>
+                                                <td className="px-2 py-2 text-right font-mono font-bold">{b.purchaseValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                <td className="px-2 py-2 text-right font-mono text-emerald-600 font-bold">{b.loadedValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                <td className={cn("px-2 py-2 text-right font-mono font-black", bBalValue > 0 ? "text-rose-600" : "text-slate-500")}>
+                                                  {bBalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
-        <Metric label="Total Records" value={summary.total} />
+        <Metric label="Total Records" value={summary.total} tone="slate" />
         <Metric label="Loaded" value={summary.loaded} tone="green" />
         <Metric label="Pending" value={summary.pending} tone="amber" />
         <Metric label="Received" value={summary.received} tone="blue" />
