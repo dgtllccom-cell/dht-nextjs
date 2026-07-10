@@ -31,29 +31,25 @@ function CustomDropdown({ record, onLoadDetails }: { record: LoadingRecord, onLo
   );
 }
 
-function calcLoadingFinance(h: LoadingRecord, poData: any = {}, form: any = {}) {
+function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
   const qty = Number(h.report_payload?.loadedQuantity || h.report_payload?.loadingQuantity || h.loadedQuantity || 0);
-  const qtyKgs = Number(h.report_payload?.oneQtyKgs || 0);
-  const emptyKgs = Number(h.report_payload?.oneEmptyKgs || 0);
-  const netWeight = qty * (qtyKgs - emptyKgs);
-  const priceRate = Number(h.report_payload?.priceRateC1 || 0);
-  let amountUSD = netWeight * priceRate;
-  const exRate = Number(h.report_payload?.exchangeRatePKR || form.exchangeRate || 1);
+  const poData = poRow?.form_data || {};
+  const goods = poData.goodsEntries || [];
   
   const totalQuantity = Number(
     poData.totals?.totalQuantity ||
-    (poData.goodsEntries || []).reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+    goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
     form.quantity ||
     0
   );
   
-  if (amountUSD <= 0 && totalQuantity > 0) {
-    const poTotal = Number(poData.totals?.grandFinal || form.totalAmount || 0);
-    amountUSD = (qty / totalQuantity) * poTotal;
-  }
+  const poTotal = Number(poRow?.order_total || poData.totals?.grandFinal || form.totalAmount || 0);
   
+  let amountUSD = totalQuantity > 0 ? (qty / totalQuantity) * poTotal : poTotal;
+  
+  const exRate = Number(h.report_payload?.exchangeRatePKR || form.exchangeRate || poRow?.exchange_rate || 1);
   const amountPKR = amountUSD * exRate;
-  const currency = h.report_payload?.pricingCurrency || form.currency || "USD";
+  const currency = h.report_payload?.pricingCurrency || form.currency || poRow?.currency_code || "USD";
   
   return { amountUSD, exRate, amountPKR, currency };
 }
@@ -972,7 +968,8 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                    <Button
                      type="button"
                      onClick={() => {
-                       const finance = calcLoadingFinance(record, poData, form);
+                       const poRow = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders) || {};
+                       const finance = calcLoadingFinance(record, poRow, form);
                        const loadedQty = record.report_payload?.loadedQuantity || record.loadedQuantity || 0;
                        const grossWeight = record.report_payload?.grossWeight || 0;
                        const netWeight = record.report_payload?.netWeight || 0;
@@ -984,10 +981,10 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                          grossWeight: String(grossWeight),
                          netWeight: String(netWeight),
                          priceRate: String(priceRate),
-                         amount: String(finance.amountUSD || 0),
+                         amount: String(Math.max(0, (finance.amountUSD || 0) - ((totalQuantity > 0 ? (Number(record.report_payload?.loadedQuantity || record.loadedQuantity || 0) / totalQuantity) : 1) * Number(poRow.advance_paid || form.advanceAmount || 0)))),
                          exchangeRate: String(finance.exRate || 1),
                          currency: finance.currency || "USD",
-                         amountPKR: String(finance.amountPKR || 0)
+                         amountPKR: String(Math.max(0, (finance.amountUSD || 0) - ((totalQuantity > 0 ? (Number(record.report_payload?.loadedQuantity || record.loadedQuantity || 0) / totalQuantity) : 1) * Number(poRow.advance_paid || form.advanceAmount || 0))) * (finance.exRate || 1))
                        }).toString();
                        window.open(`/dashboard/journal/purchase-order-payment/remaining?${queryParams}`, "_self");
                      }}
@@ -1156,7 +1153,8 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                    {history.map((h, i) => {
-                      const { amountUSD, exRate, amountPKR, currency } = calcLoadingFinance(h, poData, form);
+                      const poRow = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders) || {};
+                      const { amountUSD, exRate, amountPKR, currency } = calcLoadingFinance(h, poRow, form);
                       return (
                         <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                           <td className="px-6 py-3 text-center flex items-center justify-center gap-1">
@@ -1169,11 +1167,18 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                             {h.report_payload?.loadedQuantity && (
                               <button 
                                 onClick={() => {
-                                  const finance = calcLoadingFinance(h, poData, form);
+                                  const poRow = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders) || {};
+                                  const finance = calcLoadingFinance(h, poRow, form);
                                   const loadedQty = h.report_payload?.loadedQuantity || h.loadedQuantity || 0;
                                   const grossWeight = h.report_payload?.grossWeight || 0;
                                   const netWeight = h.report_payload?.netWeight || 0;
                                   const priceRate = h.report_payload?.priceRateC1 || 0;
+                                  
+                                  const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
+                                  const loadedAdvanceUSD = totalQuantity > 0 ? (loadedQty / totalQuantity) * poAdvanceAmt : poAdvanceAmt;
+                                  const loadedRemainingUSD = Math.max(0, finance.amountUSD - loadedAdvanceUSD);
+                                  const loadedRemainingPKR = loadedRemainingUSD * finance.exRate;
+                                  
                                   const queryParams = new URLSearchParams({
                                     purchaseOrderNo: record.purchase_order_no || "",
                                     fromLoading: "true",
@@ -1181,10 +1186,10 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                                     grossWeight: String(grossWeight),
                                     netWeight: String(netWeight),
                                     priceRate: String(priceRate),
-                                    amount: String(finance.amountUSD || 0),
+                                    amount: String(Math.max(0, (finance.amountUSD || 0) - ((totalQuantity > 0 ? (Number(record.report_payload?.loadedQuantity || record.loadedQuantity || 0) / totalQuantity) : 1) * Number(poRow.advance_paid || form.advanceAmount || 0)))),
                                     exchangeRate: String(finance.exRate || 1),
                                     currency: finance.currency || "USD",
-                                    amountPKR: String(finance.amountPKR || 0)
+                                    amountPKR: String(Math.max(0, (finance.amountUSD || 0) - ((totalQuantity > 0 ? (Number(record.report_payload?.loadedQuantity || record.loadedQuantity || 0) / totalQuantity) : 1) * Number(poRow.advance_paid || form.advanceAmount || 0))) * (finance.exRate || 1))
                                   }).toString();
                                   window.open(`/dashboard/journal/purchase-order-payment/remaining?${queryParams}`, "_self");
                                 }}
@@ -1783,6 +1788,7 @@ export function PurchaseLoadingRecordsView() {
                   ) : filteredRecords.length ? (
                     filteredRecords.map((record, index) => {
                       const poData = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders)?.form_data || {};
+                      const poRow = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders) || {};
                       const form = poData.form || {};
                       
                       // Account Info
@@ -1808,10 +1814,10 @@ export function PurchaseLoadingRecordsView() {
                       const netWeight = loadedQtyKgs > 0 ? loadedQty * (loadedQtyKgs - loadedEmptyKgs) : (totalQty > 0 ? (loadedQty / totalQty) * totalNet : totalNet);
                       const grossWeight = loadedQtyKgs > 0 ? loadedQty * loadedQtyKgs : (totalQty > 0 ? (loadedQty / totalQty) * totalGross : totalGross);
 
-                      const { amountUSD: loadedUSD, exRate: loadedExRate, amountPKR: loadedPKR, currency: loadedCurrency } = calcLoadingFinance(record, poData, form);
+                      const { amountUSD: loadedUSD, exRate: loadedExRate, amountPKR: loadedPKR, currency: loadedCurrency } = calcLoadingFinance(record, poRow, form);
 
                       // Proportional advance amount for this loaded record
-                      const poAdvanceAmt = Number(form.advanceAmount || 0);
+                      const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
                       const loadedAdvanceAmt = totalQty > 0 ? (loadedQty / totalQty) * poAdvanceAmt : poAdvanceAmt;
                       const loadedAdvancePKR = loadedAdvanceAmt * loadedExRate;
                       const loadedBalancePKR = loadedPKR - loadedAdvancePKR;
