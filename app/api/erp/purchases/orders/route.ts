@@ -96,7 +96,10 @@ export async function GET(request: NextRequest) {
     // Apply strict DB-level scoping based on user session BEFORE limit
     if (!session.isSuperAdmin) {
       if (session.cityBranchIds.length > 0) {
-        q = q.in("city_branch_id", session.cityBranchIds);
+        q = q.or(`city_branch_id.in.(${session.cityBranchIds.join(",")}),city_branch_id.is.null`);
+        if (session.countryIds.length > 0) {
+          q = q.in("country_id", session.countryIds);
+        }
       } else if (session.countryBranchIds.length > 0) {
         q = q.in("country_branch_id", session.countryBranchIds);
       } else if (session.countryIds.length > 0) {
@@ -133,7 +136,9 @@ export async function GET(request: NextRequest) {
 
     const filteredRows = rows.filter((row: any) => {
       if (session.isSuperAdmin) return true;
-      const matchCity = !session.cityBranchIds.length || (row.city_branch_id && session.cityBranchIds.includes(row.city_branch_id));
+      const matchCity = !session.cityBranchIds.length || 
+        (row.city_branch_id && session.cityBranchIds.includes(row.city_branch_id)) ||
+        (!row.city_branch_id && row.country_branch_id && session.countryBranchIds.includes(row.country_branch_id));
       const matchBranch = !session.countryBranchIds.length || (row.country_branch_id && session.countryBranchIds.includes(row.country_branch_id));
       const matchCountry = !session.countryIds.length || (row.country_id && session.countryIds.includes(row.country_id));
       return matchCity && matchBranch && matchCountry;
@@ -196,8 +201,7 @@ export async function POST(request: NextRequest) {
       const { count: branchCount } = await adminSupabase
         .from("purchase_orders")
         .select("id", { count: "exact", head: true })
-        .eq("city_branch_id", effective.cityBranchId)
-        .is("deleted_at", null);
+        .eq("city_branch_id", effective.cityBranchId);
       const bSeq = (branchCount || 0) + 1;
       branchTransactionSerialNumber = `${countryPrefix}-${branchPrefix}-${String(bSeq).padStart(4, "0")}`;
     }
@@ -206,16 +210,14 @@ export async function POST(request: NextRequest) {
       const { count: countryCount } = await adminSupabase
         .from("purchase_orders")
         .select("id", { count: "exact", head: true })
-        .eq("country_id", effective.countryId)
-        .is("deleted_at", null);
+        .eq("country_id", effective.countryId);
       const cSeq = (countryCount || 0) + 1;
       countryTransactionSerialNumber = `${countryPrefix}-${String(cSeq).padStart(6, "0")}`;
     }
 
     const { count: totalCount } = await adminSupabase
       .from("purchase_orders")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null);
+      .select("id", { count: "exact", head: true });
     const sSeq = (totalCount || 0) + 1;
     superAdminSerialNumber = String(sSeq).padStart(8, "0");
 

@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     const sql = postgres(databaseUrl, { max: 1, prepare: false });
+
     const action = request.nextUrl.searchParams.get("action");
 
     if (action === "test") {

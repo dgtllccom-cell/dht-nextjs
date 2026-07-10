@@ -18,10 +18,11 @@ export class ErpPermissionError extends Error {
 }
 
 export function hasRolePermission(session: ErpSession, resource: string, action: string) {
-  if (session.isSuperAdmin) return true;
+  if (session?.isSuperAdmin) return true;
 
   const required = `${resource}:${action}`;
-  return session.permissions.includes(required) || session.permissions.includes(`${resource}:*`) || session.permissions.includes("*:*");
+  const perms = session?.permissions || [];
+  return perms.includes(required) || perms.includes(`${resource}:*`) || perms.includes("*:*");
 }
 
 export function canAccessCountry(session: ErpSession, countryId?: string | null) {

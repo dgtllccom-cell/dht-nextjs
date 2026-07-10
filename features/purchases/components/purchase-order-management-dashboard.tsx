@@ -1,7 +1,7 @@
 "use client";
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import { createPortal } from "react-dom";
 import {
   BadgeDollarSign,
@@ -1030,16 +1030,6 @@ function DashboardSummaryHeader({
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
   const [expandedSummaryCountries, setExpandedSummaryCountries] = useState<Record<string, boolean>>({});
 
-  if (!summary) return null;
-
-  const notTransferredPercentLC = summary.totalPurchaseLC > 0 ? (summary.remainingBalanceLC / summary.totalPurchaseLC) * 100 : 0;
-  const numCurrencies = Object.keys(summary.foreignCurrencies).length;
-  const reportType = mode === "advance" ? "Advance Payment Summary" : mode === "credit" ? "Credit Payment Summary" : mode === "transfer" ? "Transfer Payment Summary" : "Purchase Booking Summary";
-  const now = new Date();
-  
-  const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
-
   const summaryRows = useMemo(() => {
     if (!rows || rows.length === 0) return [];
     
@@ -1207,7 +1197,7 @@ function DashboardSummaryHeader({
               const isExpanded = !!expandedSummaryCountries[r.country];
 
               return (
-                <React.Fragment key={idx}>
+                <Fragment key={idx}>
                   <tr 
                     onClick={() => {
                       if (setSelectedCountryForSummary) {
@@ -1271,7 +1261,7 @@ function DashboardSummaryHeader({
                       </td>
                     </tr>
                   )}
-                </React.Fragment>
+                </Fragment>
               );
             })}
           </tbody>
@@ -1666,7 +1656,6 @@ function DashboardSummaryHeader({
     </div>
   );
 }
-}
 
 export function PurchaseOrderManagementDashboard() {
   const router = useRouter();
@@ -1881,7 +1870,7 @@ export function PurchaseOrderManagementDashboard() {
       if (needle && ![row.purchaseBookingOrderNumber, row.purchaseAccountName, row.purchaseAccountNumber, row.salesAccountName, row.salesAccountNumber, row.supplierName, row.buyerName, row.productName, row.branchName, row.countryName, row.status, row.paymentStatus, shipmentStatus(row), inventoryStatus(row)].some((value) => String(value ?? "").toLowerCase().includes(needle))) return false;
       if (selectedCountryForSummary && row.countryName !== selectedCountryForSummary) return false;
       if (lockedCountryName && row.countryName !== lockedCountryName) return false;
-      if (lockedBranchName && row.branchName !== lockedBranchName) return false;
+      if (lockedBranchName && row.branchName !== lockedBranchName && row.cityBranchId) return false;
       if (!lockedCountryName && filters.country !== "all" && row.countryName !== filters.country) return false;
       if (!lockedBranchName && filters.branch !== "all" && row.branchName !== filters.branch) return false;
       if (filters.supplier !== "all" && row.supplierName !== filters.supplier) return false;

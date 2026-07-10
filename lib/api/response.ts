@@ -67,6 +67,7 @@ export function apiCreated<T>(data: T) {
 }
 
 export function apiError(code: string, message: string, status = 400, details?: unknown, isSuperAdmin = false) {
+  console.error("[API ERROR]", { code, message, details, status });
   let finalMessage = message;
   if (isSuperAdmin) {
     const urduTranslation = translateToUrdu(message);

@@ -251,6 +251,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const paymentId = data as string;
 
+    if (body.typeDetails?.sourceRecordId) {
+      await supabase
+        .from("purchase_order_payments")
+        .update({ source_reference_no: String(body.typeDetails.sourceRecordId) })
+        .eq("id", paymentId);
+    }
+
     const paymentRecord = await requireSupabaseData(
       supabase
         .from("purchase_order_payments")

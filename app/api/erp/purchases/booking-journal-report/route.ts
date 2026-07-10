@@ -179,6 +179,8 @@ function normalizeOrder(row: any) {
         countryCode: finalCountryCode,
         cityName: form.cityName ?? row.city_branches?.city_name ?? "-",
         cityCode: form.cityCode ?? row.city_branches?.code ?? "-",
+        cityBranchId: row.city_branch_id ?? null,
+        countryBranchId: row.country_branch_id ?? null,
         createdByName: form.userName ?? "-",
         createdAt: row.created_at,
         ledger_posting_status: row.ledger_posting_status,
@@ -241,7 +243,10 @@ function normalizeOrder(row: any) {
       if (query.cityBranchId) {
         requestQuery = requestQuery.eq("city_branch_id", query.cityBranchId);
       } else if (!session.isSuperAdmin && session.cityBranchIds.length) {
-        requestQuery = requestQuery.in("city_branch_id", session.cityBranchIds);
+        requestQuery = requestQuery.or(`city_branch_id.in.(${session.cityBranchIds.join(",")}),city_branch_id.is.null`);
+        if (session.countryIds.length) {
+          requestQuery = requestQuery.in("country_id", session.countryIds);
+        }
       } else if (query.countryBranchId) {
         requestQuery = requestQuery.eq("country_branch_id", query.countryBranchId);
       } else if (!session.isSuperAdmin && session.countryBranchIds.length) {

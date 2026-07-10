@@ -262,7 +262,8 @@ export const purchaseOrderPaymentPostSchema = scopeSchema.extend({
   debitLedgerId: uuidSchema,
   creditLedgerId: uuidSchema,
   referenceNo: z.string().trim().max(120).optional(),
-  narration: z.string().trim().max(1000).optional()
+  narration: z.string().trim().max(1000).optional(),
+  typeDetails: z.record(z.string(), z.unknown()).optional()
 });
 
 export const globalConsolidationQuerySchema = z.object({

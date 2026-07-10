@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { apiCreated, apiOk, handleApiError } from "@/lib/api/response";
 import { optionalUuidSchema, uuidSchema } from "@/lib/api/erp-validation";
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
     let recordsQuery = supabase
       .from("purchase_loading_records")
       .select(
-        "id, loading_record_no, purchase_order_id, purchase_order_no, container_number, container_type, loading_status, loaded_at, loading_location, receiving_location, shipment_status, carrier_name, remarks, report_payload, country_id, country_branch_id, city_branch_id, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), purchase_orders(form_data, advance_paid, remaining_due, order_total)"
+        "id, loading_record_no, purchase_order_id, purchase_order_no, container_number, container_type, loading_status, loaded_at, loading_location, receiving_location, shipment_status, carrier_name, remarks, report_payload, country_id, country_branch_id, city_branch_id, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), purchase_orders(form_data, advance_paid, remaining_due, order_total, purchase_order_payments(amount, exchange_rate, reference_no, narration, source_reference_no))"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -159,7 +159,9 @@ export async function GET(request: NextRequest) {
     else if (!session.isSuperAdmin && session.countryBranchIds.length) recordsQuery = recordsQuery.in("country_branch_id", session.countryBranchIds);
 
     if (query.cityBranchId) recordsQuery = recordsQuery.eq("city_branch_id", query.cityBranchId);
-    else if (!session.isSuperAdmin && session.cityBranchIds.length) recordsQuery = recordsQuery.in("city_branch_id", session.cityBranchIds);
+    else if (!session.isSuperAdmin && session.cityBranchIds.length) {
+      recordsQuery = recordsQuery.or(`city_branch_id.in.(${session.cityBranchIds.join(",")}),city_branch_id.is.null`);
+    }
 
     if (query.status) recordsQuery = recordsQuery.eq("loading_status", query.status);
     if (query.q) {
@@ -173,7 +175,7 @@ export async function GET(request: NextRequest) {
       if (message.includes("purchase_loading_records") || message.includes("schema cache")) {
         return apiOk(emptyPayload(session, "Purchase Loading Records database table is not migrated yet."));
       }
-      throw error;
+      throw new Error(message);
     }
 
     const records = data ?? [];

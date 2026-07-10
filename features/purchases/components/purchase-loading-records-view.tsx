@@ -977,6 +977,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                        const queryParams = new URLSearchParams({
                          purchaseOrderNo: record.purchase_order_no || "",
                          fromLoading: "true",
+                         loadingRecordId: record.id,
                          loadedQty: String(loadedQty),
                          grossWeight: String(grossWeight),
                          netWeight: String(netWeight),
@@ -1182,6 +1183,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                                   const queryParams = new URLSearchParams({
                                     purchaseOrderNo: record.purchase_order_no || "",
                                     fromLoading: "true",
+                                    loadingRecordId: h.id,
                                     loadedQty: String(loadedQty),
                                     grossWeight: String(grossWeight),
                                     netWeight: String(netWeight),
