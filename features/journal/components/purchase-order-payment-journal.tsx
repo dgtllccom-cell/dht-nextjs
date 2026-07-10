@@ -2014,7 +2014,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const draft = draftFilter.trim().toLowerCase();
+    const urlOrderNo = getInitialPurchaseOrderNo();
     return orders.filter((row) => {
+      if (urlOrderNo && row.purchase_order_no === urlOrderNo) return true;
       const postingStatus = row.ledger_posting_status?.toLowerCase();
       const workflowTransferStatus = row.form_data?.workflow?.transferStatus?.toLowerCase();
       const hasTransferAudit = Boolean(row.form_data?.form?.transferAudit);
@@ -2194,12 +2196,41 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   // Sync PO currency, exchange rate, and Super Admin filters when order changes
   useEffect(() => {
     if (selected) {
-      if (selected.currency_code === baseCurrency && currency === baseCurrency) {
-        setExchangeRate("1");
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlAmount = searchParams.get("amount");
+      const urlExchangeRate = searchParams.get("exchangeRate");
+      const urlFinalAmount = searchParams.get("finalAmount");
+      const urlRemarks = searchParams.get("remarks");
+
+      if (urlExchangeRate) {
+        setExchangeRate(urlExchangeRate);
       } else {
-        const rate = String(getEffectiveRate(selected));
-        setExchangeRate(rate);
+        if (selected.currency_code === baseCurrency && currency === baseCurrency) {
+          setExchangeRate("1");
+        } else {
+          const rate = String(getEffectiveRate(selected));
+          setExchangeRate(rate);
+        }
       }
+
+      if (urlAmount) {
+        setCalcAmount(urlAmount);
+      } else {
+        setCalcAmount("");
+      }
+
+      if (urlFinalAmount) {
+        setFinalPayment(urlFinalAmount);
+      } else {
+        setFinalPayment("");
+      }
+
+      if (urlRemarks) {
+        setRemarks(urlRemarks);
+      } else {
+        setRemarks("");
+      }
+
       const poCur = selected.currency_code || "USD";
       // Auto-enforce local currency for payment
       setCurrency(baseCurrency || poCur.toUpperCase());
@@ -3398,6 +3429,58 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 );
               }
               return null;
+            })()}
+
+            {/* Purchase & Container Loading Context Details Card */}
+            {(() => {
+              const form = selected.form_data?.form || {};
+              const goods = selected.form_data?.goodsEntries || [];
+              const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "—";
+              return (
+                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 dark:bg-slate-900/50 dark:border-slate-800 shadow-sm">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-3">
+                    Purchase Order & Loading Specifications
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Seller (Supplier)</span>
+                      <span className="font-extrabold text-slate-850 dark:text-slate-200">
+                        {form.salesAccountName || form.supplierName || "—"}
+                      </span>
+                      <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
+                        {form.salesAccountNumber || "-"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Purchaser (Purchase A/C)</span>
+                      <span className="font-extrabold text-slate-850 dark:text-slate-200">
+                        {form.purchaseAccountName || "—"}
+                      </span>
+                      <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
+                        {form.purchaseAccountNumber || "-"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Goods & Brand</span>
+                      <span className="font-extrabold text-slate-850 dark:text-slate-200 block truncate max-w-[200px]" title={goodsName}>
+                        {goodsName}
+                      </span>
+                      <span className="block text-[9px] font-semibold text-slate-500 mt-0.5">
+                        Brand: {goods.map((g: any) => g.brand || "").filter(Boolean).join(", ") || "-"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Quantity & Loading Status</span>
+                      <span className="font-extrabold text-slate-850 dark:text-slate-200 block">
+                        PO: {form.quantity || 0} {form.quantityUnit || "BAGS"}
+                      </span>
+                      <span className="block text-[9px] font-semibold text-slate-500 mt-0.5">
+                        Loaded: <span className="font-bold text-blue-600 dark:text-blue-400">{selected.form_data?.workflow?.loadedQuantity || 0}</span> / Balance: <span className="font-bold text-rose-600">{selected.form_data?.workflow?.remainingQuantity || 0}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
             })()}
 
             {/* Prominent Active PO Banner */}
