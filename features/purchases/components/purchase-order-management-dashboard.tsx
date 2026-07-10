@@ -8,6 +8,7 @@ import {
   Boxes,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   ClipboardList,
   Clock3,
   Container,
@@ -30,7 +31,12 @@ import {
   TrendingUp,
   WalletCards,
   CalendarDays,
-  Plus
+  Plus,
+  Globe,
+  Home,
+  Fingerprint,
+  User,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
@@ -991,7 +997,25 @@ function ActionItem({ icon, label, onClick }: { icon: React.ReactNode; label: st
   );
 }
 
-function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryData, mode: string }) {
+function DashboardSummaryHeader({ 
+  summary, 
+  mode, 
+  isSuperAdmin,
+  rows,
+  expandedCountries,
+  setExpandedCountries,
+  selectedCountryForSummary,
+  setSelectedCountryForSummary
+}: { 
+  summary: DashboardSummaryData; 
+  mode: string; 
+  isSuperAdmin?: boolean; 
+  rows?: PurchaseReport[];
+  expandedCountries?: Record<string, boolean>;
+  setExpandedCountries?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  selectedCountryForSummary?: string | null;
+  setSelectedCountryForSummary?: (c: string | null) => void;
+}) {
   if (!summary) return null;
 
   const notTransferredPercentLC = summary.totalPurchaseLC > 0 ? (summary.remainingBalanceLC / summary.totalPurchaseLC) * 100 : 0;
@@ -1003,10 +1027,593 @@ function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryDa
   const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
 
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
+  const [expandedSummaryCountries, setExpandedSummaryCountries] = useState<Record<string, boolean>>({});
+
+  if (!summary) return null;
+
+  const notTransferredPercentLC = summary.totalPurchaseLC > 0 ? (summary.remainingBalanceLC / summary.totalPurchaseLC) * 100 : 0;
+  const numCurrencies = Object.keys(summary.foreignCurrencies).length;
+  const reportType = mode === "advance" ? "Advance Payment Summary" : mode === "credit" ? "Credit Payment Summary" : mode === "transfer" ? "Transfer Payment Summary" : "Purchase Booking Summary";
+  const now = new Date();
+  
+  const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+
+  const summaryRows = useMemo(() => {
+    if (!rows || rows.length === 0) return [];
+    
+    const groups: Record<string, {
+      country: string;
+      currency: string;
+      purchase: number;
+      sale: number;
+      dollarRate: number;
+      dollarTotal: number;
+      finalTotal: number;
+      requiredAdvance: number;
+      paidAdvance: number;
+      remainingAdvance: number;
+      remainingDue: number;
+      remPaid: number;
+      branches: Record<string, {
+        branch: string;
+        currency: string;
+        purchase: number;
+        sale: number;
+        dollarRate: number;
+        dollarTotal: number;
+        finalTotal: number;
+        requiredAdvance: number;
+        paidAdvance: number;
+        remainingAdvance: number;
+        remainingDue: number;
+        remPaid: number;
+      }>;
+    }> = {};
+
+    const parseNumber = (val: unknown): number => {
+      if (typeof val === 'number') return val;
+      if (!val) return 0;
+      const num = Number(String(val).replace(/,/g, ''));
+      return isNaN(num) ? 0 : num;
+    };
+
+    const USD_EXCHANGE: Record<string, number> = {
+      PKR: 1 / 278.5,
+      AED: 1 / 3.6725,
+      USD: 1.0,
+      EUR: 1.10,
+      CNY: 1 / 7.25,
+    };
+
+    const getUsdRate = (currency: string, baseCurrency: string, rowRate: number) => {
+      const cur = currency.toUpperCase();
+      const base = baseCurrency.toUpperCase();
+      if (USD_EXCHANGE[cur] !== undefined) return USD_EXCHANGE[cur];
+      if (base === "AED") return rowRate / 3.6725;
+      if (base === "PKR") return rowRate / 278.5;
+      return 1.0;
+    };
+
+    rows.forEach(row => {
+      const country = row.countryName || "Unknown Country";
+      const branch = row.branchName || "Main Branch";
+      const currency = String(row.currency || row.form_data?.form?.currencyType || row.form_data?.form?.purchaseCurrency || "USD").toUpperCase();
+      
+      const purchaseAmt = parseNumber(row.totalPurchaseAmount || row.purchaseAmount || 0);
+      const goods = row.form_data?.goodsEntries || [];
+      const saleAmt = goods.reduce((sum: number, g: any) => sum + Number(g.saleAmount || g.sellingAmount || (Number(g.saleRate || g.sellingRate || g.salePrice || g.sellingPrice || 0) * Number(g.qtyNo || g.quantity || 0)) || 0), 0) || (purchaseAmt * 1.15);
+
+      const exRateRaw = parseNumber((row as any).exchange_rate || row.form_data?.goodsEntries?.[0]?.exchangeRate || row.form_data?.goodsEntries?.[0]?.rate2 || 1);
+      const exRate = exRateRaw > 0 ? exRateRaw : 1;
+
+      const finalTotal = purchaseAmt * exRate;
+      const usdRate = getUsdRate(currency, summary.localCurrency, exRate);
+      const dollarTotal = (purchaseAmt + saleAmt) * usdRate;
+
+      const isPosted = row.status === "Posted"
+        || (row as any).ledgerPostingStatus === "Posted"
+        || (row as any).ledger_posting_status === "Posted"
+        || (row as any).ledger_posting_status === "posted"
+        || (row as any).journalStatus === "Posted"
+        || (row as any).journalStatus?.toLowerCase() === "posted"
+        || row.form_data?.workflow?.journalStatus === "Posted"
+        || row.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
+        || (row as any).ledger_posting_status === "transferred";
+
+      const transferredLC = isPosted ? finalTotal : 0;
+      const remainingLC = isPosted ? 0 : finalTotal;
+
+      if (!groups[country]) {
+        groups[country] = {
+          country,
+          currency: summary.localCurrency,
+          purchase: 0,
+          sale: 0,
+          dollarRate: usdRate,
+          dollarTotal: 0,
+          finalTotal: 0,
+          requiredAdvance: 0,
+          paidAdvance: 0,
+          remainingAdvance: 0,
+          remainingDue: 0,
+          remPaid: 0,
+          branches: {}
+        };
+      }
+
+      groups[country].purchase += purchaseAmt;
+      groups[country].sale += saleAmt;
+      groups[country].dollarTotal += dollarTotal;
+      groups[country].finalTotal += finalTotal;
+      groups[country].paidAdvance += transferredLC;
+      groups[country].remainingAdvance += remainingLC;
+
+      if (!groups[country].branches[branch]) {
+        groups[country].branches[branch] = {
+          branch,
+          currency: summary.localCurrency,
+          purchase: 0,
+          sale: 0,
+          dollarRate: usdRate,
+          dollarTotal: 0,
+          finalTotal: 0,
+          requiredAdvance: 0,
+          paidAdvance: 0,
+          remainingAdvance: 0,
+          remainingDue: 0,
+          remPaid: 0
+        };
+      }
+
+      const br = groups[country].branches[branch];
+      br.purchase += purchaseAmt;
+      br.sale += saleAmt;
+      br.dollarTotal += dollarTotal;
+      br.finalTotal += finalTotal;
+      br.paidAdvance += transferredLC;
+      br.remainingAdvance += remainingLC;
+    });
+
+    return Object.values(groups).map(g => ({
+      ...g,
+      branches: Object.values(g.branches).sort((a, b) => a.branch.localeCompare(b.branch))
+    })).sort((a, b) => a.country.localeCompare(b.country));
+  }, [rows, summary.localCurrency]);
+
+  const renderSuperAdminSummaryTable = () => {
+    if (!summaryRows || summaryRows.length === 0) {
+      return (
+        <div className="text-center py-6 text-slate-400 dark:text-slate-500 text-xs font-semibold">
+          No summary data available
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
+        <table className="w-full text-[10.5px] border-collapse bg-white dark:bg-slate-900 text-left">
+          <thead>
+            <tr className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[9.5px] text-slate-700 dark:text-slate-355 font-bold uppercase tracking-wider">
+              <th className="px-2.5 py-2.5 font-extrabold text-left">Country</th>
+              <th className="px-2.5 py-2.5 font-extrabold text-left">Currency</th>
+              <th className="px-2.5 py-2.5 font-extrabold text-right">Total Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summaryRows.map((r, idx) => {
+              const isSelected = selectedCountryForSummary === r.country;
+              const isExpanded = !!expandedSummaryCountries[r.country];
+
+              return (
+                <React.Fragment key={idx}>
+                  <tr 
+                    onClick={() => {
+                      if (setSelectedCountryForSummary) {
+                        setSelectedCountryForSummary(isSelected ? null : r.country);
+                      }
+                      setExpandedSummaryCountries(prev => ({
+                        ...prev,
+                        [r.country]: !prev[r.country]
+                      }));
+                    }}
+                    className={cn(
+                      "border-b border-slate-200 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-900/30 cursor-pointer font-extrabold text-slate-800 dark:text-slate-200 transition-all",
+                      isSelected && "bg-blue-50/90 dark:bg-blue-955 text-blue-700 dark:text-blue-300 font-black border-l-2 border-l-blue-600 shadow-sm"
+                    )}
+                  >
+                    <td className="px-2.5 py-3 uppercase truncate max-w-[120px] flex items-center gap-1 select-none font-sans" title={r.country}>
+                      <span className="text-slate-400 mr-0.5">
+                        {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                      </span>
+                      {getFlag(r.country)}
+                      <span className="font-extrabold ml-1">{r.country}</span>
+                    </td>
+                    <td className="px-2.5 py-3 font-black text-slate-900 dark:text-slate-100">{r.currency}</td>
+                    <td className="px-2.5 py-3 font-sans font-black tabular-nums text-slate-900 dark:text-slate-100 text-right">{r.finalTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                  </tr>
+                  
+                  {isExpanded && (
+                    <tr className="bg-slate-50/40 dark:bg-slate-955 border-b border-slate-200 dark:border-slate-800">
+                      <td colSpan={3} className="p-3">
+                        <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-inner dark:border-slate-850 dark:bg-slate-950 space-y-3">
+                          <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                            <span>{r.country} Branches Report Details</span>
+                            <span className="text-[9px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono font-bold dark:bg-blue-955 dark:text-blue-400">
+                              {r.branches.length} Branches
+                            </span>
+                          </div>
+                          
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-[10px] border-collapse">
+                              <thead>
+                                <tr className="border-b text-slate-450 font-bold uppercase text-[9px] tracking-wider bg-slate-50/80 dark:bg-slate-900/50">
+                                  <th className="px-2 py-1.5">Branch</th>
+                                  <th className="px-2 py-1.5 text-right">Total Value</th>
+                                  <th className="px-2 py-1.5 text-right text-emerald-600 font-extrabold">Transferred</th>
+                                  <th className="px-2 py-1.5 text-right text-rose-600 font-extrabold">Pending (Baqaya)</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                                {r.branches.map((b, bIdx) => (
+                                  <tr key={bIdx} className="hover:bg-slate-50 dark:hover:bg-slate-905 text-slate-700 dark:text-slate-350">
+                                    <td className="px-2 py-2 font-extrabold uppercase">{b.branch}</td>
+                                    <td className="px-2 py-2 text-right font-mono font-bold">{money(b.finalTotal, b.currency)}</td>
+                                    <td className="px-2 py-2 text-right font-mono text-emerald-600 font-bold">{money(b.paidAdvance, b.currency)}</td>
+                                    <td className="px-2 py-2 text-right font-mono font-bold text-rose-600">{money(b.remainingAdvance, b.currency)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderHorizontalDetails = () => (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/20 p-3.5 rounded-xl border border-slate-150 dark:border-slate-800/50 mb-4 shadow-sm">
+      <div className="flex justify-between items-center gap-2 border-b border-slate-100 dark:border-slate-800/40 md:border-b-0 pb-1.5 md:pb-0">
+        <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-slate-450">
+          <Globe className="h-3.5 w-3.5 text-slate-455" /> Country:
+        </span>
+        <div className="flex items-center gap-1 font-extrabold text-[11px] text-slate-800 dark:text-slate-200">
+          {getFlag(summary.country)}
+          <span>{summary.country}</span>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center gap-2 border-b border-slate-100 dark:border-slate-800/40 md:border-b-0 pb-1.5 md:pb-0">
+        <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-slate-455">
+          <Home className="h-3.5 w-3.5 text-slate-400" /> Branch:
+        </span>
+        <span className="font-extrabold text-[11px] text-slate-800 dark:text-slate-200 truncate max-w-[110px]" title={summary.branchName}>{summary.branchName}</span>
+      </div>
+
+      <div className="flex justify-between items-center gap-2 border-b border-slate-100/50 dark:border-slate-800/40 md:border-b-0 pb-1.5 md:pb-0">
+        <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-slate-455">
+          <Globe className="h-3.5 w-3.5 text-blue-500" /> Scope:
+        </span>
+        {selectedCountryForSummary ? (
+          <div className="flex items-center gap-1 font-extrabold text-[11px] text-blue-600 dark:text-blue-400">
+            {getFlag(selectedCountryForSummary)}
+            <span>{selectedCountryForSummary}</span>
+            {setSelectedCountryForSummary && (
+              <button 
+                type="button" 
+                onClick={() => setSelectedCountryForSummary(null)} 
+                className="text-[9px] font-black text-rose-500 hover:text-rose-600 dark:hover:text-rose-455 underline ml-1 cursor-pointer"
+              >
+                (Reset)
+              </button>
+            )}
+          </div>
+        ) : (
+          <span className="font-extrabold text-[11px] text-slate-400">Global All</span>
+        )}
+      </div>
+
+      <div className="flex justify-between items-center gap-2 border-b border-slate-100/50 dark:border-slate-800/40 md:border-b-0 pb-1.5 md:pb-0">
+        <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-slate-455">
+          <Fingerprint className="h-3.5 w-3.5 text-slate-400" /> User ID:
+        </span>
+        <span className="font-extrabold text-[11px] text-slate-800 dark:text-slate-200">{summary.userId}</span>
+      </div>
+    </div>
+  );
+
+  const renderPurchaseSummary = (onlyBody = false) => {
+    const body = (
+      <div className="flex flex-col gap-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+        <div className="flex justify-between items-center">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg></div> Total Transactions:</span>
+          <span className="font-black text-slate-800 dark:text-slate-200">{summary.totalTransactions}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div> Purchase Currencies:</span>
+          <span className="font-black text-slate-800 dark:text-slate-200">{numCurrencies}</span>
+        </div>
+        <div className="flex justify-between items-center mt-2">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5" y="0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div> Total Purchase (All):</span>
+          <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalAllFC.totalPurchase.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div> Total Transferred (All):</span>
+          <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalAllFC.advancePaid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+        </div>
+        <div className="flex justify-between items-center pt-2 mt-auto border-t border-dashed border-slate-100 dark:border-slate-800">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div> Total Pending (All):</span>
+          <span className="font-black text-rose-600 dark:text-rose-400 font-mono">{summary.totalAllFC.remainingBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div> % Pending:</span>
+          <span className="font-black text-rose-600 dark:text-rose-400">{summary.totalAllFC.totalPurchase > 0 ? ((summary.totalAllFC.remainingBalance / summary.totalAllFC.totalPurchase) * 100).toFixed(2) : "0.00"}%</span>
+        </div>
+      </div>
+    );
+
+    if (onlyBody) return body;
+
+    return (
+      <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden h-full">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-purple-50/50 dark:bg-purple-900/10">
+          <div className="bg-purple-600 p-1 rounded-full text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+          </div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400">2. PURCHASE SUMMARY (ALL CURRENCIES)</h4>
+        </div>
+        <div className="p-4 flex-1">
+          {body}
+        </div>
+      </div>
+    );
+  };
+
+  const renderOfficeCurrencySummary = (onlyBody = false) => {
+    const body = (
+      <div className="flex flex-col gap-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+        <div className="flex justify-between items-center">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.55" y="0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div> Total Amount ({summary.localCurrency}):</span>
+          <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalPurchaseLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+        </div>
+        <div className="flex justify-between items-center mt-4">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div> Transferred ({summary.localCurrency}):</span>
+          <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.advancePaidLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+        </div>
+        <div className="flex justify-between items-center pt-2 mt-auto border-t border-dashed border-slate-100 dark:border-slate-800">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div> Pending ({summary.localCurrency}):</span>
+          <span className="font-black text-rose-600 dark:text-rose-400 font-mono">{summary.remainingBalanceLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div> % Pending:</span>
+          <span className="font-black text-rose-600 dark:text-rose-400">{notTransferredPercentLC.toFixed(2)}%</span>
+        </div>
+      </div>
+    );
+
+    if (onlyBody) return body;
+
+    return (
+      <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden h-full">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10">
+          <div className="bg-emerald-600 p-1 rounded-full text-white">
+            <svg xmlns="http://www.w3.org/2500/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+          </div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-455 bg-emerald-50 dark:bg-emerald-900/10">3. FINAL OFFICE CURRENCY SUMMARY ({summary.localCurrency})</h4>
+        </div>
+        <div className="p-4 flex-1">
+          {body}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTransactionSummary = (onlyBody = false) => {
+    const body = (
+      <div className="flex flex-col gap-3.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+        <div className="flex justify-between items-center">
+          <span>Total Transactions:</span>
+          <span className="font-bold text-slate-800 dark:text-slate-200">{summary.totalTransactions}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span>Purchase Currencies:</span>
+          <span className="font-bold text-slate-800 dark:text-slate-200">{numCurrencies}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span>Final Currency:</span>
+          <span className="font-bold text-slate-800 dark:text-slate-200">{summary.localCurrency}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span>Exchange Rate Type:</span>
+          <span className="font-bold text-slate-800 dark:text-slate-200">Live</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span>Last Updated:</span>
+          <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}, {timeStr}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span>Report Type:</span>
+          <span className="font-bold text-slate-800 dark:text-slate-200">{reportType}</span>
+        </div>
+      </div>
+    );
+
+    if (onlyBody) return body;
+
+    return (
+      <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden h-full">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-orange-50/50 dark:bg-orange-900/10">
+          <div className="bg-orange-600 p-1 rounded-full text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400">4. TRANSACTION SUMMARY</h4>
+        </div>
+        <div className="p-4 flex-1">
+          {body}
+        </div>
+      </div>
+    );
+  };
+
+  const renderAllStepsContent = () => {
+    const avgPurchaseRate = summary.totalAllFC.totalPurchase > 0 
+      ? (summary.totalPurchaseLC / summary.totalAllFC.totalPurchase).toFixed(4)
+      : "1.0000";
+
+    const avgAdvanceRate = summary.totalAllFC.advancePaid > 0 
+      ? (summary.advancePaidLC / summary.totalAllFC.advancePaid).toFixed(4)
+      : "1.0000";
+
+    return (
+      <div className="flex flex-col gap-3 text-[10px] text-left">
+        {/* Block P1 */}
+        <div className="border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/30 dark:bg-slate-900/30 p-2.5">
+          <div className="flex items-center gap-1.5 font-black uppercase text-purple-700 dark:text-purple-400 mb-2 border-b border-slate-100 dark:border-slate-850/60 pb-1 flex-wrap">
+            <span className="text-[7.5px] bg-purple-600 text-white font-extrabold px-1 rounded">P1</span>
+            <span>Purchase Summary</span>
+          </div>
+          <div className="space-y-1 text-slate-500 dark:text-slate-400 font-semibold">
+            <div className="flex justify-between items-center">
+              <span>Currencies:</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-200">{numCurrencies} Currencies</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Total Purchase (FC):</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-200 font-sans tabular-nums">{summary.totalAllFC.totalPurchase.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Total Purchase ({summary.localCurrency}):</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-200 font-sans tabular-nums">{summary.totalPurchaseLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Avg Rate:</span>
+              <span className="font-extrabold text-slate-800 dark:text-slate-200 font-sans tabular-nums">{avgPurchaseRate}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Block P2 */}
+        <div className="border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/30 dark:bg-slate-900/30 p-2.5">
+          <div className="flex items-center gap-1.5 font-black uppercase text-blue-700 dark:text-blue-400 mb-2 border-b border-slate-100 dark:border-slate-850/60 pb-1 flex-wrap">
+            <span className="text-[7.5px] bg-blue-600 text-white font-extrabold px-1 rounded">P2</span>
+            <span>Transferred Summary</span>
+          </div>
+          <div className="space-y-1 text-slate-500 dark:text-slate-400 font-semibold">
+            <div className="flex justify-between items-center">
+              <span>Total Transferred (FC):</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-200 font-sans tabular-nums">{summary.totalAllFC.advancePaid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Total Transferred ({summary.localCurrency}):</span>
+              <span className="font-extrabold text-slate-850 dark:text-slate-200 font-sans tabular-nums">{summary.advancePaidLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Avg Rate:</span>
+              <span className="font-extrabold text-slate-800 dark:text-slate-200 font-sans tabular-nums">{avgAdvanceRate}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Block P3 */}
+        <div className="border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/30 dark:bg-slate-900/30 p-2.5">
+          <div className="flex items-center gap-1.5 font-black uppercase text-emerald-700 dark:text-emerald-455 mb-2 border-b border-slate-100 dark:border-slate-850/60 pb-1 flex-wrap">
+            <span className="text-[7.5px] bg-emerald-600 text-white font-extrabold px-1 rounded">P3</span>
+            <span>Transferred Value</span>
+          </div>
+          <div className="space-y-1 text-slate-500 dark:text-slate-400 font-semibold">
+            <div className="flex justify-between items-center">
+              <span>Transferred (FC):</span>
+              <span className="font-extrabold text-emerald-600 dark:text-emerald-455 font-sans tabular-nums">{summary.totalAllFC.advancePaid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Transferred ({summary.localCurrency}):</span>
+              <span className="font-extrabold text-emerald-600 dark:text-emerald-455 font-sans tabular-nums">{summary.advancePaidLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Transferred Records:</span>
+              <span className="font-extrabold text-slate-800 dark:text-slate-200">{summary.totalTransactions} Records</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Block P4 */}
+        <div className="border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/30 dark:bg-slate-900/30 p-2.5">
+          <div className="flex items-center gap-1.5 font-black uppercase text-rose-700 dark:text-rose-400 mb-2 border-b border-slate-100 dark:border-slate-850/60 pb-1 flex-wrap">
+            <span className="text-[7.5px] bg-rose-600 text-white font-extrabold px-1 rounded">P4</span>
+            <span>Pending Balance</span>
+          </div>
+          <div className="space-y-1 text-slate-500 dark:text-slate-400 font-semibold">
+            <div className="flex justify-between items-center">
+              <span>Pending (FC):</span>
+              <span className="font-extrabold text-rose-600 dark:text-rose-400 font-sans tabular-nums">{summary.totalAllFC.remainingBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Pending ({summary.localCurrency}):</span>
+              <span className="font-extrabold text-rose-600 dark:text-rose-400 font-sans tabular-nums">{summary.remainingBalanceLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Pending Ratio:</span>
+              <span className="font-extrabold text-rose-600 dark:text-rose-400">{notTransferredPercentLC.toFixed(2)}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderUnifiedReport = () => (
+    <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden h-full">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
+        <div className="bg-blue-600 p-1 rounded-full text-white">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">Booking Summary Stats</h4>
+      </div>
+      <div className="p-3 flex-1 overflow-y-auto max-h-[600px] scrollbar-thin">
+        {renderAllStepsContent()}
+      </div>
+    </div>
+  );
+
+  if (isSuperAdmin) {
+    return (
+      <div className="flex flex-col mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+          {/* Box 1: Details & Table (spans 7 columns on lg, 8 columns on xl) */}
+          <div className="lg:col-span-7 xl:col-span-8 flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
+              <div className="bg-blue-600 p-1 rounded-full text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. SUPER ADMIN COUNTRY REPORT</h4>
+            </div>
+            <div className="p-4 flex flex-col justify-start h-full">
+              {renderHorizontalDetails()}
+              {renderSuperAdminSummaryTable()}
+            </div>
+          </div>
+
+          {/* Box 2: Unified step-by-step reports card (spans 5 columns on lg, 4 columns on xl) */}
+          <div className="lg:col-span-5 xl:col-span-4">
+            {renderUnifiedReport()}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col mb-6 space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        
         {/* Panel 1: Branch & User Details */}
         <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
@@ -1042,114 +1649,23 @@ function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryDa
             </div>
             <div className="flex justify-between items-center">
               <span>Status:</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded text-[10px]">Active</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-450 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded text-[10px]">Active</span>
             </div>
           </div>
         </div>
 
         {/* Panel 2: Purchase Summary */}
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-purple-50/50 dark:bg-purple-900/10">
-            <div className="bg-purple-600 p-1 rounded-full text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
-            </div>
-            <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400">2. PURCHASE SUMMARY (ALL CURRENCIES)</h4>
-          </div>
-          <div className="p-4 flex flex-col gap-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg></div> Total Transactions:</span>
-              <span className="font-black text-slate-800 dark:text-slate-200">{summary.totalTransactions}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div> Purchase Currencies:</span>
-              <span className="font-black text-slate-800 dark:text-slate-200">{numCurrencies}</span>
-            </div>
-            <div className="flex justify-between items-center mt-2">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div> Total Purchase (All):</span>
-              <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalAllFC.totalPurchase.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div> Total Invoice / Advance (All):</span>
-              <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalAllFC.advancePaid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </div>
-            <div className="flex justify-between items-center pt-2 mt-auto border-t border-dashed border-slate-100 dark:border-slate-800">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div> Total Not Transferred (All):</span>
-              <span className="font-black text-rose-600 dark:text-rose-400 font-mono">{summary.totalAllFC.remainingBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div> % Not Transferred:</span>
-              <span className="font-black text-rose-600 dark:text-rose-400">{summary.totalAllFC.totalPurchase > 0 ? ((summary.totalAllFC.remainingBalance / summary.totalAllFC.totalPurchase) * 100).toFixed(2) : "0.00"}%</span>
-            </div>
-          </div>
-        </div>
+        {renderPurchaseSummary()}
 
         {/* Panel 3: Final Office Currency */}
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10">
-            <div className="bg-emerald-600 p-1 rounded-full text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-            </div>
-            <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">3. FINAL OFFICE CURRENCY SUMMARY ({summary.localCurrency})</h4>
-          </div>
-          <div className="p-4 flex flex-col gap-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div> Total Amount ({summary.localCurrency}):</span>
-              <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalPurchaseLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </div>
-            <div className="flex justify-between items-center mt-4">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div> Invoice / Advance ({summary.localCurrency}):</span>
-              <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.advancePaidLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </div>
-            <div className="flex justify-between items-center pt-2 mt-auto border-t border-dashed border-slate-100 dark:border-slate-800">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div> Not Transferred ({summary.localCurrency}):</span>
-              <span className="font-black text-rose-600 dark:text-rose-400 font-mono">{summary.remainingBalanceLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div> % Not Transferred:</span>
-              <span className="font-black text-rose-600 dark:text-rose-400">{notTransferredPercentLC.toFixed(2)}%</span>
-            </div>
-          </div>
-        </div>
+        {renderOfficeCurrencySummary()}
 
         {/* Panel 4: Transaction Summary */}
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-orange-50/50 dark:bg-orange-900/10">
-            <div className="bg-orange-600 p-1 rounded-full text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            </div>
-            <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400">4. TRANSACTION SUMMARY</h4>
-          </div>
-          <div className="p-4 flex flex-col gap-3.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-            <div className="flex justify-between items-center">
-              <span>Total Transactions:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{summary.totalTransactions}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Purchase Currencies:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{numCurrencies}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Final Currency:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{summary.localCurrency}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Exchange Rate Type:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">Live</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Last Updated:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}, {timeStr}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Report Type:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{reportType}</span>
-            </div>
-          </div>
-        </div>
-
+        {renderTransactionSummary()}
       </div>
     </div>
   );
+}
 }
 
 export function PurchaseOrderManagementDashboard() {
@@ -1174,6 +1690,8 @@ export function PurchaseOrderManagementDashboard() {
 
   const [activeTab, setActiveTab] = useState<LifecycleTab>("Dashboard Overview");
   const [session, setSession] = useState<any>(null);
+  const [selectedCountryForSummary, setSelectedCountryForSummary] = useState<string | null>(null);
+  const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
 
   const [filters, setFilters] = useState({
     country: "all",
@@ -1361,6 +1879,7 @@ export function PurchaseOrderManagementDashboard() {
     const needle = searchText.trim().toLowerCase();
     return reports.filter((row) => {
       if (needle && ![row.purchaseBookingOrderNumber, row.purchaseAccountName, row.purchaseAccountNumber, row.salesAccountName, row.salesAccountNumber, row.supplierName, row.buyerName, row.productName, row.branchName, row.countryName, row.status, row.paymentStatus, shipmentStatus(row), inventoryStatus(row)].some((value) => String(value ?? "").toLowerCase().includes(needle))) return false;
+      if (selectedCountryForSummary && row.countryName !== selectedCountryForSummary) return false;
       if (lockedCountryName && row.countryName !== lockedCountryName) return false;
       if (lockedBranchName && row.branchName !== lockedBranchName) return false;
       if (!lockedCountryName && filters.country !== "all" && row.countryName !== filters.country) return false;
@@ -1619,7 +2138,16 @@ export function PurchaseOrderManagementDashboard() {
         </div>
 
       {dashboardSummary && (
-        <DashboardSummaryHeader summary={dashboardSummary} mode="transfer" />
+        <DashboardSummaryHeader 
+          summary={dashboardSummary} 
+          mode="transfer" 
+          isSuperAdmin={isSuperAdmin}
+          rows={filtered}
+          expandedCountries={expandedCountries}
+          setExpandedCountries={setExpandedCountries}
+          selectedCountryForSummary={selectedCountryForSummary}
+          setSelectedCountryForSummary={setSelectedCountryForSummary}
+        />
       )}
       </div>
 

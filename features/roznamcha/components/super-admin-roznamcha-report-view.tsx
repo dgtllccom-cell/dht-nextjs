@@ -1984,15 +1984,13 @@ export function SuperAdminRoznamchaReportView({
                   <thead className="bg-slate-900 text-white dark:bg-slate-800">
                     <tr className="whitespace-nowrap text-left">
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Date</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Payment Account</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account Details</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Source Document</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account No</th>
+                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Party Name</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Country</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Branch Name</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Voucher Type</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Voucher No</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Source Document</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account No</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Party Name</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Details / Narration</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Currency</th>
                       <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Dr.</th>
@@ -2011,7 +2009,7 @@ export function SuperAdminRoznamchaReportView({
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={showUsd ? 19 : 15} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
+                        <td colSpan={showUsd ? 17 : 13} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
                           Loading entries...
                         </td>
                       </tr>
@@ -2037,17 +2035,15 @@ export function SuperAdminRoznamchaReportView({
                             }}
                           >
                             <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.entryDate}</td>
-                            <td className="p-2 text-left max-w-[150px] truncate border border-slate-200 dark:border-slate-800 text-slate-700 font-semibold" title={row.paymentAccountName}>{row.paymentAccountName}</td>
-                            <td className="p-2 text-left max-w-[150px] truncate border border-slate-200 dark:border-slate-800 text-slate-650" title={row.accountDetails}>{row.accountDetails}</td>
-                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold">{row.countryName}</td>
-                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.cityBranchId ? row.cityBranchName : row.countryBranchName}</td>
-                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-medium text-slate-600">{row.typeLabel}</td>
-                            <td className="p-2 text-center whitespace-nowrap font-mono border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100">{row.voucherNo}</td>
                             <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-600">{getSourceDisplay(row)}</td>
                             <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-mono font-bold text-blue-600">{row.accountCode}</td>
                             <td className="p-2 text-left max-w-[200px] truncate border border-slate-200 dark:border-slate-800">
                               <span className="font-semibold text-slate-800" title={row.partyName}>{row.partyName}</span>
                             </td>
+                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold">{row.countryName}</td>
+                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.cityBranchId ? row.cityBranchName : row.countryBranchName}</td>
+                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-medium text-slate-600">{row.typeLabel}</td>
+                            <td className="p-2 text-center whitespace-nowrap font-mono border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100">{row.voucherNo}</td>
                             <td className="p-2 text-left max-w-[300px] truncate border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-350" title={row.narration}>{row.narration}</td>
                             <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-extrabold text-slate-900 dark:text-slate-100">{row.countryCurrency || "PKR"}</td>
                             <td className={cn(

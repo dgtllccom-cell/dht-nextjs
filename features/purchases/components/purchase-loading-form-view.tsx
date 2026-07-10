@@ -74,7 +74,7 @@ export function PurchaseLoadingFormView() {
       const totalQty = goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0) || Number(form.qtyNo || 0);
       
       const poRecords = loadingRecords.filter(r => r.purchase_order_no === row.purchase_order_no);
-      const loadedQty = poRecords.reduce((sum, r) => sum + Number(r.report_payload?.loadingQuantity || 0), 0);
+      const loadedQty = poRecords.reduce((sum, r) => sum + Number(r.report_payload?.loadingQuantity || r.report_payload?.loadedQuantity || r.loadedQuantity || 0), 0);
 
       if (loadedQty >= totalQty && !query) return false;
 
@@ -111,6 +111,7 @@ export function PurchaseLoadingFormView() {
           remarks: loadForm.loadingNote,
           reportPayload: {
             loadingQuantity: Number(loadForm.loadingQuantity),
+            loadedQuantity: Number(loadForm.loadingQuantity),
             loadingDate: loadForm.loadingDate,
             loadingNote: loadForm.loadingNote,
             standalone: false,
@@ -144,7 +145,7 @@ export function PurchaseLoadingFormView() {
   const poTotalAmount = selectedPOGoods.reduce((sum: number, g: any) => sum + Number(g.finalAmount || 0), 0) || Number(selectedPOForm.grandFinal || 0);
   
   const poRecords = selectedPO ? loadingRecords.filter(r => r.purchase_order_no === selectedPO.purchase_order_no) : [];
-  const poAlreadyLoadedQty = poRecords.reduce((sum: number, r: any) => sum + Number(r.report_payload?.loadingQuantity || 0), 0);
+  const poAlreadyLoadedQty = poRecords.reduce((sum: number, r: any) => sum + Number(r.report_payload?.loadingQuantity || r.report_payload?.loadedQuantity || r.loadedQuantity || 0), 0);
   
   const currentLoadingQty = Number(loadForm.loadingQuantity || 0);
   const liveBalance = poTotalQty - poAlreadyLoadedQty - currentLoadingQty;

@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SimpleModal } from "@/components/ui/simple-modal";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1849,8 +1850,22 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const isRtl = ["ur", "ar", "fa", "ps"].includes(currentLanguage);
 
   useEffect(() => {
-    setTitleSlot(document.getElementById("erp-page-title-slot"));
-    setActionsSlot(document.getElementById("erp-page-actions-slot"));
+    const titleEl = document.getElementById("erp-page-title-slot");
+    const actionsEl = document.getElementById("erp-page-actions-slot");
+    if (titleEl) setTitleSlot(titleEl);
+    if (actionsEl) setActionsSlot(actionsEl);
+
+    if (titleEl && actionsEl) return;
+
+    const timer = setInterval(() => {
+      const t = document.getElementById("erp-page-title-slot");
+      const a = document.getElementById("erp-page-actions-slot");
+      if (t) setTitleSlot(t);
+      if (a) setActionsSlot(a);
+      if (t && a) clearInterval(timer);
+    }, 50);
+
+    return () => clearInterval(timer);
   }, []);
 
   const [addOptionValue, setAddOptionValue] = useState("");
@@ -2200,7 +2215,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       const urlAmount = searchParams.get("amount");
       const urlExchangeRate = searchParams.get("exchangeRate");
       const urlFinalAmount = searchParams.get("finalAmount");
+      const urlAmountPKR = searchParams.get("amountPKR");
       const urlRemarks = searchParams.get("remarks");
+      const urlCurrency = searchParams.get("currency");
 
       if (urlExchangeRate) {
         setExchangeRate(urlExchangeRate);
@@ -2221,6 +2238,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
       if (urlFinalAmount) {
         setFinalPayment(urlFinalAmount);
+      } else if (urlAmountPKR) {
+        setFinalPayment(urlAmountPKR);
       } else {
         setFinalPayment("");
       }
@@ -2231,9 +2250,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         setRemarks("");
       }
 
-      const poCur = selected.currency_code || "USD";
-      // Auto-enforce local currency for payment
-      setCurrency(baseCurrency || poCur.toUpperCase());
+      if (urlCurrency) {
+        setCurrency(urlCurrency.toUpperCase());
+      } else {
+        const poCur = selected.currency_code || "USD";
+        // Auto-enforce local currency for payment
+        setCurrency(baseCurrency || poCur.toUpperCase());
+      }
 
       // Pre-populate Super Admin selectors with selected order scope
       if (isSuperAdmin) {
@@ -2460,7 +2483,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         formData.append("attachment", attachmentFile);
       }
 
-      const res = await fetch(`/api/erp/purchases/orders/${selected.id}/payments`, {
+      const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+      const fromLoading = searchParams.get("fromLoading") === "true";
+      const postUrl = `/api/erp/purchases/orders/${selected.id}/payments${fromLoading ? "?fromLoading=true" : ""}`;
+
+      const res = await fetch(postUrl, {
         method: "POST",
         body: formData,
         credentials: "include"
@@ -2806,22 +2833,27 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           {/* Super Admin Location Selectors */}
           {isSuperAdmin && (
             <div className="flex items-center gap-1.5">
-              <select
+              <SearchableSelect
                 value={saCountryId}
-                onChange={(e) => { setSaCountryId(e.target.value); setSaBranchId(""); }}
-                className="h-7 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 transition focus:border-blue-500"
-              >
-                <option value="">{t("all_countries", currentLanguage)}</option>
-                {saCountries.map((c: any) => <option key={c.id} value={c.id}>{tData(c.name, currentLanguage)}</option>)}
-              </select>
-              <select
+                onChange={(val) => { setSaCountryId(val); setSaBranchId(""); }}
+                options={[
+                  { label: t("all_countries", currentLanguage), value: "" },
+                  ...saCountries.map((c: any) => ({ label: tData(c.name, currentLanguage), value: c.id }))
+                ]}
+                placeholder={t("all_countries", currentLanguage)}
+                className="w-36 text-[10px] font-semibold relative z-[45]"
+              />
+              <SearchableSelect
                 value={saBranchId}
-                onChange={(e) => setSaBranchId(e.target.value)}
-                className="h-7 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 transition focus:border-blue-500"
-              >
-                <option value="">{t("all_branches", currentLanguage)}</option>
-                {saBranches.filter((b: any) => !saCountryId || b.country_id === saCountryId).map((b: any) => <option key={b.id} value={b.id}>{tData(b.name, currentLanguage)}</option>)}
-              </select>
+                onChange={(val) => setSaBranchId(val)}
+                options={[
+                  { label: t("all_branches", currentLanguage), value: "" },
+                  ...saBranches.filter((b: any) => !saCountryId || b.country_id === saCountryId).map((b: any) => ({ label: tData(b.name, currentLanguage), value: b.id }))
+                ]}
+                placeholder={t("all_branches", currentLanguage)}
+                disabled={!saCountryId}
+                className="w-36 text-[10px] font-semibold relative z-[45]"
+              />
             </div>
           )}
 
@@ -3421,7 +3453,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </div>
                 );
               }
-              if (activeMode === "remaining" && remainingDue <= 0.01) {
+              const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+              const fromLoading = searchParams.get("fromLoading") === "true";
+              if (activeMode === "remaining" && remainingDue <= 0.01 && !fromLoading) {
                 return (
                   <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold p-3.5 rounded-xl flex items-center gap-2 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-400 animate-in fade-in duration-300">
                     <XCircle className="h-5 w-5 shrink-0" /> Already Transferred: The remaining due for PO {selected.purchase_order_no} has already been fully paid.
@@ -3436,49 +3470,85 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               const form = selected.form_data?.form || {};
               const goods = selected.form_data?.goodsEntries || [];
               const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "—";
+
+              const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+              const fromLoading = searchParams.get("fromLoading") === "true";
+              const cLoadedQty = searchParams.get("loadedQty");
+              const cGrossWeight = searchParams.get("grossWeight");
+              const cNetWeight = searchParams.get("netWeight");
+              const cPriceRate = searchParams.get("priceRate");
+
               return (
-                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 dark:bg-slate-900/50 dark:border-slate-800 shadow-sm">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-3">
-                    Purchase Order & Loading Specifications
+                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 dark:bg-slate-900/50 dark:border-slate-800 shadow-sm space-y-4">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-3">
+                      Purchase Order & Loading Specifications
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Seller (Supplier)</span>
+                        <span className="font-extrabold text-slate-850 dark:text-slate-200">
+                          {form.salesAccountName || form.supplierName || "—"}
+                        </span>
+                        <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
+                          {form.salesAccountNumber || "-"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Purchaser (Purchase A/C)</span>
+                        <span className="font-extrabold text-slate-850 dark:text-slate-200">
+                          {form.purchaseAccountName || "—"}
+                        </span>
+                        <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
+                          {form.purchaseAccountNumber || "-"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Goods & Brand</span>
+                        <span className="font-extrabold text-slate-850 dark:text-slate-200 block truncate max-w-[200px]" title={goodsName}>
+                          {goodsName}
+                        </span>
+                        <span className="block text-[9px] font-semibold text-slate-500 mt-0.5">
+                          Brand: {goods.map((g: any) => g.brand || "").filter(Boolean).join(", ") || "-"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Quantity & Loading Status</span>
+                        <span className="font-extrabold text-slate-850 dark:text-slate-200 block">
+                          PO: {form.quantity || 0} {form.quantityUnit || "BAGS"}
+                        </span>
+                        <span className="block text-[9px] font-semibold text-slate-500 mt-0.5">
+                          Loaded: <span className="font-bold text-blue-600 dark:text-blue-400">{selected.form_data?.workflow?.loadedQuantity || 0}</span> / Balance: <span className="font-bold text-rose-600">{selected.form_data?.workflow?.remainingQuantity || 0}</span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Seller (Supplier)</span>
-                      <span className="font-extrabold text-slate-850 dark:text-slate-200">
-                        {form.salesAccountName || form.supplierName || "—"}
-                      </span>
-                      <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
-                        {form.salesAccountNumber || "-"}
-                      </span>
+
+                  {fromLoading && (
+                    <div className="border-t border-dashed border-slate-200 dark:border-slate-850 pt-3">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">
+                        Transferred Container Specifications
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs bg-blue-50/20 border border-blue-100/50 p-3 rounded-lg dark:bg-blue-950/10 dark:border-blue-900/20">
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Container Load Qty</span>
+                          <span className="font-black text-slate-900 dark:text-slate-100">{cLoadedQty || "0"} {form.quantityUnit || "BAGS"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Gross Weight</span>
+                          <span className="font-extrabold text-slate-850 dark:text-slate-200">{Number(cGrossWeight || 0).toLocaleString()} KGs</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Net Weight</span>
+                          <span className="font-extrabold text-slate-850 dark:text-slate-200">{Number(cNetWeight || 0).toLocaleString()} KGs</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Purchase Price Rate</span>
+                          <span className="font-mono font-bold text-slate-850 dark:text-slate-200">{Number(cPriceRate || 0).toFixed(4)} USD</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Purchaser (Purchase A/C)</span>
-                      <span className="font-extrabold text-slate-850 dark:text-slate-200">
-                        {form.purchaseAccountName || "—"}
-                      </span>
-                      <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
-                        {form.purchaseAccountNumber || "-"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Goods & Brand</span>
-                      <span className="font-extrabold text-slate-850 dark:text-slate-200 block truncate max-w-[200px]" title={goodsName}>
-                        {goodsName}
-                      </span>
-                      <span className="block text-[9px] font-semibold text-slate-500 mt-0.5">
-                        Brand: {goods.map((g: any) => g.brand || "").filter(Boolean).join(", ") || "-"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Quantity & Loading Status</span>
-                      <span className="font-extrabold text-slate-850 dark:text-slate-200 block">
-                        PO: {form.quantity || 0} {form.quantityUnit || "BAGS"}
-                      </span>
-                      <span className="block text-[9px] font-semibold text-slate-500 mt-0.5">
-                        Loaded: <span className="font-bold text-blue-600 dark:text-blue-400">{selected.form_data?.workflow?.loadedQuantity || 0}</span> / Balance: <span className="font-bold text-rose-600">{selected.form_data?.workflow?.remainingQuantity || 0}</span>
-                      </span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })()}
@@ -3614,15 +3684,21 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     </div>
                   </>
                 )}
-                {activeMode === "remaining" && (
-                  <div>
-                    <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Remaining Due</span>
-                    <span className="font-extrabold text-rose-600">{money(Number(selected.remaining_due || 0), (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
-                    <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
-                      {money(Number(selected.remaining_due || 0) * (selected.exchange_rate || 1), baseCurrency)}
-                    </span>
-                  </div>
-                )}
+                {activeMode === "remaining" && (() => {
+                  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+                  const fromLoading = searchParams.get("fromLoading") === "true";
+                  const containerRemaining = Number(searchParams.get("amount") || 0);
+                  const showDue = fromLoading ? containerRemaining : Number(selected.remaining_due || 0);
+                  return (
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">{fromLoading ? "Container Balance" : "Remaining Due"}</span>
+                      <span className="font-extrabold text-rose-600">{money(showDue, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
+                      <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
+                        {money(showDue * (selected.exchange_rate || 1), baseCurrency)}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div>
                   <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Exchange Rate</span>
                   <span className="font-bold text-slate-600 dark:text-slate-400 font-mono">1 {(selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD"} = {Number(selected.exchange_rate || 1).toFixed(2)} {baseCurrency}</span>
@@ -3638,36 +3714,36 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 {isSuperAdmin && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FieldBlock label="Country (Super Admin)" required={false}>
-                      <select
-                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                      <SearchableSelect
                         value={saCountryId}
-                        onChange={(e) => {
-                          setSaCountryId(e.target.value);
+                        onChange={(val) => {
+                          setSaCountryId(val);
                           setSaBranchId("");
                           setPaymentSourceLedgerId("");
                         }}
-                      >
-                        <option value="">-- All Countries --</option>
-                        {saCountries.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
+                        options={[
+                          { label: "-- All Countries --", value: "" },
+                          ...saCountries.map(c => ({ label: c.name, value: c.id }))
+                        ]}
+                        placeholder="-- All Countries --"
+                        className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
+                      />
                     </FieldBlock>
                     <FieldBlock label="Branch (Super Admin)" required={false}>
-                      <select
-                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                      <SearchableSelect
                         value={saBranchId}
-                        onChange={(e) => {
-                          setSaBranchId(e.target.value);
+                        onChange={(val) => {
+                          setSaBranchId(val);
                           setPaymentSourceLedgerId("");
                         }}
+                        options={[
+                          { label: "-- All Branches --", value: "" },
+                          ...saBranches.filter(b => b.country_id === saCountryId || b.country_id === undefined).map(b => ({ label: b.name, value: b.id }))
+                        ]}
+                        placeholder="-- All Branches --"
                         disabled={!saCountryId}
-                      >
-                        <option value="">-- All Branches --</option>
-                        {saBranches.filter(b => b.country_id === saCountryId || b.country_id === undefined).map(b => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                      </select>
+                        className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
+                      />
                     </FieldBlock>
                   </div>
                 )}
@@ -3705,11 +3781,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </FieldBlock>
 
                   <FieldBlock label="Roznamcha Type" required>
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                    <SearchableSelect
                       value={roznamchaType}
-                      onChange={(e) => {
-                        const val = e.target.value;
+                      onChange={(val) => {
                         setRoznamchaType(val);
                         if (val === "Cash Book No.") {
                           setPaymentType("cash");
@@ -3721,11 +3795,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           if (bankLed) setPaymentSourceLedgerId(ledgerId(bankLed) || "");
                         }
                       }}
-                    >
-                      <option value="Cash Book No.">Cash Book No.</option>
-                      <option value="Roznamcha Book No.">Roznamcha Book No.</option>
-                      <option value="Receipt No.">Receipt No.</option>
-                    </select>
+                      options={[
+                        { label: "Cash Book No.", value: "Cash Book No." },
+                        { label: "Roznamcha Book No.", value: "Roznamcha Book No." },
+                        { label: "Receipt No.", value: "Receipt No." }
+                      ]}
+                      placeholder="Select Type"
+                      className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
+                    />
                   </FieldBlock>
 
                   <FieldBlock label="Roznamcha Number" required>
@@ -3749,11 +3826,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FieldBlock label="Roznamcha Category" required>
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                    <SearchableSelect
                       value={paymentType}
-                      onChange={(e) => {
-                        const value = e.target.value as any;
+                      onChange={(val) => {
+                        const value = val as any;
                         setPaymentType(value);
                         setTypeDetails({});
                         setAttachmentFile(null);
@@ -3770,29 +3846,34 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           if (bankLed) setPaymentSourceLedgerId(ledgerId(bankLed) || "");
                         }
                       }}
-                    >
-                      <option value="">Select Category</option>
-                      <option value="cash">Cash Roznamcha</option>
-                      <option value="bank">Bank Roznamcha</option>
-                      <option value="business">Business Roznamcha</option>
-                      <option value="invoice">Invoice Journal</option>
-                      <option value="transfer">Transfer</option>
-                    </select>
+                      options={[
+                        { label: "Select Category", value: "" },
+                        { label: "Cash Roznamcha", value: "cash" },
+                        { label: "Bank Roznamcha", value: "bank" },
+                        { label: "Business Roznamcha", value: "business" },
+                        { label: "Invoice Journal", value: "invoice" },
+                        { label: "Transfer", value: "transfer" }
+                      ]}
+                      placeholder="Select Category"
+                      className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
+                    />
                   </FieldBlock>
 
                   <FieldBlock label="Currency" required>
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                    <SearchableSelect
                       value={currency}
-                      onChange={(e) => setCurrency(e.target.value)}
-                    >
-                      <option value="USD">USD</option>
-                      <option value="AED">AED</option>
-                      <option value="PKR">PKR</option>
-                      <option value="INR">INR</option>
-                      <option value="AFN">AFN</option>
-                      <option value="IRR">IRR</option>
-                    </select>
+                      onChange={(val) => setCurrency(val)}
+                      options={[
+                        { label: "USD", value: "USD" },
+                        { label: "AED", value: "AED" },
+                        { label: "PKR", value: "PKR" },
+                        { label: "INR", value: "INR" },
+                        { label: "AFN", value: "AFN" },
+                        { label: "IRR", value: "IRR" }
+                      ]}
+                      placeholder="Select Currency"
+                      className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
+                    />
                   </FieldBlock>
                 </div>
 
@@ -3841,54 +3922,48 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                     {paymentType === "bank" && (
                       <div className="space-y-3">
-                        <div className="space-y-1">
+                        <div className="space-y-1 relative z-[46]">
                           <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Bank Name</span>
-                          <select
-                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                          <SearchableSelect
                             value={typeDetails.bankName || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === "__new_bank__") {
+                            onChange={(val) => {
+                              if (val === "__ADD_NEW__") {
                                 openAddOption("bank");
                               } else {
                                 setTypeDetails((prev) => ({ ...prev, bankName: val }));
                               }
                             }}
-                          >
-                            <option value="">Select Bank</option>
-                            {["HBL", "MCB", "UBL", "Meezan", "Bank Alfalah"].map((bank) => (
-                              <option key={bank} value={bank}>{bank}</option>
-                            ))}
-                            {savedBanks.map((bank, index) => (
-                              <option key={`${bank.name}-${index}`} value={bank.name}>{bank.name}</option>
-                            ))}
-                            <option value="__new_bank__" className="text-blue-700 font-bold">+ New Bank</option>
-                          </select>
+                            options={[
+                              { label: "Select Bank", value: "" },
+                              ...["HBL", "MCB", "UBL", "Meezan", "Bank Alfalah"].map((bank) => ({ label: bank, value: bank })),
+                              ...savedBanks.map((bank) => ({ label: bank.name, value: bank.name }))
+                            ]}
+                            placeholder="Select Bank"
+                            addOptionLabel="New Bank"
+                            className="text-xs font-semibold text-slate-800 dark:text-slate-100"
+                          />
                         </div>
 
-                        <div className="space-y-1">
+                        <div className="space-y-1 relative z-[46]">
                           <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Payment Method</span>
-                          <select
-                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-semibold outline-none"
+                          <SearchableSelect
                             value={typeDetails.method || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === "__new_method__") {
+                            onChange={(val) => {
+                              if (val === "__ADD_NEW__") {
                                 openAddOption("method");
                               } else {
                                 setTypeDetails((prev) => ({ ...prev, method: val }));
                               }
                             }}
-                          >
-                            <option value="">Select Method</option>
-                            {["Cheque", "Mobile Transfer", "Online Transfer", "Bank Transfer"].map((method) => (
-                              <option key={method} value={method}>{method}</option>
-                            ))}
-                            {savedMethods.map((method, index) => (
-                              <option key={`${method}-${index}`} value={method}>{method}</option>
-                            ))}
-                            <option value="__new_method__" className="text-blue-700 font-bold">+ New Method</option>
-                          </select>
+                            options={[
+                              { label: "Select Method", value: "" },
+                              ...["Cheque", "Mobile Transfer", "Online Transfer", "Bank Transfer"].map((method) => ({ label: method, value: method })),
+                              ...savedMethods.map((method) => ({ label: method, value: method }))
+                            ]}
+                            placeholder="Select Method"
+                            addOptionLabel="New Method"
+                            className="text-xs font-semibold text-slate-800 dark:text-slate-100"
+                          />
                         </div>
 
                         <div className="grid gap-3 grid-cols-2">

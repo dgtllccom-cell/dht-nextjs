@@ -406,11 +406,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
             .select("id")
             .eq("purchase_order_id", params.id)
             .is("deleted_at", null)
-            .maybeSingle();
+            .limit(1);
 
           if (loadingCheckError) throw loadingCheckError;
 
-          if (!existingLoading) {
+          if (!existingLoading || existingLoading.length === 0) {
             const containerNumber = String(form.containerNo || form.containerNumber || `CONT-${updated.purchase_order_no}`).trim();
             const containerType = form.containerType || null;
             

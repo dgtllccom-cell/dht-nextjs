@@ -43,6 +43,7 @@ import { openPurchaseA4ReportWindow } from "@/lib/reports/open-purchase-a4-repor
 import { openProformaInvoiceWindow } from "@/lib/reports/open-proforma-invoice-window";
 import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-window";
 import { cn } from "@/lib/utils";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 type PurchaseReport = {
   id: string;
@@ -2768,15 +2769,24 @@ function DarkInput({ label, value, onChange, type = "text" }: { label: string; v
 }
 
 function DarkSelect({ label, value, options, placeholder, onChange, disabled }: { label: string; value: string; options: string[]; placeholder: string; onChange: (value: string) => void; disabled?: boolean }) {
+  const formattedOptions = useMemo(() => {
+    return [
+      { label: placeholder, value: "" },
+      ...options.map(opt => ({ label: opt || "Blank", value: opt }))
+    ];
+  }, [options, placeholder]);
+
   return (
-    <label className="block min-w-[130px]">
+    <label className="block min-w-[130px] relative z-[45]">
       <span className="mb-1 block text-[10px] font-bold text-muted-foreground">{label}</span>
-      <select disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500">
-        <option value="">{placeholder}</option>
-        {options.map((option) => (
-          <option key={option} value={option}>{option}</option>
-        ))}
-      </select>
+      <SearchableSelect
+        disabled={disabled}
+        value={value}
+        onChange={onChange}
+        options={formattedOptions}
+        placeholder={placeholder}
+        className="w-full text-xs font-semibold"
+      />
     </label>
   );
 }

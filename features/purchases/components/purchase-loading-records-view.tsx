@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Download, FileText, Link2, MoreVertical, Plus, Printer, RefreshCcw, Search, Ship, Building2, ArrowDownLeft, ArrowUpRight, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewportActionMenu } from "@/components/ui/viewport-action-menu";
@@ -30,7 +32,7 @@ function CustomDropdown({ record, onLoadDetails }: { record: LoadingRecord, onLo
 }
 
 function calcLoadingFinance(h: LoadingRecord, poData: any = {}, form: any = {}) {
-  const qty = Number(h.report_payload?.loadedQuantity || h.loadedQuantity || 0);
+  const qty = Number(h.report_payload?.loadedQuantity || h.report_payload?.loadingQuantity || h.loadedQuantity || 0);
   const qtyKgs = Number(h.report_payload?.oneQtyKgs || 0);
   const emptyKgs = Number(h.report_payload?.oneEmptyKgs || 0);
   const netWeight = qty * (qtyKgs - emptyKgs);
@@ -276,6 +278,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
             sourceRecordId: record.id,
             sourceLoadingRecordNo: record.loading_record_no,
             loadedQuantity: newQuantity,
+            loadingQuantity: newQuantity,
             runningLoadedQuantity: savedLoadedQuantity + newQuantity,
             balanceQuantity: Math.max(0, totalQuantity - (savedLoadedQuantity + newQuantity)),
             blNumber,
@@ -966,17 +969,34 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                     <span className="text-xl font-black font-mono text-rose-600">{previewBalanceQuantity.toLocaleString()}</span>
                  </div>
                  {previewBalanceQuantity > 0 && (
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        window.open(`/dashboard/journal/purchase-order-payment/remaining?purchaseOrderNo=${encodeURIComponent(record.purchase_order_no || '')}`, "_self");
-                      }}
-                      className="w-full h-10 mt-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-lg flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.98]"
-                    >
-                      <Link2 className="h-4 w-4" />
-                      Transfer Remaining to Journal
-                    </Button>
-                  )}
+                   <Button
+                     type="button"
+                     onClick={() => {
+                       const finance = calcLoadingFinance(record, poData, form);
+                       const loadedQty = record.report_payload?.loadedQuantity || record.loadedQuantity || 0;
+                       const grossWeight = record.report_payload?.grossWeight || 0;
+                       const netWeight = record.report_payload?.netWeight || 0;
+                       const priceRate = record.report_payload?.priceRateC1 || 0;
+                       const queryParams = new URLSearchParams({
+                         purchaseOrderNo: record.purchase_order_no || "",
+                         fromLoading: "true",
+                         loadedQty: String(loadedQty),
+                         grossWeight: String(grossWeight),
+                         netWeight: String(netWeight),
+                         priceRate: String(priceRate),
+                         amount: String(finance.amountUSD || 0),
+                         exchangeRate: String(finance.exRate || 1),
+                         currency: finance.currency || "USD",
+                         amountPKR: String(finance.amountPKR || 0)
+                       }).toString();
+                       window.open(`/dashboard/journal/purchase-order-payment/remaining?${queryParams}`, "_self");
+                     }}
+                     className="w-full h-10 mt-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-lg flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.98]"
+                   >
+                     <Link2 className="h-4 w-4" />
+                     Transfer Remaining to Journal
+                   </Button>
+                 )}
                  {loadingMessage ? (
                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
                      {loadingMessage}
@@ -1149,7 +1169,24 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                             {h.report_payload?.loadedQuantity && (
                               <button 
                                 onClick={() => {
-                                  window.open(`/dashboard/journal/purchase-order-payment/remaining?purchaseOrderNo=${encodeURIComponent(record.purchase_order_no || '')}`, "_self");
+                                  const finance = calcLoadingFinance(h, poData, form);
+                                  const loadedQty = h.report_payload?.loadedQuantity || h.loadedQuantity || 0;
+                                  const grossWeight = h.report_payload?.grossWeight || 0;
+                                  const netWeight = h.report_payload?.netWeight || 0;
+                                  const priceRate = h.report_payload?.priceRateC1 || 0;
+                                  const queryParams = new URLSearchParams({
+                                    purchaseOrderNo: record.purchase_order_no || "",
+                                    fromLoading: "true",
+                                    loadedQty: String(loadedQty),
+                                    grossWeight: String(grossWeight),
+                                    netWeight: String(netWeight),
+                                    priceRate: String(priceRate),
+                                    amount: String(finance.amountUSD || 0),
+                                    exchangeRate: String(finance.exRate || 1),
+                                    currency: finance.currency || "USD",
+                                    amountPKR: String(finance.amountPKR || 0)
+                                  }).toString();
+                                  window.open(`/dashboard/journal/purchase-order-payment/remaining?${queryParams}`, "_self");
                                 }}
                                 className="text-emerald-600 hover:text-emerald-800 p-1 rounded hover:bg-emerald-50 transition"
                                 title="Transfer Remaining Balance to Payment Journal"
@@ -1249,6 +1286,24 @@ function emptyForm() {
 }
 
 export function PurchaseLoadingRecordsView() {
+  const [actionsSlot, setActionsSlot] = useState<Element | null>(null);
+
+  useEffect(() => {
+    const el = document.getElementById("erp-page-actions-slot");
+    if (el) {
+      setActionsSlot(el);
+      return;
+    }
+    const timer = setInterval(() => {
+      const el2 = document.getElementById("erp-page-actions-slot");
+      if (el2) {
+        setActionsSlot(el2);
+        clearInterval(timer);
+      }
+    }, 50);
+    return () => clearInterval(timer);
+  }, []);
+
   const [records, setRecords] = useState<LoadingRecord[]>([]);
   const [summary, setSummary] = useState({ total: 0, loaded: 0, pending: 0, received: 0 });
   const [setupMessage, setSetupMessage] = useState<string | null>(null);
@@ -1507,35 +1562,34 @@ export function PurchaseLoadingRecordsView() {
       {selectedLoadDetailsRecord && (
         <LoadDetailsModal record={selectedLoadDetailsRecord} onClose={() => setSelectedLoadDetailsRecord(null)} onSaved={() => void loadRecords()} />
       )}
-      <ErpPageActions />
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/60 backdrop-blur p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950/60">
-        <div className="flex flex-wrap items-center gap-2">
+      {actionsSlot && createPortal(
+        <div className="flex flex-wrap items-center gap-1.5 print:hidden">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search container / loading no / PO"
-              className="h-8 w-64 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-900"
+              className="h-8 w-60 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-100"
             />
           </div>
-          <select value={status} onChange={(event) => setStatus(event.target.value as "all" | LoadingStatus)} className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900">
-            {statusOptions.map((option) => (
-              <option key={option} value={option} className="uppercase">
-                {option === "all" ? "All Status" : option}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            value={status}
+            onChange={(val) => setStatus(val as "all" | LoadingStatus)}
+            options={statusOptions.map(opt => ({ label: opt === "all" ? "All Status" : opt.toUpperCase(), value: opt }))}
+            placeholder="All Status"
+            className="w-32 text-xs font-semibold relative z-[45]"
+          />
           <Button type="button" size="sm" variant="outline" onClick={() => void loadRecords()} disabled={loading} className="h-8 rounded-lg border-slate-200 text-xs font-bold">
             <RefreshCcw className={cn("mr-1.5 h-3.5 w-3.5 text-slate-500", loading && "animate-spin")} />
             Apply Filter
           </Button>
-        </div>
-        <Button type="button" size="sm" variant="outline" onClick={() => window.print()} className="h-8 rounded-lg border-slate-200 text-xs font-bold">
-          <Printer className="mr-1.5 h-3.5 w-3.5 text-slate-500" /> Print Report
-        </Button>
-      </div>
+          <Button type="button" size="sm" variant="outline" onClick={() => window.print()} className="h-8 rounded-lg border-slate-200 text-xs font-bold">
+            <Printer className="mr-1.5 h-3.5 w-3.5 text-slate-500" /> Print
+          </Button>
+        </div>,
+        actionsSlot
+      )}
 
       {/* Super Admin Country Report Dashboard Header */}
       {loadingSummaryRows.length > 0 && (
@@ -1747,7 +1801,7 @@ export function PurchaseLoadingRecordsView() {
                       const totalGross = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
                       
                       // Specific values for this loaded record
-                      const loadedQty = Number(record.report_payload?.loadedQuantity || record.loadedQuantity || totalQty || 0);
+                      const loadedQty = Number(record.report_payload?.loadedQuantity || record.report_payload?.loadingQuantity || record.loadedQuantity || totalQty || 0);
                       const loadedQtyKgs = Number(record.report_payload?.oneQtyKgs || 0);
                       const loadedEmptyKgs = Number(record.report_payload?.oneEmptyKgs || 0);
                       

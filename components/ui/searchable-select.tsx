@@ -49,7 +49,7 @@ export function SearchableSelect({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between bg-background border border-input rounded px-2 py-1 text-foreground text-[10px] outline-none focus:border-primary disabled:opacity-50"
+        className="w-full h-9 flex items-center justify-between bg-background border border-input rounded-md px-3 py-2 text-foreground text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500 cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-900"
       >
         <span className="truncate">{selectedLabel}</span>
         <ChevronDown className="h-3 w-3 opacity-50 ml-1 shrink-0" />
