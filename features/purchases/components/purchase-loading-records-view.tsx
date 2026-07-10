@@ -1746,25 +1746,25 @@ export function PurchaseLoadingRecordsView() {
                       const totalNet = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
                       const totalGross = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
                       
-                      // Financial Calculations
-                      const totalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || g.totalAmount || 0), 0) : Number(form.totalAmount || form.finalAmount || 0);
-                      const currency = form.secondaryCurrency?.split(" ")?.[0] || form.currency || "PKR";
-                      const rawExRate = Number(form.exchangeRate || (poData as any).exchange_rate || 1);
-                      const exchangeRate = isNaN(rawExRate) ? 1 : rawExRate;
+                      // Specific values for this loaded record
+                      const loadedQty = Number(record.report_payload?.loadedQuantity || record.loadedQuantity || totalQty || 0);
+                      const loadedQtyKgs = Number(record.report_payload?.oneQtyKgs || 0);
+                      const loadedEmptyKgs = Number(record.report_payload?.oneEmptyKgs || 0);
                       
-                      const purchaseAmtStr = totalAmt > 0 ? `${totalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${currency}` : "-";
-                      const finalAmtPKR = totalAmt * exchangeRate;
-                      const finalAmtPKRStr = finalAmtPKR > 0 ? `${finalAmtPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
+                      const netWeight = loadedQtyKgs > 0 ? loadedQty * (loadedQtyKgs - loadedEmptyKgs) : (totalQty > 0 ? (loadedQty / totalQty) * totalNet : totalNet);
+                      const grossWeight = loadedQtyKgs > 0 ? loadedQty * loadedQtyKgs : (totalQty > 0 ? (loadedQty / totalQty) * totalGross : totalGross);
 
-                      const advanceAmt = Number(form.advanceAmount || 0);
-                      const advanceAmtStr = advanceAmt > 0 ? `${advanceAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${currency}` : "-";
-                      const advanceFinalPKR = advanceAmt * exchangeRate;
-                      const advanceFinalPKRStr = advanceFinalPKR > 0 ? `${advanceFinalPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
+                      const { amountUSD: loadedUSD, exRate: loadedExRate, amountPKR: loadedPKR, currency: loadedCurrency } = calcLoadingFinance(record, poData, form);
 
-                      const balanceAmt = totalAmt - advanceAmt;
-                      const balanceAmtStr = balanceAmt > 0 ? `${balanceAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${currency}` : "-";
-                      const balanceFinalPKR = balanceAmt * exchangeRate;
-                      const balanceFinalPKRStr = balanceFinalPKR > 0 ? `${balanceFinalPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
+                      // Proportional advance amount for this loaded record
+                      const poAdvanceAmt = Number(form.advanceAmount || 0);
+                      const loadedAdvanceAmt = totalQty > 0 ? (loadedQty / totalQty) * poAdvanceAmt : poAdvanceAmt;
+                      const loadedAdvancePKR = loadedAdvanceAmt * loadedExRate;
+                      const loadedBalancePKR = loadedPKR - loadedAdvancePKR;
+
+                      const loadedAmtPKRStr = loadedPKR > 0 ? `${loadedPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
+                      const loadedAdvancePKRStr = loadedAdvancePKR > 0 ? `${loadedAdvancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
+                      const loadedBalancePKRStr = loadedBalancePKR !== 0 ? `${loadedBalancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
                       
                       const paymentDate = form.advancePaymentDate || form.paymentDate || form.clearanceDate || "Nil";
                       
@@ -1789,21 +1789,21 @@ export function PurchaseLoadingRecordsView() {
                           <td className="whitespace-nowrap px-4 py-2 font-bold text-blue-600">{record.loading_record_no}</td>
                           <td className="whitespace-nowrap px-4 py-2 font-semibold">{record.purchase_order_no ? <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-200"><Link2 className="h-3 w-3 text-blue-500" />{record.purchase_order_no}</span> : "-"}</td>
                           <td className="whitespace-nowrap px-4 py-2 leading-tight">
-                            <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{salesAccountNo}</div>
+                            <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-350">{salesAccountNo}</div>
                             <div className="text-slate-400 text-[9px] uppercase tracking-wider">{salesAccountName}</div>
                           </td>
                           <td className="whitespace-nowrap px-4 py-2 leading-tight">
-                            <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{purchaseAccountNo}</div>
+                            <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-350">{purchaseAccountNo}</div>
                             <div className="text-slate-400 text-[9px] uppercase tracking-wider">{purchaseAccountName}</div>
                           </td>
                           <td className="min-w-[150px] px-4 py-2 text-[11px] text-slate-600 dark:text-slate-300">{combinedGoods}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono">{totalQty || "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono">{totalNet || "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono">{totalGross || "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-emerald-600 dark:text-emerald-400">{finalAmtPKRStr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px] font-semibold text-slate-400">{exchangeRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-[#0f2942] dark:text-amber-400">{advanceFinalPKRStr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-rose-700 dark:text-rose-500">{balanceFinalPKRStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono">{loadedQty || "-"}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono">{netWeight || "-"}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono">{grossWeight || "-"}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-emerald-600 dark:text-emerald-400">{loadedAmtPKRStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px] font-semibold text-slate-400">{loadedExRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-[#0f2942] dark:text-amber-400">{loadedAdvancePKRStr}</td>
+                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-rose-700 dark:text-rose-500">{loadedBalancePKRStr}</td>
                           <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px]">{paymentDate}</td>
                           <td className="whitespace-nowrap px-4 py-2">{loadingCountry}</td>
                           <td className="whitespace-nowrap px-3 py-2">{record.loading_location || loadingPort || "-"}</td>
