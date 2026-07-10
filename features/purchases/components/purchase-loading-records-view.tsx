@@ -170,6 +170,21 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
     fetchHistory();
   }, [record.purchase_order_id, savingNewLoading]);
 
+  const itemLoadBalances = useMemo(() => {
+    const balances: Record<string, { loaded: number }> = {};
+    if (Array.isArray(history)) {
+      history.forEach(h => {
+        const gName = h.report_payload?.goodsName || h.report_payload?.item || "";
+        const qty = Number(h.report_payload?.quantityNo || h.loadedQuantity || 0);
+        if (gName) {
+          if (!balances[gName]) balances[gName] = { loaded: 0 };
+          balances[gName].loaded += qty;
+        }
+      });
+    }
+    return balances;
+  }, [history]);
+
   const newQuantity = Math.max(0, Number(newLoadingQuantity || 0));
   const previewLoadedQuantity = Math.min(totalQuantity || savedLoadedQuantity + newQuantity, savedLoadedQuantity + newQuantity);
   const previewBalanceQuantity = Math.max(0, totalQuantity - previewLoadedQuantity);
@@ -524,11 +539,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                                 if (good.originCountry || good.origin) setOriginCountry(good.originCountry || good.origin);
                                 if (good.qtyName || good.unit) setQtyName(good.qtyName || good.unit);
                                 if (good.sizeSpec || good.size) setSizeSpec(good.sizeSpec || good.size);
-                                if (good.qtyNo || good.quantity) {
-                                  const q = String(good.qtyNo || good.quantity || "");
-                                  setQuantityNo(q);
-                                  setNewLoadingQuantity(q);
-                                }
+                                // Quantity No is explicitly left empty for manual user entry as requested
                                 if (good.qtyKgs) setOneQtyKgs(String(good.qtyKgs));
                                 if (good.emptyKgs) setOneEmptyKgs(String(good.emptyKgs));
                                 if (good.divideType) setDivideType(good.divideType);
@@ -641,6 +652,42 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                             Loading Note
                             <input value={newLoadingNote} onChange={(e) => setNewLoadingNote(e.target.value)} placeholder="e.g. Checking / brand remarks" className="h-9 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-200" />
                           </label>
+                        </div>
+                      </div>
+
+                      {/* PO Items Status Summary Table */}
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 mb-4 dark:border-slate-800 dark:bg-slate-900/30">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">PO ITEMS STATUS SUMMARY</h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-[9px] border-collapse bg-white dark:bg-slate-950 rounded-lg overflow-hidden border dark:border-slate-850">
+                            <thead>
+                              <tr className="border-b text-slate-400 font-bold uppercase tracking-wider bg-slate-50/80 dark:bg-slate-900/50">
+                                <th className="px-2 py-1.5">Item</th>
+                                <th className="px-2 py-1.5 text-right">PO Qty</th>
+                                <th className="px-2 py-1.5 text-right">Loaded</th>
+                                <th className="px-2 py-1.5 text-right">Balance</th>
+                                <th className="px-2 py-1.5 text-right">Rate</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {goods.map((g: any, gIdx: number) => {
+                                const name = g.goodsName || g.item || "-";
+                                const poQty = Number(g.qtyNo || g.quantity || 0);
+                                const loaded = itemLoadBalances[name]?.loaded || 0;
+                                const bal = Math.max(0, poQty - loaded);
+                                const rate = Number(g.coursePrice || 0);
+                                return (
+                                  <tr key={gIdx} className="text-slate-655 dark:text-slate-350 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition">
+                                    <td className="px-2 py-2 font-bold uppercase truncate max-w-[80px]" title={name}>{name}</td>
+                                    <td className="px-2 py-2 text-right font-mono">{poQty.toLocaleString()}</td>
+                                    <td className="px-2 py-2 text-right font-mono text-emerald-600 font-bold">{loaded.toLocaleString()}</td>
+                                    <td className={cn("px-2 py-2 text-right font-mono font-bold", bal > 0 ? "text-rose-600" : "text-emerald-650")}>{bal.toLocaleString()}</td>
+                                    <td className="px-2 py-2 text-right font-mono">{rate.toLocaleString()}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
 
