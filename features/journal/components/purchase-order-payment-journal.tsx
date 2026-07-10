@@ -1024,18 +1024,37 @@ function DashboardSummaryHeader({
     return 1.0;
   };
 
-  // Group rows strictly by Country and City/Branch directly
+  // Group rows strictly by Country first, and nested by Branch
   const summaryRows = useMemo(() => {
     if (!rows || rows.length === 0) return [];
+    
     const groups: Record<string, {
       country: string;
-      branch: string;
       currency: string;
       purchase: number;
       sale: number;
       dollarRate: number;
       dollarTotal: number;
       finalTotal: number;
+      requiredAdvance: number;
+      paidAdvance: number;
+      remainingAdvance: number;
+      remainingDue: number;
+      remPaid: number;
+      branches: Record<string, {
+        branch: string;
+        currency: string;
+        purchase: number;
+        sale: number;
+        dollarRate: number;
+        dollarTotal: number;
+        finalTotal: number;
+        requiredAdvance: number;
+        paidAdvance: number;
+        remainingAdvance: number;
+        remainingDue: number;
+        remPaid: number;
+      }>;
     }> = {};
 
     rows.forEach(row => {
@@ -1053,27 +1072,77 @@ function DashboardSummaryHeader({
       const usdRate = getUsdRate(currency, summary.localCurrency, row.exchange_rate || 1);
       const dollarTotal = (purchaseAmt + saleAmt) * usdRate;
 
-      const key = `${country}-${branch}`;
-      if (!groups[key]) {
-        groups[key] = {
+      // Advance conversion & values in Local Currency
+      const form = row.form_data?.form || {};
+      const advancePercent = Number(form.advancePercent || 0);
+      const requiredAdvance = finalTotal * advancePercent / 100;
+      const paidAdvance = Number(row.advance_paid || 0) * conversionRate;
+      const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
+      const remainingDue = Number(row.remaining_due || 0) * conversionRate;
+      const remPaid = Number(row.remaining_paid || 0) * conversionRate;
+
+      if (!groups[country]) {
+        groups[country] = {
           country,
+          currency: officeCur,
+          purchase: 0,
+          sale: 0,
+          dollarRate: usdRate,
+          dollarTotal: 0,
+          finalTotal: 0,
+          requiredAdvance: 0,
+          paidAdvance: 0,
+          remainingAdvance: 0,
+          remainingDue: 0,
+          remPaid: 0,
+          branches: {}
+        };
+      }
+
+      groups[country].purchase += purchaseAmt;
+      groups[country].sale += saleAmt;
+      groups[country].dollarTotal += dollarTotal;
+      groups[country].finalTotal += finalTotal;
+      groups[country].requiredAdvance += requiredAdvance;
+      groups[country].paidAdvance += paidAdvance;
+      groups[country].remainingAdvance += remainingAdvance;
+      groups[country].remainingDue += remainingDue;
+      groups[country].remPaid += remPaid;
+
+      if (!groups[country].branches[branch]) {
+        groups[country].branches[branch] = {
           branch,
           currency: officeCur,
           purchase: 0,
           sale: 0,
           dollarRate: usdRate,
           dollarTotal: 0,
-          finalTotal: 0
+          finalTotal: 0,
+          requiredAdvance: 0,
+          paidAdvance: 0,
+          remainingAdvance: 0,
+          remainingDue: 0,
+          remPaid: 0
         };
       }
 
-      groups[key].purchase += purchaseAmt;
-      groups[key].sale += saleAmt;
-      groups[key].dollarTotal += dollarTotal;
-      groups[key].finalTotal += finalTotal;
+      const br = groups[country].branches[branch];
+      br.purchase += purchaseAmt;
+      br.sale += saleAmt;
+      br.dollarTotal += dollarTotal;
+      br.finalTotal += finalTotal;
+      br.requiredAdvance += requiredAdvance;
+      br.paidAdvance += paidAdvance;
+      br.remainingAdvance += remainingAdvance;
+      br.remainingDue += remainingDue;
+      br.remPaid += remPaid;
     });
 
-    return Object.values(groups).sort((a, b) => a.country.localeCompare(b.country) || a.branch.localeCompare(b.branch));
+    // Convert groups to array and convert branches Record to array, sorting them
+    return Object.values(groups).map(g => ({
+      ...g,
+      branches: Object.values(g.branches).sort((a, b) => a.branch.localeCompare(b.branch))
+    })).sort((a, b) => a.country.localeCompare(b.country));
   }, [rows, summary.localCurrency]);
 
   const renderSuperAdminSummaryTable = () => {
@@ -1103,7 +1172,6 @@ function DashboardSummaryHeader({
             <thead>
               <tr className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[9.5px] text-slate-700 dark:text-slate-350 font-bold uppercase tracking-wider">
                 <th className={cn("px-2.5 py-2.5 font-extrabold", dir === "rtl" ? "text-right" : "text-left")}>{t("country", lang)}</th>
-                <th className={cn("px-2.5 py-2.5 font-extrabold", dir === "rtl" ? "text-right" : "text-left")}>{t("branch", lang)}</th>
                 <th className={cn("px-2.5 py-2.5 font-extrabold", dir === "rtl" ? "text-right" : "text-left")}>{t("col_currency", lang)}</th>
                 <th className={cn("px-2.5 py-2.5 font-extrabold", dir === "rtl" ? "text-left" : "text-right")}>{t("col_total_value", lang)}</th>
               </tr>
@@ -1111,33 +1179,87 @@ function DashboardSummaryHeader({
             <tbody>
               {summaryRows.map((r, idx) => {
                 const isSelected = selectedCountryForSummary === r.country;
+                const isExpanded = !!expandedSummaryCountries[r.country];
 
                 return (
-                  <tr 
-                    key={idx}
-                    onClick={() => {
-                      if (setSelectedCountryForSummary) {
-                        setSelectedCountryForSummary(isSelected ? null : r.country);
-                      }
-                    }}
-                    className={cn(
-                      "border-b border-slate-200 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-900/30 cursor-pointer font-extrabold text-slate-800 dark:text-slate-200 transition-all",
-                      isSelected && "bg-blue-50/90 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 font-black border-l-2 border-l-blue-600 shadow-sm"
+                  <React.Fragment key={idx}>
+                    <tr 
+                      onClick={() => {
+                        if (setSelectedCountryForSummary) {
+                          setSelectedCountryForSummary(isSelected ? null : r.country);
+                        }
+                        setExpandedSummaryCountries(prev => ({
+                          ...prev,
+                          [r.country]: !prev[r.country]
+                        }));
+                      }}
+                      className={cn(
+                        "border-b border-slate-200 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-900/30 cursor-pointer font-extrabold text-slate-800 dark:text-slate-200 transition-all",
+                        isSelected && "bg-blue-50/90 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 font-black border-l-2 border-l-blue-600 shadow-sm"
+                      )}
+                    >
+                      <td className="px-2.5 py-3 uppercase truncate max-w-[120px] flex items-center gap-1 select-none font-sans" title={r.country}>
+                        <span className="text-slate-400 mr-0.5">
+                          {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                        </span>
+                        {renderCountryBadge(r.country)}
+                        <span className="font-extrabold ml-1">{tData(r.country, lang)}</span>
+                      </td>
+                      <td className="px-2.5 py-3 font-black text-slate-900 dark:text-slate-100">{tData(r.currency, lang)}</td>
+                      <td className={cn("px-2.5 py-3 font-sans font-black tabular-nums text-slate-900 dark:text-slate-100", dir === "rtl" ? "text-left" : "text-right")}>{r.finalTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                    </tr>
+                    
+                    {isExpanded && (
+                      <tr className="bg-slate-50/40 dark:bg-slate-950/20 border-b border-slate-200 dark:border-slate-800">
+                        <td colSpan={3} className="p-3">
+                          <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-inner dark:border-slate-850 dark:bg-slate-950 space-y-3">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                              <span>{tData(r.country, lang)} Branches Report Details</span>
+                              <span className="text-[9px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono font-bold dark:bg-blue-950/40 dark:text-blue-400">
+                                {r.branches.length} Branches
+                              </span>
+                            </div>
+                            
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-[10px] border-collapse">
+                                <thead>
+                                  <tr className="border-b text-slate-450 font-bold uppercase text-[9px] tracking-wider bg-slate-50/80 dark:bg-slate-900/50">
+                                    <th className="px-2 py-1.5">{t("branch", lang)}</th>
+                                    <th className="px-2 py-1.5 text-right">Total Purchase</th>
+                                    <th className="px-2 py-1.5 text-right">Required Adv</th>
+                                    <th className="px-2 py-1.5 text-right">Paid Adv</th>
+                                    <th className="px-2 py-1.5 text-right">Remaining Adv</th>
+                                    <th className="px-2 py-1.5 text-right">Remaining Due (Baqaya)</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                  {r.branches.map((b, bIdx) => (
+                                    <tr key={bIdx} className="hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-350">
+                                      <td className="px-2 py-2 font-extrabold uppercase">{tData(b.branch, lang)}</td>
+                                      <td className="px-2 py-2 text-right font-mono font-bold">{money(b.purchase, b.currency)}</td>
+                                      <td className="px-2 py-2 text-right font-mono text-slate-500 dark:text-slate-400">{money(b.requiredAdvance, b.currency)}</td>
+                                      <td className="px-2 py-2 text-right font-mono text-emerald-600 font-bold">{money(b.paidAdvance, b.currency)}</td>
+                                      <td className={cn("px-2 py-2 text-right font-mono font-bold", b.remainingAdvance > 0 ? "text-amber-600" : "text-emerald-600")}>
+                                        {money(b.remainingAdvance, b.currency)}
+                                      </td>
+                                      <td className={cn("px-2 py-2 text-right font-mono font-black", b.remainingDue > 0 ? "text-rose-600" : "text-slate-500")}>
+                                        {money(b.remainingDue, b.currency)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  >
-                    <td className="px-2.5 py-3 uppercase truncate max-w-[120px] flex items-center gap-1 select-none" title={r.country}>
-                      {renderCountryBadge(r.country)}
-                      <span className="font-extrabold ml-1">{tData(r.country, lang)}</span>
-                    </td>
-                    <td className="px-2.5 py-3 uppercase text-[10px] text-slate-700 dark:text-slate-300 font-bold">{tData(r.branch, lang)}</td>
-                    <td className="px-2.5 py-3 font-black text-slate-900 dark:text-slate-100">{tData(r.currency, lang)}</td>
-                    <td className={cn("px-2.5 py-3 font-sans font-black tabular-nums text-slate-900 dark:text-slate-100", dir === "rtl" ? "text-left" : "text-right")}>{r.finalTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-                  </tr>
+                  </React.Fragment>
                 );
               })}
               {/* Grand Totals */}
               <tr className="bg-blue-50/40 dark:bg-blue-950/20 font-black text-slate-900 dark:text-slate-100 border-t-2 border-slate-200 dark:border-slate-700 text-[11px]">
-                <td colSpan={3} className={cn("px-2.5 py-3 uppercase tracking-wider text-[9.5px] text-slate-500 dark:text-slate-400", dir === "rtl" ? "text-left" : "text-right")}>{t("total_summary", lang)} ({summary.localCurrency})</td>
+                <td colSpan={2} className={cn("px-2.5 py-3 uppercase tracking-wider text-[9.5px] text-slate-500 dark:text-slate-400", dir === "rtl" ? "text-left" : "text-right")}>{t("total_summary", lang)} ({summary.localCurrency})</td>
                 <td className={cn("px-2.5 py-3 font-sans tabular-nums text-slate-900 dark:text-slate-100", dir === "rtl" ? "text-left" : "text-right")}>{grandTotals.finalTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
               </tr>
             </tbody>

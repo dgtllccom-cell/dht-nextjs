@@ -63,8 +63,10 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
       0
   );
   const [showNewLoading, setShowNewLoading] = useState(false);
-  const [formStep, setFormStep] = useState<1 | 2 | 3>(1);
+  const [formStep, setFormStep] = useState<1 | 2>(1);
   const [editingLoadingId, setEditingLoadingId] = useState<string | null>(null);
+  const [containerNumberInput, setContainerNumberInput] = useState("");
+  const [sealNumberInput, setSealNumberInput] = useState("");
 
   async function handleDeleteHistory(h: LoadingRecord) {
     if (!confirm("Are you sure you want to delete this loading record?")) return;
@@ -114,6 +116,8 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
     setQualityReportRef(h.report_payload?.qualityReportRef || "Passed");
     setPricingCurrency(h.report_payload?.pricingCurrency || "USD");
     setExchangeRatePKR(h.report_payload?.exchangeRatePKR || "287");
+    setContainerNumberInput(h.container_number || h.report_payload?.containerNumber || "");
+    setSealNumberInput(h.report_payload?.sealNumber || "");
   }
 
   const [newLoadingQuantity, setNewLoadingQuantity] = useState("");
@@ -379,12 +383,12 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                   <div className="mb-4 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-black uppercase tracking-widest text-emerald-800 dark:text-emerald-100">
-                        {formStep === 1 ? "New Loading (Step 1 of 3)" : formStep === 2 ? "New Loading (Step 2 of 3)" : "New Loading (Step 3 of 3)"}
+                        {formStep === 1 ? "New Loading (Step 1 of 2)" : "New Loading (Step 2 of 2)"}
                       </h3>
                       <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-100 dark:ring-emerald-500/30">Live</span>
                     </div>
                     <p className="text-[10px] font-semibold text-emerald-700/80 dark:text-emerald-200/80">
-                      {formStep === 1 ? "Enter shipping and routing details." : formStep === 2 ? "Enter goods and conversion details." : "Enter partial loading quantity below."}
+                      {formStep === 1 ? "Enter shipping and routing details." : "Enter goods, pricing and container details."}
                     </p>
                   </div>
 
@@ -520,6 +524,17 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                                 if (good.originCountry || good.origin) setOriginCountry(good.originCountry || good.origin);
                                 if (good.qtyName || good.unit) setQtyName(good.qtyName || good.unit);
                                 if (good.sizeSpec || good.size) setSizeSpec(good.sizeSpec || good.size);
+                                if (good.qtyNo || good.quantity) {
+                                  const q = String(good.qtyNo || good.quantity || "");
+                                  setQuantityNo(q);
+                                  setNewLoadingQuantity(q);
+                                }
+                                if (good.qtyKgs) setOneQtyKgs(String(good.qtyKgs));
+                                if (good.emptyKgs) setOneEmptyKgs(String(good.emptyKgs));
+                                if (good.divideType) setDivideType(good.divideType);
+                                if (good.divideWeightValue) setDivideWeightValue(String(good.divideWeightValue));
+                                if (good.priceType) setPriceType(good.priceType);
+                                if (good.coursePrice) setPriceRateC1(String(good.coursePrice));
                               }
                             }}
                             className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
@@ -559,8 +574,11 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                         </label>
                         
                         <label className="space-y-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                          Quantity No
-                          <input value={quantityNo} onChange={(e) => setQuantityNo(e.target.value)} className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
+                          Quantity No *
+                          <input value={quantityNo} onChange={(e) => {
+                            setQuantityNo(e.target.value);
+                            setNewLoadingQuantity(e.target.value);
+                          }} className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
                         </label>
 
                         <label className="space-y-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
@@ -611,6 +629,18 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                             Exchange Rate to PKR
                             <input value={exchangeRatePKR} onChange={(e) => setExchangeRatePKR(e.target.value)} placeholder="287" className="h-9 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-200" />
                           </label>
+                          <label className="space-y-1 text-[10px] font-bold text-teal-700 dark:text-teal-500">
+                            Container Number *
+                            <input value={containerNumberInput} onChange={(e) => setContainerNumberInput(e.target.value)} placeholder="e.g. MSCU1234567" className="h-9 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-200" />
+                          </label>
+                          <label className="space-y-1 text-[10px] font-bold text-teal-700 dark:text-teal-500">
+                            Seal Number *
+                            <input value={sealNumberInput} onChange={(e) => setSealNumberInput(e.target.value)} placeholder="e.g. SL998877" className="h-9 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-200" />
+                          </label>
+                          <label className="space-y-1 text-[10px] font-bold text-teal-700 dark:text-teal-500">
+                            Loading Note
+                            <input value={newLoadingNote} onChange={(e) => setNewLoadingNote(e.target.value)} placeholder="e.g. Checking / brand remarks" className="h-9 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-200" />
+                          </label>
                         </div>
                       </div>
 
@@ -618,87 +648,13 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                         <Button type="button" variant="outline" onClick={() => setFormStep(1)} className="rounded-full h-9 px-4 text-xs font-bold">
                           Back
                         </Button>
-                        <div className="flex gap-2">
-                          <Button type="button" onClick={() => setFormStep(3)} className="rounded-full h-9 bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700">
-                            + Add Item to List
-                          </Button>
-                          <Button type="button" onClick={() => setFormStep(3)} className="rounded-full h-9 bg-cyan-600 px-4 text-xs font-bold text-white hover:bg-cyan-700">
-                            Next: Other Details
-                          </Button>
-                        </div>
-                      </div>
-
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex flex-col gap-1 pb-2 border-b border-slate-200 dark:border-slate-800">
-                        <h4 className="text-[11px] font-black uppercase tracking-widest text-cyan-600 dark:text-cyan-400">LOADING SUMMARY</h4>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-2 mb-2">
-                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                          <span>Total KGS:</span>
-                          <span className="text-slate-900 dark:text-white">{totalQuantity.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                          <span>Loaded KGS:</span>
-                          <span className="text-slate-900 dark:text-white">{savedLoadedQuantity.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                          <span>Balance:</span>
-                          <span className="text-rose-600 dark:text-rose-400">{Math.max(0, totalQuantity - savedLoadedQuantity).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                          <span>After Save:</span>
-                          <span className="text-emerald-600 dark:text-emerald-400">{previewLoadedQuantity.toLocaleString()}</span>
-                        </div>
-                      </div>
-
-                      <div className="h-px w-full bg-slate-200 dark:bg-slate-800 my-2" />
-
-                      <div className="grid grid-cols-2 gap-3 mt-2 max-h-[50vh] overflow-y-auto pr-1">
-                        <label className="space-y-1 text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 col-span-2 mt-2">
-                          Loading Quantity *
-                          <input
-                            type="number"
-                            min="0"
-                            value={newLoadingQuantity}
-                            onChange={(event) => setNewLoadingQuantity(event.target.value)}
-                            placeholder="e.g. 2000"
-                            className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                          />
-                        </label>
-
-                        <label className="space-y-1 text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 col-span-2">
-                          Loading Note
-                          <input
-                            value={newLoadingNote}
-                            onChange={(event) => setNewLoadingNote(event.target.value)}
-                            placeholder="Checking / brand / loading remarks"
-                            className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                          />
-                        </label>
-                      </div>
-                      <div className="mt-5 flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setFormStep(2)}
-                          className="flex-1 h-10 font-bold border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300"
-                        >
-                          Back
-                        </Button>
-                        <Button
-                          type="button"
-                          onClick={() => void saveNewLoading()}
-                          disabled={savingNewLoading || !newQuantity}
-                          className="flex-1 h-10 bg-emerald-600 font-black tracking-widest uppercase text-[11px] text-white hover:bg-emerald-700 shadow-sm transition active:scale-[0.98] disabled:opacity-50"
-                        >
+                        <Button type="button" onClick={() => void saveNewLoading()} disabled={savingNewLoading || !newQuantity || !containerNumberInput} className="rounded-full h-9 bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700 shadow-sm transition active:scale-[0.98] disabled:opacity-50">
                           {savingNewLoading ? "Saving..." : "Save Loading"}
                         </Button>
                       </div>
-                    </>
-                  )}
+
+                    </div>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -935,6 +891,18 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                     <span className="text-[11px] font-bold uppercase tracking-widest text-rose-600">Balance</span>
                     <span className="text-xl font-black font-mono text-rose-600">{previewBalanceQuantity.toLocaleString()}</span>
                  </div>
+                 {previewBalanceQuantity > 0 && (
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        window.open(`/dashboard/journal/purchase-order-payment/remaining?purchaseOrderNo=${encodeURIComponent(record.purchase_order_no || '')}`, "_self");
+                      }}
+                      className="w-full h-10 mt-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-lg flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.98]"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      Transfer Remaining to Journal
+                    </Button>
+                  )}
                  {loadingMessage ? (
                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
                      {loadingMessage}
@@ -1099,6 +1067,17 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           <button onClick={() => handleDeleteHistory(h)} disabled={savingNewLoading} className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50 transition disabled:opacity-50" title="Delete Entry">
                             <Trash2 className="w-4 h-4" />
                           </button>
+                          {h.report_payload?.loadedQuantity && (
+                            <button 
+                              onClick={() => {
+                                window.open(`/dashboard/journal/purchase-order-payment/remaining?purchaseOrderNo=${encodeURIComponent(record.purchase_order_no || '')}`, "_self");
+                              }}
+                              className="text-emerald-600 hover:text-emerald-800 p-1 rounded hover:bg-emerald-50 transition"
+                              title="Transfer Remaining Balance to Payment Journal"
+                            >
+                              <Link2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </td>
                         <td className="px-6 py-3 font-medium text-slate-400">{String(i + 1).padStart(2, '0')}</td>
                         <td className="px-6 py-3 font-bold text-slate-700 dark:text-slate-200">{h.report_payload?.blNumber || "-"}</td>
