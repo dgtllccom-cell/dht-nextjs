@@ -4,17 +4,16 @@ import { execSync } from "child_process";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const cmd = searchParams.get("cmd") || "git status";
+  const cmd = "git log -p -n 3 features/reports/ledger-report/components/super-admin-detailed-ledger.tsx";
   try {
     const output = execSync(cmd, { encoding: "utf8" });
-    return NextResponse.json({ success: true, cmd, output });
+    const safeOutput = output.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return new Response(safeOutput, {
+      headers: { "Content-Type": "text/plain" },
+    });
   } catch (error: any) {
-    return NextResponse.json({
-      success: false,
-      cmd,
-      error: error.message,
-      stderr: error.stderr?.toString(),
+    return new Response(`Error: ${error.message}\nStderr: ${error.stderr?.toString()}`, {
+      headers: { "Content-Type": "text/plain" },
     });
   }
 }
