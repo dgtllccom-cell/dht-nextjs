@@ -905,7 +905,7 @@ export function LedgerReportView({
               </div>
             </div>
 
-            {printMode && createPortal(
+            {printMode && typeof document !== 'undefined' && createPortal(
               <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
                 <div className="flex-1 overflow-hidden">
                   <ProfessionalReportViewer

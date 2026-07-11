@@ -2085,7 +2085,7 @@ function RoznamchaPrintPreview({
   summary: any;
   filters: any;
 }) {
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   const columns: ReportColumn<SuperAdminRoznamchaRow>[] = scope === "country" ? [
     { key: "index", header: "SR. NO.", width: "40px", align: "center", render: (_, i) => i + 1 },
