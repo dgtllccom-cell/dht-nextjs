@@ -422,6 +422,44 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
 });
 
+export const erpDocuments = pgTable(
+  "erp_documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyId: uuid("company_id").references(() => companies.id).notNull(),
+    countryId: uuid("country_id").references(() => countries.id),
+    cityBranchId: uuid("city_branch_id").references(() => cityBranches.id),
+    name: text("name").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    uploadedBy: uuid("uploaded_by").references(() => profiles.id).notNull(),
+    ...timestamps
+  },
+  (table) => ({
+    entityIdx: index("erp_documents_entity_idx").on(table.entityType, table.entityId)
+  })
+);
+
+export const erpDocumentVersions = pgTable(
+  "erp_document_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    documentId: uuid("document_id").references(() => erpDocuments.id, { onDelete: "cascade" }).notNull(),
+    versionNumber: integer("version_number").notNull(),
+    bucket: text("bucket").notNull(),
+    path: text("path").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    uploadedBy: uuid("uploaded_by").references(() => profiles.id).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => ({
+    documentVersionIdx: uniqueIndex("erp_document_versions_idx").on(table.documentId, table.versionNumber)
+  })
+);
+
 export const attachments = pgTable("attachments", {
   id: uuid("id").defaultRandom().primaryKey(),
   companyId: uuid("company_id").references(() => companies.id).notNull(),

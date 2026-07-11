@@ -1,6 +1,7 @@
 "use client";
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
+import { DocumentAttachmentIcon } from "@/components/documents/document-attachment-icon";
 import { useEffect, useMemo, useState, Fragment } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -2222,7 +2223,7 @@ export function PurchaseOrderManagementDashboard() {
                     { label: "Financial Information", span: 7, cls: "bg-blue-50/50 dark:bg-blue-950/20 text-blue-800 dark:text-blue-400 border-t-2 border-t-blue-500" },
                     { label: "Route & Loading", span: 7, cls: "bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-800 dark:text-indigo-400 border-t-2 border-t-indigo-500" },
                     { label: "Status", span: 1, cls: "bg-amber-50/50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-t-2 border-t-amber-500" },
-                    { label: "Actions", span: 1, cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border-t-2 border-t-slate-300" },
+                    { label: "Actions", span: 2, cls: "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 border-t-2 border-t-slate-300" },
                   ].map((group) => (
                     <th
                       key={group.label}
@@ -2245,7 +2246,7 @@ export function PurchaseOrderManagementDashboard() {
                     "ROUTE", "LOAD. COUNTRY", "LOAD. PORT", "LOAD. DATE",
                     "RCV. COUNTRY", "RCV. PORT", "RCV. DATE",
                     "TRANSFER THE BILL",
-                    "ACTIONS"
+                    "DOCS", "ACTIONS"
                   ].map((header, i) => (
                     <th key={i} className="px-3 py-3 border-r border-slate-100 dark:border-slate-800/50 last:border-r-0 whitespace-nowrap text-center align-middle">
                       {header}
@@ -2409,6 +2410,11 @@ export function PurchaseOrderManagementDashboard() {
                         )}
                       </td>
                       {/* Actions */}
+                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center">
+                          <DocumentAttachmentIcon recordId={row.id} moduleName="Purchase" />
+                        </div>
+                      </td>
                       <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           {(!isPosted || isSuperAdmin) && (

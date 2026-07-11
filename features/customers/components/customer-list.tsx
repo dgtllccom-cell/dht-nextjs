@@ -11,6 +11,7 @@ import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { CustomerProfile } from "./customer-profile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DocumentAttachmentIcon } from "@/components/documents/document-attachment-icon";
 import { apiGet, apiDelete } from "@/lib/api/client";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
 import { getLabel } from "./translations";
@@ -595,48 +596,7 @@ export function CustomerList({ lang }: { lang: SupportedLanguage }) {
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-slate-600">
-                        <div className="group relative flex items-center gap-1.5 text-slate-600" onClick={(e) => e.stopPropagation()}>
-                          <FileText className="h-3.5 w-3.5 text-teal-600" />
-                          <span className="font-bold text-slate-700">
-                            {c.meta.documents.length} {c.meta.documents.length === 1 ? "Document" : "Documents"}
-                          </span>
-                          
-                          {/* Hover Tooltip listing all documents with type & numbers */}
-                          <div className="pointer-events-none absolute bottom-full mb-1 left-0 w-52 rounded-lg bg-slate-900 p-2.5 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100 z-50 shadow-md">
-                            <p className="font-bold border-b border-slate-700 pb-1 mb-1.5 text-teal-400">Registered Documents</p>
-                            {c.meta.documents.map((d, idx) => (
-                              <div key={idx} className="space-y-0.5 border-b border-slate-800/60 pb-1 mb-1 last:border-b-0 last:pb-0 last:mb-0 text-left">
-                                <div className="flex justify-between font-bold">
-                                  <span>{d.type}:</span>
-                                  <span className="font-mono">{d.number}</span>
-                                </div>
-                                {d.upload && (
-                                  <div className="flex items-center justify-between mt-0.5">
-                                    <span className="text-[9px] text-slate-400 italic truncate max-w-[120px]">File: {d.upload}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const blob = new Blob(["Simulated Document Scan Content for " + d.type + "\nNumber: " + d.number], { type: "text/plain" });
-                                        const url = URL.createObjectURL(blob);
-                                        const a = document.createElement("a");
-                                        a.href = url;
-                                        a.download = d.upload;
-                                        document.body.appendChild(a);
-                                        a.click();
-                                        document.body.removeChild(a);
-                                        URL.revokeObjectURL(url);
-                                      }}
-                                      className="text-[9px] text-teal-400 hover:text-teal-300 font-bold underline ml-2 cursor-pointer flex items-center gap-0.5"
-                                    >
-                                      <DownloadActionIcon className="h-2.5 w-2.5" />
-                                      Download
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        <DocumentAttachmentIcon entityType="customers" entityId={c.id} />
                       </td>
                       <td className="px-5 py-3.5">
                         <span
