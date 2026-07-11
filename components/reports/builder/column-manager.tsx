@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { type ReportColumnConfig } from "./types";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { GripVertical, Eye, EyeOff } from "lucide-react";
 
 type ColumnManagerProps = {
@@ -65,10 +64,12 @@ export function ColumnManager({ columns, onChange }: ColumnManagerProps) {
             } hover:border-slate-300 dark:hover:border-slate-700 cursor-move`}
           >
             <GripVertical className="h-4 w-4 text-slate-400" />
-            <Checkbox
+            <input
+              type="checkbox"
               checked={col.visible}
-              onCheckedChange={(c) => toggleVisibility(col.id, !!c)}
+              onChange={(e) => toggleVisibility(col.id, e.target.checked)}
               id={`col-${col.id}`}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
             />
             <label
               htmlFor={`col-${col.id}`}

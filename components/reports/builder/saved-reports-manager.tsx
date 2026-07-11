@@ -2,11 +2,9 @@
 import { useState, useEffect } from "react";
 import { type SavedReportConfig } from "./types";
 import { Button } from "@/components/ui/button";
+import { Bookmark, Save, Trash2, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bookmark, Save, Trash2, CheckCircle2 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 
 type SavedReportsManagerProps = {
   moduleName: string;
@@ -86,36 +84,31 @@ export function SavedReportsManager({ moduleName, currentConfig, onLoadReport }:
 
   return (
     <div className="flex items-center gap-2">
-      <Select onValueChange={(val) => {
-        const rep = reports.find((r) => r.id === val);
-        if (rep) onLoadReport(rep);
-      }}>
-        <SelectTrigger className="w-[200px] h-9 text-xs">
-          <div className="flex items-center gap-2">
-            <Bookmark className="h-3 w-3 text-blue-600" />
-            <SelectValue placeholder="Load Saved Report..." />
-          </div>
-        </SelectTrigger>
-        <SelectContent>
+      <div className="relative">
+        <select 
+          className="w-[200px] h-9 text-xs border rounded-md px-8 appearance-none bg-white"
+          onChange={(e) => {
+            const val = e.target.value;
+            if (!val) return;
+            const rep = reports.find((r) => r.id === val);
+            if (rep) onLoadReport(rep);
+            e.target.value = ""; // Reset after selection
+          }}
+          defaultValue=""
+        >
+          <option value="" disabled>Load Saved Report...</option>
           {reports.length === 0 ? (
-            <div className="p-2 text-xs text-slate-500 italic text-center">No saved reports</div>
+            <option disabled>No saved reports</option>
           ) : (
             reports.map((r) => (
-              <SelectItem key={r.id} value={r.id!} className="text-xs">
-                <div className="flex items-center justify-between w-full pr-6">
-                  <span>{r.name}</span>
-                  <div
-                    className="p-1 hover:bg-red-100 rounded text-red-500 hover:text-red-700 transition-colors"
-                    onClick={(e) => handleDelete(r.id!, e)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </div>
-                </div>
-              </SelectItem>
+              <option key={r.id} value={r.id!}>
+                {r.name}
+              </option>
             ))
           )}
-        </SelectContent>
-      </Select>
+        </select>
+        <Bookmark className="absolute left-2.5 top-2.5 h-4 w-4 text-blue-600 pointer-events-none" />
+      </div>
 
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogTrigger asChild>
@@ -137,10 +130,12 @@ export function SavedReportsManager({ moduleName, currentConfig, onLoadReport }:
               />
             </div>
             <div className="flex items-center gap-2 pt-2">
-              <Checkbox
+              <input
+                type="checkbox"
                 id="isPublic"
                 checked={isPublic}
-                onCheckedChange={(c) => setIsPublic(!!c)}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
               <label htmlFor="isPublic" className="text-sm font-medium leading-none cursor-pointer">
                 Share with other users (Public)

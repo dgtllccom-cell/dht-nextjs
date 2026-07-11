@@ -4,13 +4,6 @@ import { type ReportFilterRule, type ReportFieldDefinition } from "./types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, X, Filter } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 type FilterManagerProps = {
   fields: ReportFieldDefinition[];
@@ -69,59 +62,50 @@ export function FilterManager({ fields, filters, onChange }: FilterManagerProps)
             const fieldDef = fields.find((f) => f.id === filter.fieldId);
             return (
               <div key={filter.id} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-slate-50 dark:bg-slate-900 p-2 rounded border">
-                <Select
+                <select
                   value={filter.fieldId}
-                  onValueChange={(val) => updateFilter(filter.id, { fieldId: val, value: "" })}
+                  onChange={(e) => updateFilter(filter.id, { fieldId: e.target.value, value: "" })}
+                  className="w-full sm:w-[160px] h-8 text-xs bg-white dark:bg-slate-950 border rounded px-2"
                 >
-                  <SelectTrigger className="w-full sm:w-[160px] h-8 text-xs bg-white dark:bg-slate-950">
-                    <SelectValue placeholder="Select field" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {fields.map((f) => (
-                      <SelectItem key={f.id} value={f.id} className="text-xs">
-                        {f.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="" disabled>Select field</option>
+                  {fields.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
 
-                <Select
+                <select
                   value={filter.operator}
-                  onValueChange={(val: any) => updateFilter(filter.id, { operator: val })}
+                  onChange={(e) => updateFilter(filter.id, { operator: e.target.value as any })}
+                  className="w-full sm:w-[130px] h-8 text-xs bg-white dark:bg-slate-950 border rounded px-2"
                 >
-                  <SelectTrigger className="w-full sm:w-[130px] h-8 text-xs bg-white dark:bg-slate-950">
-                    <SelectValue placeholder="Operator" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="contains" className="text-xs">Contains</SelectItem>
-                    <SelectItem value="equals" className="text-xs">Equals (=)</SelectItem>
-                    <SelectItem value="not_equals" className="text-xs">Not Equals (!=)</SelectItem>
-                    {fieldDef?.type === "number" || fieldDef?.type === "date" || fieldDef?.type === "currency" ? (
-                      <>
-                        <SelectItem value="greater_than" className="text-xs">Greater Than (&gt;)</SelectItem>
-                        <SelectItem value="less_than" className="text-xs">Less Than (&lt;)</SelectItem>
-                      </>
-                    ) : null}
-                  </SelectContent>
-                </Select>
+                  <option value="" disabled>Operator</option>
+                  <option value="contains">Contains</option>
+                  <option value="equals">Equals (=)</option>
+                  <option value="not_equals">Not Equals (!=)</option>
+                  {fieldDef?.type === "number" || fieldDef?.type === "date" || fieldDef?.type === "currency" ? (
+                    <>
+                      <option value="greater_than">Greater Than (&gt;)</option>
+                      <option value="less_than">Less Than (&lt;)</option>
+                    </>
+                  ) : null}
+                </select>
 
                 <div className="flex-1 w-full flex items-center gap-2">
                   {fieldDef?.options ? (
-                    <Select
+                    <select
                       value={filter.value as string}
-                      onValueChange={(val) => updateFilter(filter.id, { value: val })}
+                      onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
+                      className="h-8 text-xs bg-white dark:bg-slate-950 w-full border rounded px-2"
                     >
-                      <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-950 w-full">
-                        <SelectValue placeholder="Select value" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {fieldDef.options.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <option value="" disabled>Select value</option>
+                      {fieldDef.options.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   ) : (
                     <Input
                       type={fieldDef?.type === "number" || fieldDef?.type === "currency" ? "number" : fieldDef?.type === "date" ? "date" : "text"}
