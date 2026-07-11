@@ -177,6 +177,8 @@ export async function GET(request: NextRequest) {
       entries: number;
       debit: number;
       credit: number;
+      usdDebit: number;
+      usdCredit: number;
       lastActivityAt: string | null;
       lastReferenceNo: string | null;
       lastSource: "ledger" | "roznamcha" | null;
@@ -191,6 +193,8 @@ export async function GET(request: NextRequest) {
           entries: 0,
           debit: 0,
           credit: 0,
+          usdDebit: 0,
+          usdCredit: 0,
           lastActivityAt: null,
           lastReferenceNo: null,
           lastSource: null,
@@ -201,12 +205,26 @@ export async function GET(request: NextRequest) {
       return agg.get(id)!;
     }
 
+    function calcUsd(localValue: number, usdRate: unknown, usdAmount: unknown) {
+      if (!localValue) return 0;
+      const amt = toNumber(usdAmount);
+      if (amt > 0) return amt;
+      const rate = toNumber(usdRate);
+      if (rate > 0) return localValue * rate;
+      return 0;
+    }
+
     for (const row of (batchLinesRes as any).data ?? []) {
       const ledgerId = String(row.ledger_id);
       const entry = ensure(ledgerId);
       entry.entries += 1;
-      entry.debit += toNumber(row.debit);
-      entry.credit += toNumber(row.credit);
+      const deb = toNumber(row.debit);
+      const cre = toNumber(row.credit);
+      entry.debit += deb;
+      entry.credit += cre;
+      if (deb > 0) entry.usdDebit += calcUsd(deb, row.usd_rate, row.usd_amount);
+      if (cre > 0) entry.usdCredit += calcUsd(cre, row.usd_rate, row.usd_amount);
+
       const header = row.ledger_posting_batches ?? {};
       const activityAt = String(header.created_at ?? row.created_at ?? header.entry_date ?? "");
       if (!entry.lastActivityAt || activityAt > entry.lastActivityAt) {
@@ -222,8 +240,13 @@ export async function GET(request: NextRequest) {
       const ledgerId = String(row.ledger_id);
       const entry = ensure(ledgerId);
       entry.entries += 1;
-      entry.debit += toNumber(row.debit);
-      entry.credit += toNumber(row.credit);
+      const deb = toNumber(row.debit);
+      const cre = toNumber(row.credit);
+      entry.debit += deb;
+      entry.credit += cre;
+      if (deb > 0) entry.usdDebit += calcUsd(deb, row.usd_rate, row.usd_amount);
+      if (cre > 0) entry.usdCredit += calcUsd(cre, row.usd_rate, row.usd_amount);
+
       const header = row.roznamcha_entries ?? {};
       const activityAt = String(header.created_at ?? row.created_at ?? header.entry_date ?? "");
       if (!entry.lastActivityAt || activityAt > entry.lastActivityAt) {
@@ -236,7 +259,7 @@ export async function GET(request: NextRequest) {
     }
 
     const rowsWithTotals = rows.map((row) => {
-      const totals = agg.get(row.ledgerId) ?? { entries: 0, debit: 0, credit: 0, lastActivityAt: null, lastReferenceNo: null, lastSource: null, lastDescription: null, lastEntryDate: null };
+      const totals = agg.get(row.ledgerId) ?? { entries: 0, debit: 0, credit: 0, usdDebit: 0, usdCredit: 0, lastActivityAt: null, lastReferenceNo: null, lastSource: null, lastDescription: null, lastEntryDate: null };
       const balance = balanceMap.get(row.ledgerId);
       const branch = row.cityBranchName || row.countryBranchName || row.countryName || "-";
       
@@ -248,6 +271,9 @@ export async function GET(request: NextRequest) {
          opBal = currentBal - totals.debit + totals.credit;
       }
 
+      // For USD balance, we compute it purely from period totals since we don't store USD in ledger_balances
+      const usdBalance = row.normalBalance === "credit" ? totals.usdCredit - totals.usdDebit : totals.usdDebit - totals.usdCredit;
+
       return {
         ...row,
         branch,
@@ -257,6 +283,9 @@ export async function GET(request: NextRequest) {
         credit: totals.credit,
         balance: currentBal,
         openingBalance: opBal,
+        usdDebit: totals.usdDebit,
+        usdCredit: totals.usdCredit,
+        usdBalance,
         balanceDate: balance?.balanceDate ?? null,
         lastActivityAt: totals.lastActivityAt,
         lastReferenceNo: totals.lastReferenceNo,
@@ -281,6 +310,9 @@ export async function GET(request: NextRequest) {
         existing.credit += r.credit;
         existing.balance += r.balance;
         existing.openingBalance += r.openingBalance;
+        existing.usdDebit = (existing.usdDebit || 0) + (r.usdDebit || 0);
+        existing.usdCredit = (existing.usdCredit || 0) + (r.usdCredit || 0);
+        existing.usdBalance = (existing.usdBalance || 0) + (r.usdBalance || 0);
         
         if (r.lastActivityAt && (!existing.lastActivityAt || r.lastActivityAt > existing.lastActivityAt)) {
           existing.lastActivityAt = r.lastActivityAt;

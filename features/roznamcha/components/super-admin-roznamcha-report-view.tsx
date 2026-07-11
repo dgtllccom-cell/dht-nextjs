@@ -837,6 +837,8 @@ export function SuperAdminRoznamchaReportView({
     showUsd: "Yes"
   });
 
+  const [printMode, setPrintMode] = useState(false);
+
   const isSuperAdminOrCountryAdmin = useMemo(() => {
     return Boolean(
       sessionInfo?.scopes?.isSuperAdmin ||
@@ -1619,7 +1621,7 @@ export function SuperAdminRoznamchaReportView({
                 <MenuAction icon={<RefreshCcw className={cn("h-4 w-4", refreshing ? "animate-spin" : "")} />} label={refreshing ? "Refreshing" : "Refresh"} onClick={() => void loadReport()} />
                 <MenuDivider />
                 <MenuAction icon={<DownloadActionIcon className="h-4 w-4" />} label="Export PDF" onClick={() => openSelectedReport(false, "journal")} />
-                <MenuAction icon={<Printer className="h-4 w-4" />} label="Print Report" onClick={() => openSelectedReport(true, "journal")} />
+                <MenuAction icon={<Printer className="h-4 w-4" />} label="Print Report Preview" onClick={() => setPrintMode(true)} />
                 <MenuAction icon={<DownloadActionIcon className="h-4 w-4" />} label="Excel Export" onClick={exportCsv} />
                 <MenuDivider />
                 <MenuAction icon={<Eye className="h-4 w-4" />} label="View Voucher" onClick={() => openSelectedReport(false, "voucher")} />
@@ -1993,6 +1995,26 @@ export function SuperAdminRoznamchaReportView({
           </div>
         )}
       </DetailDrawer>
+
+      <RoznamchaPrintPreview 
+        open={printMode} 
+        onClose={() => setPrintMode(false)}
+        rows={filtered}
+        scope={scope}
+        lang={lang}
+        title={entryScopeTitle}
+        summary={{
+          totalDebit: summary.debit,
+          totalCredit: summary.credit,
+          balance: summary.balance,
+          totalTransactions: filtered.length,
+        }}
+        filters={{
+          "Country": selectedCountryLabel,
+          "Branch": selectedBranchLabel,
+          "Date": `${appliedFilters.fromDate} to ${appliedFilters.toDate}`
+        }}
+      />
     </div>
   );
 }
@@ -2042,6 +2064,68 @@ function MenuAction({
 
 function MenuDivider() {
   return <div className="my-1 border-t border-slate-100" />;
+}
+
+function RoznamchaPrintPreview({ 
+  open, 
+  onClose, 
+  rows, 
+  scope,
+  lang,
+  title,
+  summary,
+  filters
+}: { 
+  open: boolean; 
+  onClose: () => void; 
+  rows: SuperAdminRoznamchaRow[]; 
+  scope: string;
+  lang: any;
+  title: string;
+  summary: any;
+  filters: any;
+}) {
+  if (!open) return null;
+
+  const columns: ReportColumn<SuperAdminRoznamchaRow>[] = scope === "country" ? [
+    { key: "index", header: "SR. NO.", width: "40px", align: "center", render: (_, i) => i + 1 },
+    { key: "branchName", header: "BRANCH NAME", render: (r) => r.cityBranchName || r.countryBranchName || "-" },
+    { key: "branchCode", header: "BRANCH CODE", render: (r) => r.cityBranchCode || r.countryBranchCode || "-" },
+    { key: "transactions", header: "TOTAL TRANSACTIONS", align: "center", render: (r) => "1" },
+    { key: "debit", header: "TOTAL DEBIT", align: "right", render: (r) => (r.debit > 0 ? r.debit.toFixed(2) : "0.00") },
+    { key: "credit", header: "TOTAL CREDIT", align: "right", render: (r) => (r.credit > 0 ? r.credit.toFixed(2) : "0.00") },
+    { key: "balance", header: "BALANCE", align: "right", render: (r) => (r.debit - r.credit).toFixed(2) },
+    { key: "status", header: "STATUS", align: "center", render: (r) => r.status || "Active" },
+  ] : [
+    { key: "index", header: "SR.", width: "30px", align: "center", render: (_, i) => i + 1 },
+    { key: "date", header: "DATE", width: "70px", align: "center", render: (r) => new Date(r.entryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) },
+    { key: "voucherNo", header: "VOUCHER", align: "center", render: (r) => r.voucherNo },
+    { key: "party", header: "ACCOUNT / PARTY", render: (r) => `${r.accountNo ? r.accountNo + " - " : ""}${r.partyName}` },
+    { key: "narration", header: "DETAILS", render: (r) => r.narration },
+    { key: "curr", header: "CURR.", align: "center", render: () => "BASE" },
+    { key: "debit", header: "DEBIT", align: "right", render: (r) => (r.debit > 0 ? r.debit.toFixed(2) : "0.00") },
+    { key: "credit", header: "CREDIT", align: "right", render: (r) => (r.credit > 0 ? r.credit.toFixed(2) : "0.00") },
+    { key: "balance", header: "BALANCE", align: "right", render: (r) => r.remainingBalance?.toFixed(2) || "0.00" },
+    { key: "drcr", header: "DR/CR", align: "center", render: (r) => (r.debit > 0 ? "DR" : r.credit > 0 ? "CR" : "-") },
+  ];
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
+      <div className="flex-1 overflow-hidden">
+        <ProfessionalReportViewer
+          lang={lang}
+          title={title}
+          data={rows}
+          columns={columns}
+          summary={summary}
+          filters={filters}
+          rowsPerPage={25}
+          onClose={onClose}
+        />
+      </div>
+    </div>,
+    document.body
+  );
 }
 
 

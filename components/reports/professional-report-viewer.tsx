@@ -5,7 +5,7 @@ import {
   Printer, Download, FileSpreadsheet, FileText, 
   Mail, MessageCircle, ZoomIn, ZoomOut, 
   Monitor, LayoutList, ChevronLeft, ChevronRight,
-  MoreVertical
+  MoreVertical, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n/ui";
@@ -38,6 +38,7 @@ export type ProfessionalReportViewerProps<T = any> = {
   summary?: ReportSummary;
   filters?: Record<string, string>;
   rowsPerPage?: number;
+  onClose?: () => void;
 };
 
 export function ProfessionalReportViewer<T>({
@@ -48,7 +49,8 @@ export function ProfessionalReportViewer<T>({
   columns,
   summary,
   filters,
-  rowsPerPage = 25
+  rowsPerPage = 25,
+  onClose
 }: ProfessionalReportViewerProps<T>) {
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
@@ -173,6 +175,14 @@ export function ProfessionalReportViewer<T>({
           <Button variant="ghost" size="icon" onClick={handleZoomIn} title="Zoom In" className="text-gray-300 hover:text-white hover:bg-white/10">
             <ZoomIn className="w-4 h-4" />
           </Button>
+          {onClose && (
+            <>
+              <div className="h-5 w-px bg-gray-600 mx-1" />
+              <Button variant="ghost" size="icon" onClick={onClose} title="Close Print Preview" className="text-red-400 hover:text-red-300 hover:bg-red-400/10">
+                <X className="w-5 h-5" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

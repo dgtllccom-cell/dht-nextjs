@@ -39,6 +39,9 @@ type GeneralReportRow = LedgerLookupRow & {
   lastSource: "ledger" | "roznamcha" | null;
   lastDescription: string | null;
   lastEntryDate: string | null;
+  usdDebit?: number;
+  usdCredit?: number;
+  usdBalance?: number;
 };
 
 type GeneralReportResponse = {
@@ -253,6 +256,7 @@ export function LedgerReportView({
   const [ledgerId, setLedgerId] = useState(initialLedgerId ?? "");
   const [menuOpen, setMenuOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [printMode, setPrintMode] = useState(false);
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [rows, setRows] = useState<GeneralReportRow[]>([]);
   const [summary, setSummary] = useState<GeneralReportResponse["summary"] | null>(null);
@@ -593,17 +597,46 @@ export function LedgerReportView({
   return (
     <div className="w-full bg-slate-50/50 dark:bg-background text-foreground animate-in fade-in duration-200">
       {actionsSlot && createPortal(
-        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setFiltersOpen((v) => !v)}>
-          <Search className="h-4 w-4" aria-hidden />
-          {filtersOpen ? "Hide Filters" : "Search / Filters"}
-        </Button>,
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="ghost" size="sm" className="gap-2" onClick={() => router.back()}>
+            <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
+            Back
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setFiltersOpen((v) => !v)}>
+            <Search className="h-4 w-4" aria-hidden />
+            {filtersOpen ? "Hide Filters" : "Search / Filters"}
+          </Button>
+        </div>,
         actionsSlot
       )}
       <div className="mx-auto w-full max-w-[1800px] p-4 sm:p-6 lg:p-8 space-y-4">
-      <ReportHeader
-        title={pageTitle}
-        generatedAt={generatedAt}
-      />
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <ReportHeader
+          title={pageTitle}
+          generatedAt={generatedAt}
+        />
+        {/* Account Details moved to Header area */}
+        {selectedLedger ? (
+          <div className="flex items-center gap-3 rounded-lg border bg-slate-50/50 p-2 px-3 shadow-sm dark:bg-slate-900/50">
+            <div className="text-sm">
+              <span className="text-muted-foreground">Account: </span>
+              <span className="font-bold">{selectedLedger.accountName || selectedLedger.ledgerName || "-"}</span>
+            </div>
+            <span className={badgeClass(selectedLedger.status === "inactive" ? "inactive" : "active")}>
+              {selectedLedger.status === "inactive" ? "Inactive" : "Active"}
+            </span>
+            <Button type="button" variant="outline" size="sm" className="ml-2 gap-2" onClick={() => {
+              if (selectedLedger && (selectedLedger.accountCode || selectedLedger.ledgerCode)) {
+                router.push(`/dashboard/ledger/new?account=${encodeURIComponent(selectedLedger.accountCode || selectedLedger.ledgerCode)}`);
+              } else if (selectedLedger?.ledgerId) {
+                void loadSelectedStatement(selectedLedger.ledgerId);
+              }
+            }}>
+              View Ledger
+            </Button>
+          </div>
+        ) : null}
+      </div>
 
       {filtersOpen ? (
         <div className="rounded-lg border bg-card p-3 shadow-sm print:hidden">
@@ -845,66 +878,7 @@ export function LedgerReportView({
         </div>
       )}
 
-      <section className="mb-3 rounded-xl border border-border bg-card p-4 shadow-sm dark:border-slate-700 dark:bg-[#0b1730] dark:shadow-[0_20px_80px_rgba(0,0,0,0.25)] text-slate-700 dark:text-slate-200">
-        <div className="space-y-2 border-b border-border dark:border-slate-700 pb-3 mb-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-base font-bold text-foreground dark:text-slate-100">Account Details</h2>
-            </div>
-            <span className={badgeClass(selectedLedger?.status === "inactive" ? "inactive" : "active")}>
-              {selectedLedger?.status === "inactive" ? "Inactive" : "Active"}
-            </span>
-          </div>
-        </div>
-        <div className="space-y-3">
-          {selectedLedger ? (
-            <>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                <KeyValue label="Account No" value={selectedLedger.accountCode || selectedLedger.ledgerCode || "-"} />
-                <KeyValue label="Account Name" value={selectedLedger.accountName || selectedLedger.ledgerName || "-"} />
-                <KeyValue label="Ledger Name" value={selectedLedger.ledgerName || "-"} />
-                <KeyValue label="Branch" value={buildBranchLabel(selectedLedger)} />
-                <KeyValue label="Country" value={selectedLedger.countryName || "-"} />
-                <KeyValue label="Currency" value={selectedLedger.ledgerCurrency || "-"} />
-                <KeyValue label="Status" value={selectedLedger.status === "inactive" ? "Inactive" : "Active"} tone={selectedLedger.status === "inactive" ? "text-rose-400" : "text-emerald-400"} />
-                <KeyValue label="Opening Balance" value={fmtNumber((statement?.totals as any)?.openingBalance ?? (statement?.lines?.[0] ? (selectedLedger.normalBalance === "credit" ? statement.lines[0]!.runningBalance - statement.lines[0]!.credit + statement.lines[0]!.debit : statement.lines[0]!.runningBalance - statement.lines[0]!.debit + statement.lines[0]!.credit) : selectedLedger.balance ?? 0))} />
-                <KeyValue label="Current Balance" value={fmtNumber(statement?.totals?.balance ?? selectedLedger.balance ?? 0)} />
-              </div>
-
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 border-input bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                  onClick={() => {
-                    if (selectedLedger && (selectedLedger.accountCode || selectedLedger.ledgerCode)) {
-                      router.push(`/dashboard/ledger/new?account=${encodeURIComponent(selectedLedger.accountCode || selectedLedger.ledgerCode)}`);
-                    } else if (selectedLedger?.ledgerId) {
-                      void loadSelectedStatement(selectedLedger.ledgerId);
-                    }
-                  }}
-                >
-                  <Search className="h-4 w-4" aria-hidden />
-                  View Ledger
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-2 border-input bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" onClick={() => openPrint(false)}>
-                  <Printer className="h-4 w-4" aria-hidden />
-                  Print
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-2 border-input bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" onClick={exportReportCsv}>
-                  <DownloadActionIcon className="h-4 w-4" aria-hidden />
-                  PDF / Excel
-                </Button>
-              </div>
-
-              {loadingStatement ? <div className="text-sm text-muted-foreground dark:text-slate-400">Loading selected account...</div> : null}
-            </>
-          ) : (
-            <div className="rounded-lg border border-border bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40 p-4 text-sm text-muted-foreground dark:text-slate-400">{t(lang, "ledger.select_account_hint")}</div>
-          )}
-        </div>
-      </section>
+      {/* Account Details section was moved to header area per user request */}
 
       <section className="mb-3 rounded-xl border border-border bg-card p-4 shadow-sm dark:border-slate-700 dark:bg-[#0b1730] dark:shadow-[0_20px_80px_rgba(0,0,0,0.25)] text-slate-700 dark:text-slate-200">
         <div className="space-y-2 border-b border-border dark:border-slate-700 pb-3 mb-4">
@@ -915,8 +889,14 @@ export function LedgerReportView({
                 {t(lang, "ledger.showing_range")} <span className="font-mono text-[11px] text-slate-500 dark:text-slate-300">{fromDate} → {toDate}</span>
               </p>
             </div>
-            <div className="text-xs text-muted-foreground dark:text-slate-500">
-              {t(lang, "ledger.rows")}: <b className="text-foreground dark:text-slate-200">{tableRows.length}</b>
+            <div className="flex items-center gap-4">
+              <div className="text-xs text-muted-foreground dark:text-slate-500">
+                {t(lang, "ledger.rows")}: <b className="text-foreground dark:text-slate-200">{tableRows.length}</b>
+              </div>
+              <Button type="button" variant="outline" size="sm" className="gap-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:text-blue-800 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-300 dark:hover:bg-blue-900/40" onClick={() => setPrintMode(true)}>
+                <Printer className="h-4 w-4" />
+                Print Preview
+              </Button>
             </div>
           </div>
         </div>
@@ -935,6 +915,11 @@ export function LedgerReportView({
               { key: "createdAt", header: "Created Date", render: (r) => formatDateString(r.createdAt) },
               { key: "lastEntryDate", header: "Last Entry", render: (r) => formatDateString(r.lastEntryDate) },
               { key: "balance", header: "Balance", align: "right", render: (r) => fmtNumber(r.balance) },
+              ...(reportScope === "super_admin" ? [
+                { key: "usdCredit", header: "Credit ($)", align: "right", render: (r: GeneralReportRow) => fmtNumber(r.usdCredit ?? 0) },
+                { key: "usdDebit", header: "Debit ($)", align: "right", render: (r: GeneralReportRow) => fmtNumber(r.usdDebit ?? 0) },
+                { key: "usdBalance", header: "Balance ($)", align: "right", render: (r: GeneralReportRow) => fmtNumber(r.usdBalance ?? 0) }
+              ] : []),
               { 
                 key: "action", 
                 header: "Action", 
@@ -958,27 +943,62 @@ export function LedgerReportView({
             ];
 
             return (
-              <div className="h-[800px] w-full">
-                <ProfessionalReportViewer
-                  lang={lang}
-                  title="Country Ledger / Super Admin Ledger"
-                  data={tableRows}
-                  columns={columns}
-                  filters={{
-                    Scope: scope,
-                    "Date From": fromDate,
-                    "Date To": toDate,
-                  }}
-                  summary={{
-                    totalLedgers: data?.summary?.totalLedgers || 0,
-                    entries: data?.summary?.entries || 0,
-                    debit: data?.summary?.debit || 0,
-                    credit: data?.summary?.credit || 0,
-                    balance: data?.summary?.balance || 0,
-                  }}
-                  rowsPerPage={pageSize}
+              <>
+                <ReportTable headers={columns.map(c => c.header)}>
+                  {tableRows.slice((page - 1) * pageSize, page * pageSize).map((row, idx) => (
+                    <tr key={row.ledgerId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                      {columns.map((c, cIdx) => (
+                        <Td key={cIdx} className={c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : ""}>
+                          {c.render ? c.render(row, idx) : (row as any)[c.key]}
+                        </Td>
+                      ))}
+                    </tr>
+                  ))}
+                  {tableRows.length === 0 && !loading && (
+                    <tr>
+                      <Td className="text-center py-8 text-muted-foreground" colSpan={columns.length}>
+                        No ledger accounts found.
+                      </Td>
+                    </tr>
+                  )}
+                </ReportTable>
+                <TableFooter
+                  text={`Showing ${tableRows.length ? (page - 1) * pageSize + 1 : 0} to ${Math.min(page * pageSize, tableRows.length)} of ${tableRows.length} ledgers`}
+                  page={page}
+                  pageCount={Math.max(1, Math.ceil(tableRows.length / pageSize))}
+                  onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                  onNext={() => setPage((p) => Math.min(Math.ceil(tableRows.length / pageSize), p + 1))}
+                  pageSize={pageSize}
                 />
-              </div>
+
+                {printMode && createPortal(
+                  <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
+                    <div className="flex-1 overflow-hidden">
+                      <ProfessionalReportViewer
+                        lang={lang}
+                        title="Country Ledger / Super Admin Ledger"
+                        data={tableRows}
+                        columns={columns}
+                        filters={{
+                          Scope: scope,
+                          "Date From": fromDate,
+                          "Date To": toDate,
+                        }}
+                        summary={{
+                          totalLedgers: data?.summary?.totalLedgers || 0,
+                          entries: data?.summary?.entries || 0,
+                          debit: data?.summary?.debit || 0,
+                          credit: data?.summary?.credit || 0,
+                          balance: data?.summary?.balance || 0,
+                        }}
+                        rowsPerPage={pageSize}
+                        onClose={() => setPrintMode(false)}
+                      />
+                    </div>
+                  </div>,
+                  document.body
+                )}
+              </>
             );
           })()}
         </div>

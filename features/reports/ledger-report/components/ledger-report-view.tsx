@@ -164,6 +164,7 @@ export function LedgerReportView({
   );
   const [entrySearch, setEntrySearch] = useState("");
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [printMode, setPrintMode] = useState(false);
 
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
 
@@ -808,6 +809,14 @@ export function LedgerReportView({
         </CardContent>
       </Card>
 
+      <div className="flex items-center justify-between mt-4 mb-2">
+        <h2 className="text-lg font-semibold">{t(lang, "ledger.entries_table_title")}</h2>
+        <Button variant="outline" size="sm" onClick={() => setPrintMode(true)} className="gap-2">
+          <Printer className="h-4 w-4" />
+          Print Preview
+        </Button>
+      </div>
+
       {/* Ledger Entries */}
       {(() => {
         if (!header) return null;
@@ -848,30 +857,85 @@ export function LedgerReportView({
         ];
 
         return (
-          <div className="h-[800px] w-full mt-4">
-            <ProfessionalReportViewer
-              lang={lang}
-              title={t(lang, "ledger.entries_table_title")}
-              data={tableRows}
-              columns={columns}
-              filters={{
-                "Account No": header.accountCode || header.ledgerCode,
-                "Account Name": header.accountName || header.ledgerName,
-                Country: header.countryName,
-                Branch: deriveLedgerBranchName(header),
-                Currency: ledgerCurrency,
-                "Date From": fromDate,
-                "Date To": toDate,
-              }}
-              summary={{
-                totalDebit: displayTotals?.debit || 0,
-                totalCredit: displayTotals?.credit || 0,
-                balance: displayTotals?.balance || 0,
-                totalTransactions: tableRows.length,
-              }}
-              rowsPerPage={pageSize}
-            />
-          </div>
+          <>
+            <div className="w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <table className="w-full min-w-[1200px] text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900">
+                    {columns.map((c) => (
+                      <th key={c.key} className={cn("whitespace-nowrap px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-500", c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "")}>
+                        {c.header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                  {tableRows.slice((page - 1) * pageSize, page * pageSize).map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                      {columns.map((c) => (
+                        <td key={c.key} className={cn("whitespace-nowrap px-4 py-3 align-middle text-[11px] font-medium text-slate-700 dark:text-slate-300", c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "")}>
+                          {c.render ? c.render(row, idx) : (row as any)[c.key]}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {tableRows.length === 0 && !loadingStatement && (
+                    <tr>
+                      <td colSpan={columns.length} className="text-center py-8 text-muted-foreground">
+                        {t(lang, "ledger.no_entries_found")}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3 text-xs text-slate-500">
+              <span>{`Showing ${tableRows.length ? (page - 1) * pageSize + 1 : 0} to ${Math.min(page * pageSize, tableRows.length)} of ${tableRows.length} entries`}</span>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" className="h-7 text-slate-600 hover:text-slate-900" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+                  Prev
+                </Button>
+                <div className="text-xs">
+                  Page <b className="text-slate-800">{page}</b> / {Math.max(1, Math.ceil(tableRows.length / pageSize))}
+                </div>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-slate-600 hover:text-slate-900" disabled={page >= Math.ceil(tableRows.length / pageSize)} onClick={() => setPage(p => Math.min(Math.ceil(tableRows.length / pageSize), p + 1))}>
+                  Next
+                </Button>
+              </div>
+            </div>
+
+            {printMode && createPortal(
+              <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
+                <div className="flex-1 overflow-hidden">
+                  <ProfessionalReportViewer
+                    lang={lang}
+                    title={t(lang, "ledger.entries_table_title")}
+                    data={tableRows}
+                    columns={columns}
+                    filters={{
+                      "Account No": header.accountCode || header.ledgerCode,
+                      "Account Name": header.accountName || header.ledgerName,
+                      Country: header.countryName,
+                      Branch: deriveLedgerBranchName(header),
+                      Currency: ledgerCurrency,
+                      "Date From": fromDate,
+                      "Date To": toDate,
+                    }}
+                    summary={{
+                      totalDebit: displayTotals?.debit || 0,
+                      totalCredit: displayTotals?.credit || 0,
+                      balance: displayTotals?.balance || 0,
+                      totalTransactions: tableRows.length,
+                    }}
+                    rowsPerPage={pageSize}
+                    onClose={() => setPrintMode(false)}
+                  />
+                </div>
+              </div>,
+              document.body
+            )}
+          </>
         );
       })()}
     </div>
