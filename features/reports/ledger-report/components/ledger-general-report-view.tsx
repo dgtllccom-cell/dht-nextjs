@@ -23,6 +23,7 @@ import {
   type LedgerReportScope,
   type LedgerStatementLine
 } from "@/features/reports/ledger-report/ledger-report-api";
+import { ProfessionalReportViewer, type ReportColumn } from "@/components/reports/professional-report-viewer";
 
 type GeneralReportRow = LedgerLookupRow & {
   branch: string;
@@ -920,94 +921,66 @@ export function LedgerReportView({
           </div>
         </div>
         <div className="p-0">
-          <ReportTable
-              headers={[
-                "#",
-                "Country",
-                "Branch",
-                "Account No",
-                "Account Name",
-                "Entries",
-                "Opening Bal",
-                "Credit",
-                "Debit",
-                "Created Date",
-                "Last Entry",
-                "Balance",
-                ""
-              ]}
-            >
-              {loading ? (
-                <tr>
-                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    {t(lang, "ledger.loading")}
-                  </td>
-                </tr>
-              ) : tableRows.length ? (
-              tableRows.map((row, index) => {
-                const active = row.ledgerId === ledgerId;
-                return (
-                  <tr
-                    key={row.ledgerId}
-                    className={cn(
-                      "cursor-pointer border-b border-border dark:border-slate-700/50 transition hover:bg-slate-50 dark:hover:bg-slate-800/50",
-                      index % 2 === 0 ? "bg-white dark:bg-transparent" : "bg-slate-50/50 dark:bg-slate-900/20",
-                      active ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                    )}
-                    onClick={() => {
-                      if (row.accountCode || row.ledgerCode) {
-                        router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
-                      } else {
-                        void loadSelectedStatement(row.ledgerId);
-                        setDrawerOpen(true);
-                      }
+          {(() => {
+            const columns: ReportColumn<GeneralReportRow>[] = [
+              { key: "index", header: "SR#", width: "40px", align: "center", render: (_, idx) => (page - 1) * pageSize + idx + 1 },
+              { key: "countryName", header: "Country", render: (r) => r.countryName || "-" },
+              { key: "branch", header: "Branch", render: (r) => buildBranchLabel(r) },
+              { key: "accountCode", header: "Account No", render: (r) => r.accountCode || r.ledgerCode },
+              { key: "accountName", header: "Account Name", render: (r) => r.accountName || r.ledgerName },
+              { key: "entries", header: "Entries", align: "right" },
+              { key: "openingBalance", header: "Opening Bal", align: "right", render: (r) => fmtNumber(r.openingBalance ?? 0) },
+              { key: "credit", header: "Credit", align: "right", render: (r) => fmtNumber(r.credit) },
+              { key: "debit", header: "Debit", align: "right", render: (r) => fmtNumber(r.debit) },
+              { key: "createdAt", header: "Created Date", render: (r) => formatDateString(r.createdAt) },
+              { key: "lastEntryDate", header: "Last Entry", render: (r) => formatDateString(r.lastEntryDate) },
+              { key: "balance", header: "Balance", align: "right", render: (r) => fmtNumber(r.balance) },
+              { 
+                key: "action", 
+                header: "Action", 
+                align: "center", 
+                render: (row) => (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-slate-400 hover:text-slate-700 hover:bg-slate-200 no-print"
+                    title="View Ledger"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
                     }}
                   >
-                    <Td className="font-mono text-slate-500 dark:text-slate-400">{(page - 1) * pageSize + index + 1}</Td>
-                    <Td>{row.countryName || "-"}</Td>
-                    <Td>{buildBranchLabel(row)}</Td>
-                    <Td className="font-mono text-blue-600 dark:text-blue-400">{row.accountCode || row.ledgerCode}</Td>
-                    <Td className="font-bold text-slate-800 dark:text-slate-200">{row.accountName || row.ledgerName}</Td>
-                    <Td className="text-right tabular-nums text-slate-600 dark:text-slate-400">{row.entries}</Td>
-                    <Td className="text-right tabular-nums text-slate-600 dark:text-slate-400">{fmtNumber(row.openingBalance ?? 0)}</Td>
-                    <Td className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">{fmtNumber(row.credit)}</Td>
-                    <Td className="text-right tabular-nums text-rose-600 dark:text-rose-400">{fmtNumber(row.debit)}</Td>
-                    <Td className="text-slate-500 dark:text-slate-400">{formatDateString(row.createdAt)}</Td>
-                    <Td className="text-slate-500 dark:text-slate-400">{formatDateString(row.lastEntryDate)}</Td>
-                    <Td className="text-right tabular-nums font-bold text-slate-900 dark:text-slate-100">{fmtNumber(row.balance)}</Td>
-                    <Td onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-slate-400 hover:text-slate-700 hover:bg-slate-200"
-                        title="View Ledger"
-                        onClick={() => {
-                          router.push(`/dashboard/ledger/new?account=${encodeURIComponent(row.accountCode || row.ledgerCode)}`);
-                        }}
-                      >
-                        <Search className="h-3.5 w-3.5" aria-hidden />
-                      </Button>
-                    </Td>
-                  </tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td colSpan={13} className="px-4 py-10 text-center text-sm text-slate-500">
-                  {t(lang, "ledger.no_data")}
-                </td>
-              </tr>
-            )}
-          </ReportTable>
-          <TableFooter 
-            text={`${t(lang, "ledger.pagination_hint")} ${pageSize}`} 
-            page={page} 
-            pageCount={pageCount} 
-            onPrev={() => setPage((p) => Math.max(1, p - 1))} 
-            onNext={() => setPage((p) => Math.min(pageCount, p + 1))} 
-            pageSize={pageSize} 
-          />
+                    <Search className="h-3.5 w-3.5" aria-hidden />
+                  </Button>
+                )
+              }
+            ];
+
+            return (
+              <div className="h-[800px] w-full">
+                <ProfessionalReportViewer
+                  lang={lang}
+                  title="Country Ledger / Super Admin Ledger"
+                  data={tableRows}
+                  columns={columns}
+                  filters={{
+                    Scope: scope,
+                    "Date From": fromDate,
+                    "Date To": toDate,
+                  }}
+                  summary={{
+                    totalLedgers: data?.summary?.totalLedgers || 0,
+                    entries: data?.summary?.entries || 0,
+                    debit: data?.summary?.debit || 0,
+                    credit: data?.summary?.credit || 0,
+                    balance: data?.summary?.balance || 0,
+                  }}
+                  rowsPerPage={pageSize}
+                />
+              </div>
+            );
+          })()}
         </div>
       </section>
       </div>

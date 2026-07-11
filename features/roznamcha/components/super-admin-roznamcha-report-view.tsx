@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import { ReportTd, ReportTh } from "@/components/reports/report-primitives";
+import { ProfessionalReportViewer, type ReportColumn } from "@/components/reports/professional-report-viewer";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
 import { t } from "@/lib/i18n/ui";
 import { apiGet } from "@/lib/api/client";
@@ -1801,304 +1802,63 @@ export function SuperAdminRoznamchaReportView({
         </Card>
       )}
 
-      {typeFilter !== "country" && (
-      <div className="space-y-4">
-        <Card id="super-admin-roznamcha-table" className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <CardHeader className="space-y-1 border-b bg-slate-50/50 dark:bg-slate-900/50 py-2 px-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs font-bold text-slate-950 dark:text-slate-100">
-              {typeFilter === "country" ? "Country Roznamcha Report" : "Roznamcha Entries (Super Admin)"}
-            </CardTitle>
-            <div className="text-[11px] text-slate-500 font-semibold">
-              {typeFilter === "country"
-                ? "Country wise daily Roznamcha details with account, branch, debit and credit activity."
-                : "Each row shows Country, Branch and USD rate after Remaining Balance"}
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              {typeFilter === "country" ? (
-                <table className="w-full min-w-[1200px] border-collapse border border-slate-200 dark:border-slate-800 text-xs">
-                  <thead className="bg-slate-900 text-white dark:bg-slate-800">
-                    <tr className="whitespace-nowrap text-left">
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Date</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">General Serial No</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Country Serial No</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Branch Serial No</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">User Name</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account No</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Party Name</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Details</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Debit</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Credit</th>
-                      {showUsd && (
-                        <>
-                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">USD Rate</th>
-                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Dr (USD)</th>
-                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Cr (USD)</th>
-                        </>
-                      )}
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={showUsd ? 14 : 11} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
-                          Loading entries...
-                        </td>
-                      </tr>
-                    ) : visibleRows.length ? (
-                      visibleRows.map((row, index) => {
-                        const active = row.id === selectedId;
+      {(() => {
+        const columns: ReportColumn<SuperAdminRoznamchaRow>[] = [
+          { key: "index", header: "SR#", render: (_, idx) => idx + 1, align: "center", width: "40px" },
+          { key: "entryDate", header: "Date", width: "80px", align: "center" },
+          { key: "voucherNo", header: "Voucher No.", width: "100px", align: "center" },
+          { key: "sourceEntry", header: "Manual Bill No.", render: (r) => r.sourceEntry?.manualBillNo || "-", align: "center" },
+          { key: "id", header: "System Bill No.", render: (r) => r.sourceEntry?.systemBillNo || "-", align: "center" },
+          { key: "countryName", header: "Country", width: "100px" },
+          { key: "countryBranchName", header: "Branch", width: "100px" },
+          { key: "cityBranchName", header: "City Branch", render: (r) => r.cityBranchId ? r.cityBranchName : "-", width: "100px" },
+          { key: "createdBy", header: "User", render: (r) => r.sourceEntry?.createdBy || "admin" },
+          { key: "accountCode", header: "Account Code", align: "center" },
+          { key: "partyName", header: "Account Name" },
+          { key: "narration", header: "Narration" },
+          { key: "debit", header: "Debit", align: "right", render: (r) => fmtNumber(r.debit) },
+          { key: "credit", header: "Credit", align: "right", render: (r) => fmtNumber(r.credit) },
+          { key: "remainingBalance", header: "Running Balance", align: "right", render: (r) => fmtNumber(r.remainingBalance || 0) },
+          { key: "countryCurrency", header: "Currency", align: "center", render: (r) => r.countryCurrency || "PKR" },
+          { key: "usdRate", header: "Exchange Rate", align: "right", render: (r) => fmtRate(getRowRate(r.currency)) },
+          { key: "finalAmount", header: "Final Amount", align: "right", render: (r) => fmtNumber((r.debit > 0 ? r.debit : r.credit) / getRowRate(r.currency)) }
+        ];
 
-                        return (
-                          <tr
-                            key={row.id}
-                            className={cn(
-                              "cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-900/40",
-                              index % 2 === 0 ? "bg-white" : "bg-slate-50/30",
-                              active ? "bg-blue-50/50 dark:bg-blue-950/20" : ""
-                            )}
-                            onClick={() => {
-                              setSelectedId(row.id);
-                              setActiveDrawerEntry(row);
-                            }}
-                          >
-                            <td className="p-2.5 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.entryDate}</td>
-                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold text-slate-800">{row.superAdminSerialNo}</td>
-                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold text-slate-800">{row.countrySerialNo}</td>
-                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-700">{row.branchSerialNo}</td>
-                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-700">{row.createdBy}</td>
-                            <td className="p-2.5 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-mono font-bold text-blue-600">{row.accountCode}</td>
-                            <td className="p-2.5 text-left max-w-[180px] truncate border border-slate-200 dark:border-slate-800 font-semibold text-slate-800" title={row.partyName}>{row.partyName}</td>
-                            <td className="p-2.5 text-left max-w-[300px] truncate border border-slate-200 dark:border-slate-800 text-slate-600" title={row.narration}>{row.narration}</td>
-                            <td className={cn(
-                              "p-2.5 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
-                              row.debit > 0 ? "text-red-600 dark:text-red-400 font-black" : "text-slate-400 font-normal"
-                            )}>
-                              {row.debit > 0 ? fmtCountryValue(row.debit) : "0"}
-                            </td>
-                            <td className={cn(
-                              "p-2.5 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
-                              row.credit > 0 ? "text-emerald-600 dark:text-emerald-450 font-black" : "text-slate-400 font-normal"
-                            )}>
-                              {row.credit > 0 ? fmtCountryValue(row.credit) : "0"}
-                            </td>
-                            {showUsd && (
-                              <>
-                                <td className="p-2.5 text-right whitespace-nowrap font-medium text-[10px] text-slate-500 bg-slate-50/50 border border-slate-200 dark:border-slate-800 dark:bg-slate-900/50">
-                                  {fmtRate(getRowRate(row.currency))}
-                                </td>
-                                <td className="p-2.5 text-right whitespace-nowrap font-bold text-red-700 border border-slate-200 dark:border-slate-800">
-                                  {row.debit > 0 ? fmtNumber(row.debitUsd > 0 ? row.debitUsd : row.debit / getRowRate(row.currency)) : "-"}
-                                </td>
-                                <td className="p-2.5 text-right whitespace-nowrap font-bold text-emerald-700 border border-slate-200 dark:border-slate-800">
-                                  {row.credit > 0 ? fmtNumber(row.creditUsd > 0 ? row.creditUsd : row.credit / getRowRate(row.currency)) : "-"}
-                                </td>
-                              </>
-                            )}
-                            <td className="p-2.5 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 relative row-action-menu-relative">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center mx-auto"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRowMenuOpenId(rowMenuOpenId === row.id ? null : row.id);
-                                }}
-                              >
-                                <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
-                              </Button>
-                              {rowMenuOpenId === row.id && (
-                                <div className="absolute right-2 top-8 z-30 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg text-left text-slate-800">
-                                  <button
-                                    type="button"
-                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setRowMenuOpenId(null);
-                                      setSelectedId(row.id);
-                                      openSelectedReport(false, "voucher");
-                                    }}
-                                  >
-                                    <Eye className="h-3.5 w-3.5 text-slate-400" />
-                                    <span>View Voucher</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setRowMenuOpenId(null);
-                                      setSelectedId(row.id);
-                                      openSelectedLedger();
-                                    }}
-                                  >
-                                    <BookOpen className="h-3.5 w-3.5 text-slate-400" />
-                                    <span>Open Ledger</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setRowMenuOpenId(null);
-                                      setSelectedId(row.id);
-                                      openSelectedReport(true, "journal");
-                                    }}
-                                  >
-                                    <FileText className="h-3.5 w-3.5 text-slate-400" />
-                                    <span>View Journal</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setRowMenuOpenId(null);
-                                      setSelectedId(row.id);
-                                      openSelectedAccount();
-                                    }}
-                                  >
-                                    <Search className="h-3.5 w-3.5 text-slate-400" />
-                                    <span>View Account</span>
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={showUsd ? 14 : 11} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
-                          {t(lang, "roz.no_entries")}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              ) : (
-                <table className="w-full min-w-[1700px] border-collapse border border-slate-200 dark:border-slate-800 text-xs">
-                  <thead className="bg-slate-900 text-white dark:bg-slate-800">
-                    <tr className="whitespace-nowrap text-left">
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Date</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Source Document</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Account No</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Party Name</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Country</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Branch Name</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Voucher Type</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Voucher No</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-left">Details / Narration</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-center">Currency</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Dr.</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Cr.</th>
-                      <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Remaining Balance</th>
-                      {showUsd && (
-                        <>
-                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">USD Rate</th>
-                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Dr (USD)</th>
-                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Cr (USD)</th>
-                          <th className="p-2.5 font-bold border border-slate-200 dark:border-slate-800 text-right">Bal (USD)</th>
-                        </>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={showUsd ? 17 : 13} className="p-10 text-center text-sm text-slate-400 italic border border-slate-200 dark:border-slate-800">
-                          Loading entries...
-                        </td>
-                      </tr>
-                    ) : visibleRows.length ? (
-                      visibleRows.map((row, index) => {
-                        const active = row.id === selectedId;
-                        const rowRate = getRowRate(row.currency);
-                        const drUsd = row.debit > 0 ? row.debit / rowRate : 0;
-                        const crUsd = row.credit > 0 ? row.credit / rowRate : 0;
-                        const balUsd = (row.remainingBalance ?? 0) / rowRate;
+        return (
+          <div className="h-[800px] w-full mt-4">
+            <ProfessionalReportViewer
+              lang={lang}
+              title={
+                typeFilter === "super_admin"
+                  ? sessionInfo?.role === "branch_admin" || sessionInfo?.role === "city_admin" || typeFilter === "branch"
+                    ? "City Branch Roznamcha"
+                    : sessionInfo?.role === "country_admin" || typeFilter === "country"
+                      ? "Country Roznamcha Report"
+                      : "Super Admin Roznamcha Report"
+                  : typeFilter === "country"
+                    ? "Country Roznamcha Report"
+                    : "City Roznamcha Report"
+              }
+              data={visibleRows}
+              columns={columns}
+              filters={{
+                Country: selectedCountryLabel,
+                Branch: selectedBranchLabel,
+                Currency: targetCurrency,
+                "Date From": appliedFilters.fromDate,
+                "Date To": appliedFilters.toDate,
+              }}
+              summary={{
+                totalDebit: totalDebitSum,
+                totalCredit: totalCreditSum,
+                balance: Math.abs(totalDebitSum - totalCreditSum),
+                totalTransactions: visibleRows.length
+              }}
+            />
+          </div>
+        );
+      })()}
 
-                        return (
-                          <tr
-                            key={row.id}
-                            className={cn(
-                              "cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-900/40",
-                              index % 2 === 0 ? "bg-white" : "bg-slate-50/30",
-                              active ? "bg-blue-50/50 dark:bg-blue-950/20" : ""
-                            )}
-                            onClick={() => {
-                              setSelectedId(row.id);
-                              setActiveDrawerEntry(row);
-                            }}
-                          >
-                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.entryDate}</td>
-                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 text-slate-600">{getSourceDisplay(row)}</td>
-                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-mono font-bold text-blue-600">{row.accountCode}</td>
-                            <td className="p-2 text-left max-w-[200px] truncate border border-slate-200 dark:border-slate-800">
-                              <span className="font-semibold text-slate-800" title={row.partyName}>{row.partyName}</span>
-                            </td>
-                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800 font-semibold">{row.countryName}</td>
-                            <td className="p-2 text-left whitespace-nowrap border border-slate-200 dark:border-slate-800">{row.cityBranchId ? row.cityBranchName : row.countryBranchName}</td>
-                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-medium text-slate-600">{row.typeLabel}</td>
-                            <td className="p-2 text-center whitespace-nowrap font-mono border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100">{row.voucherNo}</td>
-                            <td className="p-2 text-left max-w-[300px] truncate border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-350" title={row.narration}>{row.narration}</td>
-                            <td className="p-2 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800 font-extrabold text-slate-900 dark:text-slate-100">{row.countryCurrency || "PKR"}</td>
-                            <td className={cn(
-                              "p-2 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
-                              row.debit > 0 ? "text-red-600 dark:text-red-400 font-black" : "text-slate-400 font-normal"
-                            )}>
-                              {fmtNumber(row.debit)}
-                            </td>
-                            <td className={cn(
-                              "p-2 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
-                              row.credit > 0 ? "text-emerald-600 dark:text-emerald-450 font-black" : "text-slate-400 font-normal"
-                            )}>
-                              {fmtNumber(row.credit)}
-                            </td>
-                            <td className="p-2 text-right whitespace-nowrap font-black border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-                              {fmtNumber(row.remainingBalance ?? 0)}
-                            </td>
-                            {showUsd && (
-                              <>
-                                <td className="p-2 text-right whitespace-nowrap font-mono font-bold border border-slate-200 dark:border-slate-800 text-slate-500">{fmtRate(rowRate)}</td>
-                                <td className={cn(
-                                  "p-2 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
-                                  drUsd > 0 ? "text-red-600 dark:text-red-400 font-black" : "text-slate-400 font-normal"
-                                )}>
-                                  {fmtNumber(drUsd)}
-                                </td>
-                                <td className={cn(
-                                  "p-2 text-right whitespace-nowrap font-bold border border-slate-200 dark:border-slate-800",
-                                  crUsd > 0 ? "text-emerald-600 dark:text-emerald-450 font-black" : "text-slate-400 font-normal"
-                                )}>
-                                  {fmtNumber(crUsd)}
-                                </td>
-                                <td className="p-2 text-right whitespace-nowrap font-black border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-                                  {fmtNumber(balUsd)}
-                                </td>
-                              </>
-                            )}
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={showUsd ? 19 : 15} className="p-10 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
-                          {t(lang, "roz.no_entries")}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      )}
 
       <DetailDrawer
         isOpen={activeDrawerEntry !== null}

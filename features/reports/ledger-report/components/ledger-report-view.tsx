@@ -23,6 +23,7 @@ import {
   type LedgerReportScope,
   type LedgerStatementLine
 } from "@/features/reports/ledger-report/ledger-report-api";
+import { ProfessionalReportViewer, type ReportColumn } from "@/components/reports/professional-report-viewer";
 
 function fmtNumber(value: number) {
   const n = Number.isFinite(value) ? value : 0;
@@ -808,195 +809,71 @@ export function LedgerReportView({
       </Card>
 
       {/* Ledger Entries */}
-      <Card className="border-slate-200/80 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">{t(lang, "ledger.entries_table_title")}</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {header ? (
-                  <>
-                    {t(lang, "ledger.showing_range")}{" "}
-                    <span className="font-mono text-[11px] text-foreground">
-                      {fromDate} {"->"} {toDate}
-                    </span>
-                  </>
-                ) : (
-                  t(lang, "ledger.select_account_hint")
-                )}
-              </p>
-            </div>
+      {(() => {
+        if (!header) return null;
 
-            {header ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative w-full sm:w-[280px]">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                  <Input
-                    className="h-9 pl-8 text-xs"
-                    value={entrySearch}
-                    onChange={(e) => setEntrySearch(e.target.value)}
-                    placeholder={t(lang, "ledger.entry_search_ph")}
-                  />
-                </div>
+        const columns: ReportColumn<LedgerStatementLine>[] = [
+          { key: "index", header: "SR#", width: "40px", align: "center", render: (_, idx) => (page - 1) * pageSize + idx + 1 },
+          { key: "entryDate", header: "Date", align: "center", width: "80px" },
+          { key: "sourceId", header: "Voucher No.", align: "center", render: (r) => r.sourceId.slice(0, 8) },
+          { key: "referenceNo", header: "Manual Bill No.", align: "center", render: (r) => safeText(r.referenceNo) },
+          { key: "sourceTable", header: "System Bill No.", align: "center", render: (r) => r.sourceTable === "roznamcha_entries" ? t(lang, "ledger.source_roznamcha") : t(lang, "ledger.source_ledger") },
+          { key: "countryName", header: "Country", width: "100px", render: () => header.countryName || "-" },
+          { key: "branch", header: "Branch", width: "100px", render: () => deriveLedgerBranchName(header) },
+          { key: "cityBranch", header: "City Branch", width: "100px", render: () => header.cityBranchName || "-" },
+          { key: "user", header: "User", render: (r) => safeText(r.createdByName || (r.createdById ? r.createdById.slice(0, 8) : "")) },
+          { key: "accountCode", header: "Account Code", align: "center", render: () => header.accountCode || header.ledgerCode },
+          { key: "accountName", header: "Account Name", render: () => header.accountName || header.ledgerName },
+          { key: "description", header: "Narration", render: (r) => safeText(r.description) },
+          { key: "debit", header: "Debit", align: "right", render: (r) => fmtNumber(r.debit) },
+          { key: "credit", header: "Credit", align: "right", render: (r) => fmtNumber(r.credit) },
+          { key: "runningBalance", header: "Running Balance", align: "right", render: (r) => fmtNumber(r.runningBalance) },
+          { key: "currency", header: "Currency", align: "center", render: () => header.ledgerCurrency || "-" },
+          { 
+            key: "usdRate", 
+            header: "Exchange Rate", 
+            align: "right", 
+            render: (r) => fmtRate(effectiveUsdRateForDisplay ?? r.usdRate || 1) 
+          },
+          { 
+            key: "finalAmount", 
+            header: "Final Amount", 
+            align: "right", 
+            render: (r) => {
+              const rate = effectiveUsdRateForDisplay ?? r.usdRate || 1;
+              const usdAmount = r.debit > 0 ? (r.usdAmount > 0 ? r.usdAmount : r.debit / rate) : (r.credit > 0 ? (r.usdAmount > 0 ? r.usdAmount : r.credit / rate) : 0);
+              return fmtNumber(usdAmount);
+            }
+          }
+        ];
 
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>
-                    {t(lang, "ledger.rows")}: <b className="text-foreground">{filteredLines.length}</b>
-                  </span>
-                  <span className="hidden sm:inline">|</span>
-                  <span className="hidden sm:inline">
-                    {t(lang, "ledger.page")} <b className="text-foreground">{page}</b> / {pageCount}
-                  </span>
-                </div>
-              </div>
-            ) : null}
+        return (
+          <div className="h-[800px] w-full mt-4">
+            <ProfessionalReportViewer
+              lang={lang}
+              title={t(lang, "ledger.entries_table_title")}
+              data={tableRows}
+              columns={columns}
+              filters={{
+                "Account No": header.accountCode || header.ledgerCode,
+                "Account Name": header.accountName || header.ledgerName,
+                Country: header.countryName,
+                Branch: deriveLedgerBranchName(header),
+                Currency: ledgerCurrency,
+                "Date From": fromDate,
+                "Date To": toDate,
+              }}
+              summary={{
+                totalDebit: displayTotals?.debit || 0,
+                totalCredit: displayTotals?.credit || 0,
+                balance: displayTotals?.balance || 0,
+                totalTransactions: tableRows.length,
+              }}
+              rowsPerPage={pageSize}
+            />
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-900 text-white dark:bg-slate-800">
-                <tr className="whitespace-nowrap">
-                  <ReportTh>{t(lang, "ledger.col_branch")}</ReportTh>
-                  <ReportTh>{t(lang, "ledger.col_date")}</ReportTh>
-                  <ReportTh>{t(lang, "ledger.col_serial")}</ReportTh>
-                  <ReportTh>{t(lang, "ledger.col_user")}</ReportTh>
-                  <ReportTh>{t(lang, "ledger.col_roz")}</ReportTh>
-                  <ReportTh>{t(lang, "ledger.col_name")}</ReportTh>
-                  <ReportTh className="text-start">{t(lang, "ledger.col_details")}</ReportTh>
-                  <ReportTh className="text-end">{t(lang, "ledger.col_debit")}</ReportTh>
-                  <ReportTh className="text-end">{t(lang, "ledger.col_credit")}</ReportTh>
-                  <ReportTh className="text-end">{t(lang, "ledger.col_total")}</ReportTh>
-                  <ReportTh className="text-center">{t(lang, "ledger.col_ex_rate")}</ReportTh>
-                  <ReportTh className="text-end">{t(lang, "ledger.col_debit_usd")}</ReportTh>
-                  <ReportTh className="text-end">{t(lang, "ledger.col_credit_usd")}</ReportTh>
-                </tr>
-              </thead>
-              <tbody>
-                {header && loadingStatement ? (
-                  <tr>
-                    <td colSpan={13} className="p-4 text-center text-sm text-muted-foreground">
-                      {t(lang, "ledger.loading")}
-                    </td>
-                  </tr>
-                ) : !header ? (
-                  <tr>
-                    <td colSpan={13} className="p-4 text-center text-sm text-muted-foreground">
-                      {t(lang, "ledger.no_data")}
-                    </td>
-                  </tr>
-                ) : tableRows.length ? (
-                  tableRows.map((row, idx) => {
-                    const txRate = row.usdRate || 1;
-                    const rate = effectiveUsdRateForDisplay ?? txRate;
-
-                    const debitUsd =
-                      effectiveUsdRateForDisplay !== null
-                        ? calcUsdFromLocal(row.debit, rate)
-                        : row.debit > 0
-                          ? row.usdAmount > 0
-                            ? row.usdAmount
-                            : calcUsdFromLocal(row.debit, txRate)
-                          : 0;
-
-                    const creditUsd =
-                      effectiveUsdRateForDisplay !== null
-                        ? calcUsdFromLocal(row.credit, rate)
-                        : row.credit > 0
-                          ? row.usdAmount > 0
-                            ? row.usdAmount
-                            : calcUsdFromLocal(row.credit, txRate)
-                          : 0;
-
-                    const balanceToneRow =
-                      row.runningBalance === 0 ? "text-muted-foreground" : isNegative(row.runningBalance) ? "text-red-600" : "text-emerald-600";
-
-                    const serial = row.sourceId.slice(0, 8);
-                    const name =
-                      row.sourceTable === "roznamcha_entries"
-                        ? t(lang, "ledger.source_roznamcha")
-                        : t(lang, "ledger.source_ledger");
-                    const userLabel =
-                      row.createdByName || (row.createdById ? row.createdById.slice(0, 8) : "");
-
-                    return (
-                      <tr key={`${row.sourceId}-${idx}`} className="border-b last:border-b-0">
-                        <ReportTd>{deriveLedgerBranchName(header)}</ReportTd>
-                        <ReportTd>{row.entryDate}</ReportTd>
-                        <ReportTd className="font-mono">{serial}</ReportTd>
-                        <ReportTd>{safeText(userLabel)}</ReportTd>
-                        <ReportTd className="font-mono">{safeText(row.referenceNo)}</ReportTd>
-                        <ReportTd>{name}</ReportTd>
-                        <ReportTd className="max-w-[440px] text-start">
-                          <div className="truncate">{safeText(row.description)}</div>
-                        </ReportTd>
-                        <ReportTd className="text-end tabular-nums">{fmtNumber(row.debit)}</ReportTd>
-                        <ReportTd className="text-end tabular-nums">{fmtNumber(row.credit)}</ReportTd>
-                        <ReportTd className={cn("text-end tabular-nums font-semibold", balanceToneRow)}>{fmtNumber(row.runningBalance)}</ReportTd>
-                        <ReportTd className="text-center tabular-nums">
-                          <div>{fmtRate(rate || 0)}</div>
-                          {effectiveUsdRateForDisplay !== null ? (
-                            <div className="text-[10px] text-muted-foreground">{fmtRate(txRate || 0)}</div>
-                          ) : null}
-                        </ReportTd>
-                        <ReportTd className="text-end tabular-nums text-primary">{fmtNumber(debitUsd)}</ReportTd>
-                        <ReportTd className="text-end tabular-nums text-amber-600">{fmtNumber(creditUsd)}</ReportTd>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={13} className="p-4 text-center text-sm text-muted-foreground">
-                      {t(lang, "ledger.no_entries")}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              {header ? (
-                <tfoot className="bg-muted/40">
-                  <tr className="border-t">
-                    <td colSpan={7} className="px-2 py-2 text-end text-xs font-semibold">
-                      {t(lang, "ledger.totals")}
-                    </td>
-                    <td className="px-2 py-2 text-end text-xs font-semibold tabular-nums">
-                      {displayTotals ? fmtNumber(displayTotals.debit) : "0.00"}
-                    </td>
-                    <td className="px-2 py-2 text-end text-xs font-semibold tabular-nums">
-                      {displayTotals ? fmtNumber(displayTotals.credit) : "0.00"}
-                    </td>
-                    <td className={cn("px-2 py-2 text-end text-xs font-semibold tabular-nums", balanceTone)}>
-                      {displayTotals ? fmtNumber(displayTotals.balance) : "0.00"}
-                    </td>
-                    <td className="px-2 py-2 text-center text-xs text-muted-foreground">-</td>
-                    <td className="px-2 py-2 text-end text-xs font-semibold tabular-nums text-primary">
-                      {displayTotals ? fmtNumber(displayTotals.usdDebit) : "0.00"}
-                    </td>
-                    <td className="px-2 py-2 text-end text-xs font-semibold tabular-nums text-amber-600">
-                      {displayTotals ? fmtNumber(displayTotals.usdCredit) : "0.00"}
-                    </td>
-                  </tr>
-                </tfoot>
-              ) : null}
-            </table>
-          </div>
-
-          {header ? (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs text-muted-foreground">
-                {t(lang, "ledger.pagination_hint")} {pageSize}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                  {t(lang, "ledger.prev")}
-                </Button>
-                <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
-                  {t(lang, "ledger.next")}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+        );
+      })()}
     </div>
   );
 }
