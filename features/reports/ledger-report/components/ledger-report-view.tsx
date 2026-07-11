@@ -2,6 +2,7 @@
 
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Download, MoreVertical, Printer, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -870,7 +871,7 @@ export function LedgerReportView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                  {tableRows.slice((page - 1) * pageSize, page * pageSize).map((row, idx) => (
+                  {filteredLines.slice((page - 1) * pageSize, page * pageSize).map((row, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
                       {columns.map((c) => (
                         <td key={c.key} className={cn("whitespace-nowrap px-4 py-3 align-middle text-[11px] font-medium text-slate-700 dark:text-slate-300", c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "")}>
@@ -879,7 +880,7 @@ export function LedgerReportView({
                       ))}
                     </tr>
                   ))}
-                  {tableRows.length === 0 && !loadingStatement && (
+                  {filteredLines.length === 0 && !loadingStatement && (
                     <tr>
                       <td colSpan={columns.length} className="text-center py-8 text-muted-foreground">
                         {t(lang, "ledger.no_entries_found")}
@@ -891,15 +892,15 @@ export function LedgerReportView({
             </div>
             
             <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3 text-xs text-slate-500">
-              <span>{`Showing ${tableRows.length ? (page - 1) * pageSize + 1 : 0} to ${Math.min(page * pageSize, tableRows.length)} of ${tableRows.length} entries`}</span>
+              <span>{`Showing ${filteredLines.length ? (page - 1) * pageSize + 1 : 0} to ${Math.min(page * pageSize, filteredLines.length)} of ${filteredLines.length} entries`}</span>
               <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" size="sm" className="h-7 text-slate-600 hover:text-slate-900" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
                   Prev
                 </Button>
                 <div className="text-xs">
-                  Page <b className="text-slate-800">{page}</b> / {Math.max(1, Math.ceil(tableRows.length / pageSize))}
+                  Page <b className="text-slate-800">{page}</b> / {Math.max(1, Math.ceil(filteredLines.length / pageSize))}
                 </div>
-                <Button type="button" variant="outline" size="sm" className="h-7 text-slate-600 hover:text-slate-900" disabled={page >= Math.ceil(tableRows.length / pageSize)} onClick={() => setPage(p => Math.min(Math.ceil(tableRows.length / pageSize), p + 1))}>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-slate-600 hover:text-slate-900" disabled={page >= Math.ceil(filteredLines.length / pageSize)} onClick={() => setPage(p => Math.min(Math.ceil(filteredLines.length / pageSize), p + 1))}>
                   Next
                 </Button>
               </div>
@@ -911,7 +912,7 @@ export function LedgerReportView({
                   <ProfessionalReportViewer
                     lang={lang}
                     title={t(lang, "ledger.entries_table_title")}
-                    data={tableRows}
+                    data={filteredLines}
                     columns={columns}
                     filters={{
                       "Account No": header.accountCode || header.ledgerCode,
@@ -926,7 +927,7 @@ export function LedgerReportView({
                       totalDebit: displayTotals?.debit || 0,
                       totalCredit: displayTotals?.credit || 0,
                       balance: displayTotals?.balance || 0,
-                      totalTransactions: tableRows.length,
+                      totalTransactions: filteredLines.length,
                     }}
                     rowsPerPage={pageSize}
                     onClose={() => setPrintMode(false)}

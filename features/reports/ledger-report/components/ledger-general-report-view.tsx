@@ -980,16 +980,16 @@ export function LedgerReportView({
                         data={tableRows}
                         columns={columns}
                         filters={{
-                          Scope: scope,
+                          Scope: reportScope,
                           "Date From": fromDate,
                           "Date To": toDate,
                         }}
                         summary={{
-                          totalLedgers: data?.summary?.totalLedgers || 0,
-                          entries: data?.summary?.entries || 0,
-                          debit: data?.summary?.debit || 0,
-                          credit: data?.summary?.credit || 0,
-                          balance: data?.summary?.balance || 0,
+                          totalLedgers: summary?.totalLedgers || 0,
+                          entries: summary?.entries || 0,
+                          debit: summary?.debit || 0,
+                          credit: summary?.credit || 0,
+                          balance: summary?.balance || 0,
                         }}
                         rowsPerPage={pageSize}
                         onClose={() => setPrintMode(false)}

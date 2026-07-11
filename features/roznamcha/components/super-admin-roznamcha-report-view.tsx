@@ -1999,19 +1999,19 @@ export function SuperAdminRoznamchaReportView({
       <RoznamchaPrintPreview 
         open={printMode} 
         onClose={() => setPrintMode(false)}
-        rows={filtered}
-        scope={scope}
+        rows={visibleRows}
+        scope={typeFilter}
         lang={lang}
-        title={entryScopeTitle}
+        title={pageTitle}
         summary={{
-          totalDebit: summary.debit,
-          totalCredit: summary.credit,
-          balance: summary.balance,
-          totalTransactions: filtered.length,
+          totalDebit: totalDebitSum,
+          totalCredit: totalCreditSum,
+          balance: totalDebitSum - totalCreditSum,
+          totalTransactions: visibleRows.length,
         }}
         filters={{
-          "Country": selectedCountryLabel,
-          "Branch": selectedBranchLabel,
+          "Country": appliedFilters.countryId === "all" ? "All" : (countryOptions.find(o => o.value === appliedFilters.countryId)?.label || appliedFilters.countryId),
+          "Branch": appliedFilters.branchId === "all" ? "All" : (branchOptions.find(o => o.value === appliedFilters.branchId)?.label || appliedFilters.branchId),
           "Date": `${appliedFilters.fromDate} to ${appliedFilters.toDate}`
         }}
       />
