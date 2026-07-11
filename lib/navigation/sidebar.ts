@@ -309,12 +309,7 @@ export const sidebarTree: SidebarNode[] = [
             href: "/dashboard/shipping-line/shipment-report" as Route,
             roles: ["super_admin"]
           },
-          {
-            key: "shipping-purchase-loading-records",
-            labelKey: "nav.purchase_loading_records",
-            href: "/dashboard/purchase/purchase-loading-records" as Route,
-            roles: ["super_admin"]
-          },
+
           {
             key: "shipping-agent",
             labelKey: "nav.shipping_agent_entry",
