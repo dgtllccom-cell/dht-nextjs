@@ -149,6 +149,21 @@ export function JournalBookingStockDashboard({ session }: { session: any }) {
   const [branches, setBranches] = useState<any[]>([]);
 
   const abortRef = useRef<AbortController | null>(null);
+  const filterPopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(event.target as Node)) {
+        setFiltersOpen(false);
+      }
+    }
+    if (filtersOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [filtersOpen]);
 
   // ── Load location data ──
   useEffect(() => {
@@ -250,97 +265,85 @@ export function JournalBookingStockDashboard({ session }: { session: any }) {
           </div>
           <div className="flex items-center gap-2">
             {/* Search/Filter Toggle */}
-            <button
-              onClick={() => setFiltersOpen(o => !o)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-sm font-semibold transition-all duration-200"
-            >
-              <Filter className="w-4 h-4" />
-              Search / Filter
-              {filtersOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-            <button
-              onClick={fetchData.bind(null, page)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-sm font-semibold transition-all"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            </button>
-            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-semibold transition-all">
-              <Download className="w-4 h-4" /> Export
-            </button>
-            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-sm font-semibold transition-all">
-              <Printer className="w-4 h-4" /> Print
-            </button>
+            <div className="relative" ref={filterPopoverRef}>
+              <button
+                onClick={() => setFiltersOpen(o => !o)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-sm font-semibold transition-all duration-200"
+              >
+                <Filter className="w-4 h-4" />
+                Search / Filter
+                {filtersOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+
+              {/* ── Search / Filter Panel (collapsible popover dropdown) ── */}
+              {filtersOpen && (
+                <div className="absolute right-0 mt-2 w-[320px] sm:w-[380px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 p-4 text-slate-800 dark:text-slate-100 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                      <Search className="w-3.5 h-3.5" /> Search & Filter
+                    </span>
+                    <button onClick={() => setFiltersOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <form onSubmit={handleSearch} className="pt-3 flex flex-col gap-3.5">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Date From</label>
+                      <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Date To</label>
+                      <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Purchase Bill No</label>
+                      <input type="text" value={purchaseOrderNo} onChange={e => setPurchaseOrderNo(e.target.value)}
+                        placeholder="Bill / PO number..."
+                        className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Goods Name</label>
+                      <input type="text" value={goodsName} onChange={e => setGoodsName(e.target.value)}
+                        placeholder="Search goods..."
+                        className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">HS Code</label>
+                      <input type="text" value={hsCode} onChange={e => setHsCode(e.target.value)}
+                        placeholder="HS Code..."
+                        className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
+                    </div>
+                    {session?.isSuperAdmin && (
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Country</label>
+                        <select value={countryId} onChange={e => setCountryId(e.target.value)}
+                          className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200">
+                          <option value="">All Countries</option>
+                          {countries.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex items-end gap-2 mt-2">
+                      <button type="submit" className="flex-1 h-9 bg-[#0d2d6b] hover:bg-[#0a2456] text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5">
+                        <Search className="w-3.5 h-3.5" /> Search
+                      </button>
+                      <button type="button" onClick={handleReset}
+                        className="h-9 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-lg transition-all">
+                        Reset
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-4 py-5 space-y-5">
-
-        {/* ── Search / Filter Panel (collapsible) ── */}
-        {filtersOpen && (
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm print:hidden overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                <Search className="w-3.5 h-3.5" /> Search & Filter
-              </span>
-              <button onClick={() => setFiltersOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <ChevronUp className="w-4 h-4" />
-              </button>
-            </div>
-            <form onSubmit={handleSearch} className="p-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Date From</label>
-                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Date To</label>
-                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Purchase Bill No</label>
-                <input type="text" value={purchaseOrderNo} onChange={e => setPurchaseOrderNo(e.target.value)}
-                  placeholder="Bill / PO number..."
-                  className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Goods Name</label>
-                <input type="text" value={goodsName} onChange={e => setGoodsName(e.target.value)}
-                  placeholder="Search goods..."
-                  className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">HS Code</label>
-                <input type="text" value={hsCode} onChange={e => setHsCode(e.target.value)}
-                  placeholder="HS Code..."
-                  className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200" />
-              </div>
-              {session?.isSuperAdmin && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Country</label>
-                  <select value={countryId} onChange={e => setCountryId(e.target.value)}
-                    className="h-9 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:text-slate-200">
-                    <option value="">All Countries</option>
-                    {countries.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              )}
-              <div className="flex items-end gap-2 col-span-2 md:col-span-1">
-                <button type="submit" className="flex-1 h-9 bg-[#0d2d6b] hover:bg-[#0a2456] text-white text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1.5">
-                  <Search className="w-3.5 h-3.5" /> Search
-                </button>
-                <button type="button" onClick={handleReset}
-                  className="h-9 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-sm font-semibold rounded-lg transition-all">
-                  Reset
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* ── Branch / Reference Details ── */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm">
+      {/* ── Branch / Reference Details ── */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm">
           <button
             onClick={() => setBranchPanelOpen(o => !o)}
             className="w-full flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-700"
@@ -566,6 +569,5 @@ export function JournalBookingStockDashboard({ session }: { session: any }) {
           )}
         </div>
       </div>
-    </div>
   );
 }

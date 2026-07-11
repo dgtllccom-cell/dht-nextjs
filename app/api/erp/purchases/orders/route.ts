@@ -13,7 +13,8 @@ const listQuerySchema = z.object({
   countryId: uuidSchema.optional(),
   countryBranchId: uuidSchema.optional(),
   cityBranchId: uuidSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50)
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  q: z.string().optional()
 });
 
 function cleanSerialPrefix(val: string | null | undefined, fallback: string) {
@@ -75,7 +76,8 @@ export async function GET(request: NextRequest) {
       countryId: searchParams.get("countryId") || undefined,
       countryBranchId: searchParams.get("countryBranchId") || undefined,
       cityBranchId: searchParams.get("cityBranchId") || undefined,
-      limit: searchParams.get("limit") || undefined
+      limit: searchParams.get("limit") || undefined,
+      q: searchParams.get("q") || searchParams.get("search") || searchParams.get("purchaseOrderNo") || undefined
     });
 
     authorizeApiScope(session, {
@@ -112,6 +114,25 @@ export async function GET(request: NextRequest) {
     if (query.cityBranchId) q = q.eq("city_branch_id", query.cityBranchId);
     else if (query.countryBranchId) q = q.eq("country_branch_id", query.countryBranchId);
     else if (query.countryId) q = q.eq("country_id", query.countryId);
+
+    if (query.q) {
+      const term = query.q.trim().replace(/[%_]/g, "");
+      q = q.or(
+        `purchase_order_no.ilike.%${term}%,` +
+        `purchase_contract_no.ilike.%${term}%,` +
+        `form_data->form->>manualBillNo.ilike.%${term}%,` +
+        `form_data->form->>manual_bill_no.ilike.%${term}%,` +
+        `form_data->form->>billNo.ilike.%${term}%,` +
+        `form_data->form->>invoiceNo.ilike.%${term}%,` +
+        `form_data->form->>purchaseContractNo.ilike.%${term}%,` +
+        `form_data->form->>supplierName.ilike.%${term}%,` +
+        `form_data->form->>customerName.ilike.%${term}%,` +
+        `form_data->form->>goodsName.ilike.%${term}%,` +
+        `form_data->form->>productName.ilike.%${term}%,` +
+        `form_data->form->>purchaseAccountName.ilike.%${term}%,` +
+        `form_data->form->>salesAccountName.ilike.%${term}%`
+      );
+    }
 
     let rawRows;
     try {

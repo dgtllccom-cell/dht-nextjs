@@ -16,7 +16,8 @@ const querySchema = z.object({
   countryId: uuidSchema.optional(),
   countryBranchId: uuidSchema.optional(),
   cityBranchId: uuidSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(2000).default(80)
+  limit: z.coerce.number().int().min(1).max(2000).default(80),
+  q: z.string().optional()
 });
 
 type QueryResult<T> = {
@@ -204,7 +205,8 @@ function normalizeOrder(row: any) {
         countryId: request.nextUrl.searchParams.get("countryId") ?? undefined,
         countryBranchId: request.nextUrl.searchParams.get("countryBranchId") ?? undefined,
         cityBranchId: request.nextUrl.searchParams.get("cityBranchId") ?? undefined,
-        limit: request.nextUrl.searchParams.get("limit") ?? undefined
+        limit: request.nextUrl.searchParams.get("limit") ?? undefined,
+        q: request.nextUrl.searchParams.get("q") ?? request.nextUrl.searchParams.get("search") ?? undefined
       });
 
       authorizeApiScope(session, {
@@ -225,9 +227,24 @@ function normalizeOrder(row: any) {
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
 
-      if (query.purchaseOrderNo) {
-        const term = query.purchaseOrderNo.replace(/[%_]/g, "");
-        requestQuery = requestQuery.or(`purchase_order_no.ilike.%${term}%,purchase_contract_no.ilike.%${term}%`);
+      if (query.purchaseOrderNo || query.q) {
+        const rawTerm = query.purchaseOrderNo || query.q || "";
+        const term = rawTerm.trim().replace(/[%_]/g, "");
+        requestQuery = requestQuery.or(
+          `purchase_order_no.ilike.%${term}%,` +
+          `purchase_contract_no.ilike.%${term}%,` +
+          `form_data->form->>manualBillNo.ilike.%${term}%,` +
+          `form_data->form->>manual_bill_no.ilike.%${term}%,` +
+          `form_data->form->>billNo.ilike.%${term}%,` +
+          `form_data->form->>invoiceNo.ilike.%${term}%,` +
+          `form_data->form->>purchaseContractNo.ilike.%${term}%,` +
+          `form_data->form->>supplierName.ilike.%${term}%,` +
+          `form_data->form->>customerName.ilike.%${term}%,` +
+          `form_data->form->>goodsName.ilike.%${term}%,` +
+          `form_data->form->>productName.ilike.%${term}%,` +
+          `form_data->form->>purchaseAccountName.ilike.%${term}%,` +
+          `form_data->form->>salesAccountName.ilike.%${term}%`
+        );
       }
       if (query.dateFrom) requestQuery = requestQuery.gte("created_at", `${query.dateFrom}T00:00:00.000Z`);
       if (query.dateTo) {

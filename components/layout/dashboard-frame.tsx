@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { Menu, Search } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { SidebarNode } from "@/lib/navigation/sidebar";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
 import { filterSidebarTree } from "@/lib/navigation/sidebar";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { PreferencesControls } from "@/components/layout/preferences-controls";
 import { ErpPageActions } from "@/components/layout/erp-page-actions";
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 export function DashboardFrame({
   children,
@@ -31,6 +32,7 @@ export function DashboardFrame({
   userEmail: string;
   userName?: string | null;
 }) {
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathname = usePathname();
@@ -41,8 +43,38 @@ export function DashboardFrame({
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dbResults, setDbResults] = useState<any[]>([]);
+  const [searchingDb, setSearchingDb] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setDbResults([]);
+      return;
+    }
+
+    setSearchingDb(true);
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/erp/search?q=${encodeURIComponent(query)}`);
+        const payload = await res.json();
+        if (payload?.ok && payload?.data?.results) {
+          setDbResults(payload.data.results);
+        } else {
+          setDbResults([]);
+        }
+      } catch (err) {
+        console.error("Global search error:", err);
+        setDbResults([]);
+      } finally {
+        setSearchingDb(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -120,8 +152,6 @@ export function DashboardFrame({
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
-      } else if (e.key === "Escape") {
-        setSearchOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -138,6 +168,13 @@ export function DashboardFrame({
         item.keywords.toLowerCase().includes(q)
     );
   }, [searchQuery, searchItems]);
+
+  const onSelectLink = (href: string) => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setDbResults([]);
+    router.push(href);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50/50 text-foreground dark:bg-slate-950">
@@ -365,88 +402,74 @@ export function DashboardFrame({
         </main>
       </div>
 
-      {/* Global Command Palette search Modal Overlay */}
-      {searchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 backdrop-blur-sm p-4 sm:p-10 pt-16">
-          <div
-            className="absolute inset-0 bg-transparent"
-            onClick={() => setSearchOpen(false)}
-          />
-          <div className="relative w-full max-w-xl rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Search Input */}
-            <div className="flex items-center border-b px-4 py-3 dark:border-slate-800">
-              <Search className="h-4 w-4 text-slate-400 mr-3 shrink-0" />
-              <input
-                type="text"
-                className="w-full bg-transparent text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none"
-                placeholder="Type to search modules, reports or actions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={() => setSearchOpen(false)}
-                className="text-xs font-semibold text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 px-2 py-1 rounded"
-              >
-                ESC
-              </button>
+      <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <CommandInput 
+          placeholder="Type to search modules, reports or actions..." 
+          value={searchQuery}
+          onValueChange={setSearchQuery}
+        />
+        <CommandList>
+          {searchingDb ? (
+            <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+              <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin mr-3 shrink-0" />
+              Searching database...
             </div>
+          ) : (
+            <CommandEmpty>No matching modules, actions or records found.</CommandEmpty>
+          )}
 
-            {/* Results */}
-            <div className="max-h-[360px] overflow-y-auto p-2">
-              <div className="text-[10px] font-bold text-slate-400 px-3 py-1.5 uppercase tracking-wider">
-                {searchQuery ? "Matching Results" : "Quick Actions / Navigation"}
-              </div>
-              <div className="space-y-0.5">
-                {filteredSearchItems.map((item, idx) => (
-                  <Link
-                    key={idx}
-                    href={item.href as any}
-                    onClick={() => {
-                      setSearchOpen(false);
-                      setSearchQuery("");
-                    }}
-                    className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 group transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-semibold",
-                        item.category === "Actions"
-                          ? "bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:border-emerald-900/30 dark:text-emerald-400"
-                          : item.category === "Settings"
-                            ? "bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
-                            : "bg-primary/5 border-primary/10 text-primary dark:bg-primary/15"
-                      )}>
-                        {item.category === "Actions" ? "+" : item.title.substring(0, 1)}
-                      </span>
-                      <div>
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors">
-                          {item.title}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{item.category}</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity ltr:mr-2 rtl:ml-2">
-                      Jump to &rarr;
-                    </span>
-                  </Link>
-                ))}
-
-                {filteredSearchItems.length === 0 && (
-                  <div className="py-6 text-center text-xs text-slate-400 font-medium">
-                    No matching modules or actions found. Try another term.
+          {!searchingDb && filteredSearchItems.length > 0 && (
+            <CommandGroup heading="Quick Actions / Navigation">
+              {filteredSearchItems.map((item, idx) => (
+                <CommandItem
+                  key={`nav-${idx}`}
+                  value={item.title + " " + item.keywords}
+                  onSelect={() => onSelectLink(item.href)}
+                  className="flex items-center gap-3 py-2 cursor-pointer"
+                >
+                  <span className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-semibold",
+                    item.category === "Actions"
+                      ? "bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:border-emerald-900/30 dark:text-emerald-400"
+                      : item.category === "Settings"
+                        ? "bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
+                        : "bg-primary/5 border-primary/10 text-primary dark:bg-primary/15"
+                  )}>
+                    {item.category === "Actions" ? "+" : item.title.substring(0, 1)}
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold">{item.title}</p>
+                    <p className="text-[10px] text-muted-foreground">{item.category}</p>
                   </div>
-                )}
-              </div>
-            </div>
-            <div className="border-t border-slate-100/80 px-4 py-2 text-[10px] text-slate-400 bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-900/30 flex justify-between font-medium">
-              <span>Use &uarr;&darr; keys to navigate</span>
-              <span>Press enter to select</span>
-            </div>
-          </div>
-        </div>
-      )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+
+          {!searchingDb && dbResults.length > 0 && (
+            <CommandGroup heading="Database Records">
+              {dbResults.map((item, idx) => (
+                <CommandItem
+                  key={`db-${idx}`}
+                  value={item.title + " " + item.subtitle}
+                  onSelect={() => onSelectLink(item.link)}
+                  className="flex items-center gap-3 py-2 cursor-pointer"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border text-[10px] font-bold bg-blue-50 border-blue-100 text-blue-600 dark:bg-blue-950/30 dark:border-blue-900/30 dark:text-blue-400 uppercase">
+                    {item.entityType.substring(0, 3)}
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold">{item.title}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {item.subtitle} {item.matchedField ? `(Matched: ${item.matchedField})` : ""}
+                    </p>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+        </CommandList>
+      </CommandDialog>
     </div>
   );
 }

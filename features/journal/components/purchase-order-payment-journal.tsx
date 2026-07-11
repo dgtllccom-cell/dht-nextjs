@@ -2100,9 +2100,34 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       }
 
       if (!needle) return true;
-      const supplierName = form.salesAccountName || "";
+      const supplierName = form.salesAccountName || form.supplierName || "";
       const supplierCode = form.salesAccountNo || "";
-      return [row.purchase_order_no, row.purchase_contract_no, row.payment_status, row.currency_code, supplierName, supplierCode, rowCountryName(row), rowBranchName(row)]
+      const customerName = form.customerName || form.buyerName || "";
+      const goodsName = form.goodsName || form.productName || "";
+      const containerNo = form.containerNo || form.containerNumber || "";
+      return [
+        row.purchase_order_no,
+        row.purchase_contract_no,
+        form.manualBillNo,
+        form.manual_bill_no,
+        form.manualBillNumber,
+        form.billNo,
+        form.invoiceNo,
+        form.invoiceNumber,
+        form.purchaseContractNo,
+        row.payment_status,
+        row.currency_code,
+        row.currency,
+        row.createdByName,
+        form.userName,
+        supplierName,
+        supplierCode,
+        customerName,
+        goodsName,
+        containerNo,
+        rowCountryName(row),
+        rowBranchName(row)
+      ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle));
     });

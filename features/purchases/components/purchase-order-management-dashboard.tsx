@@ -1867,7 +1867,32 @@ export function PurchaseOrderManagementDashboard() {
   const filtered = useMemo(() => {
     const needle = searchText.trim().toLowerCase();
     return reports.filter((row) => {
-      if (needle && ![row.purchaseBookingOrderNumber, row.purchaseAccountName, row.purchaseAccountNumber, row.salesAccountName, row.salesAccountNumber, row.supplierName, row.buyerName, row.productName, row.branchName, row.countryName, row.status, row.paymentStatus, shipmentStatus(row), inventoryStatus(row)].some((value) => String(value ?? "").toLowerCase().includes(needle))) return false;
+      if (needle && ![
+        row.purchaseBookingOrderNumber,
+        row.manualBillNumber,
+        row.form_data?.form?.invoiceNo,
+        row.form_data?.form?.invoiceNumber,
+        row.form_data?.form?.billNo,
+        row.form_data?.form?.purchaseContractNo,
+        row.purchaseAccountName,
+        row.purchaseAccountNumber,
+        row.salesAccountName,
+        row.salesAccountNumber,
+        row.supplierName,
+        row.buyerName,
+        row.productName,
+        row.branchName,
+        row.countryName,
+        row.currency,
+        row.createdByName,
+        row.form_data?.form?.userName,
+        row.status,
+        row.paymentStatus,
+        shipmentStatus(row),
+        inventoryStatus(row),
+        ...makeContainers(row).map(c => c.containerNo),
+        ...makeContainers(row).map(c => (c as any).blNo)
+      ].some((value) => String(value ?? "").toLowerCase().includes(needle))) return false;
       if (selectedCountryForSummary && row.countryName !== selectedCountryForSummary) return false;
       if (lockedCountryName && row.countryName !== lockedCountryName) return false;
       if (lockedBranchName && row.branchName !== lockedBranchName && row.cityBranchId) return false;

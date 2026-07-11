@@ -1502,6 +1502,11 @@ export function PurchaseBookingJournalReportView({
         search &&
         ![
           report.purchaseBookingOrderNumber,
+          report.manualBillNumber,
+          report.form_data?.form?.invoiceNo,
+          report.form_data?.form?.invoiceNumber,
+          report.form_data?.form?.billNo,
+          report.form_data?.form?.purchaseContractNo,
           report.purchaseAccountName,
           report.purchaseAccountNumber,
           report.salesAccountName,
@@ -1511,6 +1516,9 @@ export function PurchaseBookingJournalReportView({
           report.productName,
           report.branchName,
           report.countryName,
+          report.currency,
+          report.createdByName,
+          report.form_data?.form?.userName,
           report.status,
           report.currentStep,
           report.nextStep,
@@ -1521,7 +1529,9 @@ export function PurchaseBookingJournalReportView({
           report.containerStatus,
           report.inventoryStatus,
           report.deliveryStatus,
-          report.finalDeliveryStatus
+          report.finalDeliveryStatus,
+          ...makeContainers(report).map(c => c.containerNo),
+          ...makeContainers(report).map(c => c.blNo)
         ].some((value) => String(value ?? "").toLowerCase().includes(search))
       ) return false;
       if (supplier && !report.supplierName.toLowerCase().includes(supplier)) return false;

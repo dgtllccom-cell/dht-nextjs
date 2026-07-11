@@ -1,7 +1,10 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, Search, X } from "lucide-react";
+import * as React from "react";
+import { Check, ChevronDown, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 export interface SearchableSelectProps {
   value: string;
@@ -22,102 +25,113 @@ export function SearchableSelect({
   disabled = false,
   addOptionLabel
 }: SearchableSelectProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = React.useState(false);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  // Deduplicate options by value
+  const uniqueOptions = React.useMemo(() => {
+    const seen = new Set<string>();
+    return (options || []).filter((opt) => {
+      if (!opt || seen.has(opt.value)) return false;
+      seen.add(opt.value);
+      return true;
+    });
+  }, [options]);
 
-  const filteredOptions = options.filter(opt => 
-    opt.label.toLowerCase().includes(search.toLowerCase()) || 
-    opt.value.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const selectedLabel = options.find(o => o.value === value)?.label || value || placeholder;
+  const selectedLabel = React.useMemo(() => {
+    return uniqueOptions.find((o) => o.value === value)?.label || value || placeholder;
+  }, [uniqueOptions, value, placeholder]);
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full h-9 flex items-center justify-between bg-background border border-input rounded-md px-3 py-2 text-foreground text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500 cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-900"
-      >
-        <span className="truncate">{selectedLabel}</span>
-        <ChevronDown className="h-3 w-3 opacity-50 ml-1 shrink-0" />
-      </button>
-
-      {isOpen && !disabled && (
-        <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-slate-950 border border-border rounded-md shadow-md overflow-hidden">
-          <div className="flex items-center px-2 py-1.5 border-b border-border">
-            <Search className="h-3 w-3 text-muted-foreground mr-1.5 opacity-50 shrink-0" />
-            <input
-              type="text"
-              className="flex-1 bg-transparent outline-none text-[10px] min-w-0"
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              autoFocus
-            />
-            {search && (
-              <X 
-                className="h-3 w-3 text-muted-foreground cursor-pointer hover:text-foreground shrink-0" 
-                onClick={() => setSearch("")}
-              />
-            )}
-          </div>
-          <div className="max-h-48 overflow-y-auto py-1 custom-scrollbar">
-            {value && !options.some(o => o.value === value) && (
-              <div
-                className="px-2 py-1.5 text-[10px] cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 bg-slate-50 dark:bg-slate-900 font-medium"
-                onClick={() => setIsOpen(false)}
-              >
-                {value} (Current)
-              </div>
-            )}
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt) => (
-                <div
-                  key={opt.value}
-                  className={`px-2 py-1.5 text-[10px] cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 ${value === opt.value ? "bg-slate-100 dark:bg-slate-800 font-semibold" : ""}`}
-                  onClick={() => {
-                    onChange(opt.value);
-                    setIsOpen(false);
-                    setSearch("");
-                  }}
-                >
-                  {opt.label}
-                </div>
-              ))
-            ) : (
-              <div className="px-2 py-2 text-[10px] text-muted-foreground text-center">
-                No results found.
-              </div>
-            )}
-            {addOptionLabel && (
-              <div
-                className="px-2 py-1.5 text-[10px] cursor-pointer text-primary font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 border-t border-border mt-1"
-                onClick={() => {
-                  onChange("__ADD_NEW__");
-                  setIsOpen(false);
-                  setSearch("");
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn(
+            "flex w-full h-9 items-center justify-between bg-background border border-input rounded-md px-3 py-2 text-foreground text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500 cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-900",
+            className
+          )}
+        >
+          <span className="truncate mr-2 text-left flex-1">{selectedLabel}</span>
+          <div className="flex items-center gap-1 shrink-0 ml-auto">
+            {value && !disabled && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange("");
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    onChange("");
+                  }
+                }}
+                className="p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground cursor-pointer transition"
+                title="Clear selection"
               >
-                + {addOptionLabel}
-              </div>
+                <X className="h-3 w-3" />
+              </span>
             )}
+            <ChevronDown className="h-3.5 w-3.5 opacity-50" />
           </div>
-        </div>
-      )}
-    </div>
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[200px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search..." />
+          <CommandList>
+            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandGroup>
+              {value && !uniqueOptions.some((o) => o.value === value) && (
+                <CommandItem
+                  value={value}
+                  onSelect={() => setOpen(false)}
+                  className="text-[11px] font-medium"
+                >
+                  {value} (Current)
+                </CommandItem>
+              )}
+              {uniqueOptions.map((opt) => (
+                <CommandItem
+                  key={opt.value}
+                  value={opt.label}
+                  keywords={[opt.value]}
+                  onSelect={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "text-[11px] flex items-center justify-between",
+                    value === opt.value && "font-semibold bg-slate-100 dark:bg-slate-800"
+                  )}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {value === opt.value && <Check className="h-3 w-3 text-primary ml-2 shrink-0" />}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            {addOptionLabel && (
+              <>
+                <div className="h-px bg-border my-1" />
+                <CommandGroup>
+                  <CommandItem
+                    onSelect={() => {
+                      onChange("__ADD_NEW__");
+                      setOpen(false);
+                    }}
+                    className="text-[11px] font-semibold text-primary"
+                  >
+                    + {addOptionLabel}
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
