@@ -1827,36 +1827,64 @@ export function SuperAdminRoznamchaReportView({
         ];
 
         return (
-          <div className="h-[800px] w-full mt-4">
-            <ProfessionalReportViewer
-              lang={lang}
-              title={
-                typeFilter === "super_admin"
-                  ? sessionInfo?.role === "branch_admin" || sessionInfo?.role === "city_admin" || typeFilter === "branch"
-                    ? "City Branch Roznamcha"
-                    : sessionInfo?.role === "country_admin" || typeFilter === "country"
+        return (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <div className="border-b bg-slate-50/80 px-4 py-3 dark:bg-slate-900/50 flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-black text-slate-950 dark:text-slate-100">
+                  {typeFilter === "super_admin"
+                    ? sessionInfo?.role === "branch_admin" || sessionInfo?.role === "city_admin" || typeFilter === "branch"
+                      ? "City Branch Roznamcha"
+                      : sessionInfo?.role === "country_admin" || typeFilter === "country"
+                        ? "Country Roznamcha Report"
+                        : "Super Admin Roznamcha Report"
+                    : typeFilter === "country"
                       ? "Country Roznamcha Report"
-                      : "Super Admin Roznamcha Report"
-                  : typeFilter === "country"
-                    ? "Country Roznamcha Report"
-                    : "City Roznamcha Report"
-              }
-              data={visibleRows}
-              columns={columns}
-              filters={{
-                Country: selectedCountryLabel,
-                Branch: selectedBranchLabel,
-                Currency: targetCurrency,
-                "Date From": appliedFilters.fromDate,
-                "Date To": appliedFilters.toDate,
-              }}
-              summary={{
-                totalDebit: totalDebitSum,
-                totalCredit: totalCreditSum,
-                balance: Math.abs(totalDebitSum - totalCreditSum),
-                totalTransactions: visibleRows.length
-              }}
-            />
+                      : "City Roznamcha Report"}
+                </h3>
+                <p className="text-[11px] font-semibold text-slate-500">Detailed roznamcha transactions matching your filters</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1400px] border-collapse text-xs">
+                <thead className="sticky top-0 z-10 bg-slate-900 text-white">
+                  <tr className="whitespace-nowrap text-left">
+                    {columns.map((c) => (
+                      <th key={c.key} className={cn("border border-slate-200 px-3 py-2.5 font-black dark:border-slate-800", c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "")} style={{ width: c.width }}>
+                        {c.header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.length ? visibleRows.map((row, idx) => (
+                    <tr 
+                      key={row.id + idx} 
+                      className={cn("hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer", idx % 2 === 0 ? "bg-white dark:bg-slate-950" : "bg-slate-50/50 dark:bg-slate-900/30")}
+                      onClick={() => {
+                        setSelectedId(row.id);
+                        setActiveDrawerEntry(row);
+                      }}
+                    >
+                      {columns.map((c, cIdx) => (
+                        <td key={cIdx} className={cn("border border-slate-200 px-3 py-2.5 font-medium text-slate-700 dark:border-slate-800 dark:text-slate-300", c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "")}>
+                          {c.render ? c.render(row, idx) : (row as any)[c.key]}
+                        </td>
+                      ))}
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={columns.length} className="border border-slate-200 px-3 py-8 text-center text-sm font-semibold text-slate-400 dark:border-slate-800">
+                        No entries found matching filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/50 flex justify-between items-center text-xs text-slate-500">
+              <span>Showing {visibleRows.length} entries</span>
+            </div>
           </div>
         );
       })()}
