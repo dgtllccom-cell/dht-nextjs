@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server";
 import { eq, and } from "drizzle-orm";
-import { createDbClient } from "@/lib/db/client";
-
-const db = createDbClient();
+import { db } from "@/lib/db/client";
 import { erpDocuments, erpDocumentVersions, auditLogs } from "@/lib/db/schema";
 import { requireErpSession } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";

@@ -14,3 +14,5 @@ export function createDbClient() {
 
   return drizzle(queryClient, { schema });
 }
+
+export const db = createDbClient();
