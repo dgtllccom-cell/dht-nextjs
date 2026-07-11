@@ -6,10 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErpPageActions } from "@/components/layout/erp-page-actions";
 import { cn } from "@/lib/utils";
+import { LoadingSlipViewer } from "@/components/reports/loading-slip-viewer";
+import { createPortal } from "react-dom";
+import { numberToWords } from "@/lib/utils/number-to-words";
 
 export function PurchaseLoadingRecordDetailsView({ recordId }: { recordId: string }) {
   const [record, setRecord] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [printMode, setPrintMode] = useState(false);
 
   useEffect(() => {
     async function fetchRecord() {
@@ -41,6 +45,64 @@ export function PurchaseLoadingRecordDetailsView({ recordId }: { recordId: strin
   const goods = poData.goodsEntries || [];
   const currency = form.secondaryCurrency?.split(" ")?.[0] || form.currency || "-";
   
+  let totalQuantity = 0;
+  let totalNetWeight = 0;
+  let totalGrossWeight = 0;
+  let totalAmount = 0;
+
+  const items = goods.map((g: any, index: number) => {
+    const qty = Number(g.quantity) || 0;
+    const rate = Number(g.purchasedPrice) || Number(g.unitPrice) || 0;
+    const amount = Number(g.totalPrice) || (qty * rate);
+    
+    totalQuantity += qty;
+    totalAmount += amount;
+    
+    return {
+      srNo: index + 1,
+      description: g.goodsName || g.name || "-",
+      hsCode: g.chsCode || "-",
+      rate: rate,
+      quantity: qty,
+      units: g.unit || "-",
+      amount: amount,
+      netWeight: Number(g.netWeight) || 0,
+      grossWeight: Number(g.grossWeight) || 0
+    };
+  });
+  
+  const loadingSlipData = {
+    companyName: "DGT LLC",
+    companyAddress: "123 Business Street, Trade Center, Dubai",
+    companyPhone: "+971 50 123 4567",
+    companyEmail: "info@dgtllc.com",
+    companyWebsite: "www.dgtllc.com",
+    invoiceNo: record.loading_no || "LOAD-" + record.id.slice(0, 8).toUpperCase(),
+    invoiceDate: new Date(record.created_at).toLocaleDateString(),
+    referenceNo: record.purchase_order_no || "-",
+    referenceDate: form.purchaseDate || form.bookingDate || "-",
+    exporterName: supplierName,
+    exporterAddress: form.supplierDetails || poData.accountDetail || "-",
+    consigneeName: "DGT LLC",
+    consigneeAddress: (record.country_branches?.name || "") + " " + (record.city_branches?.name || ""),
+    notifyParty: "SAME AS CONSIGNEE",
+    originCountry: form.loadingCountry || form.originCountry || "-",
+    destinationCountry: form.receivedCountry || "-",
+    portOfLoading: form.portOfLoading || "-",
+    portOfDischarge: form.portOfDischarge || "-",
+    finalDestination: record.receiving_location || form.receivedCountry || "-",
+    containerNo: form.containerNumber || record.container_no || "-",
+    vesselFlightNo: form.vesselFlightNo || "-",
+    items,
+    totalQuantity,
+    totalNetWeight,
+    totalGrossWeight,
+    totalAmount,
+    currency,
+    amountInWords: totalAmount > 0 ? numberToWords(totalAmount) : "ZERO",
+    remarks: record.remarks || form.remarks || "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct."
+  };
+
   return (
     <div className="space-y-6">
       <ErpPageActions
@@ -48,10 +110,10 @@ export function PurchaseLoadingRecordDetailsView({ recordId }: { recordId: strin
         title="Loading Record Details"
         subtitle="Comprehensive view of loading, purchase, sales, and goods."
       >
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="print:hidden">
-          <Printer className="mr-2 h-4 w-4" /> Print
+        <Button variant="outline" size="sm" onClick={() => setPrintMode(true)} className="print:hidden">
+          <Printer className="mr-2 h-4 w-4" /> Print Loading Slip
         </Button>
-        <Button variant="outline" size="sm" className="print:hidden">
+        <Button variant="outline" size="sm" className="print:hidden" onClick={() => setPrintMode(true)}>
           <Download className="mr-2 h-4 w-4" /> Export PDF
         </Button>
       </ErpPageActions>
@@ -265,6 +327,14 @@ export function PurchaseLoadingRecordDetailsView({ recordId }: { recordId: strin
           </CardContent>
         </Card>
       </div>
+
+      {printMode && typeof document !== "undefined" && createPortal(
+        <LoadingSlipViewer
+          data={loadingSlipData}
+          onClose={() => setPrintMode(false)}
+        />,
+        document.body
+      )}
     </div>
   );
 }

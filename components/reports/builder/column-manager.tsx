@@ -1,3 +1,4 @@
+"use client";
 import { useState } from "react";
 import { type ReportColumnConfig } from "./types";
 import { Button } from "@/components/ui/button";

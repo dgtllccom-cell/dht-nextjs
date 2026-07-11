@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useRef, useState } from "react";
 import { Download, Printer, Scissors, Mail, MessageCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
