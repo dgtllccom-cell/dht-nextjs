@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import { ReportTd, ReportTh } from "@/components/reports/report-primitives";
 import { ProfessionalReportViewer, type ReportColumn } from "@/components/reports/professional-report-viewer";
+import { CashReceiptViewer, type CashReceiptData } from "@/components/reports/cash-receipt-viewer";
 import type { SupportedLanguage } from "@/lib/i18n/languages";
 import { t } from "@/lib/i18n/ui";
 import { apiGet } from "@/lib/api/client";
@@ -838,6 +839,7 @@ export function SuperAdminRoznamchaReportView({
   });
 
   const [printMode, setPrintMode] = useState(false);
+  const [receiptPrintMode, setReceiptPrintMode] = useState(false);
 
   const isSuperAdminOrCountryAdmin = useMemo(() => {
     return Boolean(
@@ -1899,6 +1901,17 @@ export function SuperAdminRoznamchaReportView({
         subtitle={`Roznamcha entry - Date: ${activeDrawerEntry?.entryDate || "-"}`}
         actions={
           <div className="flex items-center gap-2">
+            {(activeDrawerEntry?.typeLabel === "cash_payment" || activeDrawerEntry?.typeLabel === "cash_receipt" || activeDrawerEntry?.sourceEntry?.type === "cash_payment" || activeDrawerEntry?.sourceEntry?.type === "cash_receipt") && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:text-blue-800"
+                onClick={() => setReceiptPrintMode(true)}
+              >
+                <Printer className="h-3.5 w-3.5 mr-1" /> Print Receipt
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -2043,6 +2056,30 @@ export function SuperAdminRoznamchaReportView({
           "Date": `${appliedFilters.fromDate} to ${appliedFilters.toDate}`
         }}
       />
+
+      {receiptPrintMode && activeDrawerEntry && typeof document !== 'undefined' && createPortal(
+        <CashReceiptViewer
+          data={{
+            receiptNo: activeDrawerEntry.voucherNo,
+            date: activeDrawerEntry.entryDate,
+            accountNo: activeDrawerEntry.accountCode,
+            accountName: activeDrawerEntry.partyName,
+            paidBy: activeDrawerEntry.sourceEntry?.createdBy || "",
+            amount: activeDrawerEntry.debit > 0 ? activeDrawerEntry.debit : activeDrawerEntry.credit,
+            currency: activeDrawerEntry.countryCurrency || "PKR",
+            narration: activeDrawerEntry.narration,
+            mobileNumber: "",
+            companyName: "DGT LLC",
+            companyAddress: "123 Business Street, Trade Center, Dubai",
+            companyPhone: "+971 50 123 4567",
+            companyEmail: "info@dgtllc.com",
+            companyWebsite: "www.dgtllc.com",
+            type: activeDrawerEntry.debit > 0 ? "payment" : "receipt"
+          }}
+          onClose={() => setReceiptPrintMode(false)}
+        />,
+        document.body
+      )}
     </div>
   );
 }
