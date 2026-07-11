@@ -516,3 +516,13 @@ export const goodsVariations = pgTable(
       .where(sql`${table.deletedAt} is null`)
   })
 );
+
+export const savedReports = pgTable("saved_reports", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => profiles.id).notNull(),
+  name: text("name").notNull(),
+  module: text("module").notNull(),
+  config: jsonb("config").notNull(),
+  isPublic: boolean("is_public").default(false).notNull(),
+  ...timestamps
+});

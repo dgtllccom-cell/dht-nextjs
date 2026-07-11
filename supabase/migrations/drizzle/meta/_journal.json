@@ -15,6 +15,13 @@
       "when": 1783764741056,
       "tag": "0001_boring_baron_strucker",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783805095583,
+      "tag": "0002_watery_bloodaxe",
+      "breakpoints": true
     }
   ]
 }
