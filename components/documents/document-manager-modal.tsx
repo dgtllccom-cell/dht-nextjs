@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { format } from "date-fns";
+
 import { Download, File as FileIcon, FileText, History, Loader2, Paperclip, Trash2, Upload, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -208,7 +208,7 @@ export function DocumentManagerModal({
                     <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-medium">
                       <span>{formatSize(doc.sizeBytes)}</span>
                       <span>•</span>
-                      <span>{format(new Date(doc.createdAt), "MMM d, yyyy HH:mm")}</span>
+                      <span>{new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(doc.createdAt))}</span>
                       {doc.versionCount > 1 && (
                         <>
                           <span>•</span>
@@ -256,7 +256,7 @@ export function DocumentManagerModal({
                           <div className="flex-1 flex justify-between items-center bg-white dark:bg-slate-900 p-2.5 rounded-lg border text-xs shadow-sm">
                             <div>
                               <span className="font-semibold mr-2">Version {v.versionNumber}</span>
-                              <span className="text-muted-foreground">{format(new Date(v.createdAt), "MMM d, yyyy HH:mm")}</span>
+                              <span className="text-muted-foreground">{new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(v.createdAt))}</span>
                             </div>
                             <div className="flex items-center gap-3">
                               <span className="text-muted-foreground">{formatSize(v.sizeBytes)}</span>

@@ -516,4 +516,3 @@ export const goodsVariations = pgTable(
       .where(sql`${table.deletedAt} is null`)
   })
 );
-

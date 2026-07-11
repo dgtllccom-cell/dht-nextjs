@@ -3,45 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Globe2, Moon, Sun, LogOut, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supportedLanguages, type SupportedLanguage, rtlLanguages } from "@/lib/i18n/languages";
+import { supportedLanguages, type SupportedLanguage, rtlLanguages, getHtmlLanguage } from "@/lib/i18n/languages";
+import { getLanguageKeyboardMap } from "@/lib/i18n/keyboard-layouts";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-
-// Character maps for standard English QWERTY keyboard to native RTL script characters.
-const RTL_KEY_MAPS: Record<string, Record<string, string>> = {
-  ar: {
-    q: "ض", w: "ص", e: "ث", r: "ق", t: "ف", y: "غ", u: "ع", i: "ه", o: "خ", p: "ح", "[": "ج", "]": "د",
-    a: "ش", s: "س", d: "ي", f: "ب", g: "ل", h: "ا", j: "ت", k: "ن", l: "م", ";": "ك", "'": "ط",
-    z: "ئ", x: "ء", c: "ؤ", v: "ر", b: "لا", n: "ى", m: "ة", ",": "و", ".": "ز", "/": "ظ",
-    Q: "َ", W: "ً", E: "ُ", R: "ٌ", T: "لإ", Y: "إ", U: "`", I: "÷", O: "×", P: "؛",
-    A: "ِ", S: "ٍ", D: "]", F: "[", G: "لأ", H: "أ", J: "ـ", K: "،", L: "/",
-    Z: "~", X: "ْ", C: "}", V: "{", B: "لآ", N: "آ", M: "'", "<": "«", ">": "»", "?": "؟"
-  },
-  ur: {
-    q: "ق", w: "و", e: "ع", r: "ر", t: "ت", y: "ے", u: "ء", i: "ی", o: "ہ", p: "پ", "[": "ح", "]": "ج",
-    a: "ا", s: "س", d: "د", f: "ف", g: "گ", h: "ھ", j: "ج", k: "ک", l: "ل", ";": "؛", "'": "ط",
-    z: "ز", x: "ش", c: "چ", v: "ط", b: "ب", n: "ن", m: "م", ",": "،", ".": "۔", "/": "ظ",
-    Q: "ض", W: "ص", E: "ث", R: "ڑ", T: "ٹ", Y: "ۓ", U: "ئ", I: "ٰ", O: "ۃ", P: "ُ",
-    A: "آ", S: "ص", D: "ڈ", F: "ّ", G: "غ", H: "ح", J: "جھ", K: "خ", L: "ل",
-    Z: "ذ", X: "ژ", C: "ث", V: "ظ", B: "بھ", N: "ں", M: "ں", "<": "،", ">": "۔", "?": "؟"
-  },
-  fa: {
-    q: "ض", w: "ص", e: "ث", r: "ق", t: "ف", y: "غ", u: "ع", i: "ه", o: "خ", p: "ح", "[": "ج", "]": "چ",
-    a: "ش", s: "س", d: "ی", f: "ب", g: "ل", h: "ا", j: "ت", k: "ن", l: "م", ";": "ک", "'": "گ",
-    z: "ظ", x: "ط", c: "ز", v: "ر", b: "ذ", n: "د", m: "پ", ",": "و", ".": ".", "/": "/",
-    Q: "ْ", W: "ٌ", E: "ٍ", R: "ً", T: "ُ", Y: "ِ", U: "َ", I: "ّ", O: "]", P: "[",
-    A: "ؤ", S: "ئ", D: "ي", F: "إ", G: "أ", H: "آ", J: "ة", K: "»", L: "«",
-    Z: "ك", X: "ٓ", C: "ژ", V: "ٰ", B: "‌", N: "ٔ", M: "ء", "<": "،", ">": "۔", "?": "؟"
-  },
-  ps: {
-    q: "ض", w: "ص", e: "ث", r: "ق", t: "ف", y: "غ", u: "ع", i: "ه", o: "خ", p: "ح", "[": "ج", "]": "چ",
-    a: "ښ", s: "س", d: "ي", f: "ب", g: "ل", h: "ا", j: "ت", k: "ن", l: "م", ";": "ک", "'": "ګ",
-    z: "ځ", x: "خ", c: "څ", v: "ر", b: "ب", n: "د", m: "پ", ",": "و", ".": "ز", "/": "ظ",
-    Q: "ډ", W: "ۍ", E: "ې", R: "ړ", T: "ټ", Y: "ے", U: "ء", I: "ئ", O: "ۀ", P: "ؤ",
-    A: "ش", S: "سی", D: "ډ", F: "ف", G: "ګ", H: "ح", J: "ج", K: "ک", L: "ڵ",
-    Z: "ذ", X: "ژ", C: "چ", V: "ط", B: "به", N: "ڼ", M: "م", "<": "،", ">": "۔", "?": "؟"
-  }
-};
 
 function getInitialTheme(): "light" | "dark" {
   if (typeof document === "undefined") return "light";
@@ -50,7 +15,8 @@ function getInitialTheme(): "light" | "dark" {
 
 function getInitialLanguage(): SupportedLanguage {
   if (typeof document === "undefined") return "en";
-  const lang = (document.documentElement.lang || "en") as SupportedLanguage;
+  const htmlLang = document.documentElement.lang || "en";
+  const lang = htmlLang.split("-")[0] as SupportedLanguage;
   return supportedLanguages.some((l) => l.code === lang) ? lang : "en";
 }
 
@@ -111,7 +77,7 @@ export function PreferencesControls() {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key.length !== 1) return;
 
-      const langMap = RTL_KEY_MAPS[language];
+      const langMap = getLanguageKeyboardMap(language);
       if (!langMap) return;
 
       const mappedChar = langMap[e.key];
@@ -166,7 +132,7 @@ export function PreferencesControls() {
       if (event.key === "erp_lang" && event.newValue) {
         const next = event.newValue as SupportedLanguage;
         if (languageOptions.some((l) => l.code === next)) {
-          document.documentElement.lang = next;
+          document.documentElement.lang = getHtmlLanguage(next);
           document.documentElement.dir = rtlLanguages.includes(next) ? "rtl" : "ltr";
           setLanguage(next);
         }
@@ -185,7 +151,7 @@ export function PreferencesControls() {
   }
 
   function changeLanguage(next: SupportedLanguage) {
-    document.documentElement.lang = next;
+    document.documentElement.lang = getHtmlLanguage(next);
     document.documentElement.dir = rtlLanguages.includes(next) ? "rtl" : "ltr";
     localStorage.setItem("erp_lang", next);
     document.cookie = `erp_lang=${encodeURIComponent(next)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
@@ -268,7 +234,7 @@ export function PreferencesControls() {
           >
             {languageOptions.map((lang) => (
               <option key={lang.code} value={lang.code}>
-                {lang.englishName}
+                {lang.englishName} - {lang.nativeName}
               </option>
             ))}
           </select>
@@ -310,3 +276,7 @@ export function PreferencesControls() {
     </div>
   );
 }
+
+
+
+

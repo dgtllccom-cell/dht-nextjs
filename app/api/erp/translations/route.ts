@@ -141,6 +141,16 @@ export async function POST(request: NextRequest) {
       urdu_text: payload.urduText,
       persian_text: payload.persianText,
       pashto_text: payload.pashtoText,
+      language_texts: {
+        en: translations.en,
+        ur: translations.ur,
+        ps: translations.ps,
+        fa: translations.fa,
+        ar: translations.ar
+      },
+      translation_status: "complete",
+      translated_by_engine: process.env.GEMINI_API_KEY ? "gemini" : "local_fallback",
+      translated_at: new Date().toISOString(),
       source: body.source,
       corrected_by: body.source === "manual" ? session.userId : null,
       corrected_at: body.source === "manual" ? new Date().toISOString() : null,
@@ -185,3 +195,4 @@ export async function POST(request: NextRequest) {
     return handleApiError(error);
   }
 }
+

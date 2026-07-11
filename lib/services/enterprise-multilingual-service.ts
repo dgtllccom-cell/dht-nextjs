@@ -83,7 +83,11 @@ function columnPayload(translations: TranslationMap) {
     urdu_text: translations.ur,
     arabic_text: translations.ar,
     persian_text: translations.fa,
-    pashto_text: translations.ps
+    pashto_text: translations.ps,
+    language_texts: translations,
+    translation_status: "complete",
+    translated_by_engine: process.env.GEMINI_API_KEY ? "gemini" : "local_fallback",
+    translated_at: new Date().toISOString()
   };
 }
 
@@ -194,3 +198,4 @@ export async function recordEnterpriseMultilingualEvent(
   if (error) throw new Error(error.message);
   return data;
 }
+

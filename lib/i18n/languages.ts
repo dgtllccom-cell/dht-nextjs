@@ -3,6 +3,7 @@ export const supportedLanguages = [
     code: "en",
     englishName: "English",
     nativeName: "English",
+    htmlLang: "en",
     direction: "ltr",
     isDefault: true
   },
@@ -10,6 +11,7 @@ export const supportedLanguages = [
     code: "ar",
     englishName: "Arabic",
     nativeName: "العربية",
+    htmlLang: "ar",
     direction: "rtl",
     isDefault: false
   },
@@ -17,6 +19,7 @@ export const supportedLanguages = [
     code: "ur",
     englishName: "Urdu",
     nativeName: "اردو",
+    htmlLang: "ur-PK",
     direction: "rtl",
     isDefault: false
   },
@@ -24,6 +27,7 @@ export const supportedLanguages = [
     code: "fa",
     englishName: "Persian / Farsi",
     nativeName: "فارسی",
+    htmlLang: "fa",
     direction: "rtl",
     isDefault: false
   },
@@ -31,6 +35,7 @@ export const supportedLanguages = [
     code: "ps",
     englishName: "Pashto",
     nativeName: "پښتو",
+    htmlLang: "ps",
     direction: "rtl",
     isDefault: false
   }
@@ -47,4 +52,14 @@ export function getLanguageDirection(languageCode: SupportedLanguage): LanguageD
   return supportedLanguages.find((language) => language.code === languageCode)?.direction ?? "ltr";
 }
 
+export function getHtmlLanguage(languageCode: SupportedLanguage): string {
+  return supportedLanguages.find((language) => language.code === languageCode)?.htmlLang ?? languageCode;
+}
 
+export function isSupportedLanguage(value: string | null | undefined): value is SupportedLanguage {
+  return supportedLanguages.some((language) => language.code === value);
+}
+
+export function normalizeSupportedLanguage(value: string | null | undefined, fallback: SupportedLanguage = "en"): SupportedLanguage {
+  return isSupportedLanguage(value) ? value : fallback;
+}

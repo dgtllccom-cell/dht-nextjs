@@ -2412,7 +2412,7 @@ export function PurchaseOrderManagementDashboard() {
                       {/* Actions */}
                       <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center">
-                          <DocumentAttachmentIcon recordId={row.id} moduleName="Purchase" />
+                          <DocumentAttachmentIcon entityId={row.id} entityType="purchase" />
                         </div>
                       </td>
                       <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
