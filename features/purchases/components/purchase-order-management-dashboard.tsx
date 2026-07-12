@@ -1033,35 +1033,31 @@ function DashboardSummaryHeader({
 
   const summaryRows = useMemo(() => {
     if (!rows || rows.length === 0) return [];
-    
-    const groups: Record<string, {
-      country: string;
-      currency: string;
-      purchase: number;
-      sale: number;
-      dollarRate: number;
-      dollarTotal: number;
-      finalTotal: number;
-      requiredAdvance: number;
-      paidAdvance: number;
-      remainingAdvance: number;
-      remainingDue: number;
-      remPaid: number;
-      branches: Record<string, {
-        branch: string;
-        currency: string;
-        purchase: number;
-        sale: number;
-        dollarRate: number;
-        dollarTotal: number;
-        finalTotal: number;
-        requiredAdvance: number;
-        paidAdvance: number;
-        remainingAdvance: number;
-        remainingDue: number;
-        remPaid: number;
-      }>;
-    }> = {};
+
+    const normalizeCountryName = (c: string): string => {
+      if (!c) return "Unknown";
+      const up = c.toUpperCase();
+      if (up.includes("PAKISTAN") || up.includes("ISLAMABAD") || up.includes("LAHORE") || up.includes("KARACHI") || up.includes("CHAMAN") || up === "PK") return "Pakistan";
+      if (up.includes("UNITED ARAB") || up === "UAE" || up.includes("DUBAI") || up.includes("EMIRATES") || up.includes("SHARJAH")) return "United Arab Emirates";
+      if (up.includes("AFGHANISTAN") || up.includes("KABUL") || up.includes("KANDAHAR") || up === "AF") return "Afghanistan";
+      if (up.includes("IRAN") || up.includes("MASHHAD") || up.includes("TEHRAN") || up === "IR") return "Iran";
+      if (up.includes("INDIA") || up === "IN") return "India";
+      if (up.includes("CHINA") || up === "CN") return "China";
+      if (up.includes("UNITED STATES") || up === "USA" || up === "US") return "United States";
+      return c.charAt(0).toUpperCase() + c.slice(1).toLowerCase();
+    };
+
+    const getGroupCurrency = (country: string) => {
+      const c = country.toUpperCase();
+      if (c === "PAKISTAN") return "PKR";
+      if (c === "UNITED ARAB EMIRATES") return "AED";
+      if (c === "AFGHANISTAN") return "AFN";
+      if (c === "IRAN") return "IRR";
+      if (c === "INDIA") return "INR";
+      if (c === "CHINA") return "CNY";
+      if (c === "UNITED STATES") return "USD";
+      return "USD";
+    };
 
     const parseNumber = (val: unknown): number => {
       if (typeof val === 'number') return val;
@@ -1070,38 +1066,34 @@ function DashboardSummaryHeader({
       return isNaN(num) ? 0 : num;
     };
 
-    const USD_EXCHANGE: Record<string, number> = {
-      PKR: 1 / 278.5,
-      AED: 1 / 3.6725,
-      USD: 1.0,
-      EUR: 1.10,
-      CNY: 1 / 7.25,
-    };
-
-    const getUsdRate = (currency: string, baseCurrency: string, rowRate: number) => {
-      const cur = currency.toUpperCase();
-      const base = baseCurrency.toUpperCase();
-      if (USD_EXCHANGE[cur] !== undefined) return USD_EXCHANGE[cur];
-      if (base === "AED") return rowRate / 3.6725;
-      if (base === "PKR") return rowRate / 278.5;
-      return 1.0;
-    };
+    const groups: Record<string, {
+      country: string;
+      currency: string;
+      purchasesByCurrency: Record<string, number>;
+      paidLocal: number;
+      remainingLocal: number;
+      numTransactions: number;
+      firstEntryDate: number;
+      lastPaymentDate: number;
+      outstandingSince: number;
+      branches: Record<string, {
+        branch: string;
+        purchasesByCurrency: Record<string, number>;
+        paidLocal: number;
+        remainingLocal: number;
+      }>;
+    }> = {};
 
     rows.forEach(row => {
-      const country = row.countryName || "Unknown Country";
+      const rawCountry = row.countryName || row.form_data?.form?.countryName || "Unknown Country";
+      const country = normalizeCountryName(rawCountry);
       const branch = row.branchName || "Main Branch";
-      const currency = String(row.currency || row.form_data?.form?.currencyType || row.form_data?.form?.purchaseCurrency || "USD").toUpperCase();
+      const purchaseCurrency = String(row.currency || row.form_data?.form?.currencyType || row.form_data?.form?.purchaseCurrency || "USD").toUpperCase();
       
       const purchaseAmt = parseNumber(row.totalPurchaseAmount || row.purchaseAmount || 0);
-      const goods = row.form_data?.goodsEntries || [];
-      const saleAmt = goods.reduce((sum: number, g: any) => sum + Number(g.saleAmount || g.sellingAmount || (Number(g.saleRate || g.sellingRate || g.salePrice || g.sellingPrice || 0) * Number(g.qtyNo || g.quantity || 0)) || 0), 0) || (purchaseAmt * 1.15);
-
       const exRateRaw = parseNumber((row as any).exchange_rate || row.form_data?.form?.exchangeRate || row.form_data?.goodsEntries?.[0]?.exchangeRate || row.form_data?.goodsEntries?.[0]?.rate2 || 1);
       const exRate = exRateRaw > 0 ? exRateRaw : 1;
-
       const finalTotal = purchaseAmt * exRate;
-      const usdRate = getUsdRate(currency, summary.localCurrency, exRate);
-      const dollarTotal = (purchaseAmt + saleAmt) * usdRate;
 
       const isPosted = row.status === "Posted"
         || (row as any).ledgerPostingStatus === "Posted"
@@ -1111,75 +1103,61 @@ function DashboardSummaryHeader({
         || (row as any).journalStatus?.toLowerCase() === "posted"
         || row.form_data?.workflow?.journalStatus === "Posted"
         || row.form_data?.workflow?.journalStatus?.toLowerCase() === "posted"
-        || (row as any).ledger_posting_status === "transferred";
+        || (row as any).ledger_posting_status === "transferred"
+        || (row as any).ledgerPostingStatus === "Transferred"
+        || (row as any).ledger_posting_status === "Transferred";
 
       const transferredLC = isPosted ? finalTotal : 0;
       const remainingLC = isPosted ? 0 : finalTotal;
 
-      let groupCurrency = "PKR";
-      const cUpper = country.toUpperCase();
-      if (cUpper.includes("UNITED ARAB") || cUpper === "UAE" || cUpper.includes("DUBAI") || cUpper.includes("EMIRATES")) groupCurrency = "AED";
-      else if (cUpper.includes("INDIA") || cUpper === "IN") groupCurrency = "INR";
-      else if (cUpper.includes("AFGHANISTAN") || cUpper === "AF") groupCurrency = "AFN";
-      else if (cUpper.includes("PAKISTAN") || cUpper === "PK") groupCurrency = "PKR";
-      else if (cUpper.includes("CHINA")) groupCurrency = "CNY";
+      const rowDateRaw = row.bookingDate || row.purchaseDate || row.createdAt;
+      const rowDate = rowDateRaw ? new Date(rowDateRaw).getTime() : 0;
 
       if (!groups[country]) {
         groups[country] = {
           country,
-          currency: groupCurrency,
-          purchase: 0,
-          sale: 0,
-          dollarRate: usdRate,
-          dollarTotal: 0,
-          finalTotal: 0,
-          requiredAdvance: 0,
-          paidAdvance: 0,
-          remainingAdvance: 0,
-          remainingDue: 0,
-          remPaid: 0,
+          currency: getGroupCurrency(country),
+          purchasesByCurrency: {},
+          paidLocal: 0,
+          remainingLocal: 0,
+          numTransactions: 0,
+          firstEntryDate: Infinity,
+          lastPaymentDate: 0,
+          outstandingSince: Infinity,
           branches: {}
         };
       }
 
-      groups[country].purchase += purchaseAmt;
-      groups[country].sale += saleAmt;
-      groups[country].dollarTotal += dollarTotal;
-      groups[country].finalTotal += finalTotal;
-      groups[country].paidAdvance += transferredLC;
-      groups[country].remainingAdvance += remainingLC;
+      const g = groups[country];
+      g.numTransactions += 1;
+      if (rowDate > 0 && rowDate < g.firstEntryDate) g.firstEntryDate = rowDate;
+      if (isPosted && rowDate > g.lastPaymentDate) g.lastPaymentDate = rowDate;
+      if (!isPosted && rowDate > 0 && rowDate < g.outstandingSince) g.outstandingSince = rowDate;
 
-      if (!groups[country].branches[branch]) {
-        groups[country].branches[branch] = {
+      g.purchasesByCurrency[purchaseCurrency] = (g.purchasesByCurrency[purchaseCurrency] || 0) + purchaseAmt;
+      g.paidLocal += transferredLC;
+      g.remainingLocal += remainingLC;
+
+      if (!g.branches[branch]) {
+        g.branches[branch] = {
           branch,
-          currency: groupCurrency,
-          purchase: 0,
-          sale: 0,
-          dollarRate: usdRate,
-          dollarTotal: 0,
-          finalTotal: 0,
-          requiredAdvance: 0,
-          paidAdvance: 0,
-          remainingAdvance: 0,
-          remainingDue: 0,
-          remPaid: 0
+          purchasesByCurrency: {},
+          paidLocal: 0,
+          remainingLocal: 0
         };
       }
-
-      const br = groups[country].branches[branch];
-      br.purchase += purchaseAmt;
-      br.sale += saleAmt;
-      br.dollarTotal += dollarTotal;
-      br.finalTotal += finalTotal;
-      br.paidAdvance += transferredLC;
-      br.remainingAdvance += remainingLC;
+      
+      const b = g.branches[branch];
+      b.purchasesByCurrency[purchaseCurrency] = (b.purchasesByCurrency[purchaseCurrency] || 0) + purchaseAmt;
+      b.paidLocal += transferredLC;
+      b.remainingLocal += remainingLC;
     });
 
     return Object.values(groups).map(g => ({
       ...g,
       branches: Object.values(g.branches).sort((a, b) => a.branch.localeCompare(b.branch))
     })).sort((a, b) => a.country.localeCompare(b.country));
-  }, [rows, summary.localCurrency]);
+  }, [rows]);
 
   const renderSuperAdminSummaryTable = () => {
     if (!summaryRows || summaryRows.length === 0) {
@@ -1190,91 +1168,139 @@ function DashboardSummaryHeader({
       );
     }
 
-    return (
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
-        <table className="w-full text-[10.5px] border-collapse bg-white dark:bg-slate-900 text-left">
-          <thead>
-            <tr className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[9.5px] text-slate-700 dark:text-slate-355 font-bold uppercase tracking-wider">
-              <th className="px-2.5 py-2.5 font-extrabold text-left">Country</th>
-              <th className="px-2.5 py-2.5 font-extrabold text-left">Currency</th>
-              <th className="px-2.5 py-2.5 font-extrabold text-right">Total Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summaryRows.map((r, idx) => {
-              const isSelected = selectedCountryForSummary === r.country;
-              const isExpanded = !!expandedSummaryCountries[r.country];
+    const formatDate = (ts: number) => {
+      if (!ts || ts === Infinity) return "-";
+      return format(new Date(ts), "dd MMM yyyy");
+    };
 
-              return (
-                <Fragment key={idx}>
-                  <tr 
-                    onClick={() => {
-                      if (setSelectedCountryForSummary) {
-                        setSelectedCountryForSummary(isSelected ? null : r.country);
-                      }
-                      setExpandedSummaryCountries(prev => ({
-                        ...prev,
-                        [r.country]: !prev[r.country]
-                      }));
-                    }}
-                    className={cn(
-                      "border-b border-slate-200 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-900/30 cursor-pointer font-extrabold text-slate-800 dark:text-slate-200 transition-all",
-                      isSelected && "bg-blue-50/90 dark:bg-blue-955 text-blue-700 dark:text-blue-300 font-black border-l-2 border-l-blue-600 shadow-sm"
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+        {summaryRows.map((r, idx) => {
+          const isSelected = selectedCountryForSummary === r.country;
+          const isExpanded = !!expandedSummaryCountries[r.country];
+
+          return (
+            <div 
+              key={idx}
+              className={cn(
+                "rounded-xl border shadow-sm transition-all bg-white dark:bg-slate-900 overflow-hidden flex flex-col",
+                isSelected 
+                  ? "border-blue-500 ring-1 ring-blue-500 dark:border-blue-400 dark:ring-blue-400" 
+                  : "border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-600"
+              )}
+            >
+              <div 
+                className={cn(
+                  "px-4 py-3 flex items-center justify-between cursor-pointer border-b",
+                  isSelected ? "bg-blue-50/50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/30" : "bg-slate-50/50 dark:bg-slate-800/20 border-slate-100 dark:border-slate-800"
+                )}
+                onClick={() => {
+                  if (setSelectedCountryForSummary) {
+                    setSelectedCountryForSummary(isSelected ? null : r.country);
+                  }
+                  setExpandedSummaryCountries(prev => ({
+                    ...prev,
+                    [r.country]: !prev[r.country]
+                  }));
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="text-lg">{getFlag(r.country)}</div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-[11px] uppercase tracking-wider">{r.country}</h3>
+                    <div className="text-[9px] font-bold text-slate-500">{r.numTransactions} Transactions</div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">{r.currency}</span>
+                  <span className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-0.5">
+                    {isExpanded ? "Hide Branches" : "View Branches"} {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 flex flex-col gap-4 flex-1">
+                {/* Purchases Section */}
+                <div>
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 border-b border-slate-100 dark:border-slate-800 pb-1">Total Purchases</div>
+                  <div className="space-y-1">
+                    {Object.entries(r.purchasesByCurrency).map(([cur, amt]) => (
+                      <div key={cur} className="flex justify-between items-center text-[11px]">
+                        <span className="font-semibold text-slate-600 dark:text-slate-300">Purchase in {cur}</span>
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-100">{money(amt, cur)}</span>
+                      </div>
+                    ))}
+                    {Object.keys(r.purchasesByCurrency).length === 0 && (
+                      <div className="text-[11px] font-medium text-slate-400">No purchases</div>
                     )}
-                  >
-                    <td className="px-2.5 py-3 uppercase truncate max-w-[120px] flex items-center gap-1 select-none font-sans" title={r.country}>
-                      <span className="text-slate-400 mr-0.5">
-                        {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                      </span>
-                      {getFlag(r.country)}
-                      <span className="font-extrabold ml-1">{r.country}</span>
-                    </td>
-                    <td className="px-2.5 py-3 font-black text-slate-900 dark:text-slate-100">{r.currency}</td>
-                    <td className="px-2.5 py-3 font-sans font-black tabular-nums text-slate-900 dark:text-slate-100 text-right">{r.finalTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-                  </tr>
+                  </div>
+                </div>
+
+                {/* Local Currency Totals */}
+                <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-2.5 space-y-2 border border-slate-100 dark:border-slate-800">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="font-bold text-slate-600 dark:text-slate-300">Total Transferred</span>
+                    <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{money(r.paidLocal, r.currency)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="font-bold text-slate-600 dark:text-slate-300">Outstanding Balance</span>
+                    <span className="font-mono font-extrabold text-rose-600 dark:text-rose-400">{money(r.remainingLocal, r.currency)}</span>
+                  </div>
+                </div>
+
+                {/* Dates */}
+                <div className="mt-auto grid grid-cols-2 gap-y-2 gap-x-4 text-[9px]">
+                  <div>
+                    <div className="text-slate-400 font-semibold mb-0.5">First Entry Date</div>
+                    <div className="font-bold text-slate-700 dark:text-slate-300">{formatDate(r.firstEntryDate)}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400 font-semibold mb-0.5">Last Payment Date</div>
+                    <div className="font-bold text-slate-700 dark:text-slate-300">{formatDate(r.lastPaymentDate)}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-slate-400 font-semibold mb-0.5">Outstanding Since / Due Date</div>
+                    <div className={cn("font-bold", r.outstandingSince !== Infinity ? "text-rose-600 dark:text-rose-400" : "text-slate-700 dark:text-slate-300")}>
+                      {formatDate(r.outstandingSince)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Branch Breakdown */}
+              {isExpanded && (
+                <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-3">
+                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                    <span>{r.country} Branches</span>
+                    <span className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">{r.branches.length}</span>
+                  </div>
                   
-                  {isExpanded && (
-                    <tr className="bg-slate-50/40 dark:bg-slate-955 border-b border-slate-200 dark:border-slate-800">
-                      <td colSpan={3} className="p-3">
-                        <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-inner dark:border-slate-850 dark:bg-slate-950 space-y-3">
-                          <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
-                            <span>{r.country} Branches Report Details</span>
-                            <span className="text-[9px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono font-bold dark:bg-blue-955 dark:text-blue-400">
-                              {r.branches.length} Branches
-                            </span>
-                          </div>
-                          
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-[10px] border-collapse">
-                              <thead>
-                                <tr className="border-b text-slate-450 font-bold uppercase text-[9px] tracking-wider bg-slate-50/80 dark:bg-slate-900/50">
-                                  <th className="px-2 py-1.5">Branch</th>
-                                  <th className="px-2 py-1.5 text-right">Total Value</th>
-                                  <th className="px-2 py-1.5 text-right text-emerald-600 font-extrabold">Transferred</th>
-                                  <th className="px-2 py-1.5 text-right text-rose-600 font-extrabold">Pending (Baqaya)</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                                {r.branches.map((b, bIdx) => (
-                                  <tr key={bIdx} className="hover:bg-slate-50 dark:hover:bg-slate-905 text-slate-700 dark:text-slate-350">
-                                    <td className="px-2 py-2 font-extrabold uppercase">{b.branch}</td>
-                                    <td className="px-2 py-2 text-right font-mono font-bold">{money(b.finalTotal, b.currency)}</td>
-                                    <td className="px-2 py-2 text-right font-mono text-emerald-600 font-bold">{money(b.paidAdvance, b.currency)}</td>
-                                    <td className="px-2 py-2 text-right font-mono font-bold text-rose-600">{money(b.remainingAdvance, b.currency)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                  <div className="space-y-3">
+                    {r.branches.map((b, bIdx) => (
+                      <div key={bIdx} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-2">
+                        <div className="font-extrabold uppercase text-[10px] text-slate-700 dark:text-slate-200 mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-800">{b.branch}</div>
+                        
+                        <div className="space-y-1 mb-2">
+                          {Object.entries(b.purchasesByCurrency).map(([cur, amt]) => (
+                            <div key={cur} className="flex justify-between items-center text-[9px]">
+                              <span className="text-slate-500 dark:text-slate-400">Pur. ({cur})</span>
+                              <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{money(amt, cur)}</span>
+                            </div>
+                          ))}
                         </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                        
+                        <div className="flex justify-between items-center text-[9px] mt-1 pt-1 border-t border-slate-50 dark:border-slate-800 border-dashed">
+                          <span className="text-slate-500">Paid: <span className="font-mono font-bold text-emerald-600">{money(b.paidLocal, r.currency)}</span></span>
+                          <span className="text-slate-500">Bal: <span className="font-mono font-bold text-rose-600">{money(b.remainingLocal, r.currency)}</span></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
