@@ -3313,8 +3313,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                 <thead>
                                   <tr className="bg-slate-100 dark:bg-slate-800/80 border-b-2 border-slate-200 dark:border-slate-700">
                                     {[
-                                      "SR.", "SUPER S/N", "CTY S/N", "BR. S/N", "COUNTRY", "BRANCH", "USER NAME",
-                                      "GOODS NAME", "TOTAL QTY", "GROSS WT (KG)", "NET WT (KG)",
+                                      "SR.", "SUPER S/N", "CTY S/N", "BR. S/N", "BRANCH", "USER NAME",
+                                      "GOODS NAME", "TOTAL QTY", "WT (KG)", "NET WT (KG)",
                                       "TOTAL PURCHASE", "REQ. ADVANCE", "PAID ADVANCE", "REM. ADVANCE", "FINAL BALANCE", "ACTIONS"
                                     ].map((h, i) => (
                                       <th key={i} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 whitespace-nowrap border-r border-slate-200 dark:border-slate-700 last:border-0 align-middle text-center">{h}</th>
@@ -3380,7 +3380,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "—";
                                     const totalQty = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || 0), 0) : Number(row.quantity || 0);
                                     const grossWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
-                                    const netWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
+                                    const netWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || g.grossWeight || 0), 0) : Number(form.netWeight || 0);
                                     const branchName = rowBranchName(row) || "—";
                                     const countryName = rowCountryName(row) || "—";
                                     const userName = row.audit?.userName || "-";
@@ -3404,7 +3404,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                           <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono text-[9px] align-middle", getRowColor())}>{countrySerialNo}</td>
                                           <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono text-[9px] align-middle", getRowColor())}>{branchSerialNo}</td>
                                           {/* Details */}
-                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-bold uppercase tracking-wide align-middle text-left", getRowColor())}>{countryName}</td>
                                           <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-bold uppercase tracking-wide align-middle text-left", getRowColor())}>{branchName}</td>
                                           <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-bold uppercase align-middle text-left", getRowColor())}>{userName}</td>
                                           <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-bold align-middle text-left", getRowColor())}>{goodsName}</td>

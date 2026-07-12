@@ -674,9 +674,9 @@ export function openPurchaseA4ReportWindow(input: {
                   <strong>${escapeHtml(b.purchaseAccountName || "Dubai Purchase Account")} (DR)</strong>
                   <span style="font-size: 6.5px; color: #64748b; display: block;">${escapeHtml(b.branchName || "Kabul Main Branch")}</span>
                 </td>
-                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #2563eb;">${formatMoney(totalAmountUsd)}</td>
+                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #2563eb;">${formatMoney(totalAmountPkr)}</td>
                 <td style="text-align: right; color: #94a3b8;">-</td>
-                <td style="text-align: center; font-weight: bold;">${escapeHtml(items[0]?.purchCurr || "USD")}</td>
+                <td style="text-align: center; font-weight: bold;">${escapeHtml(items[0]?.finalCurr || "PKR")}</td>
               </tr>
               <tr>
                 <td style="font-weight: bold; color: #059669;">CREDIT (CR)</td>
