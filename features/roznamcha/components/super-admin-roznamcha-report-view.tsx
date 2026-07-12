@@ -3,7 +3,7 @@
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { BookOpen, Download, Eye, FileText, Filter, Link2, Maximize2, MoreVertical, Printer, RefreshCcw, Search, Globe, Building2 } from "lucide-react";
+import { BookOpen, Download, Eye, FileText, Filter, Link2, Maximize2, MoreVertical, Printer, RefreshCcw, Search, Globe, Building2, ChevronDown } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -777,6 +777,8 @@ function SuperAdminRoznamchaSummary({
   ratesApplied: Record<string, number | string>,
   session: any
 }) {
+  const [showAllCountries, setShowAllCountries] = useState(false);
+
   if (!rows || rows.length === 0) return null;
 
   const now = new Date();
@@ -935,21 +937,29 @@ function SuperAdminRoznamchaSummary({
             </div>
             <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">2. GLOBAL FINANCIAL SUMMARY (USD)</h4>
           </div>
-          <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+          <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
             <div className="flex justify-between items-center">
               <span>Total Global Entries:</span>
               <span className="font-black text-slate-800 dark:text-slate-200">{totalGlobalEntries}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span>Total Credit (USD):</span>
+              <span>Debit / Credit Entries:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{debitTrxCount} / {creditTrxCount}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Posted / Pending:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200"><span className="text-emerald-600">{postedCount}</span> / <span className="text-amber-600">{pendingCount}</span></span>
+            </div>
+            <div className="flex justify-between items-center mt-1 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span>Total Credit:</span>
               <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatMoney(totalCreditUSD)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-rose-600 dark:text-rose-500">Total Debit (USD):</span>
+              <span className="text-rose-600 dark:text-rose-500">Total Debit:</span>
               <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{formatMoney(totalDebitUSD)}</span>
             </div>
-            <div className="flex justify-between items-center mt-1 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-slate-600 dark:text-slate-400 uppercase font-bold">Balance (USD):</span>
+            <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-slate-600 dark:text-slate-400 uppercase font-bold">Balance:</span>
               <span className="font-black text-slate-900 dark:text-slate-100 font-mono text-sm">{formatMoney(Math.abs(totalBalanceUSD))}</span>
             </div>
           </div>
@@ -963,148 +973,129 @@ function SuperAdminRoznamchaSummary({
             </div>
             <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400 truncate">3. ACTIVE OPERATIONS SUMMARY</h4>
           </div>
-          <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
-            <div className="flex justify-between items-center">
-              <span>Total Active Countries:</span>
-              <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeCountriesCount}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Total Active Users Login:</span>
-              <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeUsersCount}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-blue-600 dark:text-blue-500">Total Active Branches:</span>
-              <span className="font-black text-blue-700 dark:text-blue-400 font-mono">{activeBranchesCount}</span>
-            </div>
-            <div className="flex justify-between items-center mt-auto pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
-              <span>System Status:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">Online</span>
-            </div>
+          <div className="p-4 flex flex-col items-center justify-center text-[11px] font-semibold text-slate-400 dark:text-slate-500 h-full min-h-[140px]">
+            {/* Empty space as requested */}
+            <span>Reserved for future use</span>
           </div>
         </div>
 
-        {/* Panel 4: Transaction Summary */}
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-orange-50/50 dark:bg-orange-900/10">
-            <div className="bg-orange-600 p-1 rounded-full text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            </div>
-            <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400">4. TRANSACTION SUMMARY</h4>
-          </div>
-          <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
-            <div className="flex justify-between items-center">
-              <span>Total Entries:</span>
-              <span className="font-black text-slate-800 dark:text-slate-200">{totalGlobalEntries}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Debit Entries:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{debitTrxCount}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Credit Entries:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{creditTrxCount}</span>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-1 mt-1 pt-2 pb-1 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex flex-col">
-                 <span className="text-[9px] text-slate-400">Posted</span>
-                 <span className="font-black text-emerald-600">{postedCount}</span>
+        {/* Panel 4: All Countries Report Details Toggle */}
+        <button
+          onClick={() => setShowAllCountries(!showAllCountries)}
+          className={cn(
+            "flex flex-col rounded-xl border transition-all duration-200 text-left overflow-hidden h-full group",
+            showAllCountries
+              ? "border-orange-500 bg-orange-50/30 shadow-md dark:border-orange-500/50 dark:bg-orange-950/20"
+              : "border-slate-200 bg-white shadow-sm hover:border-orange-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+          )}
+        >
+          <div className={cn(
+            "flex items-center justify-between px-4 py-3 border-b w-full transition-colors",
+            showAllCountries
+              ? "border-orange-200 bg-orange-100/50 dark:border-orange-900/50 dark:bg-orange-900/30"
+              : "border-slate-100 bg-orange-50/50 dark:border-slate-800 dark:bg-orange-900/10"
+          )}>
+            <div className="flex items-center gap-2">
+              <div className={cn(
+                "p-1 rounded-full text-white transition-colors",
+                showAllCountries ? "bg-orange-500" : "bg-orange-600"
+              )}>
+                <Globe className="h-3.5 w-3.5" />
               </div>
-              <div className="flex flex-col border-l border-slate-100 dark:border-slate-800 pl-2">
-                 <span className="text-[9px] text-slate-400">Pending/Draft</span>
-                 <span className="font-black text-amber-600">{pendingCount}</span>
-              </div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400">
+                4. ALL COUNTRIES REPORT DETAILS
+              </h4>
             </div>
-
-            <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
-              <span>Latest Entry Date:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{rows.length > 0 ? rows[0].entryDate : "N/A"}</span>
+            <div className={cn(
+              "flex h-6 w-6 items-center justify-center rounded-full transition-all duration-300",
+              showAllCountries ? "bg-orange-200 text-orange-700 rotate-180 dark:bg-orange-800/50 dark:text-orange-300" : "bg-slate-100 text-slate-500 group-hover:bg-orange-100 group-hover:text-orange-600 dark:bg-slate-800 dark:text-slate-400"
+            )}>
+              <ChevronDown className="h-3.5 w-3.5" />
             </div>
           </div>
-        </div>
+          <div className="p-4 flex flex-col justify-center flex-1 w-full gap-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            <p className="leading-relaxed">
+              Click to {showAllCountries ? "hide" : "view"} detailed breakdown for <span className="font-black text-slate-800 dark:text-slate-200">{activeCountriesCount}</span> scoped countries and their branches.
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">Live Updating</span>
+            </div>
+          </div>
+        </button>
       </div>
 
       {/* Collapsible Country Dashboard Section */}
-      <details className="group border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden" open>
-        <summary className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 font-black text-slate-800 hover:bg-slate-100 dark:bg-slate-900/50 dark:text-slate-200 dark:hover:bg-slate-900/80 uppercase text-xs tracking-wider">
-          <div className="flex items-center gap-2">
-            <span className="transition-transform group-open:rotate-90">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-            </span>
-            All Countries Report Details
-          </div>
-          <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-            {activeCountriesCount} Scoped Entries
-          </span>
-        </summary>
-        
-        <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {countryDashboardRows.map((item) => (
-              <details key={item.name} className="group/card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-                <summary className="cursor-pointer list-none">
-                  <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 text-white flex justify-between items-center">
-                    <span className="font-black tracking-wide text-sm flex items-center gap-2">
-                      <span className="transition-transform group-open/card:rotate-90">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      {showAllCountries && (
+        <div className="country-accordion-content block border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+          <div className="p-4 bg-white dark:bg-slate-950">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {countryDashboardRows.map((item) => (
+                <details key={item.name} className="group/card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                  <summary className="cursor-pointer list-none">
+                    <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 text-white flex justify-between items-center">
+                      <span className="font-black tracking-wide text-sm flex items-center gap-2">
+                        <span className="transition-transform group-open/card:rotate-90">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                        </span>
+                        {getFlag(item.name)} {item.name === 'Pakistan' ? 'Pakistani' : item.name}
                       </span>
-                      {getFlag(item.name)} {item.name === 'Pakistan' ? 'Pakistani' : item.name}
-                    </span>
-                    <span className="bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded-full">{item.entries} Trx</span>
+                      <span className="bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded-full">{item.entries} Trx</span>
+                    </div>
+                    <div className="p-4 space-y-3 bg-white dark:bg-slate-950">
+                      <div className="flex justify-between items-end border-b border-slate-100 dark:border-slate-800 pb-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Currency</span>
+                        <span className="text-base font-black text-slate-800 dark:text-slate-200">{item.currency}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-500">Total Debit</span>
+                        <span className="font-black text-rose-600">{formatMoney(item.debit)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-500">Total Credit</span>
+                        <span className="font-black text-emerald-600">{formatMoney(item.credit)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <span className="text-xs font-bold text-slate-500 uppercase">Balance</span>
+                        <span className="text-lg font-black text-slate-900 dark:text-slate-100">{formatMoney(Math.abs(item.balance))}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px]">
+                        <span className="font-semibold text-slate-500">{item.users.size} Users Login</span>
+                        <span className="font-semibold text-slate-500">{item.branches.size} Branches Login</span>
+                      </div>
+                    </div>
+                  </summary>
+                  
+                  {/* Branch Details Expanded Content */}
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-3 border-t border-slate-100 dark:border-slate-800 max-h-[300px] overflow-y-auto space-y-2">
+                    <div className="text-[10px] font-bold uppercase text-slate-500 mb-1 pl-1">Branch Breakdown</div>
+                    {Array.from(item.branchData.values()).map((b: any) => (
+                      <div key={b.name} className="bg-white dark:bg-slate-950 rounded-lg p-2.5 border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                          <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase truncate pr-2">{b.name}</span>
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 rounded">{b.entries} Trx</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] mb-1">
+                          <span className="font-semibold text-slate-500">Debit:</span>
+                          <span className="font-bold text-rose-600">{formatMoney(b.debit)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] mb-1">
+                          <span className="font-semibold text-slate-500">Credit:</span>
+                          <span className="font-bold text-emerald-600">{formatMoney(b.credit)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] pt-1 mt-1 border-t border-slate-50 dark:border-slate-800/50">
+                          <span className="font-bold text-slate-600 dark:text-slate-400">Balance:</span>
+                          <span className="font-black text-slate-900 dark:text-slate-100">{formatMoney(Math.abs(b.balance))}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="p-4 space-y-3 bg-white dark:bg-slate-950">
-                    <div className="flex justify-between items-end border-b border-slate-100 dark:border-slate-800 pb-2">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Currency</span>
-                      <span className="text-base font-black text-slate-800 dark:text-slate-200">{item.currency}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-slate-500">Total Debit</span>
-                      <span className="font-black text-rose-600">{formatMoney(item.debit)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-slate-500">Total Credit</span>
-                      <span className="font-black text-emerald-600">{formatMoney(item.credit)}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">
-                      <span className="text-xs font-bold text-slate-500 uppercase">Balance</span>
-                      <span className="text-lg font-black text-slate-900 dark:text-slate-100">{formatMoney(Math.abs(item.balance))}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px]">
-                      <span className="font-semibold text-slate-500">{item.users.size} Users Login</span>
-                      <span className="font-semibold text-slate-500">{item.branches.size} Branches Login</span>
-                    </div>
-                  </div>
-                </summary>
-                
-                {/* Branch Details Expanded Content */}
-                <div className="bg-slate-50 dark:bg-slate-900/50 p-3 border-t border-slate-100 dark:border-slate-800 max-h-[300px] overflow-y-auto space-y-2">
-                  <div className="text-[10px] font-bold uppercase text-slate-500 mb-1 pl-1">Branch Breakdown</div>
-                  {Array.from(item.branchData.values()).map((b: any) => (
-                    <div key={b.name} className="bg-white dark:bg-slate-950 rounded-lg p-2.5 border border-slate-200 dark:border-slate-800 shadow-sm">
-                      <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
-                        <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase truncate pr-2">{b.name}</span>
-                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 rounded">{b.entries} Trx</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[10px] mb-1">
-                        <span className="font-semibold text-slate-500">Debit:</span>
-                        <span className="font-bold text-rose-600">{formatMoney(b.debit)}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[10px] mb-1">
-                        <span className="font-semibold text-slate-500">Credit:</span>
-                        <span className="font-bold text-emerald-600">{formatMoney(b.credit)}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[10px] pt-1 mt-1 border-t border-slate-50 dark:border-slate-800/50">
-                        <span className="font-bold text-slate-600 dark:text-slate-400">Balance:</span>
-                        <span className="font-black text-slate-900 dark:text-slate-100">{formatMoney(Math.abs(b.balance))}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            ))}
+                </details>
+              ))}
+            </div>
           </div>
         </div>
-      </details>
+      )}
     </div>
   );
 }
@@ -2020,7 +2011,7 @@ export function SuperAdminRoznamchaReportView({
 
       {/* New Super Admin Roznamcha Summary Dashboard */}
       <SuperAdminRoznamchaSummary 
-        rows={filteredRows} 
+        rows={visibleRows} 
         ratesApplied={ratesApplied} 
         session={sessionInfo} 
       />
@@ -2074,7 +2065,6 @@ export function SuperAdminRoznamchaReportView({
           { key: "finalAmount", header: "Final Amount", align: "right", render: (r) => fmtNumber((r.debit > 0 ? r.debit : r.credit) / getRowRate(r.currency)) }
         ];
 
-        return (
         return (
           <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
             <div className="border-b bg-slate-50/80 px-4 py-3 dark:bg-slate-900/50 flex justify-between items-center">

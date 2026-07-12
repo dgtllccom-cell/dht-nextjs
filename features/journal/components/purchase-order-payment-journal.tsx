@@ -987,6 +987,7 @@ function DashboardSummaryHeader({
   setExpandedCountries,
   selectedCountryForSummary,
   setSelectedCountryForSummary,
+  session,
   lang = "en"
 }: { 
   summary: DashboardSummaryData; 
@@ -999,9 +1000,11 @@ function DashboardSummaryHeader({
   selectedCountryForSummary?: string | null;
   setSelectedCountryForSummary?: (c: string | null) => void;
   lang?: LanguageCode;
+  session?: any;
 }) {
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
   const [expandedSummaryCountries, setExpandedSummaryCountries] = useState<Record<string, boolean>>({});
+  const [showAllCountries, setShowAllCountries] = useState(true);
 
   if (!summary) return null;
 
@@ -1658,13 +1661,17 @@ function DashboardSummaryHeader({
 
   // Super Admin view: 4 cards + Expandable Country Accordion
   if (isSuperAdmin) {
-    const totalGlobalEntries = summary.totalTransactions;
-    const totalCreditUSD = summary.advancePaidLC; 
+    const totalGlobalEntries = (rows || []).length;
+    const transferredEntries = (rows || []).filter(row => {
+      const ps = (row.ledger_posting_status || "").toLowerCase();
+      const st = (row.payment_status || "").toLowerCase();
+      return ps === "posted" || ps === "transferred" || st === "paid" || st === "completed";
+    }).length;
+    const remainingEntries = totalGlobalEntries - transferredEntries;
     
     const activeCountriesCount = summaryRows.length;
     let activeBranchesCount = 0;
     summaryRows.forEach(r => { activeBranchesCount += r.branches.length; });
-    const activeUsersCount = "-"; // Unavailable in this context, use "-"
 
     const formatMoney = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const getFlag = (cName: string) => {
@@ -1677,7 +1684,10 @@ function DashboardSummaryHeader({
       if (cName.toLowerCase().includes('china')) return '🇨🇳';
       return '🏳️';
     };
-    const cName = summary.country || "All Countries";
+    
+    const adminCountry = session?.countryName || "United Arab Emirates";
+    const adminBranch = session?.branchName || "Head Office";
+    const adminUserId = session?.id || session?.username || summary.userId;
 
     return (
       <div className="flex flex-col mb-6 space-y-4">
@@ -1694,15 +1704,15 @@ function DashboardSummaryHeader({
             <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
               <div className="flex justify-between items-center">
                 <span>Country:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">{getFlag(cName)} {tData(cName, lang)}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">{getFlag(adminCountry)} {tData(adminCountry, lang)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>Branch Name:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{tData(summary.branchName, lang)}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{tData(adminBranch, lang)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>User ID:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{summary.userId}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{adminUserId}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>User Name:</span>
@@ -1751,106 +1761,90 @@ function DashboardSummaryHeader({
             </div>
           </div>
 
-          {/* Panel 3: Active Operations Summary */}
+          {/* Panel 3: Bill Entries Summary */}
           <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-purple-50/50 dark:bg-purple-900/10">
               <div className="bg-purple-600 p-1 rounded-full text-white">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
               </div>
-              <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400 truncate">3. ACTIVE OPERATIONS SUMMARY</h4>
+              <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400 truncate">3. BILL ENTRIES SUMMARY</h4>
             </div>
             <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
               <div className="flex justify-between items-center">
-                <span>Total Active Countries:</span>
-                <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeCountriesCount}</span>
+                <span>Total Bill Entries:</span>
+                <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{totalGlobalEntries}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span>Total Active Users Login:</span>
-                <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeUsersCount}</span>
+                <span>Transferred to Loading:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-500 font-mono">{transferredEntries}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-blue-600 dark:text-blue-500">Total Active Branches:</span>
-                <span className="font-black text-blue-700 dark:text-blue-400 font-mono">{activeBranchesCount}</span>
+                <span className="text-rose-600 dark:text-rose-500">Remaining Advance Balance:</span>
+                <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{remainingEntries}</span>
               </div>
               <div className="flex justify-between items-center mt-auto pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
                 <span>System Status:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">Online</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-500">Online & Synced</span>
               </div>
             </div>
           </div>
 
-          {/* Panel 4: Transaction Summary */}
-          <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-orange-50/50 dark:bg-orange-900/10">
-              <div className="bg-orange-600 p-1 rounded-full text-white">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              </div>
-              <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400">4. TRANSACTION SUMMARY</h4>
-            </div>
-            <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
-              <div className="flex justify-between items-center">
-                <span>Total Entries:</span>
-                <span className="font-black text-slate-800 dark:text-slate-200">{totalGlobalEntries}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Purchase Currencies:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{numCurrencies}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Final Currency:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{summary.localCurrency}</span>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-1 mt-1 pt-2 pb-1 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex flex-col">
-                   <span className="text-[9px] text-slate-400">Report Type</span>
-                   <span className="font-black text-emerald-600 uppercase">{reportType}</span>
+          {/* Panel 4: All Countries Report Details (Interactive) */}
+          <div 
+            className={cn(
+              "group flex flex-col rounded-xl border-2 bg-white shadow-sm dark:bg-slate-900 overflow-hidden cursor-pointer transition-colors",
+              showAllCountries 
+                ? "border-orange-400 dark:border-orange-600 shadow-md" 
+                : "border-slate-200 dark:border-slate-800 hover:border-orange-300 dark:hover:border-orange-700"
+            )}
+            onClick={() => setShowAllCountries(!showAllCountries)}
+          >
+            <div className="flex flex-col h-full outline-none">
+              <div className={cn(
+                "flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 transition-colors",
+                showAllCountries 
+                  ? "bg-orange-100/80 dark:bg-orange-900/40" 
+                  : "bg-orange-50/50 dark:bg-orange-900/10 group-hover:bg-orange-100/50 dark:group-hover:bg-orange-900/30"
+              )}>
+                <div className={cn("bg-orange-600 p-1 rounded-full text-white transition-transform duration-300", showAllCountries ? "rotate-90" : "rotate-0")}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </div>
-                <div className="flex flex-col border-l border-slate-100 dark:border-slate-800 pl-2">
-                   <span className="text-[9px] text-slate-400">Exchange Rate Type</span>
-                   <span className="font-black text-amber-600">Live</span>
-                </div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400 flex-1">4. ALL COUNTRIES REPORT</h4>
+                <span className="text-[9px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded text-slate-500 font-bold">{showAllCountries ? "Hide Details" : "Show Details"}</span>
               </div>
-
-              <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
-                <span>Last Updated:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}</span>
+              <div className="p-3 flex flex-col gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400 h-full overflow-y-auto max-h-[160px] scrollbar-thin">
+                {summaryRows.map((r, idx) => (
+                   <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded border border-slate-100 dark:border-slate-800">
+                     <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 truncate max-w-[120px]">
+                       {getFlag(r.country)} {tData(r.country, lang)}
+                     </span>
+                     <span className="bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded shadow-sm text-[9px] whitespace-nowrap">{r.branches.length} Branches</span>
+                   </div>
+                ))}
+                
+                <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
+                  {!showAllCountries && <span className="text-orange-600 dark:text-orange-500 font-bold uppercase text-[10px]">Show Report Details ↓</span>}
+                  {showAllCountries && <span className="text-orange-600 dark:text-orange-500 font-bold uppercase text-[10px]">Hide Report Details ↑</span>}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Collapsible Country Dashboard Section */}
-        <details className="group border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden" open>
-          <summary className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 font-black text-slate-800 hover:bg-slate-100 dark:bg-slate-900/50 dark:text-slate-200 dark:hover:bg-slate-900/80 uppercase text-xs tracking-wider">
-            <div className="flex items-center gap-2">
-              <span className="transition-transform group-open:rotate-90">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-              </span>
-              All Countries Report Details
-            </div>
-            <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-              {activeCountriesCount} Scoped Countries
-            </span>
-          </summary>
-          
-          <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+        {/* Collapsible Country Dashboard Section Content */}
+        {showAllCountries && (
+          <div className="country-accordion-content block animate-in slide-in-from-top-2 fade-in duration-300">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {summaryRows.map((r, idx) => (
-                <details key={idx} className="group/card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-                  <summary className="cursor-pointer list-none">
-                    <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 text-white flex justify-between items-center">
-                      <span className="font-black tracking-wide text-sm flex items-center gap-2">
-                        <span className="transition-transform group-open/card:rotate-90">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                        </span>
-                        {getFlag(r.country)} {tData(r.country, lang)}
-                      </span>
-                      <span className="rounded bg-white/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider backdrop-blur-sm">
-                        {r.branches.length} Branches
-                      </span>
-                    </div>
-                  </summary>
+                <div key={idx} className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                  <div className="bg-slate-100 dark:bg-slate-800 px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                    <span className="font-black text-[11px] uppercase text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      {getFlag(r.country)} {tData(r.country, lang)}
+                    </span>
+                    <span className="bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded shadow-sm text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      {r.branches.length} Branches
+                    </span>
+                  </div>
                   <div className="p-4">
                     <div className="mb-4 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-950">
                       <div className="flex justify-between items-center">
@@ -1903,11 +1897,11 @@ function DashboardSummaryHeader({
                       ))}
                     </div>
                   </div>
-                </details>
+                </div>
               ))}
             </div>
           </div>
-        </details>
+        )}
       </div>
     );
   }
@@ -2286,7 +2280,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       const requiredAdvance = (finalAmount * advancePercent) / 100;
       const paidAdvance = Number(row.advance_paid || 0);
       const remainingAdvance = requiredAdvance - paidAdvance;
-      const remainingDue = Number(row.remaining_due || 0);
+      let remainingDue = Number(row.remaining_due || 0);
+      if (remainingDue === 0) {
+        // Fallback calculation if db field is not populated
+        const remPaid = Number(row.remaining_paid || 0);
+        remainingDue = finalAmount - paidAdvance - remPaid;
+      }
+      
       const isCreditPaid = (row.payment_status || "").toLowerCase().includes("posted") || 
                            (row.payment_status || "").toLowerCase().includes("paid");
 
@@ -2306,19 +2306,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         if (paidAdvance <= 0) return false; // Not paid anything
       } else if (activeMode === "remaining") {
         if (remainingDue <= 0.01) return false; // Already cleared
-        // Remaining payments should appear as soon as any loading/container movement exists.
-        // This supports partial flow: 2 paid/loaded containers move forward while 8 remain payable.
-        const workflow = row.form_data?.workflow || {};
-        const containerStatus = String(workflow.containerStatus || "").toLowerCase();
-        const loadedContainers = Number(workflow.loadedContainers || workflow.paidContainers || 0);
-        const remainingContainers = Number(workflow.remainingContainers || 0);
-        const hasContainerMovement =
-          loadedContainers > 0 ||
-          remainingContainers > 0 ||
-          containerStatus.includes("loaded") ||
-          containerStatus.includes("loading") ||
-          containerStatus.includes("partial");
-        if (!hasContainerMovement) return false;
+        // If it reaches here, it has a remaining balance > 0, we should show it.
+        // We removed the strict hasContainerMovement check because some loading flows might not correctly update the workflow JSON.
       } else if (activeMode === "credit") {
         if (isCreditPaid) return false; // Already cleared
       } else if (activeMode === "history") {
@@ -2977,7 +2966,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </tr>
         {isExpanded && (
           <tr onClick={(e) => e.stopPropagation()} style={{ background: "#f8fafc" }}>
-            <td colSpan={11} className="p-4 border-b border-slate-100 dark:border-slate-800">
+            <td colSpan={10} className="p-4 border-b border-slate-100 dark:border-slate-800">
               <NestedPaymentHistory row={row} ledgers={ledgers} baseCurrency={baseCurrency} activeMode={activeMode} />
             </td>
           </tr>
@@ -3009,12 +2998,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       "Branch / Country": { en: "Branch & Country", ur: "برانچ اور ملک", ar: "الفرع والبلد", fa: "شعبه و کشور", ps: "څانګه او هیواد" },
       "Purchase A/C": { en: "Purchase A/C", ur: "خریداری اکاؤنٹ", ar: "حساب الشراء", fa: "حساب خرید", ps: "د پیرود حساب" },
       "Sales A/C": { en: "Sales A/C", ur: "سیلز اکاؤنٹ", ar: "حساب المبيعات", fa: "حساب فروش", ps: "د پلور حساب" },
-      "Goods": { en: "Goods & Brand", ur: "سامان اور برانڈ", ar: "البضائع والعلامة", fa: "کالا و برند", ps: "توکي او نښه" },
-      "Wt & Qty": { en: "Weight & Qty", ur: "وزن اور مقدار", ar: "الوزن والكمية", fa: "وزن و تعداد", ps: "وزن او مقدار" },
-      "Total / Rate": { en: "Total / Rate", ur: "کل رقم / شرح", ar: "الإجمالي / المعدل", fa: "کل / نرخ", ps: "ټول / نرخ" },
-      "Adv Details": { en: "Adv Details", ur: "ایڈوانس تفصیلات", ar: "تفاصيل الدفعة", fa: "جزئیات پیش‌پرداخت", ps: "پرمختللي توضیحات" },
-      "Balance": { en: "Remaining Balance", ur: "باقی ماندہ بیلنس", ar: "الرصيد المتبقي", fa: "مانده باقی‌مانده", ps: "پاتې بیلانس" },
-      "Status": { en: "Status", ur: "حیثیت", ar: "الحالة", fa: "وضعیت", ps: "حالت" }
+      "Total Purchase": { en: "Total Purchase", ur: "کل خریداری", ar: "إجمالي الشراء", fa: "کل خرید", ps: "ټول پیرود" },
+      "Paid Advance": { en: "Paid Advance", ur: "ادا شدہ ایڈوانس", ar: "الدفعة المقدمة المدفوعة", fa: "پیش پرداخت", ps: "تادیه شوی پرمختګ" },
+      "Final Amount": { en: "Final Amount", ur: "حتمی رقم", ar: "المبلغ النهائي", fa: "مبلغ نهایی", ps: "وروستی مقدار" },
+      "Rem. Advance": { en: "Rem. Advance", ur: "باقی ماندہ ایڈوانس", ar: "الدفعة المقدمة المتبقية", fa: "پیش پرداخت باقیمانده", ps: "پاتې پرمختګ" },
+      "Action": { en: "Action", ur: "عمل", ar: "إجراء", fa: "عمل", ps: "عمل" }
     };
     return headersMap[h]?.[currentLanguage] || h;
   };
@@ -3199,7 +3187,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-150 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/80">
-                {["PO No.", "Bill / Date", "Branch / Country", "Purchase A/C", "Sales A/C", "Goods", "Wt & Qty", "Total / Rate", "Adv Details", "Balance", "Status"].map((h) => (
+                {["PO No.", "Bill / Date", "Branch / Country", "Purchase A/C", "Sales A/C", "Total Purchase", "Req. Advance", "Paid Advance", "Final Amount", "Rem. Advance", "Action"].map((h) => (
                   <th key={h} className={cn("px-3 py-4 text-[10px] font-black uppercase tracking-widest text-slate-605 dark:text-slate-350 whitespace-nowrap", isRtl ? "text-right" : "text-left")}>{getTableHeader(h)}</th>
                 ))}
               </tr>
@@ -3208,6 +3196,62 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               {isSuperAdmin ? (
                 countryGroups.map((group) => {
                   const isExpandedCountry = expandedCountries[group.country] !== false;
+                  
+                  // Calculate country sums in Local Currency
+                  let sumPurchaseLocal = 0;
+                  let sumReqAdvanceLocal = 0;
+                  let sumPaidLocal = 0;
+                  let sumFinalLocal = 0;
+                  let sumRemAdvanceLocal = 0;
+                  
+                  group.rows.forEach(row => {
+                    const totalPrice = orderTotal(row);
+                    const bookCur = rowCurrency(row);
+                    const rowLocalCurrency = rowOfficeCurrency(row);
+                    const conversionRate = getConversionRate(row, bookCur, rowLocalCurrency, liveRates);
+                    
+                    const totalAmountBC = totalPrice;
+                    const totalAmountLocal = totalAmountBC * conversionRate;
+                    const advancePercent = Number(row.form_data?.form?.advancePercent || 0);
+                    const requiredAdvanceBC = (totalAmountBC * advancePercent) / 100;
+                    const paidAdvanceBC = Number(row.advance_paid || 0);
+                    const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
+                    
+                    const requiredAdvance = (totalAmountLocal * advancePercent) / 100;
+                    const paidAdvance = paidAdvanceBC * conversionRate;
+                    const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
+                    
+                    const remainingDueBC = Number(row.remaining_due || 0);
+                    let paidAmountBC = 0;
+                    let paidAmountLocal = 0;
+                    let balanceAmountBC = 0;
+                    let balanceAmountLocal = 0;
+                    if (activeMode === "advance") {
+                      paidAmountBC = paidAdvanceBC;
+                      paidAmountLocal = paidAdvance;
+                      balanceAmountBC = remainingAdvanceBC;
+                      balanceAmountLocal = remainingAdvance;
+                    } else if (activeMode === "remaining") {
+                      const remPaidBC = Number(row.remaining_paid || 0);
+                      paidAmountBC = remPaidBC;
+                      paidAmountLocal = remPaidBC * conversionRate;
+                      balanceAmountBC = remainingDueBC;
+                      balanceAmountLocal = remainingDueBC * conversionRate;
+                    } else {
+                      const credPaidBC = Number(row.credit_amount || 0);
+                      paidAmountBC = credPaidBC;
+                      paidAmountLocal = credPaidBC * conversionRate;
+                      balanceAmountBC = Math.max(0, totalAmountBC - paidAmountBC);
+                      balanceAmountLocal = balanceAmountBC * conversionRate;
+                    }
+                    
+                    sumPurchaseLocal += totalAmountLocal;
+                    sumReqAdvanceLocal += requiredAdvance;
+                    sumPaidLocal += paidAmountLocal;
+                    sumFinalLocal += balanceAmountLocal;
+                    sumRemAdvanceLocal += remainingAdvance;
+                  });
+
                   return (
                     <React.Fragment key={group.country}>
                       <tr
@@ -3225,276 +3269,194 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         }}
                         className="bg-slate-100/90 hover:bg-slate-200/90 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 cursor-pointer border-y border-slate-200 dark:border-slate-800 transition"
                       >
-                        <td colSpan={11} className="px-3 py-3 select-none">
+                        <td colSpan={5} className="px-3 py-3 select-none">
                           <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-[11px] uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                              {group.country}
+                            </span>
+                            <span className="text-slate-400 font-medium text-[10px]">
+                              ({group.rows.length} {group.rows.length === 1 ? "record" : "records"})
+                            </span>
+                            {group.rows.length > 0 && (
+                              <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ml-2">
+                                Currency: {rowOfficeCurrency(group.rows[0])}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 font-bold text-rose-600 font-mono text-[11px]">{sumPurchaseLocal > 0 ? sumPurchaseLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                        <td className="px-3 py-3 font-bold text-amber-600 font-mono text-[11px]">{sumReqAdvanceLocal > 0 ? sumReqAdvanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                        <td className="px-3 py-3 font-bold text-emerald-600 font-mono text-[11px]">{sumPaidLocal > 0 ? sumPaidLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                        <td className="px-3 py-3 font-bold text-indigo-600 font-mono text-[11px]">{sumFinalLocal > 0 ? sumFinalLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                        <td className="px-3 py-3 font-bold text-slate-800 dark:text-slate-200 font-mono text-[11px]">{sumRemAdvanceLocal > 0 ? sumRemAdvanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                        <td className="px-3 py-3 text-right">
+                          <div className="flex justify-end">
                             <button
                               type="button"
-                              className="flex h-5 w-5 items-center justify-center rounded bg-white dark:bg-slate-850 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 transition shadow-sm"
+                              className="flex h-6 w-6 items-center justify-center rounded bg-white dark:bg-slate-850 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 transition shadow-sm"
                             >
                               {isExpandedCountry ? (
-                                <Minus className="h-3 w-3 text-slate-600 dark:text-slate-300" />
+                                <Minus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                               ) : (
-                                <Plus className="h-3 w-3 text-slate-600 dark:text-slate-300" />
+                                <Plus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                               )}
                             </button>
-                            <span className="font-extrabold text-[11px] uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                              {group.country} <span className="text-slate-400 font-medium">({group.rows.length} {group.rows.length === 1 ? "record" : "records"})</span>
-                            </span>
                           </div>
                         </td>
                       </tr>
-                      {isExpandedCountry && group.rows.map((row) => {
-                        const index = pageRows.indexOf(row);
-                        const form = row.form_data?.form || {};
-                const goods = row.form_data?.goodsEntries || [];
-                const totalPrice = orderTotal(row);
-                
-                const bookCur = rowCurrency(row);
-                const rowLocalCurrency = rowOfficeCurrency(row);
-                const conversionRate = getConversionRate(row, bookCur, rowLocalCurrency, liveRates);
-                
-                // Correctly resolve Book Currency (USD/FC) and Local Currency (PKR/LC)
-                const totalAmountBC = totalPrice;
-                const totalAmountLocal = totalAmountBC * conversionRate;
+                      {isExpandedCountry && (
+                        <tr>
+                          <td colSpan={11} className="p-0 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                            <div className="w-full overflow-x-auto p-4 border-l-[3px] border-l-blue-500 shadow-inner">
+                              <table className="w-max min-w-full text-xs text-left border-collapse bg-white dark:bg-slate-950 rounded shadow-sm border border-slate-200 dark:border-slate-800">
+                                <thead>
+                                  <tr className="bg-slate-100 dark:bg-slate-800/80 border-b-2 border-slate-200 dark:border-slate-700">
+                                    {[
+                                      "SR.", "SUPER S/N", "CTY S/N", "BR. S/N", "COUNTRY", "BRANCH", "USER NAME",
+                                      "GOODS NAME", "TOTAL QTY", "GROSS WT (KG)", "NET WT (KG)",
+                                      "TOTAL PURCHASE", "REQ. ADVANCE", "PAID ADVANCE", "REM. ADVANCE", "FINAL BALANCE", "ACTIONS"
+                                    ].map((h, i) => (
+                                      <th key={i} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 whitespace-nowrap border-r border-slate-200 dark:border-slate-700 last:border-0 align-middle text-center">{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {group.rows.map((row) => {
+                                    const index = pageRows.indexOf(row);
+                                    const form = row.form_data?.form || {};
+                                    const goods = row.form_data?.goodsEntries || [];
+                                    const totalPrice = orderTotal(row);
+                                    
+                                    const bookCur = rowCurrency(row);
+                                    const rowLocalCurrency = rowOfficeCurrency(row);
+                                    const conversionRate = getConversionRate(row, bookCur, rowLocalCurrency, liveRates);
+                                    
+                                    const totalAmountBC = totalPrice;
+                                    const totalAmountLocal = totalAmountBC * conversionRate;
+                                    const advancePercent = Number(form.advancePercent || 0);
+                                    const requiredAdvanceBC = (totalAmountBC * advancePercent) / 100;
+                                    const paidAdvanceBC = Number(row.advance_paid || 0);
+                                    
+                                    const requiredAdvance = (totalAmountLocal * advancePercent) / 100;
+                                    const paidAdvance = paidAdvanceBC * conversionRate;
+                                    const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
+                                    
+                                    const remainingDueBC = Number(row.remaining_due || 0);
+                                    let paidAmountBC = 0;
+                                    let paidAmountLocal = 0;
+                                    let balanceAmountBC = 0;
+                                    let balanceAmountLocal = 0;
+                                    if (activeMode === "advance") {
+                                      paidAmountBC = paidAdvanceBC;
+                                      paidAmountLocal = paidAdvance;
+                                      balanceAmountBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
+                                      balanceAmountLocal = remainingAdvance;
+                                    } else if (activeMode === "remaining") {
+                                      const remPaidBC = Number(row.remaining_paid || 0);
+                                      paidAmountBC = remPaidBC;
+                                      paidAmountLocal = remPaidBC * conversionRate;
+                                      balanceAmountBC = remainingDueBC;
+                                      balanceAmountLocal = remainingDueBC * conversionRate;
+                                    } else {
+                                      const credPaidBC = Number(row.credit_amount || 0);
+                                      paidAmountBC = credPaidBC;
+                                      paidAmountLocal = credPaidBC * conversionRate;
+                                      balanceAmountBC = Math.max(0, totalAmountBC - paidAmountBC);
+                                      balanceAmountLocal = balanceAmountBC * conversionRate;
+                                    }
+                                    
+                                    const statusText = row.payment_status || "Pending";
+                                    const isSelected = selected?.id === row.id;
+                                    const isExpanded = Boolean(expandedIds[row.id]);
+                                    const isPosted = row.ledger_posting_status === "Posted"
+                                      || row.ledger_posting_status === "posted"
+                                      || row.ledger_posting_status === "Transferred"
+                                      || row.ledger_posting_status === "transferred";
+                                    const getRowColor = () => isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
+                                    
+                                    // Derived details
+                                    const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "—";
+                                    const totalQty = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || 0), 0) : Number(row.quantity || 0);
+                                    const grossWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
+                                    const netWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
+                                    const branchName = rowBranchName(row) || "—";
+                                    const countryName = rowCountryName(row) || "—";
+                                    const userName = row.audit?.userName || "-";
+                                    
+                                    // Serials
+                                    const superSerialNo = index + 1 + pageIndex * pageSize;
+                                    const countryRows = filtered.filter((r) => rowCountryName(r) === countryName);
+                                    const countrySerialNo = countryRows.findIndex((r) => r.id === row.id) + 1;
+                                    const branchRows = filtered.filter((r) => rowBranchName(r) === branchName);
+                                    const branchSerialNo = branchRows.findIndex((r) => r.id === row.id) + 1;
 
-                const advancePercent = Number(form.advancePercent || 0);
-                const requiredAdvanceBC = (totalAmountBC * advancePercent) / 100;
-                const paidAdvanceBC = Number(row.advance_paid || 0);
-                const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
-                
-                const requiredAdvance = (totalAmountLocal * advancePercent) / 100;
-                const paidAdvance = paidAdvanceBC * conversionRate;
-                const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
-                
-                const remainingDueBC = Number(row.remaining_due || 0);
-                let paidAmountBC = 0;
-                let paidAmountLocal = 0;
-                let balanceAmountBC = 0;
-                let balanceAmountLocal = 0;
-                if (activeMode === "advance") {
-                  paidAmountBC = paidAdvanceBC;
-                  paidAmountLocal = paidAdvance;
-                  balanceAmountBC = remainingAdvanceBC;
-                  balanceAmountLocal = remainingAdvance;
-                } else if (activeMode === "remaining") {
-                  const remPaidBC = Number(row.remaining_paid || 0);
-                  paidAmountBC = remPaidBC;
-                  paidAmountLocal = remPaidBC * conversionRate;
-                  balanceAmountBC = remainingDueBC;
-                  balanceAmountLocal = remainingDueBC * conversionRate;
-                } else {
-                  const credPaidBC = Number(row.credit_amount || 0);
-                  paidAmountBC = credPaidBC;
-                  paidAmountLocal = credPaidBC * conversionRate;
-                  balanceAmountBC = Math.max(0, totalAmountBC - paidAmountBC);
-                  balanceAmountLocal = balanceAmountBC * conversionRate;
-                }
-                const statusText = row.payment_status || "Pending";
-                const isSelected = selected?.id === row.id;
-                const isExpanded = Boolean(expandedIds[row.id]);
-                const rowBg = isSelected ? "#eff6ff" : index % 2 === 0 ? "#ffffff" : "#f8fafc";
-                const isPosted = row.ledger_posting_status === "Posted"
-                  || row.ledger_posting_status === "posted"
-                  || row.ledger_posting_status === "Transferred"
-                  || row.ledger_posting_status === "transferred";
-                const getRowColor = () => isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
-
-                // Per-row derived display values
-                const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "—";
-                const grossWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
-                const netWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
-                const billNo = form.billNo || form.invoiceNo || row.purchase_contract_no || "—";
-                const dateStr = form.purchaseDate ? new Date(form.purchaseDate).toLocaleDateString("en-GB") : row.created_at ? new Date(row.created_at).toLocaleDateString("en-GB") : "—";
-                const branchName = rowBranchName(row) || "—";
-                const countryName = rowCountryName(row) || "—";
-
-                // Serial numbers
-                const superSerialNo = index + 1 + pageIndex * pageSize;
-                const countryRows = filtered.filter((r) => rowCountryName(r) === countryName);
-                const countrySerialNo = countryRows.findIndex((r) => r.id === row.id) + 1;
-                const branchRows = filtered.filter((r) => rowBranchName(r) === branchName);
-                const branchSerialNo = branchRows.findIndex((r) => r.id === row.id) + 1;
-
-                return (
-                  <React.Fragment key={row.id}>
-                    <tr
-                      onClick={() => selectOrder(row.id)}
-                      style={{ background: rowBg, borderBottom: "1px solid #e2e8f0", cursor: "pointer", outline: isSelected ? "2px solid #3b82f6" : undefined, outlineOffset: -1 }}
-                      onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "#f0f9ff"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}
-                    >
-                      {/* Order ID */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="font-mono text-[11px] font-black text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                          {row.purchase_order_no}
-                        </div>
-                      </td>
-                      {/* Bill & Date */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="flex flex-col">
-                          <span className="font-mono font-black text-[11px] text-slate-850 dark:text-slate-200">{billNo}</span>
-                          <span className="text-[10px] text-slate-500 mt-1 font-semibold">{dateStr}</span>
-                        </div>
-                      </td>
-                      {/* Branch & Country */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="flex flex-col">
-                          <span className="font-black text-[11px] text-slate-850 dark:text-slate-200 uppercase tracking-wide">{branchName}</span>
-                          <span className="text-[10px] text-slate-500 mt-1 font-semibold">{countryName}</span>
-                        </div>
-                      </td>
-                      {/* Purchase Account */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="flex flex-col">
-                          <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200 truncate max-w-[130px]" title={form.purchaseAccountName || "N/A"}>
-                            {form.purchaseAccountName || "N/A"}
-                          </span>
-                          <span className="font-mono text-[10px] text-slate-500 mt-1 font-bold">
-                            {form.purchaseAccountNumber || "-"}
-                          </span>
-                        </div>
-                      </td>
-                      {/* Sales Account */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="flex flex-col">
-                          <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200 truncate max-w-[130px]" title={form.salesAccountName || form.supplierName || "N/A"}>
-                            {form.salesAccountName || form.supplierName || "N/A"}
-                          </span>
-                          <span className="font-mono text-[10px] text-slate-500 mt-1 font-bold">
-                            {form.salesAccountNumber || "-"}
-                          </span>
-                        </div>
-                      </td>
-                      {/* Goods & Brand */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="flex flex-col gap-0.5 text-[10px]">
-                          <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200 truncate max-w-[145px]" title={goodsName}>{goodsName}</span>
-                          <span className="text-slate-500 font-semibold">
-                            Sz: <span className="font-extrabold text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.size || "").filter(Boolean).join(", ") || "-"}</span> | Br: <span className="font-extrabold text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.brand || "").filter(Boolean).join(", ") || "-"}</span>
-                          </span>
-                        </div>
-                      </td>
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-                        <div className="flex flex-col gap-1 text-[10px] font-mono">
-                          <span className="text-slate-500 font-semibold">Qty: <span className="font-black text-slate-800 dark:text-slate-200">{goods.length ? goods.reduce((s:number,g:any)=>s+Number(g.qtyNo||0),0).toLocaleString() : Number(form.quantity||0).toLocaleString()}</span></span>
-                          <span className="text-slate-500 font-semibold">Gross: <span className="font-bold text-slate-700 dark:text-slate-300">{grossWeight.toLocaleString()}</span></span>
-                          <span className="text-slate-500 font-semibold">Net: <span className="font-bold text-slate-700 dark:text-slate-300">{netWeight.toLocaleString()}</span></span>
-                        </div>
-                      </td>
-                      {/* Total & Exchange */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
-                        <div className="flex flex-col items-end gap-1 font-mono">
-                          <span className="font-black text-[12px] text-slate-850 dark:text-slate-200">
-                            {money(totalAmountBC, bookCur)}
-                          </span>
-                          <span className="text-[11px] text-slate-500 font-bold">
-                            {money(totalAmountLocal, rowLocalCurrency)}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-bold mt-1">
-                            Rate: {row.exchange_rate || form.exchangeRate || 1}
-                          </span>
-                        </div>
-                      </td>
-                      {/* Advance Details (Two Currency breakdown) */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-[10px] font-mono leading-relaxed", getRowColor())}>
-                        <div className="flex gap-4 min-w-[340px] divide-x divide-slate-100 dark:divide-slate-800">
-                          {/* Purchase Currency details */}
-                          <div className="flex-1 pr-2">
-                            <div className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1 flex justify-between">
-                              <span>Purchase Curr</span>
-                              <span>({bookCur})</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px] font-bold">
-                              <div className="flex flex-col">
-                                <span className="text-[8px] uppercase tracking-wider text-slate-400">Total</span>
-                                <span className="text-slate-700 dark:text-slate-350 truncate">
-                                  {money(totalAmountBC, bookCur)}
-                                </span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[8px] uppercase tracking-wider text-slate-400">Adv Req ({advancePercent}%)</span>
-                                <span className="text-slate-850 dark:text-slate-200 truncate">
-                                  {money(requiredAdvanceBC, bookCur)}
-                                </span>
-                              </div>
-                              <div className="flex flex-col mt-0.5">
-                                <span className="text-[8px] uppercase tracking-wider text-slate-400">Paid/Recd</span>
-                                <span className="text-emerald-600 dark:text-emerald-450 truncate">
-                                  {money(paidAdvanceBC, bookCur)}
-                                </span>
-                              </div>
-                              <div className="flex flex-col mt-0.5">
-                                <span className="text-[8px] uppercase tracking-wider text-slate-400">Remaining</span>
-                                <span className={cn("truncate font-bold", remainingAdvanceBC > 0 ? "text-amber-600 dark:text-amber-450" : "text-emerald-600 dark:text-emerald-450")}>
-                                  {money(remainingAdvanceBC, bookCur)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Final Currency details */}
-                          <div className="flex-1 pl-4">
-                            <div className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1 flex justify-between">
-                              <span>Final Curr</span>
-                              <span>({rowLocalCurrency})</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px] font-bold">
-                              <div className="flex flex-col">
-                                <span className="text-[8px] uppercase tracking-wider text-slate-400">Total</span>
-                                <span className="text-slate-700 dark:text-slate-350 truncate">
-                                  {money(totalAmountLocal, rowLocalCurrency)}
-                                </span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[8px] uppercase tracking-wider text-slate-400">Adv Req ({advancePercent}%)</span>
-                                <span className="text-slate-850 dark:text-slate-200 truncate">
-                                  {money(requiredAdvance, rowLocalCurrency)}
-                                </span>
-                              </div>
-                              <div className="flex flex-col mt-0.5">
-                                <span className="text-[8px] uppercase tracking-wider text-slate-400">Paid/Recd</span>
-                                <span className="text-emerald-600 dark:text-emerald-450 truncate">
-                                  {money(paidAdvance, rowLocalCurrency)}
-                                </span>
-                              </div>
-                              <div className="flex flex-col mt-0.5">
-                                <span className="text-[8px] uppercase tracking-wider text-slate-400">Remaining</span>
-                                <span className={cn("truncate font-bold", remainingAdvance > 0 ? "text-amber-600 dark:text-amber-450" : "text-emerald-600 dark:text-emerald-450")}>
-                                  {money(remainingAdvance, rowLocalCurrency)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      {/* Remaining Balance */}
-                      <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
-                        <div className="flex flex-col items-end gap-1 font-mono">
-                          <span className="font-black text-[12px] text-indigo-600 dark:text-indigo-400">
-                            {money(balanceAmountBC, bookCur)}
-                          </span>
-                          <span className="text-[11px] font-bold text-indigo-500/80 dark:text-indigo-455">
-                            {money(balanceAmountLocal, rowLocalCurrency)}
-                          </span>
-                        </div>
-                      </td>
-                      {/* Status & Action */}
-                      <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center">
-                        <div className="flex flex-col items-center justify-center gap-1.5">
-                          {activeMode !== "advance_completed" && (
-                            <>
-                              {isPosted ? (
-                                <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
-                                  Transferred ✓
-                                </span>
-                              ) : (
-                                <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
-                                  Pending Transfer
-                                </span>
-                              )}
-                              {getStatusBadge(statusText)}
-                            </>
-                          )}
+                                    return (
+                                      <React.Fragment key={row.id}>
+                                        <tr
+                                          onClick={() => selectOrder(row.id)}
+                                          className={cn("cursor-pointer border-b border-slate-100 dark:border-slate-800/60 text-center hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors", isSelected && "bg-blue-50/80 dark:bg-blue-900/30")}
+                                        >
+                                          {/* Serials */}
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono text-[9px] align-middle", getRowColor())}>{index + 1}</td>
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono text-[9px] align-middle", getRowColor())}>{superSerialNo}</td>
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono text-[9px] align-middle", getRowColor())}>{countrySerialNo}</td>
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono text-[9px] align-middle", getRowColor())}>{branchSerialNo}</td>
+                                          {/* Details */}
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-bold uppercase tracking-wide align-middle text-left", getRowColor())}>{countryName}</td>
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-bold uppercase tracking-wide align-middle text-left", getRowColor())}>{branchName}</td>
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-bold uppercase align-middle text-left", getRowColor())}>{userName}</td>
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-bold align-middle text-left", getRowColor())}>{goodsName}</td>
+                                          {/* Cargo */}
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono font-black align-middle text-right", getRowColor())}>{totalQty.toLocaleString()}</td>
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono align-middle text-right", getRowColor())}>{grossWeight.toLocaleString()}</td>
+                                          <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono align-middle text-right", getRowColor())}>{netWeight.toLocaleString()}</td>
+                                          {/* Financials */}
+                                          <td className="px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 align-middle text-right">
+                                            <div className="flex flex-col gap-0.5 font-mono">
+                                              <span className="font-black text-[11px] text-rose-600 dark:text-rose-400">{money(totalAmountBC, bookCur)}</span>
+                                              <span className="text-[9px] text-slate-500 font-bold">{money(totalAmountLocal, rowLocalCurrency)}</span>
+                                            </div>
+                                          </td>
+                                          <td className="px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 align-middle text-right">
+                                            <div className="flex flex-col gap-0.5 font-mono">
+                                              <span className="font-black text-[11px] text-amber-600 dark:text-amber-400">{money(requiredAdvanceBC, bookCur)}</span>
+                                              <span className="text-[9px] text-slate-500 font-bold">{money(requiredAdvance, rowLocalCurrency)}</span>
+                                            </div>
+                                          </td>
+                                          <td className="px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 align-middle text-right">
+                                            <div className="flex flex-col gap-0.5 font-mono">
+                                              <span className="font-black text-[11px] text-emerald-600 dark:text-emerald-400">{money(paidAdvanceBC, bookCur)}</span>
+                                              <span className="text-[9px] text-slate-500 font-bold">{money(paidAdvance, rowLocalCurrency)}</span>
+                                            </div>
+                                          </td>
+                                          <td className="px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 align-middle text-right">
+                                            <div className="flex flex-col gap-0.5 font-mono">
+                                              <span className="font-black text-[11px] text-slate-800 dark:text-slate-200">{money(remainingAdvanceBC, bookCur)}</span>
+                                              <span className="text-[9px] text-slate-500 font-bold">{money(remainingAdvance, rowLocalCurrency)}</span>
+                                            </div>
+                                          </td>
+                                          <td className="px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 align-middle text-right">
+                                            <div className="flex flex-col gap-0.5 font-mono">
+                                              <span className="font-black text-[11px] text-indigo-600 dark:text-indigo-400">{money(balanceAmountBC, bookCur)}</span>
+                                              <span className="text-[9px] text-slate-500 font-bold">{money(balanceAmountLocal, rowLocalCurrency)}</span>
+                                            </div>
+                                          </td>
+                                          {/* Actions */}
+                                          <td className="px-2 py-3 align-middle text-center">
+                                            <div className="flex justify-center items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                              {activeMode !== "advance_completed" && (
+                                                <>
+                                                  {isPosted ? (
+                                                    <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
+                                                      Transferred ✓
+                                                    </span>
+                                                  ) : (
+                                                    <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
+                                                      Pending
+                                                    </span>
+                                                  )}
+                                                </>
+                                              )}
                           <div className={cn("relative inline-block text-left", activeMode !== "advance_completed" && "mt-1")} onClick={(e) => e.stopPropagation()}>
                             <button 
                               onClick={() => setOpenDropdownId(openDropdownId === row.id ? null : row.id)}
@@ -3572,17 +3534,23 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           </div>
                         </div>
                       </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr onClick={(e) => e.stopPropagation()} style={{ background: "#f8fafc" }}>
-                        <td colSpan={11} className="p-4 border-b border-slate-100 dark:border-slate-800">
-                          <NestedPaymentHistory row={row} ledgers={ledgers} baseCurrency={baseCurrency} activeMode={activeMode} />
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
+                                        </tr>
+                                        {isExpanded && (
+                                          <tr onClick={(e) => e.stopPropagation()} className="bg-slate-50/50 dark:bg-slate-900/30">
+                                            <td colSpan={17} className="p-3 border-b border-slate-200 dark:border-slate-800">
+                                              <NestedPaymentHistory row={row} ledgers={ledgers} baseCurrency={baseCurrency} activeMode={activeMode} />
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
             </React.Fragment>
           );
         })

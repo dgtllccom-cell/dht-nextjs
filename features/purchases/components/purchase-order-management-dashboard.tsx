@@ -1615,28 +1615,239 @@ function DashboardSummaryHeader({
   );
 
   if (isSuperAdmin) {
+    const totalGlobalEntries = (rows || []).length;
+    const transferredEntries = (rows || []).filter(row => {
+      const ps = ((row as any).ledgerPostingStatus || (row as any).ledger_posting_status || row.status || "").toLowerCase();
+      const st = (row.paymentStatus || "").toLowerCase();
+      return ps === "posted" || ps === "transferred" || st === "paid" || st === "completed";
+    }).length;
+    const remainingEntries = totalGlobalEntries - transferredEntries;
+    
+    let activeBranchesCount = 0;
+    summaryRows.forEach(r => { activeBranchesCount += r.branches.length; });
+
+    const formatMoney = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
+    const adminCountry = summary.country || "United Arab Emirates";
+    const adminBranch = summary.branchName || "Head Office";
+    const adminUserId = summary.userId;
+
+    const showAllCountries = expandedCountries && expandedCountries["all"] ? true : false;
+    const toggleShowAllCountries = () => {
+      if (setExpandedCountries) {
+        setExpandedCountries(prev => ({ ...prev, "all": !showAllCountries }));
+      }
+    };
+
     return (
-      <div className="flex flex-col mb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-          {/* Box 1: Details & Table (spans 7 columns on lg, 8 columns on xl) */}
-          <div className="lg:col-span-7 xl:col-span-8 flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
+      <div className="flex flex-col mb-6 space-y-4">
+        {/* 4 Panels Container */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {/* Panel 1: Branch & User Details */}
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
               <div className="bg-blue-600 p-1 rounded-full text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               </div>
-              <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. SUPER ADMIN COUNTRY REPORT</h4>
+              <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. BRANCH & USER DETAILS</h4>
             </div>
-            <div className="p-4 flex flex-col justify-start h-full">
-              {renderHorizontalDetails()}
-              {renderSuperAdminSummaryTable()}
+            <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+              <div className="flex justify-between items-center">
+                <span>Country:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">{getFlag(adminCountry)} {adminCountry}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Branch Name:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{adminBranch}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>User ID:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{adminUserId}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>User Name:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{summary.userName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Role:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{summary.role}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Date & Time:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}, {timeStr}</span>
+              </div>
+              <div className="flex justify-between items-center mt-auto">
+                <span>Status:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded text-[10px]">Active</span>
+              </div>
             </div>
           </div>
 
-          {/* Box 2: Unified step-by-step reports card (spans 5 columns on lg, 4 columns on xl) */}
-          <div className="lg:col-span-5 xl:col-span-4">
-            {renderUnifiedReport()}
+          {/* Panel 2: Global Financial Summary */}
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10">
+              <div className="bg-emerald-600 p-1 rounded-full text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+              </div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">2. GLOBAL FINANCIAL SUMMARY</h4>
+            </div>
+            <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+              <div className="flex justify-between items-center">
+                <span>Total Global Entries:</span>
+                <span className="font-black text-slate-800 dark:text-slate-200">{totalGlobalEntries}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Total Purchase ({summary.localCurrency}):</span>
+                <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatMoney(summary.totalPurchaseLC)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-rose-600 dark:text-rose-500">Total Transferred ({summary.localCurrency}):</span>
+                <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{formatMoney(summary.advancePaidLC)}</span>
+              </div>
+              <div className="flex justify-between items-center mt-1 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-slate-600 dark:text-slate-400 uppercase font-bold">Balance ({summary.localCurrency}):</span>
+                <span className="font-black text-slate-900 dark:text-slate-100 font-mono text-sm">{formatMoney(summary.remainingBalanceLC)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Panel 3: Bill Entries Summary */}
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-purple-50/50 dark:bg-purple-900/10">
+              <div className="bg-purple-600 p-1 rounded-full text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400 truncate">3. BILL ENTRIES SUMMARY</h4>
+            </div>
+            <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+              <div className="flex justify-between items-center">
+                <span>Total Bill Entries:</span>
+                <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{totalGlobalEntries}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Cleared Entries:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-500 font-mono">{transferredEntries}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-rose-600 dark:text-rose-500">Remaining Entries:</span>
+                <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{remainingEntries}</span>
+              </div>
+              <div className="flex justify-between items-center mt-auto pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+                <span>System Status:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-500">Online & Synced</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Panel 4: All Countries Report Details (Interactive) */}
+          <div 
+            className={cn(
+              "group flex flex-col rounded-xl border-2 bg-white shadow-sm dark:bg-slate-900 overflow-hidden cursor-pointer transition-colors",
+              showAllCountries 
+                ? "border-orange-400 dark:border-orange-600 shadow-md" 
+                : "border-slate-200 dark:border-slate-800 hover:border-orange-300 dark:hover:border-orange-700"
+            )}
+            onClick={toggleShowAllCountries}
+          >
+            <div className="flex flex-col h-full outline-none">
+              <div className={cn(
+                "flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 transition-colors",
+                showAllCountries 
+                  ? "bg-orange-100/80 dark:bg-orange-900/40" 
+                  : "bg-orange-50/50 dark:bg-orange-900/10 group-hover:bg-orange-100/50 dark:group-hover:bg-orange-900/30"
+              )}>
+                <div className={cn("bg-orange-600 p-1 rounded-full text-white transition-transform duration-300", showAllCountries ? "rotate-90" : "rotate-0")}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400 flex-1">4. ALL COUNTRIES REPORT</h4>
+                <span className="text-[9px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded text-slate-500 font-bold">{showAllCountries ? "Hide Details" : "Show Details"}</span>
+              </div>
+              <div className="p-3 flex flex-col gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400 h-full overflow-y-auto max-h-[160px] scrollbar-thin">
+                {summaryRows.map((r, idx) => (
+                   <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded border border-slate-100 dark:border-slate-800">
+                     <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 truncate max-w-[120px]">
+                       {getFlag(r.country)} {r.country}
+                     </span>
+                     <span className="bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded shadow-sm text-[9px] whitespace-nowrap">{r.branches.length} Branches</span>
+                   </div>
+                ))}
+                
+                <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
+                  {!showAllCountries && <span className="text-orange-600 dark:text-orange-500 font-bold uppercase text-[10px]">Show Report Details ↓</span>}
+                  {showAllCountries && <span className="text-orange-600 dark:text-orange-500 font-bold uppercase text-[10px]">Hide Report Details ↑</span>}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Collapsible Country Dashboard Section Content */}
+        {showAllCountries && (
+          <div className="country-accordion-content block animate-in slide-in-from-top-2 fade-in duration-300">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {summaryRows.map((r, idx) => (
+                <div key={idx} className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                  <div className="bg-slate-100 dark:bg-slate-800 px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                    <span className="font-black text-[11px] uppercase text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      {getFlag(r.country)} {r.country}
+                    </span>
+                    <span className="bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded shadow-sm text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      {r.branches.length} Branches
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    <div className="mb-4 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-950">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Currency</span>
+                        <span className="font-black text-slate-800 dark:text-slate-200 text-xs">{r.currency}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Purchase</span>
+                        <span className="font-black text-rose-600 dark:text-rose-400 font-mono text-[11px]">{formatMoney(r.paidLocal + r.remainingLocal)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Transferred</span>
+                        <span className="font-black text-emerald-600 font-mono text-[11px]">{formatMoney(r.paidLocal)}</span>
+                      </div>
+                      <div className="mt-1 flex justify-between items-center border-t border-slate-200 pt-2 dark:border-slate-800">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Remaining Balance</span>
+                        <span className="font-black text-slate-800 dark:text-slate-200 font-mono text-sm">{formatMoney(r.remainingLocal)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex justify-between items-center">
+                        <span>Branch Breakdown</span>
+                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[8px] dark:bg-slate-800">All</span>
+                      </h5>
+                      {r.branches.map((b, bIdx) => (
+                        <div key={bIdx} className="flex flex-col gap-1.5 rounded-lg border border-slate-100 p-2.5 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <div className="flex justify-between items-center">
+                            <span className="font-black text-[10px] uppercase text-slate-700 dark:text-slate-300 truncate pr-2" title={b.branch}>{b.branch}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1 text-[9px]">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400">Total Purch.</span>
+                              <span className="font-bold text-rose-500 font-mono">{formatMoney(b.paidLocal + b.remainingLocal)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400">Paid Adv</span>
+                              <span className="font-bold text-emerald-500 font-mono">{formatMoney(b.paidLocal)}</span>
+                            </div>
+                            <div className="flex justify-between items-center col-span-2 pt-1 mt-1 border-t border-slate-100 dark:border-slate-800">
+                              <span className="text-slate-400">Rem. Bal</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{formatMoney(b.remainingLocal)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1721,6 +1932,7 @@ export function PurchaseOrderManagementDashboard() {
   const [session, setSession] = useState<any>(null);
   const [selectedCountryForSummary, setSelectedCountryForSummary] = useState<string | null>(null);
   const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
+  const [expandedTableCountries, setExpandedTableCountries] = useState<Record<string, boolean>>({});
 
   const [filters, setFilters] = useState({
     country: "all",
@@ -1956,6 +2168,20 @@ export function PurchaseOrderManagementDashboard() {
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
   }, [activeTab, filters, reports, searchText, lockedCountryName, lockedBranchName]);
+
+  const countryGroups = useMemo(() => {
+    const groups: Array<{ country: string; rows: any[] }> = [];
+    for (const row of filtered) {
+      const c = row.countryName || "Unknown Country";
+      let group = groups.find(g => g.country === c);
+      if (!group) {
+        group = { country: c, rows: [] };
+        groups.push(group);
+      }
+      group.rows.push(row);
+    }
+    return groups;
+  }, [filtered]);
 
   const selected = filtered.find((row) => row.id === selectedId) || filtered[0] || reports[0] || null;
   const containers = selected ? makeContainers(selected) : [];
@@ -2294,7 +2520,54 @@ export function PurchaseOrderManagementDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                {filtered.map((row, index) => {
+                {countryGroups.map((group, groupIndex) => {
+                  const countryName = group.country;
+                  const isExpanded = expandedTableCountries[countryName] ?? false;
+                  
+                  // Calculate totals for master row
+                  const groupTotalPurch = group.rows.reduce((sum, r) => sum + Number(r.purchaseAmount || r.totalPurchaseAmount || 0), 0);
+                  const groupFinalAmt = group.rows.reduce((sum, r) => {
+                    const exchangeRate = Number(r.form_data?.goodsEntries?.[0]?.exchangeRate || r.form_data?.goodsEntries?.[0]?.rate2 || r.exchange_rate || r.form_data?.form?.exchangeRate || 0);
+                    let finalAmt = r.form_data?.goodsEntries?.length > 0 ? r.form_data.goodsEntries.reduce((s: number, g: any) => s + Number(g.finalAmount || 0), 0) : Number(r.finalAmount || 0);
+                    if (!finalAmt && (r.purchaseAmount || r.totalPurchaseAmount) && exchangeRate) {
+                      finalAmt = Number(r.purchaseAmount || r.totalPurchaseAmount) * exchangeRate;
+                    }
+                    return sum + finalAmt;
+                  }, 0);
+
+                  const defaultCurrency = group.rows[0]?.currency || "USD";
+                  
+                  return (
+                    <React.Fragment key={`group-${countryName}`}>
+                      <tr 
+                        className="bg-slate-50 border-y border-slate-200 cursor-pointer hover:bg-blue-50 dark:bg-slate-900/40 dark:border-slate-800 dark:hover:bg-blue-900/20 transition-colors"
+                        onClick={() => setExpandedTableCountries(prev => ({ ...prev, [countryName]: !isExpanded }))}
+                      >
+                        <td colSpan={19} className="px-4 py-3 font-black text-[11px] uppercase tracking-wider text-slate-800 dark:text-slate-200 text-left">
+                          <div className="flex items-center gap-2">
+                            <span>{countryName} ({group.rows.length} Records)</span>
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 font-black font-mono text-[11px] text-right text-emerald-700 dark:text-emerald-400">
+                          {groupTotalPurch.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {defaultCurrency}
+                        </td>
+                        <td colSpan={2} className="px-2 py-3"></td>
+                        <td className="px-2 py-3 font-black font-mono text-[11px] text-right text-blue-700 dark:text-blue-400">
+                          {groupFinalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {localCurrencyLabel}
+                        </td>
+                        <td colSpan={12} className="px-4 py-3 text-right">
+                           <div className="flex justify-end pr-4">
+                            <div className="bg-slate-200 dark:bg-slate-800 p-1 rounded hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+                              {isExpanded ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-600 dark:text-slate-400"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-600 dark:text-slate-400"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                              )}
+                            </div>
+                           </div>
+                        </td>
+                      </tr>
+                      {isExpanded && group.rows.map((row, index) => {
                   const isPoSelected = selected?.id === row.id;
                   const goods = row.form_data?.goodsEntries || [];
                   const g0 = goods[0] as any;
@@ -2307,7 +2580,8 @@ export function PurchaseOrderManagementDashboard() {
                   const purchaseCode = row.purchaseBookingOrderNumber || "-";
                   const salesCode = row.form_data?.form?.salesOrderNo || "-";
                   const invoiceNo = row.form_data?.form?.billNo || row.form_data?.form?.invoiceNo || row.form_data?.form?.purchaseContractNo || row.purchaseContractNo || "-";
-                  const bookingDateVal = date(row.bookingDate || row.purchaseDate || row.createdAt);
+                  const rawDate = row.bookingDate || row.purchaseDate || row.createdAt;
+                  const bookingDateVal = rawDate ? new Date(rawDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "-";
                   const branchName = row.branchName || "-";
                   const countryName = row.countryName || "-";
                   const userName = row.audit?.userName || "-";
@@ -2418,16 +2692,16 @@ export function PurchaseOrderManagementDashboard() {
                         {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${purchaseCurrency}` : "-"}
                       </td>
                       <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {totalAmt > 0 ? `${money(totalAmt)} ${purchaseCurrency}` : "-"}
+                        {totalAmt > 0 ? `${totalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${purchaseCurrency}` : "-"}
                       </td>
                       <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {purchaseAmt > 0 ? `${money(purchaseAmt)} ${purchaseCurrency}` : "-"}
+                        {purchaseAmt > 0 ? `${purchaseAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${purchaseCurrency}` : "-"}
                       </td>
                       <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
                         {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
                       </td>
                       <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {finalAmt > 0 ? `${money(finalAmt)} ${localCur}` : "-"}
+                        {finalAmt > 0 ? `${finalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${localCur}` : "-"}
                       </td>
                       <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
                         {invoicePercent ? (
@@ -2486,6 +2760,9 @@ export function PurchaseOrderManagementDashboard() {
                         </div>
                       </td>
                     </tr>
+                  );
+                })}
+                    </React.Fragment>
                   );
                 })}
                 {!filtered.length ? (
