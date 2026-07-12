@@ -6,6 +6,7 @@ import { requireErpSession } from "@/lib/auth/session";
 import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { createApiSupabaseClient, requireSupabaseData, writeAuditLog } from "@/lib/api/supabase";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const paramsSchema = z.object({
   id: uuidSchema
@@ -278,12 +279,17 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (orderRow.city_branch_id) rozType = "branch";
     else if (orderRow.country_branch_id || orderRow.country_id) rozType = "country";
 
-    await supabase.from("roznamcha_entries").update({
+    const adminSupabase = createSupabaseAdminClient();
+    const { error: updateError } = await adminSupabase.from("roznamcha_entries").update({
       country_id: orderRow.country_id || null,
       country_branch_id: orderRow.country_branch_id || null,
       city_branch_id: orderRow.city_branch_id || null,
       type: rozType
     }).eq("id", paymentRecord.roznamcha_entry_id);
+
+    if (updateError) {
+      console.error("Failed to update roznamcha entry scopes:", updateError.message);
+    }
 
     const journalRecord = await requireSupabaseData(
       supabase

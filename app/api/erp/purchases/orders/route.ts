@@ -91,7 +91,11 @@ export async function GET(request: NextRequest) {
     const supabase = await createApiSupabaseClient();
     let q = supabase
       .from("purchase_orders")
-      .select("*")
+      .select(`
+        *,
+        countries(name, currency_code),
+        country_branches(name, code)
+      `)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
@@ -147,7 +151,12 @@ export async function GET(request: NextRequest) {
       }
     }
     const seenPo = new Set<string>();
-    const rows = (rawRows ?? []).filter((row: any) => {
+    const mappedRows = (rawRows ?? []).map((row: any) => ({
+      ...row,
+      countryName: row.countries?.name || null,
+      branchName: row.country_branches?.name || null
+    }));
+    const rows = mappedRows.filter((row: any) => {
       const poNo = String(row.purchase_order_no || "").trim().toUpperCase();
       if (!poNo) return true;
       if (seenPo.has(poNo)) return false;

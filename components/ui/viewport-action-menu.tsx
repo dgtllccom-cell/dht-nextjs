@@ -49,7 +49,9 @@ export function ViewportActionMenu({
 
   useLayoutEffect(() => {
     if (!open) return;
-    window.requestAnimationFrame(updatePosition);
+    updatePosition();
+    const handle = setTimeout(updatePosition, 0);
+    return () => clearTimeout(handle);
   }, [open, updatePosition]);
 
   useEffect(() => {

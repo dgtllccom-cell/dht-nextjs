@@ -484,28 +484,34 @@ export async function GET(request: NextRequest) {
       .order("entry_date", { ascending: false });
 
     // Enforce scope isolation:
-    // - Super Admin can see all (unless query scopes are provided).
-    // - Non-super users are always constrained to their assigned scope if the caller doesn't specify it.
-    // This prevents accidental "read all" access when scope params are omitted.
+    // If explicit scope parameters are provided, filter by them.
     if (scope.countryId) {
       query = query.eq("country_id", scope.countryId);
-    } else if (!session.isSuperAdmin) {
-      query = query.in(
-        "country_id",
-        session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]
-      );
     }
-
     if (scope.countryBranchId) {
       query = query.eq("country_branch_id", scope.countryBranchId);
-    } else if (!session.isSuperAdmin && session.countryBranchIds.length) {
-      query = query.in("country_branch_id", session.countryBranchIds);
     }
-
     if (scope.cityBranchId) {
       query = query.eq("city_branch_id", scope.cityBranchId);
-    } else if (!session.isSuperAdmin && session.cityBranchIds.length) {
-      query = query.in("city_branch_id", session.cityBranchIds);
+    }
+
+    // If not super admin, restrict the query to the user's assigned scopes using OR.
+    if (!session.isSuperAdmin) {
+      const orConditions: string[] = [];
+      if (session.cityBranchIds?.length) {
+        orConditions.push(`city_branch_id.in.(${session.cityBranchIds.join(",")})`);
+      }
+      if (session.countryBranchIds?.length) {
+        orConditions.push(`country_branch_id.in.(${session.countryBranchIds.join(",")})`);
+      }
+      if (session.countryIds?.length) {
+        orConditions.push(`country_id.in.(${session.countryIds.join(",")})`);
+      }
+      if (orConditions.length) {
+        query = query.or(orConditions.join(","));
+      } else {
+        query = query.eq("id", "00000000-0000-0000-0000-000000000000");
+      }
     }
 
     if (fromDate) query = (query as any).gte("entry_date", fromDate);

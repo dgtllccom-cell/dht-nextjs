@@ -61,6 +61,8 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
 
   const branchLabel = `${record.country_branches?.name || form.branchName || "-"}${record.country_branches?.code ? ` (${record.country_branches.code})` : ""}`;
   const countryLabel = `${record.countries?.name || form.branchCountry || "-"}${record.countries?.iso2 ? ` (${record.countries.iso2})` : ""}`;
+  const countryNameForCurrency = (record.countries?.name || form.branchCountry || "").toLowerCase();
+  const localCurrency = record.countries?.currency || form.branchCurrency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
 
   const adminLabel = form.userName || form.userId || "Admin";
 
@@ -1021,10 +1023,10 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Quantity</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Net Weight</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Gross Weight</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Purchase Amount (PKR)</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Purchase Amount ({localCurrency})</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Exchange Rate</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Advance Amount (PKR)</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Balance Amount (PKR)</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Advance Amount ({localCurrency})</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Balance Amount ({localCurrency})</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500">Payment Date</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Loading Country</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Loading Port</th>
@@ -1145,7 +1147,9 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Load Qty</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Purchase Payment</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Exchange Rate</th>
-                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Final Payment</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Final Payment ({localCurrency})</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Advance Paid ({localCurrency})</th>
+                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-slate-500 text-right">Balance Remaining ({localCurrency})</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Loading Port</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Load Date</th>
                     <th className="px-6 py-3 font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Receive Port</th>
@@ -1178,7 +1182,6 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                                   const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
                                   const loadedAdvanceUSD = totalQuantity > 0 ? (loadedQty / totalQuantity) * poAdvanceAmt : poAdvanceAmt;
                                   const loadedRemainingUSD = Math.max(0, finance.amountUSD - loadedAdvanceUSD);
-                                  const loadedRemainingPKR = loadedRemainingUSD * finance.exRate;
                                   
                                   const queryParams = new URLSearchParams({
                                     purchaseOrderNo: record.purchase_order_no || "",
@@ -1188,10 +1191,10 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                                     grossWeight: String(grossWeight),
                                     netWeight: String(netWeight),
                                     priceRate: String(priceRate),
-                                    amount: String(Math.max(0, (finance.amountUSD || 0) - ((totalQuantity > 0 ? (Number(record.report_payload?.loadedQuantity || record.loadedQuantity || 0) / totalQuantity) : 1) * Number(poRow.advance_paid || form.advanceAmount || 0)))),
+                                    amount: String(loadedRemainingUSD),
                                     exchangeRate: String(finance.exRate || 1),
                                     currency: finance.currency || "USD",
-                                    amountPKR: String(Math.max(0, (finance.amountUSD || 0) - ((totalQuantity > 0 ? (Number(record.report_payload?.loadedQuantity || record.loadedQuantity || 0) / totalQuantity) : 1) * Number(poRow.advance_paid || form.advanceAmount || 0))) * (finance.exRate || 1))
+                                    amountPKR: String(loadedRemainingUSD * (finance.exRate || 1))
                                   }).toString();
                                   window.open(`/dashboard/journal/purchase-order-payment/remaining?${queryParams}`, "_self");
                                 }}
@@ -1208,7 +1211,26 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{h.report_payload?.loadedQuantity || h.loadedQuantity || "-"}</td>
                           <td className="px-6 py-3 font-mono font-bold text-slate-750 dark:text-slate-300 text-right">{amountUSD > 0 ? `${amountUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}` : "-"}</td>
                           <td className="px-6 py-3 font-mono text-slate-600 dark:text-slate-400 text-right">{exRate > 0 ? exRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-black text-emerald-650 dark:text-emerald-400 text-right">{amountPKR > 0 ? `${amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PKR` : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-black text-emerald-650 dark:text-emerald-400 text-right">{amountPKR > 0 ? `${amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${localCurrency}` : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-bold text-amber-600 dark:text-amber-400 text-right">
+                            {(() => {
+                              const loadedQty = h.report_payload?.loadedQuantity || h.loadedQuantity || 0;
+                              const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
+                              const loadedAdvanceUSD = totalQuantity > 0 ? (loadedQty / totalQuantity) * poAdvanceAmt : poAdvanceAmt;
+                              const loadedAdvanceLocal = loadedAdvanceUSD * exRate;
+                              return loadedAdvanceLocal > 0 ? `${loadedAdvanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${localCurrency}` : "-";
+                            })()}
+                          </td>
+                          <td className="px-6 py-3 font-mono font-black text-rose-700 dark:text-rose-500 text-right">
+                            {(() => {
+                              const loadedQty = h.report_payload?.loadedQuantity || h.loadedQuantity || 0;
+                              const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
+                              const loadedAdvanceUSD = totalQuantity > 0 ? (loadedQty / totalQuantity) * poAdvanceAmt : poAdvanceAmt;
+                              const loadedAdvanceLocal = loadedAdvanceUSD * exRate;
+                              const loadedBalanceLocal = amountPKR - loadedAdvanceLocal;
+                              return loadedBalanceLocal !== 0 ? `${loadedBalanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${localCurrency}` : "-";
+                            })()}
+                          </td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{h.report_payload?.loadingPort || h.loading_location || "-"}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-blue-600 dark:text-blue-400">{h.report_payload?.loadingDate ? new Date(h.report_payload.loadingDate).toLocaleDateString() : (h.loaded_at ? new Date(h.loaded_at).toLocaleDateString() : "-")}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{h.report_payload?.receivingPort || h.receiving_location || "-"}</td>
@@ -1218,7 +1240,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                    })}
                    {history.length === 0 && (
                       <tr>
-                        <td colSpan={12} className="px-6 py-6 text-center font-medium text-slate-500">No loading history found.</td>
+                        <td colSpan={14} className="px-6 py-6 text-center font-medium text-slate-500">No loading history found.</td>
                       </tr>
                    )}
                 </tbody>
@@ -1367,10 +1389,13 @@ export function PurchaseLoadingRecordsView() {
 
       const loadedValPKR = poQty > 0 ? (loadedQty / poQty) * poValuePKR : 0;
 
+      const countryNameForCurrency = country.toLowerCase();
+      const localCurrency = r.countries?.currency || form.branchCurrency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
+
       if (!groups[country]) {
         groups[country] = {
           country,
-          currency: "PKR",
+          currency: localCurrency,
           totalPOs: new Set(),
           totalQuantity: 0,
           loadedQuantity: 0,
@@ -1387,7 +1412,7 @@ export function PurchaseLoadingRecordsView() {
       if (!g.branches[branch]) {
         g.branches[branch] = {
           branch,
-          currency: "PKR",
+          currency: localCurrency,
           totalPOs: new Set(),
           totalQuantity: 0,
           loadedQuantity: 0,
@@ -1967,7 +1992,7 @@ export function PurchaseLoadingRecordsView() {
                       const countryNameForCurrency = (record.countries?.name || form.branchCountry || "").toLowerCase();
                       const baseCurrency = record.countries?.currency || form.branchCurrency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
 
-                      const loadedAmtPKRStr = loadedPKR > 0 ? `${loadedPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${baseCurrency}` : "-";
+                      const loadedAmtPKRStr = loadedUSD > 0 ? `${loadedUSD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${loadedCurrency}` : "-";
                       const loadedAdvancePKRStr = loadedAdvancePKR > 0 ? `${loadedAdvancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${baseCurrency}` : "-";
                       const loadedBalancePKRStr = loadedBalancePKR !== 0 ? `${loadedBalancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${baseCurrency}` : "-";
                       
