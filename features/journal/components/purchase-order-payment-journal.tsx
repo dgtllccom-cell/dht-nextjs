@@ -3336,6 +3336,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     const advancePercent = Number(form.advancePercent || 0);
                                     const requiredAdvanceBC = (totalAmountBC * advancePercent) / 100;
                                     const paidAdvanceBC = Number(row.advance_paid || 0);
+                                    const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
                                     
                                     const requiredAdvance = (totalAmountLocal * advancePercent) / 100;
                                     const paidAdvance = paidAdvanceBC * conversionRate;
