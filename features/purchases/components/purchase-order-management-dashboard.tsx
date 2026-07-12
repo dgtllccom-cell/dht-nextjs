@@ -1096,7 +1096,7 @@ function DashboardSummaryHeader({
       const goods = row.form_data?.goodsEntries || [];
       const saleAmt = goods.reduce((sum: number, g: any) => sum + Number(g.saleAmount || g.sellingAmount || (Number(g.saleRate || g.sellingRate || g.salePrice || g.sellingPrice || 0) * Number(g.qtyNo || g.quantity || 0)) || 0), 0) || (purchaseAmt * 1.15);
 
-      const exRateRaw = parseNumber((row as any).exchange_rate || row.form_data?.goodsEntries?.[0]?.exchangeRate || row.form_data?.goodsEntries?.[0]?.rate2 || 1);
+      const exRateRaw = parseNumber((row as any).exchange_rate || row.form_data?.form?.exchangeRate || row.form_data?.goodsEntries?.[0]?.exchangeRate || row.form_data?.goodsEntries?.[0]?.rate2 || 1);
       const exRate = exRateRaw > 0 ? exRateRaw : 1;
 
       const finalTotal = purchaseAmt * exRate;
@@ -1116,10 +1116,18 @@ function DashboardSummaryHeader({
       const transferredLC = isPosted ? finalTotal : 0;
       const remainingLC = isPosted ? 0 : finalTotal;
 
+      let groupCurrency = "PKR";
+      const cUpper = country.toUpperCase();
+      if (cUpper.includes("UNITED ARAB") || cUpper === "UAE" || cUpper.includes("DUBAI") || cUpper.includes("EMIRATES")) groupCurrency = "AED";
+      else if (cUpper.includes("INDIA") || cUpper === "IN") groupCurrency = "INR";
+      else if (cUpper.includes("AFGHANISTAN") || cUpper === "AF") groupCurrency = "AFN";
+      else if (cUpper.includes("PAKISTAN") || cUpper === "PK") groupCurrency = "PKR";
+      else if (cUpper.includes("CHINA")) groupCurrency = "CNY";
+
       if (!groups[country]) {
         groups[country] = {
           country,
-          currency: summary.localCurrency,
+          currency: groupCurrency,
           purchase: 0,
           sale: 0,
           dollarRate: usdRate,
@@ -1144,7 +1152,7 @@ function DashboardSummaryHeader({
       if (!groups[country].branches[branch]) {
         groups[country].branches[branch] = {
           branch,
-          currency: summary.localCurrency,
+          currency: groupCurrency,
           purchase: 0,
           sale: 0,
           dollarRate: usdRate,
@@ -2286,8 +2294,11 @@ export function PurchaseOrderManagementDashboard() {
                   const purchasePrice = Number(g0?.coursePrice || row.purchaseRate || 0);
                   const totalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.totalAmount || 0), 0) : Number(row.purchaseAmount || row.totalPurchaseAmount || 0);
                   const purchaseAmt = Number(row.purchaseAmount || row.totalPurchaseAmount || 0);
-                  const exchangeRate = Number(g0?.exchangeRate || g0?.rate2 || row.exchange_rate || 0);
-                  const finalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || 0), 0) : Number(row.finalAmount || 0);
+                  const exchangeRate = Number(g0?.exchangeRate || g0?.rate2 || row.exchange_rate || row.form_data?.form?.exchangeRate || 0);
+                  let finalAmt = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.finalAmount || 0), 0) : Number(row.finalAmount || 0);
+                  if (!finalAmt && purchaseAmt && exchangeRate) {
+                    finalAmt = purchaseAmt * exchangeRate;
+                  }
                   const invoicePercent = row.form_data?.form?.advancePercent || row.form_data?.form?.invoicePercent;
                   const payCondition = row.form_data?.form?.paymentType || row.form_data?.form?.paymentCondition || row.paymentStatus || "-";
                   let purchaseCurrency = String(row.currency || row.form_data?.form?.currencyType || row.form_data?.form?.purchaseCurrency || "").toUpperCase();
