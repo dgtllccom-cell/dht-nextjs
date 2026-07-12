@@ -91,6 +91,9 @@ type PurchaseReport = {
   exchange_rate?: number;
   remarks?: string;
   purchaseContractNo?: string;
+  manualBillNumber?: string;
+  createdByName?: string;
+  finalCurrency?: string;
   form_data?: any;
   audit: {
     userName: string;
@@ -1010,17 +1013,124 @@ const formatAmount = (num: number) => {
   return num.toFixed(2);
 };
 
-function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryData, mode: string }) {
-  if (!summary) return null;
+function SuperAdminPurchaseSummary({ 
+  rows,
+  usdRates,
+  lastExchangeRateUpdate,
+  session
+}: { 
+  rows: PurchaseReport[],
+  usdRates: Record<string, number>,
+  lastExchangeRateUpdate: string | null,
+  session: any
+}) {
+  if (!rows || rows.length === 0) return null;
 
-  const notTransferredPercentLC = summary.totalPurchaseLC > 0 ? (summary.remainingBalanceLC / summary.totalPurchaseLC) * 100 : 0;
-  const numCurrencies = Object.keys(summary.foreignCurrencies).length;
-  const reportType = mode === "advance" ? "Advance Payment Summary" : mode === "credit" ? "Credit Payment Summary" : "Purchase Booking Summary";
   const now = new Date();
-  
-  // Format Date & Time based on Pakistan time (or local system)
   const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+
+  // Data for Report #1
+  const firstRow = rows[0];
+  const country = firstRow.countryName || session?.countryName || "All Countries";
+  const branchName = session?.branchName || "Main Branch";
+  const userName = session?.name || session?.username || session?.user?.fullName || "SUPER ADMIN";
+  const userId = session?.userId || session?.user?.id || "SA001";
+  const role = session?.role || "Super Admin";
+
+  // Shared variables
+  const uniqueCountries = new Set<string>();
+  
+  // Data for Report #2 (Purchase Summary)
+  let totalCountriesPurchaseBookingCount = 0;
+  let totalCountriesPurchaseLC = 0;
+  let totalPurchaseLoading = 0;
+  let totalPurchaseLoadingLC = 0;
+  let totalPurchaseWarehouse = 0;
+  let totalPurchaseWarehouseLC = 0;
+
+  // Data for Report #3 (USD Summary)
+  let totalPurchaseUSD = 0;
+  let totalInvoiceUSD = 0;
+  let totalPaidUSD = 0;
+
+  // Data for Report #4 (Transaction Summary)
+  let invoiceTransactions = 0;
+  let paidTransactions = 0;
+  let pendingTransactions = 0;
+  let completedTransactions = 0;
+  let cancelledTransactions = 0;
+  let lastTransactionDateStr = "";
+  let totalTransactionAmount = 0; // The sum of original invoice amounts
+  let totalPaidAmountReport4 = 0; // Assuming same as total paid
+
+  rows.forEach((report) => {
+    const cName = report.countryName || "Unknown";
+    uniqueCountries.add(cName);
+
+    const goods = Array.isArray(report.form_data?.goodsEntries) ? report.form_data.goodsEntries : [];
+    const amount = goods.length ? goods.reduce((sum: number, item: any) => sum + Number(item.totalAmount || item.finalAmount || 0), 0) : Number(report.totalPurchaseAmount || report.purchaseAmount || 0);
+    
+    // Default LC conversion from order if available, else use 1
+    const exRateRaw = Number((report as any).exchange_rate || report.form_data?.goodsEntries?.[0]?.exchangeRate || report.form_data?.goodsEntries?.[0]?.rate2 || 1);
+    const exRate = exRateRaw > 0 ? exRateRaw : 1;
+    const amountLC = amount * exRate;
+    
+    // Status checking
+    const statusText = `${report.status || ""} ${report.bookingStatus || ""} ${report.paymentStatus || ""} ${report.containerStatus || ""} ${report.inventoryStatus || ""} ${report.deliveryStatus || ""}`.toLowerCase();
+    
+    // Paid calculation (advance + remaining)
+    const advancePaidRaw = Number((report as any).advance_paid || 0);
+    const remainingPaidRaw = Number((report as any).remaining_paid || 0);
+    const creditAmountRaw = Number((report as any).credit_amount || 0);
+    const totalPaidRaw = advancePaidRaw + remainingPaidRaw + creditAmountRaw;
+    const paidLC = totalPaidRaw * exRate;
+
+    // Report #2 Aggregation
+    totalCountriesPurchaseBookingCount += 1;
+    totalCountriesPurchaseLC += amountLC;
+
+    const isLoaded = statusText.includes("loaded") || statusText.includes("in transit") || statusText.includes("shipping");
+    const isWarehouse = statusText.includes("warehouse") || statusText.includes("received") || statusText.includes("delivered");
+    
+    if (isLoaded) {
+      totalPurchaseLoading += amount;
+      totalPurchaseLoadingLC += amountLC;
+    }
+    if (isWarehouse) {
+      totalPurchaseWarehouse += amount;
+      totalPurchaseWarehouseLC += amountLC;
+    }
+
+    // Report #3 Aggregation (USD Conversion)
+    const currency = String(report.currency || report.form_data?.form?.currencyType || "USD").toUpperCase();
+    const usdRate = usdRates[currency] || 1; // If currency is USD, rate is 1. If INR, maybe 83. etc.
+    // Ensure we multiply or divide? daily_usd_rates stores how many units of local currency = 1 USD (e.g., PKR 280)
+    const toUSD = (val: number) => usdRate > 0 ? val / usdRate : val;
+    
+    totalPurchaseUSD += toUSD(amount);
+    totalInvoiceUSD += toUSD(amount); // Assuming invoice amount is same as purchase amount for now
+    totalPaidUSD += toUSD(totalPaidRaw);
+
+    // Report #4 Aggregation
+    totalTransactionAmount += amount;
+    totalPaidAmountReport4 += totalPaidRaw;
+
+    if (totalPaidRaw > 0) paidTransactions += 1;
+    if (statusText.includes("invoice") || report.form_data?.form?.invoiceNo || report.form_data?.form?.billNo) invoiceTransactions += 1;
+    
+    if (statusText.includes("cancel")) cancelledTransactions += 1;
+    else if (statusText.includes("complete") || statusText.includes("fully confirmed") || statusText.includes("posted") || statusText.includes("transferred")) completedTransactions += 1;
+    else pendingTransactions += 1;
+
+    const bDate = report.bookingDate || report.purchaseDate || report.createdAt;
+    if (bDate && (!lastTransactionDateStr || new Date(bDate).getTime() > new Date(lastTransactionDateStr).getTime())) {
+      lastTransactionDateStr = bDate;
+    }
+  });
+
+  const totalRemainingUSD = Math.max(0, totalInvoiceUSD - totalPaidUSD);
+  const activeCountriesCount = uniqueCountries.size;
 
   return (
     <div className="flex flex-col mb-6 space-y-4">
@@ -1034,32 +1144,32 @@ function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryDa
             </div>
             <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. BRANCH & USER DETAILS</h4>
           </div>
-          <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+          <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
             <div className="flex justify-between items-center">
               <span>Country:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">{getFlag(summary.country)} {summary.country}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">{getFlag(country)} {country}</span>
             </div>
             <div className="flex justify-between items-center">
               <span>Branch Name:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{summary.branchName}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{branchName}</span>
             </div>
             <div className="flex justify-between items-center">
               <span>User ID:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{summary.userId}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{userId}</span>
             </div>
             <div className="flex justify-between items-center">
               <span>User Name:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{summary.userName}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{userName}</span>
             </div>
             <div className="flex justify-between items-center">
               <span>Role:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{summary.role}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{role}</span>
             </div>
             <div className="flex justify-between items-center">
               <span>Date & Time:</span>
               <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}, {timeStr}</span>
             </div>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center mt-auto">
               <span>Status:</span>
               <span className="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded text-[10px]">Active</span>
             </div>
@@ -1072,78 +1182,73 @@ function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryDa
             <div className="bg-purple-600 p-1 rounded-full text-white">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
             </div>
-            <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400">2. PURCHASE SUMMARY (ALL CURRENCIES)</h4>
+            <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400">2. PURCHASE SUMMARY</h4>
           </div>
-          <div className="p-4 flex flex-col gap-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+          <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
             <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg></div> Total Transactions:</span>
-              <span className="font-black text-slate-800 dark:text-slate-200">{summary.totalTransactions}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div> Purchase Currencies:</span>
-              <span className="font-black text-slate-800 dark:text-slate-200">{numCurrencies}</span>
-            </div>
-            <div className="flex justify-between items-center mt-2">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div> Total Purchase (All):</span>
-              <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalAllFC.totalPurchase.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+              <span>Total Countries Purchase Booking:</span>
+              <span className="font-black text-slate-800 dark:text-slate-200">{totalCountriesPurchaseBookingCount}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-blue-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg></div> Total Advance Required (All):</span>
-              <span className="font-black text-blue-600 dark:text-blue-400 font-mono">
-                {(summary.totalAllFC.advanceRequired || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold ml-1">
-                  ({(summary.totalAllFC.totalPurchase > 0 ? (summary.totalAllFC.advanceRequired / summary.totalAllFC.totalPurchase) * 100 : 0).toFixed(2)}%)
-                </span>
-              </span>
+              <span>Total Countries Purchase (LC):</span>
+              <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{formatMoney(totalCountriesPurchaseLC)}</span>
+            </div>
+            <div className="flex justify-between items-center mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-amber-600 dark:text-amber-500">Total Purchase Loading:</span>
+              <span className="font-black text-amber-700 dark:text-amber-400 font-mono">{formatMoney(totalPurchaseLoading)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div> Total Invoice / Advance (All):</span>
-              <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalAllFC.advancePaid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+              <span className="text-amber-600 dark:text-amber-500">Total Purchase Loading (LC):</span>
+              <span className="font-black text-amber-700 dark:text-amber-400 font-mono">{formatMoney(totalPurchaseLoadingLC)}</span>
             </div>
-            <div className="flex justify-between items-center pt-2 mt-auto border-t border-dashed border-slate-100 dark:border-slate-800">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div> Total Not Transferred (All):</span>
-              <span className="font-black text-rose-600 dark:text-rose-400 font-mono">{summary.totalAllFC.remainingBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            <div className="flex justify-between items-center mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-emerald-600 dark:text-emerald-500">Total Purchase Warehouse:</span>
+              <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatMoney(totalPurchaseWarehouse)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div> % Not Transferred:</span>
-              <span className="font-black text-rose-600 dark:text-rose-400">{summary.totalAllFC.totalPurchase > 0 ? ((summary.totalAllFC.remainingBalance / summary.totalAllFC.totalPurchase) * 100).toFixed(2) : "0.00"}%</span>
+              <span className="text-emerald-600 dark:text-emerald-500">Total Purchase Warehouse (LC):</span>
+              <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatMoney(totalPurchaseWarehouseLC)}</span>
+            </div>
+            <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span>Total Active Countries:</span>
+              <span className="font-black text-slate-800 dark:text-slate-200">{activeCountriesCount}</span>
             </div>
           </div>
         </div>
 
-        {/* Panel 3: Final Office Currency */}
+        {/* Panel 3: Total Countries Spread Main Summary (USD) */}
         <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10">
             <div className="bg-emerald-600 p-1 rounded-full text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
             </div>
-            <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">3. FINAL OFFICE CURRENCY SUMMARY ({summary.localCurrency})</h4>
+            <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400 truncate" title="3. TOTAL COUNTRIES SPREAD MAIN SUMMARY (USD)">3. TOTAL COUNTRIES SPREAD MAIN SUMMARY (USD)</h4>
           </div>
-          <div className="p-4 flex flex-col gap-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+          <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
             <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div> Total Amount ({summary.localCurrency}):</span>
-              <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.totalPurchaseLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-blue-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg></div> Total Advance Required ({summary.localCurrency}):</span>
-              <span className="font-black text-blue-600 dark:text-blue-400 font-mono">
-                {(summary.totalAdvanceRequiredLC || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold ml-1">
-                  ({(summary.totalPurchaseLC > 0 ? (summary.totalAdvanceRequiredLC / summary.totalPurchaseLC) * 100 : 0).toFixed(2)}%)
-                </span>
-              </span>
-            </div>
-            <div className="flex justify-between items-center mt-2">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-emerald-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div> Invoice / Advance ({summary.localCurrency}):</span>
-              <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{summary.advancePaidLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </div>
-            <div className="flex justify-between items-center pt-2 mt-auto border-t border-dashed border-slate-100 dark:border-slate-800">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div> Not Transferred ({summary.localCurrency}):</span>
-              <span className="font-black text-rose-600 dark:text-rose-400 font-mono">{summary.remainingBalanceLC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+              <span>Total Purchase (USD):</span>
+              <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatMoney(totalPurchaseUSD)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2"><div className="w-4 flex justify-center text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div> % Not Transferred:</span>
-              <span className="font-black text-rose-600 dark:text-rose-400">{notTransferredPercentLC.toFixed(2)}%</span>
+              <span>Total Invoice Amount (USD):</span>
+              <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatMoney(totalInvoiceUSD)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-blue-600 dark:text-blue-500">Total Paid Amount (USD):</span>
+              <span className="font-black text-blue-700 dark:text-blue-400 font-mono">{formatMoney(totalPaidUSD)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-rose-600 dark:text-rose-500">Total Remaining Balance (USD):</span>
+              <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{formatMoney(totalRemainingUSD)}</span>
+            </div>
+            
+            <div className="flex justify-between items-center mt-auto pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+              <span>Total Active Countries:</span>
+              <span className="font-black text-slate-800 dark:text-slate-200">{activeCountriesCount}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Latest Exchange Rate Update:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{formatDate(lastExchangeRateUpdate) || "N/A"}</span>
             </div>
           </div>
         </div>
@@ -1156,30 +1261,46 @@ function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryDa
             </div>
             <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400">4. TRANSACTION SUMMARY</h4>
           </div>
-          <div className="p-4 flex flex-col gap-3.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+          <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
             <div className="flex justify-between items-center">
               <span>Total Transactions:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{summary.totalTransactions}</span>
+              <span className="font-black text-slate-800 dark:text-slate-200">{rows.length}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span>Purchase Currencies:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{numCurrencies}</span>
+              <span>Purchase Booking Transactions:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{totalCountriesPurchaseBookingCount}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span>Final Currency:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{summary.localCurrency}</span>
+              <span>Invoice Transactions:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{invoiceTransactions}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span>Exchange Rate Type:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">Live</span>
+              <span>Paid Transactions:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{paidTransactions}</span>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-1 mt-1 pb-1 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex flex-col">
+                 <span className="text-[9px] text-slate-400">Pending</span>
+                 <span className="font-black text-amber-600">{pendingTransactions}</span>
+              </div>
+              <div className="flex flex-col border-l border-slate-100 dark:border-slate-800 pl-2">
+                 <span className="text-[9px] text-slate-400">Completed</span>
+                 <span className="font-black text-emerald-600">{completedTransactions}</span>
+              </div>
+              <div className="flex flex-col border-l border-slate-100 dark:border-slate-800 pl-2">
+                 <span className="text-[9px] text-slate-400">Cancelled</span>
+                 <span className="font-black text-red-600">{cancelledTransactions}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center mt-auto">
+              <span>Total Active Countries:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{activeCountriesCount}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span>Last Updated:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}, {timeStr}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Report Type:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{reportType}</span>
+              <span>Last Transaction Date:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{date(lastTransactionDateStr) || "N/A"}</span>
             </div>
           </div>
         </div>
@@ -1188,6 +1309,7 @@ function DashboardSummaryHeader({ summary, mode }: { summary: DashboardSummaryDa
     </div>
   );
 }
+
 export function PurchaseBookingJournalReportView({
   onNewBooking,
   refreshKey = 0,
@@ -1207,6 +1329,10 @@ export function PurchaseBookingJournalReportView({
   const [activeTab, setActiveTab] = useState<DashboardTab>("purchase");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [transferring, setTransferring] = useState(false);
+  const [expandedDashboardCountry, setExpandedDashboardCountry] = useState<string>("");
+  const [usdRates, setUsdRates] = useState<Record<string, number>>({});
+  const [lastExchangeRateUpdate, setLastExchangeRateUpdate] = useState<string | null>(null);
+  const [allCountriesExpanded, setAllCountriesExpanded] = useState(false);
 
   const [titleSlot, setTitleSlot] = useState<Element | null>(null);
   const [actionsSlot, setActionsSlot] = useState<Element | null>(null);
@@ -1406,11 +1532,15 @@ export function PurchaseBookingJournalReportView({
       const nextReports = payload.data?.reports ?? [];
       setReports(nextReports);
       setScope(payload.data?.scope ?? null);
+      if (payload.data?.usdRates) setUsdRates(payload.data.usdRates);
+      if (payload.data?.lastExchangeRateUpdate) setLastExchangeRateUpdate(payload.data.lastExchangeRateUpdate);
       setSelectedId((current) => (nextReports.some((report) => report.id === current) ? current : nextReports[0]?.id ?? ""));
       if (payload.data?.warning) setMessage(payload.data.warning);
     } catch (error) {
       setReports([]);
       setScope(null);
+      setUsdRates({});
+      setLastExchangeRateUpdate(null);
       setMessage(error instanceof Error ? error.message : "Purchase Booking Order Reports could not be loaded.");
     } finally {
       setLoading(false);
@@ -1636,6 +1766,231 @@ export function PurchaseBookingJournalReportView({
     return Array.from(rows.values()).sort((a, b) => b.amount - a.amount);
   }, [registerRows]);
 
+
+  const dashboardKpis = useMemo(() => {
+    const metrics = registerRows.reduce((acc, report) => {
+      const goods = Array.isArray(report.form_data?.goodsEntries) ? report.form_data.goodsEntries : [];
+      const quantity = goods.length ? goods.reduce((sum: number, item: any) => sum + Number(item.qtyNo || item.quantity || 0), 0) : Number(report.quantity || 0);
+      const grossWeight = goods.length ? goods.reduce((sum: number, item: any) => sum + Number(item.grossWeight || 0), 0) : Number(report.totalGrossWeight || report.totalWeight || 0);
+      const netWeight = goods.length ? goods.reduce((sum: number, item: any) => sum + Number(item.netWeight || item.grossWeight || 0), 0) : Number(report.totalNetWeight || report.totalWeight || 0);
+      const containers = Number(report.containerCount || report.form_data?.form?.containerCount || makeContainers(report).length || 0);
+      const amount = goods.length ? goods.reduce((sum: number, item: any) => sum + Number(item.totalAmount || item.finalAmount || 0), 0) : Number(report.totalPurchaseAmount || report.purchaseAmount || 0);
+      const statusText = `${report.status || ""} ${report.bookingStatus || ""} ${report.paymentStatus || ""} ${report.containerStatus || ""}`.toLowerCase();
+      acc.totalValue += amount;
+      acc.totalQuantity += quantity;
+      acc.totalGrossWeight += grossWeight;
+      acc.totalNetWeight += netWeight;
+      acc.totalContainers += containers;
+      if (statusText.includes("complete") || statusText.includes("paid") || statusText.includes("posted") || statusText.includes("transferred")) acc.completedOrders += 1;
+      else if (statusText.includes("pending") || statusText.includes("draft") || statusText.includes("open")) acc.pendingOrders += 1;
+      else acc.activeOrders += 1;
+      return acc;
+    }, {
+      totalValue: 0,
+      totalQuantity: 0,
+      totalGrossWeight: 0,
+      totalNetWeight: 0,
+      totalContainers: 0,
+      activeOrders: 0,
+      pendingOrders: 0,
+      completedOrders: 0
+    });
+
+    return {
+      totalPurchaseOrders: registerRows.length,
+      ...metrics,
+      activeOrders: metrics.activeOrders || Math.max(0, registerRows.length - metrics.pendingOrders - metrics.completedOrders)
+    };
+  }, [registerRows]);
+
+  const countryDashboardRows = useMemo(() => {
+    const rows = new Map<string, {
+      country: string;
+      currency: string;
+      totalOrders: number;
+      totalPurchaseAmount: number;
+      totalPurchaseAmountLC: number;
+      totalLoadingAmountLC: number;
+      totalWarehouseAmountLC: number;
+      totalInvoiceAmountLC: number;
+      totalPaidAmountLC: number;
+      totalRemainingAmountLC: number;
+      currentUsdExchangeRate: number;
+      totalAmountUSD: number;
+      totalQuantity: number;
+      totalGrossWeight: number;
+      totalNetWeight: number;
+      totalContainers: number;
+      latestBookingDate: string;
+      outstandingOrders: number;
+      branches: Map<string, {
+        branch: string;
+        branchCode: string;
+        purchaseOrders: number;
+        purchaseAmount: number;
+        quantity: number;
+        grossWeight: number;
+        netWeight: number;
+        containers: number;
+        latestBookingDate: string;
+      }>;
+    }>();
+
+    registerRows.forEach((report) => {
+      const goods = Array.isArray(report.form_data?.goodsEntries) ? report.form_data.goodsEntries : [];
+      const quantity = goods.length ? goods.reduce((sum: number, item: any) => sum + Number(item.qtyNo || item.quantity || 0), 0) : Number(report.quantity || 0);
+      const grossWeight = goods.length ? goods.reduce((sum: number, item: any) => sum + Number(item.grossWeight || 0), 0) : Number(report.totalGrossWeight || report.totalWeight || 0);
+      const netWeight = goods.length ? goods.reduce((sum: number, item: any) => sum + Number(item.netWeight || item.grossWeight || 0), 0) : Number(report.totalNetWeight || report.totalWeight || 0);
+      const containers = Number(report.containerCount || report.form_data?.form?.containerCount || makeContainers(report).length || 0);
+      const amount = goods.length ? goods.reduce((sum: number, item: any) => sum + Number(item.totalAmount || item.finalAmount || 0), 0) : Number(report.totalPurchaseAmount || report.purchaseAmount || 0);
+      const bookingDateValue = report.bookingDate || report.purchaseDate || report.createdAt || "";
+      const countryKey = report.countryName || "Unknown Country";
+      const branchKey = report.branchName || "Branch Not Selected";
+      const currency = String(report.currency || report.form_data?.form?.currencyType || "USD").toUpperCase();
+      const statusText = `${report.status || ""} ${report.bookingStatus || ""} ${report.paymentStatus || ""} ${report.containerStatus || ""} ${report.inventoryStatus || ""} ${report.deliveryStatus || ""}`.toLowerCase();
+      const isOutstanding = !(statusText.includes("complete") || statusText.includes("paid") || statusText.includes("posted") || statusText.includes("transferred"));
+
+      const exRateRaw = Number((report as any).exchange_rate || report.form_data?.goodsEntries?.[0]?.exchangeRate || report.form_data?.goodsEntries?.[0]?.rate2 || 1);
+      const exRate = exRateRaw > 0 ? exRateRaw : 1;
+      const amountLC = amount * exRate;
+
+      const advancePaidRaw = Number((report as any).advance_paid || 0);
+      const remainingPaidRaw = Number((report as any).remaining_paid || 0);
+      const creditAmountRaw = Number((report as any).credit_amount || 0);
+      const totalPaidRaw = advancePaidRaw + remainingPaidRaw + creditAmountRaw;
+      const paidLC = totalPaidRaw * exRate;
+      
+      const isLoaded = statusText.includes("loaded") || statusText.includes("in transit") || statusText.includes("shipping");
+      const isWarehouse = statusText.includes("warehouse") || statusText.includes("received") || statusText.includes("delivered");
+      
+      const usdRate = usdRates[currency] || 1;
+      const toUSD = (val: number) => usdRate > 0 ? val / usdRate : val;
+
+      const countryRow = rows.get(countryKey) ?? {
+        country: countryKey,
+        currency,
+        totalOrders: 0,
+        totalPurchaseAmount: 0,
+        totalPurchaseAmountLC: 0,
+        totalLoadingAmountLC: 0,
+        totalWarehouseAmountLC: 0,
+        totalInvoiceAmountLC: 0,
+        totalPaidAmountLC: 0,
+        totalRemainingAmountLC: 0,
+        currentUsdExchangeRate: usdRate,
+        totalAmountUSD: 0,
+        totalQuantity: 0,
+        totalGrossWeight: 0,
+        totalNetWeight: 0,
+        totalContainers: 0,
+        latestBookingDate: "",
+        outstandingOrders: 0,
+        branches: new Map()
+      };
+      countryRow.totalOrders += 1;
+      countryRow.totalPurchaseAmount += amount;
+      countryRow.totalPurchaseAmountLC += amountLC;
+      if (isLoaded) countryRow.totalLoadingAmountLC += amountLC;
+      if (isWarehouse) countryRow.totalWarehouseAmountLC += amountLC;
+      countryRow.totalInvoiceAmountLC += amountLC;
+      countryRow.totalPaidAmountLC += paidLC;
+      countryRow.totalRemainingAmountLC += Math.max(0, amountLC - paidLC);
+      countryRow.totalAmountUSD += toUSD(amount);
+      
+      countryRow.totalQuantity += quantity;
+      countryRow.totalGrossWeight += grossWeight;
+      countryRow.totalNetWeight += netWeight;
+      countryRow.totalContainers += containers;
+      countryRow.outstandingOrders += isOutstanding ? 1 : 0;
+      countryRow.currency = countryRow.currency || currency;
+      if (!countryRow.latestBookingDate || new Date(bookingDateValue).getTime() > new Date(countryRow.latestBookingDate).getTime()) countryRow.latestBookingDate = bookingDateValue;
+
+      const branchRow = countryRow.branches.get(branchKey) ?? {
+        branch: branchKey,
+        branchCode: report.branchCode || report.audit?.branchCode || "-",
+        purchaseOrders: 0,
+        purchaseAmount: 0,
+        quantity: 0,
+        grossWeight: 0,
+        netWeight: 0,
+        containers: 0,
+        latestBookingDate: ""
+      };
+      branchRow.purchaseOrders += 1;
+      branchRow.purchaseAmount += amount;
+      branchRow.quantity += quantity;
+      branchRow.grossWeight += grossWeight;
+      branchRow.netWeight += netWeight;
+      branchRow.containers += containers;
+      if (!branchRow.latestBookingDate || new Date(bookingDateValue).getTime() > new Date(branchRow.latestBookingDate).getTime()) branchRow.latestBookingDate = bookingDateValue;
+      countryRow.branches.set(branchKey, branchRow);
+      rows.set(countryKey, countryRow);
+    });
+
+    return Array.from(rows.values()).map((row) => ({
+      ...row,
+      branches: Array.from(row.branches.values()).sort((a, b) => b.purchaseAmount - a.purchaseAmount)
+    })).sort((a, b) => b.totalPurchaseAmount - a.totalPurchaseAmount);
+  }, [registerRows, usdRates]);
+
+  const expandedCountryDashboard = useMemo(() => {
+    if (!expandedDashboardCountry) return null;
+    return countryDashboardRows.find((row) => row.country === expandedDashboardCountry) ?? null;
+  }, [countryDashboardRows, expandedDashboardCountry]);
+  const bookingExecutiveSummary = useMemo(() => {
+    const purchaseCurrencies = Array.from(new Set(registerRows.map((report) => String(report.currency || "USD").toUpperCase()).filter(Boolean)));
+    const finalCurrencies = Array.from(new Set(registerRows.map((report) => String(report.finalCurrency || report.form_data?.form?.finalCurrency || report.form_data?.form?.baseCurrency || report.currency || "USD").toUpperCase()).filter(Boolean)));
+    const latestUpdated = registerRows.reduce((latest, report) => {
+      const candidate = (report as any).updatedAt || report.createdAt || report.bookingDate || report.purchaseDate;
+      if (!candidate) return latest;
+      if (!latest) return candidate;
+      return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
+    }, "");
+
+    const summaryTotals = registerRows.reduce((acc, report) => {
+      const goods = Array.isArray(report.form_data?.goodsEntries) ? report.form_data.goodsEntries : [];
+      const purchaseAmount = goods.length
+        ? goods.reduce((sum: number, item: any) => sum + Number(item.totalAmount || item.purchaseAmount || item.amount || 0), 0)
+        : Number(report.totalPurchaseAmount || report.purchaseAmount || 0);
+      const exchangeRate = Number(report.exchange_rate || report.form_data?.form?.exchangeRate || report.form_data?.form?.usdRate || 1) || 1;
+      const finalAmount = Number(report.finalAmount || report.form_data?.form?.finalAmount || report.form_data?.totals?.finalAmount || (purchaseAmount * exchangeRate));
+      const advanceRequired = Number(report.form_data?.payment?.advanceAmount || report.form_data?.form?.advanceAmount || report.form_data?.form?.advanceRequired || 0);
+      const invoiceAdvance = Number((report as any).advance_paid || (report as any).remaining_paid || (report as any).credit_amount || report.form_data?.payment?.paidAmount || report.form_data?.workflowTotals?.paidAmount || 0);
+
+      acc.purchaseAmount += purchaseAmount;
+      acc.finalAmount += finalAmount;
+      acc.advanceRequired += advanceRequired;
+      acc.invoiceAdvance += invoiceAdvance;
+      return acc;
+    }, { purchaseAmount: 0, finalAmount: 0, advanceRequired: 0, invoiceAdvance: 0 });
+
+    const notTransferred = Math.max(0, summaryTotals.purchaseAmount - summaryTotals.invoiceAdvance);
+    const finalNotTransferred = Math.max(0, summaryTotals.finalAmount - summaryTotals.invoiceAdvance);
+    const currentRow = registerRows[0] ?? sourceReports[0] ?? null;
+
+    return {
+      country: filters.country || currentRow?.countryName || (countryDashboardRows.length > 1 ? "All Countries" : countryDashboardRows[0]?.country) || "All Countries",
+      branch: filters.branch || currentRow?.branchName || (branchSummary.length > 1 ? "All Branches" : branchSummary[0]?.branch) || "All Branches",
+      userId: session?.user?.id || currentRow?.audit?.userId || currentRow?.form_data?.audit?.userId || "-",
+      userName: session?.user?.name || session?.user?.fullName || currentRow?.createdByName || currentRow?.audit?.userName || currentRow?.form_data?.form?.userName || "Super Admin",
+      role: session?.user?.role || session?.role || "Super Admin",
+      status: "Active",
+      purchaseCurrencyLabel: purchaseCurrencies.length === 1 ? purchaseCurrencies[0] : `${purchaseCurrencies.length || 0}`,
+      purchaseCurrencyCount: purchaseCurrencies.length,
+      finalCurrency: finalCurrencies[0] || purchaseCurrencies[0] || "USD",
+      finalCurrencyCount: finalCurrencies.length,
+      totalTransactions: registerRows.length,
+      purchaseAmount: summaryTotals.purchaseAmount,
+      advanceRequired: summaryTotals.advanceRequired,
+      invoiceAdvance: summaryTotals.invoiceAdvance,
+      notTransferred,
+      notTransferredPercent: summaryTotals.purchaseAmount ? (notTransferred / summaryTotals.purchaseAmount) * 100 : 0,
+      finalAmount: summaryTotals.finalAmount,
+      finalNotTransferred,
+      finalNotTransferredPercent: summaryTotals.finalAmount ? (finalNotTransferred / summaryTotals.finalAmount) * 100 : 0,
+      latestUpdated
+    };
+  }, [branchSummary, countryDashboardRows, filters.branch, filters.country, registerRows, session, sourceReports]);
   const dailyReportRows = useMemo(() => {
     const purchaseTotal = registerRows.reduce((sum, report) => sum + Number(report.totalPurchaseAmount || 0), 0);
     const loaded = registerRows.flatMap((report) => makeContainers(report)).filter((row) => row.status === "Confirmed").length;
@@ -1762,10 +2117,156 @@ export function PurchaseBookingJournalReportView({
       )}
 
       {/* Unified Executive & Operations Summary Box */}
-      {dashboardSummary && (
-        <DashboardSummaryHeader summary={dashboardSummary} mode="purchase" />
-      )}
+      <SuperAdminPurchaseSummary 
+        rows={registerRows} 
+        usdRates={usdRates} 
+        lastExchangeRateUpdate={lastExchangeRateUpdate} 
+        session={session} 
+      />
 
+      {/* Purchase Booking Management Dashboard */}
+      <details className="group [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer items-center justify-between rounded-lg bg-slate-50 px-4 py-3 font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100 dark:bg-slate-900/50 dark:text-slate-100 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-4">
+          <span className="flex items-center gap-2">
+            <span className="text-blue-600 transition group-open:rotate-90">
+              <ChevronRight className="h-4 w-4" />
+            </span>
+            All Countries Report Details
+          </span>
+        </summary>
+
+        <section className="mt-4 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 print:hidden">
+          <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-600 dark:text-blue-400">Purchase Booking Dashboard</p>
+              <h2 className="text-lg font-black text-slate-950 dark:text-slate-100">Branch, User & Purchase Booking Summary</h2>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Live country, branch, user, currency and transaction reporting from the current register scope.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!lockedCountryName ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpandedDashboardCountry("");
+                    setFilters((previous) => ({ ...previous, country: "", branch: "" }));
+                  }}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-[10px] font-black uppercase tracking-wide text-blue-700 shadow-sm transition hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300"
+                >
+                  <Globe className="h-3 w-3" /> All Countries
+                </button>
+              ) : null}
+              <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                {countryDashboardRows.length} Countries / {branchSummary.length} Branches
+              </div>
+            </div>
+          </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-9">
+          <DashboardMetricCard icon={<ClipboardList className="h-4 w-4" />} label="Total Purchase Orders" value={dashboardKpis.totalPurchaseOrders} tone="blue" />
+          <DashboardMetricCard icon={<BadgeDollarSign className="h-4 w-4" />} label="Total Purchase Value" value={formatMoney(dashboardKpis.totalValue)} tone="emerald" />
+          <DashboardMetricCard icon={<Boxes className="h-4 w-4" />} label="Total Quantity" value={formatNumber(dashboardKpis.totalQuantity)} tone="violet" />
+          <DashboardMetricCard icon={<TrendingUp className="h-4 w-4" />} label="Gross Weight" value={`${formatNumber(dashboardKpis.totalGrossWeight)} kg`} tone="amber" />
+          <DashboardMetricCard icon={<PackageCheck className="h-4 w-4" />} label="Net Weight" value={`${formatNumber(dashboardKpis.totalNetWeight)} kg`} tone="emerald" />
+          <DashboardMetricCard icon={<ShipWheel className="h-4 w-4" />} label="Containers" value={formatNumber(dashboardKpis.totalContainers)} tone="blue" />
+          <DashboardMetricCard icon={<CheckCircle className="h-4 w-4" />} label="Active Orders" value={dashboardKpis.activeOrders} tone="emerald" />
+          <DashboardMetricCard icon={<Clock3 className="h-4 w-4" />} label="Pending Orders" value={dashboardKpis.pendingOrders} tone="amber" />
+          <DashboardMetricCard icon={<PackageCheck className="h-4 w-4" />} label="Completed Orders" value={dashboardKpis.completedOrders} tone="violet" />
+        </div>
+
+        <div>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Country Dashboard</p>
+              <h3 className="text-sm font-black text-slate-950 dark:text-slate-100">Country-wise Purchase Booking Register</h3>
+            </div>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            {countryDashboardRows.map((row) => {
+              const isExpanded = expandedDashboardCountry === row.country;
+              return (
+                <button
+                  key={row.country}
+                  type="button"
+                  onClick={() => setExpandedDashboardCountry(isExpanded ? "" : row.country)}
+                  className={cn(
+                    "rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md dark:bg-slate-950",
+                    isExpanded ? "border-blue-400 ring-2 ring-blue-100 dark:ring-blue-950" : "border-slate-200 dark:border-slate-800"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-blue-600" />
+                        <h3 className="truncate text-sm font-black text-slate-950 dark:text-slate-100">{row.country}</h3>
+                      </div>
+                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">Currency: {row.currency}</p>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                      {row.totalOrders} POs {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
+                    <MiniStat label="Purchase Amount" value={`${formatMoney(row.totalPurchaseAmount)} ${row.currency}`} />
+                    <MiniStat label="Local Purchase Amount" value={formatMoney(row.totalPurchaseAmountLC)} />
+                    <MiniStat label="Loading Amount" value={`${formatMoney(row.totalLoadingAmountLC / row.currentUsdExchangeRate /* approximate FC */)} ${row.currency}`} />
+                    <MiniStat label="Local Loading Amount" value={formatMoney(row.totalLoadingAmountLC)} />
+                    <MiniStat label="Warehouse Amount" value={`${formatMoney(row.totalWarehouseAmountLC / row.currentUsdExchangeRate /* approximate FC */)} ${row.currency}`} />
+                    <MiniStat label="Local Warehouse Amount" value={formatMoney(row.totalWarehouseAmountLC)} />
+                    <MiniStat label="Invoice Amount" value={formatMoney(row.totalInvoiceAmountLC)} />
+                    <MiniStat label="Paid Amount" value={formatMoney(row.totalPaidAmountLC)} />
+                    <MiniStat label="Remaining Amount" value={formatMoney(row.totalRemainingAmountLC)} />
+                    <MiniStat label="Current USD Exchange Rate" value={formatNumber(row.currentUsdExchangeRate)} />
+                    <MiniStat label="Total Amount in USD" value={formatMoney(row.totalAmountUSD)} />
+                    <MiniStat label="Total Bookings" value={row.totalOrders} />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-[10px] font-bold text-slate-500 dark:border-slate-800">
+                    <span>Latest Booking</span>
+                    <span className="font-black text-slate-800 dark:text-slate-200">{date(row.latestBookingDate)}</span>
+                  </div>
+                </button>
+              );
+            })}
+            {!countryDashboardRows.length ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-xs font-semibold text-slate-500 dark:border-slate-800 dark:bg-slate-900/30">
+                No purchase booking analytics are available for the current scope.
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {expandedCountryDashboard ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/30">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Branch Dashboard</p>
+                <h3 className="text-sm font-black text-slate-950 dark:text-slate-100">{expandedCountryDashboard.country}</h3>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-slate-500 shadow-sm dark:bg-slate-950 dark:text-slate-400">{expandedCountryDashboard.branches.length} Branches</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {expandedCountryDashboard.branches.map((branch) => (
+                <div key={`${expandedCountryDashboard.country}-${branch.branch}`} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-slate-100">{branch.branch}</h4>
+                      <p className="text-[10px] font-bold text-slate-400">Code: {branch.branchCode}</p>
+                    </div>
+                    <span className="rounded bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{branch.purchaseOrders} POs</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                    <MiniStat label="Purchase" value={`${formatMoney(branch.purchaseAmount)} ${expandedCountryDashboard.currency}`} />
+                    <MiniStat label="Quantity" value={formatNumber(branch.quantity)} />
+                    <MiniStat label="Gross" value={`${formatNumber(branch.grossWeight)} kg`} />
+                    <MiniStat label="Net" value={`${formatNumber(branch.netWeight)} kg`} />
+                    <MiniStat label="Containers" value={formatNumber(branch.containers)} />
+                    <MiniStat label="Latest" value={date(branch.latestBookingDate)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
+      </details>
       {error && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
           {error}
@@ -2810,6 +3311,50 @@ function FilterActions({ onApply, onReset }: { onApply: () => void; onReset: () 
   );
 }
 
+function DashboardMetricCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string | number; tone: "blue" | "emerald" | "violet" | "amber" }) {
+  const toneClass = {
+    blue: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300",
+    violet: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-300",
+    amber: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
+  }[tone];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex items-center justify-between gap-3">
+        <span className={`grid h-9 w-9 place-items-center rounded-lg border ${toneClass}`}>{icon}</span>
+        <span className="text-right text-[10px] font-black uppercase tracking-wide text-slate-400">KPI</span>
+      </div>
+      <p className="mt-3 text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-1 truncate text-lg font-black tabular-nums text-slate-950 dark:text-slate-100" title={String(value)}>{value}</p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, danger = false }: { label: string; value: string | number; danger?: boolean }) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/40">
+      <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`mt-1 truncate text-xs font-black tabular-nums ${danger ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-slate-100"}`} title={String(value)}>{value}</p>
+    </div>
+  );
+}
+
+function DashboardInfoLine({ label, value, tone = "default" }: { label: string; value: React.ReactNode; tone?: "default" | "success" | "danger" | "accent" }) {
+  const toneClass = {
+    default: "text-slate-950 dark:text-slate-100",
+    success: "text-emerald-700 dark:text-emerald-300",
+    danger: "text-rose-700 dark:text-rose-300",
+    accent: "text-blue-700 dark:text-blue-300"
+  }[tone];
+
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-white/70 pb-1.5 text-[11px] last:border-b-0 dark:border-slate-800/70">
+      <span className="font-semibold text-slate-500 dark:text-slate-400">{label}</span>
+      <span className={`max-w-[58%] text-right font-black tabular-nums ${toneClass}`}>{value || "-"}</span>
+    </div>
+  );
+}
 function SummaryCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string | number; accent: "blue" | "emerald" | "violet" | "amber" | "red" }) {
   const color = {
     blue: "text-blue-300 bg-blue-500/15 border-blue-400/30",
@@ -2908,3 +3453,7 @@ function TableFooter({ text }: { text: string }) {
     </div>
   );
 }
+
+
+
+

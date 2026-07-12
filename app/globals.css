@@ -196,3 +196,98 @@ body {
   border-radius: 4px 0 0 4px;
 }
 
+
+/* Enterprise language typography and print foundation */
+html[lang="ur"],
+html[lang="ps"],
+html[lang="fa"],
+html[lang="ar"] {
+  font-family: "Noto Naskh Arabic", "Noto Nastaliq Urdu", "Vazirmatn", "Segoe UI", Tahoma, Arial, sans-serif;
+  letter-spacing: 0;
+}
+
+html[lang="en"],
+html:not([lang]) {
+  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+  letter-spacing: 0;
+}
+
+html[dir="rtl"] body {
+  text-rendering: optimizeLegibility;
+}
+
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select {
+  font-family: "Noto Naskh Arabic", "Noto Nastaliq Urdu", "Vazirmatn", "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
+.erp-report-shell {
+  background: white;
+  color: #0f172a;
+}
+
+.erp-print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  body {
+    background: white !important;
+    color: #0f172a !important;
+  }
+
+  body * {
+    box-shadow: none !important;
+  }
+
+  .erp-no-print,
+  .no-print,
+  [data-print-hidden="true"],
+  nav,
+  aside,
+  button:not(.erp-print-keep),
+  [role="menu"],
+  [role="dialog"] .erp-no-print {
+    display: none !important;
+  }
+
+  .erp-print-only {
+    display: block !important;
+  }
+
+  .erp-print-page,
+  .erp-report-shell,
+  [data-print-root="true"] {
+    display: block !important;
+    width: 100% !important;
+    max-width: 190mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: white !important;
+    color: #0f172a !important;
+    page-break-inside: avoid;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}

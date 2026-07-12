@@ -1170,7 +1170,12 @@ function DashboardSummaryHeader({
 
     const formatDate = (ts: number) => {
       if (!ts || ts === Infinity) return "-";
-      return format(new Date(ts), "dd MMM yyyy");
+      const d = new Date(ts);
+      return `${d.getDate().toString().padStart(2, '0')} ${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`;
+    };
+
+    const money = (val: number, cur: string) => {
+      return `${Number(val || 0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} ${cur}`;
     };
 
     return (

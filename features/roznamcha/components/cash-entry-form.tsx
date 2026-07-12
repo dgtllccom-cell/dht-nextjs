@@ -1533,6 +1533,9 @@ export function CashEntryForm({
         paymentMethodId: null,
         referenceNo: referenceNo.trim() ? referenceNo.trim() : undefined,
         narration: finalNarration.trim() ? finalNarration.trim() : undefined,
+        sourceModule: "cash_entry",
+        sourceTransactionType: roznamchaType,
+        sourceReferenceNo: roznamchaNumber,
         paymentDetails: {
           roznamchaBookType,
           paymentType: paymentMode === "DEBIT" ? "money_received" : "money_paid",

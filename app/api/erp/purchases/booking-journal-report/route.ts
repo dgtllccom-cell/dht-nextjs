@@ -315,6 +315,26 @@ function normalizeOrder(row: any) {
         reports = reports.filter((report: any) => String(report.salesAccountNumber).toLowerCase().includes(term));
       }
 
+      // Fetch latest USD rates
+      let usdRates: Record<string, number> = {};
+      let lastExchangeRateUpdate = null;
+      try {
+        const { data: ratesData } = await supabase
+          .from("daily_usd_rates")
+          .select("currency_code, exchange_rate, updated_at")
+          .order("updated_at", { ascending: false });
+        if (ratesData && ratesData.length > 0) {
+          lastExchangeRateUpdate = ratesData[0].updated_at;
+          ratesData.forEach((row: any) => {
+            if (row.currency_code && !usdRates[row.currency_code]) {
+              usdRates[row.currency_code] = Number(row.exchange_rate || 1);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("Could not fetch daily USD rates", e);
+      }
+
       return apiOk({
         reports,
         selected: reports[0] ?? null,
@@ -324,6 +344,8 @@ function normalizeOrder(row: any) {
           totalQuantity: reports.reduce((sum: number, report: any) => sum + Number(report.quantity || 0), 0),
           totalContainers: reports.reduce((sum: number, report: any) => sum + Number(report.containerCount || 0), 0)
         },
+        usdRates,
+        lastExchangeRateUpdate,
         scope: effectiveScope
       });
     } catch (error) {

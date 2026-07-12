@@ -268,6 +268,9 @@ export async function postRoznamchaWithErpSession(input: {
       main_branch_transaction_serial: transactionSerials.mainBranchTransactionSerialNumber,
       city_branch_transaction_serial: transactionSerials.cityBranchTransactionSerialNumber,
       entry_serial_number: transactionSerials.entrySerialNumber,
+      source_module: body.sourceModule ?? null,
+      source_transaction_type: body.sourceTransactionType ?? null,
+      source_reference_no: body.sourceReferenceNo ?? null,
       posted_at: new Date().toISOString()
     })
     .select("id")

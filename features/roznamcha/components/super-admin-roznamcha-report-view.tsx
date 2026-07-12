@@ -768,6 +768,347 @@ async function fetchSessionInfo() {
   return apiGet<SessionInfo>("/api/erp/auth/session");
 }
 
+function SuperAdminRoznamchaSummary({ 
+  rows,
+  ratesApplied,
+  session
+}: { 
+  rows: SuperAdminRoznamchaRow[],
+  ratesApplied: Record<string, number | string>,
+  session: any
+}) {
+  if (!rows || rows.length === 0) return null;
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+
+  // Data for Report #1
+  const firstRow = rows[0];
+  const country = firstRow.countryName && firstRow.countryName !== '-' ? firstRow.countryName : session?.countryName || "All Countries";
+  const branchName = session?.branchName || "Main Branch";
+  const userName = session?.user?.fullName || session?.name || session?.username || "SUPER ADMIN";
+  const userId = session?.user?.id || session?.userId || "SA001";
+  const role = session?.roles?.[0] || session?.role || "Super Admin";
+
+  // Data Aggregation
+  let totalGlobalEntries = rows.length;
+  let totalCreditUSD = 0;
+  let totalDebitUSD = 0;
+  
+  const uniqueCountries = new Set<string>();
+  const uniqueUsers = new Set<string>();
+  const uniqueBranches = new Set<string>();
+  
+  let debitTrxCount = 0;
+  let creditTrxCount = 0;
+  let pendingCount = 0;
+  let postedCount = 0;
+
+  const countryDashboardMap = new Map<string, any>();
+
+  const getRate = (cur: string) => {
+    const key = (cur || '').toLowerCase();
+    if (key === 'usd') return 1;
+    return Number(ratesApplied[key as keyof typeof ratesApplied] || 1);
+  };
+
+  rows.forEach((report) => {
+    const cName = report.countryName && report.countryName !== '-' ? report.countryName : 'Unknown';
+    uniqueCountries.add(cName);
+    
+    if (report.createdBy && report.createdBy !== '-') uniqueUsers.add(report.createdBy);
+    if (report.cityBranchId || report.countryBranchId) uniqueBranches.add(report.cityBranchId || report.countryBranchId || 'unknown');
+
+    const rate = getRate(report.currency);
+    const debitUsd = report.debit > 0 ? report.debit / rate : 0;
+    const creditUsd = report.credit > 0 ? report.credit / rate : 0;
+
+    totalDebitUSD += debitUsd;
+    totalCreditUSD += creditUsd;
+    
+    if (report.debit > 0) debitTrxCount++;
+    if (report.credit > 0) creditTrxCount++;
+    
+    if ((report.status || '').toLowerCase().includes('post')) postedCount++;
+    else pendingCount++;
+
+    // Country Dashboard Aggregation
+    const current = countryDashboardMap.get(cName) || {
+      name: cName,
+      entries: 0,
+      credit: 0,
+      debit: 0,
+      balance: 0,
+      users: new Set<string>(),
+      branches: new Set<string>(),
+      currency: report.countryCurrency || report.currency || '-',
+      branchData: new Map<string, any>()
+    };
+
+    current.entries++;
+    current.credit += report.credit;
+    current.debit += report.debit;
+    current.balance += (report.debit - report.credit);
+    if (report.createdBy && report.createdBy !== '-') current.users.add(report.createdBy);
+    const branchNameLocal = report.cityBranchId ? report.cityBranchName : report.countryBranchName || 'Main Branch';
+    const branchIdLocal = report.cityBranchId || report.countryBranchId || 'main';
+    current.branches.add(branchIdLocal);
+    
+    const bData = current.branchData.get(branchIdLocal) || { name: branchNameLocal, entries: 0, credit: 0, debit: 0, balance: 0 };
+    bData.entries++;
+    bData.credit += report.credit;
+    bData.debit += report.debit;
+    bData.balance += (report.debit - report.credit);
+    current.branchData.set(branchIdLocal, bData);
+
+    countryDashboardMap.set(cName, current);
+  });
+
+  const activeCountriesCount = uniqueCountries.size;
+  const activeUsersCount = uniqueUsers.size;
+  const activeBranchesCount = uniqueBranches.size;
+  const totalBalanceUSD = totalDebitUSD - totalCreditUSD;
+
+  const countryDashboardRows = Array.from(countryDashboardMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+  const formatMoney = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const getFlag = (cName: string) => {
+    if (cName.toLowerCase().includes('pakistan')) return '🇵🇰';
+    if (cName.toLowerCase().includes('iran')) return '🇮🇷';
+    if (cName.toLowerCase().includes('arab emirates') || cName.toLowerCase().includes('uae')) return '🇦🇪';
+    if (cName.toLowerCase().includes('afghanistan')) return '🇦🇫';
+    if (cName.toLowerCase().includes('india')) return '🇮🇳';
+    if (cName.toLowerCase().includes('china')) return '🇨🇳';
+    return '🏳️';
+  };
+
+  return (
+    <div className="flex flex-col mb-6 space-y-4">
+      {/* 4 Panels Container */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Panel 1: Branch & User Details */}
+        <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
+            <div className="bg-blue-600 p-1 rounded-full text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. BRANCH & USER DETAILS</h4>
+          </div>
+          <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+            <div className="flex justify-between items-center">
+              <span>Country:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">{getFlag(country)} {country}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Branch Name:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{branchName}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>User ID:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{userId}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>User Name:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{userName}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Role:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{role}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Date & Time:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}, {timeStr}</span>
+            </div>
+            <div className="flex justify-between items-center mt-auto">
+              <span>Status:</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded text-[10px]">Active</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Panel 2: Global Financial Summary */}
+        <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10">
+            <div className="bg-emerald-600 p-1 rounded-full text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+            </div>
+            <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">2. GLOBAL FINANCIAL SUMMARY (USD)</h4>
+          </div>
+          <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+            <div className="flex justify-between items-center">
+              <span>Total Global Entries:</span>
+              <span className="font-black text-slate-800 dark:text-slate-200">{totalGlobalEntries}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Total Credit (USD):</span>
+              <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatMoney(totalCreditUSD)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-rose-600 dark:text-rose-500">Total Debit (USD):</span>
+              <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{formatMoney(totalDebitUSD)}</span>
+            </div>
+            <div className="flex justify-between items-center mt-1 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-slate-600 dark:text-slate-400 uppercase font-bold">Balance (USD):</span>
+              <span className="font-black text-slate-900 dark:text-slate-100 font-mono text-sm">{formatMoney(Math.abs(totalBalanceUSD))}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Panel 3: Active Operations Summary */}
+        <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-purple-50/50 dark:bg-purple-900/10">
+            <div className="bg-purple-600 p-1 rounded-full text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+            </div>
+            <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400 truncate">3. ACTIVE OPERATIONS SUMMARY</h4>
+          </div>
+          <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+            <div className="flex justify-between items-center">
+              <span>Total Active Countries:</span>
+              <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeCountriesCount}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Total Active Users Login:</span>
+              <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeUsersCount}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-blue-600 dark:text-blue-500">Total Active Branches:</span>
+              <span className="font-black text-blue-700 dark:text-blue-400 font-mono">{activeBranchesCount}</span>
+            </div>
+            <div className="flex justify-between items-center mt-auto pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+              <span>System Status:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">Online</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Panel 4: Transaction Summary */}
+        <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-orange-50/50 dark:bg-orange-900/10">
+            <div className="bg-orange-600 p-1 rounded-full text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400">4. TRANSACTION SUMMARY</h4>
+          </div>
+          <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+            <div className="flex justify-between items-center">
+              <span>Total Entries:</span>
+              <span className="font-black text-slate-800 dark:text-slate-200">{totalGlobalEntries}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Debit Entries:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{debitTrxCount}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Credit Entries:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{creditTrxCount}</span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-1 mt-1 pt-2 pb-1 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex flex-col">
+                 <span className="text-[9px] text-slate-400">Posted</span>
+                 <span className="font-black text-emerald-600">{postedCount}</span>
+              </div>
+              <div className="flex flex-col border-l border-slate-100 dark:border-slate-800 pl-2">
+                 <span className="text-[9px] text-slate-400">Pending/Draft</span>
+                 <span className="font-black text-amber-600">{pendingCount}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span>Latest Entry Date:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{rows.length > 0 ? rows[0].entryDate : "N/A"}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Collapsible Country Dashboard Section */}
+      <details className="group border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden" open>
+        <summary className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 font-black text-slate-800 hover:bg-slate-100 dark:bg-slate-900/50 dark:text-slate-200 dark:hover:bg-slate-900/80 uppercase text-xs tracking-wider">
+          <div className="flex items-center gap-2">
+            <span className="transition-transform group-open:rotate-90">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </span>
+            All Countries Report Details
+          </div>
+          <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+            {activeCountriesCount} Scoped Entries
+          </span>
+        </summary>
+        
+        <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {countryDashboardRows.map((item) => (
+              <details key={item.name} className="group/card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                <summary className="cursor-pointer list-none">
+                  <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 text-white flex justify-between items-center">
+                    <span className="font-black tracking-wide text-sm flex items-center gap-2">
+                      <span className="transition-transform group-open/card:rotate-90">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                      </span>
+                      {getFlag(item.name)} {item.name === 'Pakistan' ? 'Pakistani' : item.name}
+                    </span>
+                    <span className="bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded-full">{item.entries} Trx</span>
+                  </div>
+                  <div className="p-4 space-y-3 bg-white dark:bg-slate-950">
+                    <div className="flex justify-between items-end border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Currency</span>
+                      <span className="text-base font-black text-slate-800 dark:text-slate-200">{item.currency}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-500">Total Debit</span>
+                      <span className="font-black text-rose-600">{formatMoney(item.debit)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-500">Total Credit</span>
+                      <span className="font-black text-emerald-600">{formatMoney(item.credit)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-xs font-bold text-slate-500 uppercase">Balance</span>
+                      <span className="text-lg font-black text-slate-900 dark:text-slate-100">{formatMoney(Math.abs(item.balance))}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px]">
+                      <span className="font-semibold text-slate-500">{item.users.size} Users Login</span>
+                      <span className="font-semibold text-slate-500">{item.branches.size} Branches Login</span>
+                    </div>
+                  </div>
+                </summary>
+                
+                {/* Branch Details Expanded Content */}
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-3 border-t border-slate-100 dark:border-slate-800 max-h-[300px] overflow-y-auto space-y-2">
+                  <div className="text-[10px] font-bold uppercase text-slate-500 mb-1 pl-1">Branch Breakdown</div>
+                  {Array.from(item.branchData.values()).map((b: any) => (
+                    <div key={b.name} className="bg-white dark:bg-slate-950 rounded-lg p-2.5 border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase truncate pr-2">{b.name}</span>
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 rounded">{b.entries} Trx</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] mb-1">
+                        <span className="font-semibold text-slate-500">Debit:</span>
+                        <span className="font-bold text-rose-600">{formatMoney(b.debit)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] mb-1">
+                        <span className="font-semibold text-slate-500">Credit:</span>
+                        <span className="font-bold text-emerald-600">{formatMoney(b.credit)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] pt-1 mt-1 border-t border-slate-50 dark:border-slate-800/50">
+                        <span className="font-bold text-slate-600 dark:text-slate-400">Balance:</span>
+                        <span className="font-black text-slate-900 dark:text-slate-100">{formatMoney(Math.abs(b.balance))}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+}
+
 export function SuperAdminRoznamchaReportView({
   lang,
   pageTitle,
@@ -1677,149 +2018,54 @@ export function SuperAdminRoznamchaReportView({
         }
       `}</style>
 
-      {/* Grouped Report KPI Cards (Compact) */}
-      <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-4">
-        <div className="bg-slate-900 px-4 py-2 text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center flex-wrap gap-2">
-          <span>Global Financial Summary</span>
-          <span className="text-[10px] font-semibold text-slate-300">
-            Session: <span className="text-white">{sessionInfo?.user?.fullName || sessionInfo?.user?.email || "-"}</span> | Country: <span className="text-white">{selectedCountryLabel}</span> | Branch: <span className="text-white truncate max-w-[120px] inline-block align-bottom">{selectedBranchLabel}</span>
-          </span>
-        </div>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 items-center">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Total Debit</span>
-              <div className="font-black text-rose-600 text-sm">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalDebitSum)}` : `USD ${fmtNumber(totalDebitSum)}`}</div>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Total Credit</span>
-              <div className="font-black text-emerald-600 text-sm">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(totalCreditSum)}` : `USD ${fmtNumber(totalCreditSum)}`}</div>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Balance</span>
-              <div className="font-black text-slate-900 text-sm">{appliedFilters.countryId !== "all" ? `${targetCurrency} ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}` : `USD ${fmtNumber(Math.abs(totalDebitSum - totalCreditSum))}`}</div>
-            </div>
-            <div className="space-y-1 md:border-l md:border-slate-100 md:pl-4">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Transactions</span>
-              <div className="font-black text-slate-900 text-sm">{visibleRows.length}</div>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Active Branches</span>
-              <div className="font-black text-slate-900 text-sm">{branchesIncludedCount}</div>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Rate Mode</span>
-              <div className="font-black text-blue-700 text-[10px] bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-0.5">{showUsd ? "USD Enabled" : "Local Currency"}</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Middle Layout based on role */}
-      {typeFilter === "super_admin" ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">Country-Based Financial Summary</h2>
-            <span className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-1 rounded-md">Currency isolation enforced</span>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {countryOverview.map((item) => (
-              <Card key={item.name} className="overflow-hidden rounded-2xl border-0 bg-white shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
-                <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 text-white flex justify-between items-center">
-                  <span className="font-black tracking-wide text-sm">{item.name === "Pakistan" ? "Pakistani All Branches" : `${item.name} All Branches`}</span>
-                  <span className="bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded-full">{item.entries} Trx</span>
-                </div>
-                <CardContent className="p-4 space-y-3 bg-white">
-                  <div className="flex justify-between items-end border-b border-slate-100 pb-2">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Currency</span>
-                    <span className="text-base font-black text-slate-800">{item.currency}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-500">Total Debit</span>
-                    <span className="font-black text-rose-600">{fmtNumber(item.debit)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-500">Total Credit</span>
-                    <span className="font-black text-emerald-600">{fmtNumber(item.credit)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Balance</span>
-                    <span className="text-lg font-black text-slate-900">{fmtNumber(Math.abs(item.balance))}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <CardHeader className="border-b bg-slate-50/80 px-4 py-3 dark:bg-slate-900/50">
-            <CardTitle className="text-sm font-black text-slate-950 dark:text-slate-100">Branch Wise Summary</CardTitle>
-            <p className="text-[11px] font-semibold text-slate-500">Every branch summary for the selected country and date range.</p>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] border-collapse text-xs">
-                <thead className="sticky top-0 z-10 bg-slate-900 text-white">
-                  <tr className="whitespace-nowrap text-left">
-                    <th className="border border-slate-200 px-3 py-2.5 font-black dark:border-slate-800">Branch Name</th>
-                    <th className="border border-slate-200 px-3 py-2.5 font-black dark:border-slate-800">Branch Code</th>
-                    <th className="border border-slate-200 px-3 py-2.5 font-black dark:border-slate-800">Branch Type</th>
-                    <th className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">Total Transactions</th>
-                    <th className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">Total Debit</th>
-                    <th className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">Total Credit</th>
-                    <th className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">Balance</th>
-                    <th className="border border-slate-200 px-3 py-2.5 text-center font-black dark:border-slate-800">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {branchSummaryRows.length ? branchSummaryRows.map((row, index) => (
-                    <tr key={row.key} className={cn("hover:bg-slate-50 dark:hover:bg-slate-900/40", index % 2 === 0 ? "bg-white dark:bg-slate-950" : "bg-slate-50/50 dark:bg-slate-900/30")}>
-                      <td className="border border-slate-200 px-3 py-2.5 font-bold text-slate-900 dark:border-slate-800 dark:text-slate-100">{row.branchName}</td>
-                      <td className="border border-slate-200 px-3 py-2.5 font-mono font-bold text-blue-700 dark:border-slate-800 dark:text-blue-300">{row.branchCode}</td>
-                      <td className="border border-slate-200 px-3 py-2.5 font-semibold text-slate-600 dark:border-slate-800 dark:text-slate-300">{row.branchType}</td>
-                      <td className="border border-slate-200 px-3 py-2.5 text-right font-black dark:border-slate-800">{row.transactions}</td>
-                      <td className="border border-slate-200 px-3 py-2.5 text-right font-mono font-black text-rose-600 dark:border-slate-800 dark:text-rose-400">{fmtCountryValue(row.debit)}</td>
-                      <td className="border border-slate-200 px-3 py-2.5 text-right font-mono font-black text-emerald-600 dark:border-slate-800 dark:text-emerald-400">{fmtCountryValue(row.credit)}</td>
-                      <td className="border border-slate-200 px-3 py-2.5 text-right font-mono font-black text-slate-900 dark:border-slate-800 dark:text-slate-100">{fmtCountryValue(Math.abs(row.balance))}</td>
-                      <td className="border border-slate-200 px-3 py-2.5 text-center dark:border-slate-800">
-                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">{row.status}</span>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={8} className="border border-slate-200 px-3 py-8 text-center text-sm font-semibold text-slate-400 dark:border-slate-800">No branch summary records found.</td>
-                    </tr>
-                  )}
-                  <tr className="bg-slate-900 text-white">
-                    <td className="border border-slate-800 px-3 py-3 font-black uppercase" colSpan={3}>Grand Total</td>
-                    <td className="border border-slate-800 px-3 py-3 text-right font-black">{branchGrandTotal.transactions}</td>
-                    <td className="border border-slate-800 px-3 py-3 text-right font-mono font-black text-rose-200">{fmtCountryValue(branchGrandTotal.debit)}</td>
-                    <td className="border border-slate-800 px-3 py-3 text-right font-mono font-black text-emerald-200">{fmtCountryValue(branchGrandTotal.credit)}</td>
-                    <td className="border border-slate-800 px-3 py-3 text-right font-mono font-black">{fmtCountryValue(Math.abs(branchGrandTotal.balance))}</td>
-                    <td className="border border-slate-800 px-3 py-3 text-center font-black">-</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* New Super Admin Roznamcha Summary Dashboard */}
+      <SuperAdminRoznamchaSummary 
+        rows={filteredRows} 
+        ratesApplied={ratesApplied} 
+        session={sessionInfo} 
+      />
 
       {(() => {
         const columns: ReportColumn<SuperAdminRoznamchaRow>[] = [
-          { key: "index", header: "SR#", render: (_, idx) => idx + 1, align: "center", width: "40px" },
+          { key: "index", header: "R#", render: (_, idx) => idx + 1, align: "center", width: "40px" },
           { key: "entryDate", header: "Date", width: "80px", align: "center" },
-          { key: "voucherNo", header: "Voucher No.", width: "100px", align: "center" },
-          { key: "sourceEntry", header: "Manual Bill No.", render: (r) => r.sourceEntry?.manualBillNo || "-", align: "center" },
-          { key: "id", header: "System Bill No.", render: (r) => r.sourceEntry?.systemBillNo || "-", align: "center" },
-          { key: "countryName", header: "Country", width: "100px" },
-          { key: "countryBranchName", header: "Branch", width: "100px" },
+          { key: "journalSerial", header: "Journal Serial\nCountry Serial", render: (r) => (
+            <div className="flex flex-col text-[11px] text-left leading-tight gap-0.5">
+              <span className="font-bold text-slate-800 dark:text-slate-200">{r.countrySerial || "-"}</span>
+            </div>
+          ) },
+          { key: "branchSerial", header: "Branch Serial\nMain Branch Sr", render: (r) => (
+            <div className="flex flex-col text-[11px] text-left leading-tight gap-0.5">
+              <span className="font-bold text-slate-800 dark:text-slate-200">{r.branchSerial || "-"}</span>
+            </div>
+          ) },
+          { key: "cityBranchSerial", header: "City Branch Sr\nEntry Serial", render: (r) => (
+            <div className="flex flex-col text-[11px] text-left leading-tight gap-0.5">
+              <span className="font-bold text-slate-800 dark:text-slate-200">{r.id || "-"}</span>
+            </div>
+          ) },
+          { key: "accountCodeName", header: "Account Code\nAccount Name", render: (r) => (
+            <div className="flex flex-col text-[11px] text-left leading-tight gap-0.5">
+              <span className="font-bold text-slate-800 dark:text-slate-200">{r.accountCode || "-"}</span>
+              <span className="text-slate-500 font-normal">{r.partyName || "-"}</span>
+            </div>
+          ) },
+          { key: "countryBranchName", header: "Country\nBranch", render: (r) => (
+             <div className="flex flex-col text-[11px] text-left leading-tight gap-0.5">
+              <span className="font-bold uppercase text-slate-800 dark:text-slate-200">{r.countryName || "-"}</span>
+              <span className="text-slate-500 font-normal">{r.countryBranchName || "-"}</span>
+            </div>
+          ) },
           { key: "cityBranchName", header: "City Branch", render: (r) => r.cityBranchId ? r.cityBranchName : "-", width: "100px" },
-          { key: "createdBy", header: "User", render: (r) => r.sourceEntry?.createdBy || "admin" },
-          { key: "accountCode", header: "Account Code", align: "center" },
-          { key: "partyName", header: "Account Name" },
-          { key: "narration", header: "Narration" },
+          { key: "createdBy", header: "User name", render: (r) => ((r.sourceEntry as any)?.createdBy ?? r.sourceEntry?.created_by) || "admin" },
+          { key: "typeLabel", header: "Roznamcha Type\nRoznamcha Number *\nRoznamcha Category *", render: (r) => (
+            <div className="flex flex-col text-[11px] text-left leading-tight gap-0.5">
+              <span className="font-bold text-slate-800 dark:text-slate-200" title="Roznamcha Type">{r.typeLabel || "-"}</span>
+              <span className="font-semibold text-blue-700 dark:text-blue-400" title="Roznamcha Number">{r.sourceReferenceNo || r.voucherNo || "-"}</span>
+              <span className="text-slate-500 font-normal" title="Roznamcha Category">{r.sourceTransactionType || "-"}</span>
+            </div>
+          ) },
+          { key: "narration", header: "Remarks / Notes", render: (r) => <span title={r.narration} className="line-clamp-3 max-w-[250px] leading-tight">{r.narration}</span> },
           { key: "debit", header: "Debit", align: "right", render: (r) => fmtNumber(r.debit) },
           { key: "credit", header: "Credit", align: "right", render: (r) => fmtNumber(r.credit) },
           { key: "remainingBalance", header: "Running Balance", align: "right", render: (r) => fmtNumber(r.remainingBalance || 0) },
