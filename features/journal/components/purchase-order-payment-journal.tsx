@@ -1656,30 +1656,258 @@ function DashboardSummaryHeader({
     </div>
   );
 
-  // Super Admin view: Box 1 containing Details and Summary Table stacked vertically, plus the 4 summary cards unified into one Steps card next to it
+  // Super Admin view: 4 cards + Expandable Country Accordion
   if (isSuperAdmin) {
+    const totalGlobalEntries = summary.totalTransactions;
+    const totalCreditUSD = summary.advancePaidLC; 
+    
+    const activeCountriesCount = summaryRows.length;
+    let activeBranchesCount = 0;
+    summaryRows.forEach(r => { activeBranchesCount += r.branches.length; });
+    const activeUsersCount = "-"; // Unavailable in this context, use "-"
+
+    const formatMoney = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const getFlag = (cName: string) => {
+      if (!cName) return '🏳️';
+      if (cName.toLowerCase().includes('pakistan')) return '🇵🇰';
+      if (cName.toLowerCase().includes('iran')) return '🇮🇷';
+      if (cName.toLowerCase().includes('arab emirates') || cName.toLowerCase().includes('uae')) return '🇦🇪';
+      if (cName.toLowerCase().includes('afghanistan')) return '🇦🇫';
+      if (cName.toLowerCase().includes('india')) return '🇮🇳';
+      if (cName.toLowerCase().includes('china')) return '🇨🇳';
+      return '🏳️';
+    };
+    const cName = summary.country || "All Countries";
+
     return (
-      <div className="flex flex-col mb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-          {/* Box 1: Details & Table (spans 7 columns on lg, 8 columns on xl) */}
-          <div className="lg:col-span-7 xl:col-span-8 flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
+      <div className="flex flex-col mb-6 space-y-4">
+        {/* 4 Panels Container */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {/* Panel 1: Branch & User Details */}
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
               <div className="bg-blue-600 p-1 rounded-full text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               </div>
-              <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. SUPER ADMIN COUNTRY REPORT</h4>
+              <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. BRANCH & USER DETAILS</h4>
             </div>
-            <div className="p-4 flex flex-col justify-start h-full">
-              {renderHorizontalDetails()}
-              {renderSuperAdminSummaryTable()}
+            <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+              <div className="flex justify-between items-center">
+                <span>Country:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">{getFlag(cName)} {tData(cName, lang)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Branch Name:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{tData(summary.branchName, lang)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>User ID:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{summary.userId}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>User Name:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{tData(summary.userName, lang)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Role:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{t(summary.role, lang)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Date & Time:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}, {timeStr}</span>
+              </div>
+              <div className="flex justify-between items-center mt-auto">
+                <span>Status:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded text-[10px]">Active</span>
+              </div>
             </div>
           </div>
 
-          {/* Box 2: Unified step-by-step reports card (spans 5 columns on lg, 4 columns on xl) */}
-          <div className="lg:col-span-5 xl:col-span-4">
-            {renderUnifiedReport()}
+          {/* Panel 2: Global Financial Summary */}
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10">
+              <div className="bg-emerald-600 p-1 rounded-full text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+              </div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">2. GLOBAL FINANCIAL SUMMARY (USD)</h4>
+            </div>
+            <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+              <div className="flex justify-between items-center">
+                <span>Total Global Entries:</span>
+                <span className="font-black text-slate-800 dark:text-slate-200">{totalGlobalEntries}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Total Purchase (USD):</span>
+                <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatMoney(summary.totalPurchaseLC)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-rose-600 dark:text-rose-500">Total Advance/Paid (USD):</span>
+                <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{formatMoney(summary.advancePaidLC)}</span>
+              </div>
+              <div className="flex justify-between items-center mt-1 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-slate-600 dark:text-slate-400 uppercase font-bold">Balance (USD):</span>
+                <span className="font-black text-slate-900 dark:text-slate-100 font-mono text-sm">{formatMoney(summary.remainingBalanceLC)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Panel 3: Active Operations Summary */}
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-purple-50/50 dark:bg-purple-900/10">
+              <div className="bg-purple-600 p-1 rounded-full text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+              </div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400 truncate">3. ACTIVE OPERATIONS SUMMARY</h4>
+            </div>
+            <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+              <div className="flex justify-between items-center">
+                <span>Total Active Countries:</span>
+                <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeCountriesCount}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Total Active Users Login:</span>
+                <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeUsersCount}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-blue-600 dark:text-blue-500">Total Active Branches:</span>
+                <span className="font-black text-blue-700 dark:text-blue-400 font-mono">{activeBranchesCount}</span>
+              </div>
+              <div className="flex justify-between items-center mt-auto pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+                <span>System Status:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">Online</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Panel 4: Transaction Summary */}
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-orange-50/50 dark:bg-orange-900/10">
+              <div className="bg-orange-600 p-1 rounded-full text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400">4. TRANSACTION SUMMARY</h4>
+            </div>
+            <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+              <div className="flex justify-between items-center">
+                <span>Total Entries:</span>
+                <span className="font-black text-slate-800 dark:text-slate-200">{totalGlobalEntries}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Purchase Currencies:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{numCurrencies}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Final Currency:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{summary.localCurrency}</span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-1 mt-1 pt-2 pb-1 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex flex-col">
+                   <span className="text-[9px] text-slate-400">Report Type</span>
+                   <span className="font-black text-emerald-600 uppercase">{reportType}</span>
+                </div>
+                <div className="flex flex-col border-l border-slate-100 dark:border-slate-800 pl-2">
+                   <span className="text-[9px] text-slate-400">Exchange Rate Type</span>
+                   <span className="font-black text-amber-600">Live</span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
+                <span>Last Updated:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}</span>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Collapsible Country Dashboard Section */}
+        <details className="group border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden" open>
+          <summary className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 font-black text-slate-800 hover:bg-slate-100 dark:bg-slate-900/50 dark:text-slate-200 dark:hover:bg-slate-900/80 uppercase text-xs tracking-wider">
+            <div className="flex items-center gap-2">
+              <span className="transition-transform group-open:rotate-90">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </span>
+              All Countries Report Details
+            </div>
+            <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+              {activeCountriesCount} Scoped Countries
+            </span>
+          </summary>
+          
+          <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {summaryRows.map((r, idx) => (
+                <details key={idx} className="group/card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                  <summary className="cursor-pointer list-none">
+                    <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 text-white flex justify-between items-center">
+                      <span className="font-black tracking-wide text-sm flex items-center gap-2">
+                        <span className="transition-transform group-open/card:rotate-90">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                        </span>
+                        {getFlag(r.country)} {tData(r.country, lang)}
+                      </span>
+                      <span className="rounded bg-white/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider backdrop-blur-sm">
+                        {r.branches.length} Branches
+                      </span>
+                    </div>
+                  </summary>
+                  <div className="p-4">
+                    <div className="mb-4 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-950">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Currency</span>
+                        <span className="font-black text-slate-800 dark:text-slate-200 text-xs">{r.currency}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Purchase</span>
+                        <span className="font-black text-rose-600 dark:text-rose-400 font-mono text-[11px]">{formatMoney(r.purchase)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Paid Advance</span>
+                        <span className="font-black text-emerald-600 font-mono text-[11px]">{formatMoney(r.sale)}</span>
+                      </div>
+                      <div className="mt-1 flex justify-between items-center border-t border-slate-200 pt-2 dark:border-slate-800">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Remaining Balance</span>
+                        <span className="font-black text-slate-800 dark:text-slate-200 font-mono text-sm">{formatMoney(r.finalTotal)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex justify-between items-center">
+                        <span>Branch Breakdown</span>
+                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[8px] dark:bg-slate-800">All</span>
+                      </h5>
+                      {r.branches.map((b, bIdx) => (
+                        <div key={bIdx} className="flex flex-col gap-1.5 rounded-lg border border-slate-100 p-2.5 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <div className="flex justify-between items-center">
+                            <span className="font-black text-[10px] uppercase text-slate-700 dark:text-slate-300 truncate pr-2" title={b.branch}>{tData(b.branch, lang)}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1 text-[9px]">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400">Total Purch.</span>
+                              <span className="font-bold text-rose-500 font-mono">{formatMoney(b.purchase)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400">Req. Adv</span>
+                              <span className="font-bold text-slate-500 font-mono">{formatMoney(b.requiredAdvance)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400">Paid Adv</span>
+                              <span className="font-bold text-emerald-500 font-mono">{formatMoney(b.paidAdvance)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400">Rem. Bal</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{formatMoney(b.remainingAdvance)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        </details>
       </div>
     );
   }

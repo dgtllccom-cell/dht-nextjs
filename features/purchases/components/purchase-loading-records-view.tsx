@@ -1599,120 +1599,259 @@ export function PurchaseLoadingRecordsView() {
       )}
 
       {/* Super Admin Country Report Dashboard Header */}
-      {loadingSummaryRows.length > 0 && (
-        <div className="flex flex-col">
-          <div className="grid grid-cols-1 gap-4 items-stretch">
-            <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
-                <div className="bg-blue-600 p-1.5 rounded-full text-white">
-                  <Building2 className="h-3.5 w-3.5" />
+      {loadingSummaryRows.length > 0 && (() => {
+        let totalPoQty = 0;
+        let totalLoadedQty = 0;
+        let totalPurchaseValue = 0;
+        let totalLoadedValue = 0;
+        let activeBranchesCount = 0;
+        
+        loadingSummaryRows.forEach(r => {
+          totalPoQty += r.totalQuantity;
+          totalLoadedQty += r.loadedQuantity;
+          totalPurchaseValue += r.purchaseValue;
+          totalLoadedValue += r.loadedValue;
+          activeBranchesCount += r.branches.length;
+        });
+
+        const activeCountriesCount = loadingSummaryRows.length;
+        const totalRemainingQty = Math.max(0, totalPoQty - totalLoadedQty);
+        const totalRemainingValue = Math.max(0, totalPurchaseValue - totalLoadedValue);
+
+        const formatMoney = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const getFlag = (cName: string) => {
+          if (!cName) return '🏳️';
+          if (cName.toLowerCase().includes('pakistan')) return '🇵🇰';
+          if (cName.toLowerCase().includes('iran')) return '🇮🇷';
+          if (cName.toLowerCase().includes('arab emirates') || cName.toLowerCase().includes('uae')) return '🇦🇪';
+          if (cName.toLowerCase().includes('afghanistan')) return '🇦🇫';
+          if (cName.toLowerCase().includes('india')) return '🇮🇳';
+          if (cName.toLowerCase().includes('china')) return '🇨🇳';
+          return '🏳️';
+        };
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+
+        return (
+          <div className="flex flex-col mb-6 space-y-4">
+            {/* 4 Panels Container */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {/* Panel 1: Branch & User Details */}
+              <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-blue-900/10">
+                  <div className="bg-blue-600 p-1 rounded-full text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  </div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. BRANCH & USER DETAILS</h4>
                 </div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">1. SUPER ADMIN COUNTRY REPORT</h4>
+                <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+                  <div className="flex justify-between items-center">
+                    <span>Country:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">🏳️ All Countries</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Branch Name:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">MAIN BRANCH</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>User ID:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">SA001</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>User Name:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">SUPER ADMIN</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Role:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">SUPER ADMIN</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Date & Time:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}, {timeStr}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-auto">
+                    <span>Status:</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded text-[10px]">Active</span>
+                  </div>
+                </div>
               </div>
-              <div className="p-4">
-                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
-                  <table className="w-full text-[10.5px] border-collapse bg-white dark:bg-slate-900 text-left">
-                    <thead>
-                      <tr className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[9.5px] text-slate-700 dark:text-slate-350 font-bold uppercase tracking-wider">
-                        <th className="px-2.5 py-2.5 font-extrabold">Country</th>
-                        <th className="px-2.5 py-2.5 font-extrabold text-right">Total PO Qty (Bags)</th>
-                        <th className="px-2.5 py-2.5 font-extrabold text-right">Loaded Qty (Bags)</th>
-                        <th className="px-2.5 py-2.5 font-extrabold text-right">Remaining Balance (Bags)</th>
-                        <th className="px-2.5 py-2.5 font-extrabold">Currency</th>
-                        <th className="px-2.5 py-2.5 font-extrabold text-right">Total Value (PKR)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loadingSummaryRows.map((r, idx) => {
-                        const isExpanded = !!expandedSummaryCountries[r.country];
-                        const totalQty = r.totalQuantity;
-                        const loadedQty = r.loadedQuantity;
-                        const balQty = Math.max(0, totalQty - loadedQty);
 
-                        return (
-                          <React.Fragment key={idx}>
-                            <tr 
-                              onClick={() => {
-                                setExpandedSummaryCountries(prev => ({
-                                  ...prev,
-                                  [r.country]: !prev[r.country]
-                                }));
-                              }}
-                              className="border-b border-slate-202 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-900/30 cursor-pointer font-extrabold text-slate-850 dark:text-slate-200 transition-all"
-                            >
-                              <td className="px-2.5 py-3 uppercase truncate max-w-[150px] flex items-center gap-1 select-none font-sans">
-                                <span className="text-slate-400 mr-0.5">
-                                  {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                </span>
-                                <span className="font-extrabold ml-1">{r.country}</span>
-                              </td>
-                              <td className="px-2.5 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{totalQty.toLocaleString()}</td>
-                              <td className="px-2.5 py-3 text-right font-mono text-emerald-600 font-bold">{loadedQty.toLocaleString()}</td>
-                              <td className={cn("px-2.5 py-3 text-right font-mono font-bold", balQty > 0 ? "text-rose-600" : "text-emerald-600")}>{balQty.toLocaleString()}</td>
-                              <td className="px-2.5 py-3 font-black text-slate-900 dark:text-slate-100">{r.currency}</td>
-                              <td className="px-2.5 py-3 font-sans font-black tabular-nums text-slate-900 dark:text-slate-100 text-right">{r.purchaseValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                            </tr>
+              {/* Panel 2: Global Financial Summary */}
+              <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10">
+                  <div className="bg-emerald-600 p-1 rounded-full text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+                  </div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">2. LOADING SUMMARY (PKR)</h4>
+                </div>
+                <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+                  <div className="flex justify-between items-center">
+                    <span>Total Purchase Value:</span>
+                    <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{formatMoney(totalPurchaseValue)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Total Loaded Value:</span>
+                    <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatMoney(totalLoadedValue)}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-rose-600 dark:text-rose-500 font-bold uppercase">Remaining Value:</span>
+                    <span className="font-black text-rose-700 dark:text-rose-400 font-mono text-sm">{formatMoney(totalRemainingValue)}</span>
+                  </div>
+                </div>
+              </div>
 
-                            {isExpanded && (
-                              <tr className="bg-slate-50/40 dark:bg-slate-950/20 border-b border-slate-200 dark:border-slate-800">
-                                <td colSpan={6} className="p-3">
-                                  <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-inner dark:border-slate-850 dark:bg-slate-950 space-y-3">
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
-                                      <span>{r.country} Branches Loading Status Details</span>
-                                      <span className="text-[9px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono font-bold dark:bg-blue-950/40 dark:text-blue-400">
-                                        {r.branches.length} Branches
-                                      </span>
-                                    </div>
-                                    
-                                    <div className="overflow-x-auto">
-                                      <table className="w-full text-left text-[10px] border-collapse">
-                                        <thead>
-                                          <tr className="border-b text-slate-450 font-bold uppercase text-[9px] tracking-wider bg-slate-50/80 dark:bg-slate-900/50">
-                                            <th className="px-2 py-1.5">Branch</th>
-                                            <th className="px-2 py-1.5 text-right">Total PO Qty</th>
-                                            <th className="px-2 py-1.5 text-right">Loaded Qty</th>
-                                            <th className="px-2 py-1.5 text-right">Balance Qty</th>
-                                            <th className="px-2 py-1.5 text-right">Total Purchase Value (PKR)</th>
-                                            <th className="px-2 py-1.5 text-right">Loaded Value (PKR)</th>
-                                            <th className="px-2 py-1.5 text-right">Remaining Value (Baqaya)</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                          {r.branches.map((b, bIdx) => {
-                                            const bBalQty = Math.max(0, b.totalQuantity - b.loadedQuantity);
-                                            const bBalValue = Math.max(0, b.purchaseValue - b.loadedValue);
-                                            return (
-                                              <tr key={bIdx} className="hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-350">
-                                                <td className="px-2 py-2 font-extrabold uppercase">{b.branch}</td>
-                                                <td className="px-2 py-2 text-right font-mono text-slate-500 dark:text-slate-400">{b.totalQuantity.toLocaleString()}</td>
-                                                <td className="px-2 py-2 text-right font-mono text-emerald-600 font-bold">{b.loadedQuantity.toLocaleString()}</td>
-                                                <td className={cn("px-2 py-2 text-right font-mono font-bold", bBalQty > 0 ? "text-rose-600" : "text-emerald-600")}>{bBalQty.toLocaleString()}</td>
-                                                <td className="px-2 py-2 text-right font-mono font-bold">{b.purchaseValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                                <td className="px-2 py-2 text-right font-mono text-emerald-600 font-bold">{b.loadedValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                                <td className={cn("px-2 py-2 text-right font-mono font-black", bBalValue > 0 ? "text-rose-600" : "text-slate-500")}>
-                                                  {bBalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                                                </td>
-                                              </tr>
-                                            );
-                                          })}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              {/* Panel 3: Active Operations Summary */}
+              <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-purple-50/50 dark:bg-purple-900/10">
+                  <div className="bg-purple-600 p-1 rounded-full text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+                  </div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-purple-800 dark:text-purple-400 truncate">3. ACTIVE OPERATIONS SUMMARY</h4>
+                </div>
+                <div className="p-4 flex flex-col gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+                  <div className="flex justify-between items-center">
+                    <span>Total Active Countries:</span>
+                    <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeCountriesCount}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Total Active Branches:</span>
+                    <span className="font-black text-purple-700 dark:text-purple-400 font-mono">{activeBranchesCount}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-auto pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+                    <span>System Status:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">Online</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel 4: Transaction Summary */}
+              <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-orange-50/50 dark:bg-orange-900/10">
+                  <div className="bg-orange-600 p-1 rounded-full text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  </div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-orange-800 dark:text-orange-400">4. LOADING QTY SUMMARY</h4>
+                </div>
+                <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
+                  <div className="flex justify-between items-center">
+                    <span>Total PO Qty (Bags):</span>
+                    <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{totalPoQty.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Total Loaded Qty:</span>
+                    <span className="font-bold text-emerald-600 font-mono">{totalLoadedQty.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-rose-600 dark:text-rose-500 font-bold uppercase">Total Remaining Qty:</span>
+                    <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{totalRemainingQty.toLocaleString()}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <span>Last Updated:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{dateStr}</span>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* Collapsible Country Dashboard Section */}
+            <details className="group border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden" open>
+              <summary className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 font-black text-slate-800 hover:bg-slate-100 dark:bg-slate-900/50 dark:text-slate-200 dark:hover:bg-slate-900/80 uppercase text-xs tracking-wider">
+                <div className="flex items-center gap-2">
+                  <span className="transition-transform group-open:rotate-90">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                  </span>
+                  All Countries Report Details
+                </div>
+                <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                  {activeCountriesCount} Scoped Countries
+                </span>
+              </summary>
+              
+              <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {loadingSummaryRows.map((r, idx) => {
+                    const totalQty = r.totalQuantity;
+                    const loadedQty = r.loadedQuantity;
+                    const balQty = Math.max(0, totalQty - loadedQty);
+                    
+                    return (
+                      <details key={idx} className="group/card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                        <summary className="cursor-pointer list-none">
+                          <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 text-white flex justify-between items-center">
+                            <span className="font-black tracking-wide text-sm flex items-center gap-2">
+                              <span className="transition-transform group-open/card:rotate-90">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                              </span>
+                              {getFlag(r.country)} {r.country}
+                            </span>
+                            <span className="rounded bg-white/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider backdrop-blur-sm">
+                              {r.branches.length} Branches
+                            </span>
+                          </div>
+                        </summary>
+                        <div className="p-4">
+                          <div className="mb-4 flex flex-col gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-950">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Currency</span>
+                              <span className="font-black text-slate-800 dark:text-slate-200 text-xs">{r.currency}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Qty</span>
+                              <span className="font-black text-slate-800 dark:text-slate-200 font-mono text-[11px]">{totalQty.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Loaded Qty</span>
+                              <span className="font-black text-emerald-600 font-mono text-[11px]">{loadedQty.toLocaleString()}</span>
+                            </div>
+                            <div className="mt-1 flex justify-between items-center border-t border-slate-200 pt-2 dark:border-slate-800">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Remaining Bal. Qty</span>
+                              <span className="font-black text-rose-600 dark:text-rose-400 font-mono text-sm">{balQty.toLocaleString()}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex justify-between items-center">
+                              <span>Branch Breakdown</span>
+                              <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[8px] dark:bg-slate-800">All</span>
+                            </h5>
+                            {r.branches.map((b, bIdx) => {
+                              const bBalQty = Math.max(0, b.totalQuantity - b.loadedQuantity);
+                              return (
+                                <div key={bIdx} className="flex flex-col gap-1.5 rounded-lg border border-slate-100 p-2.5 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-black text-[10px] uppercase text-slate-700 dark:text-slate-300 truncate pr-2" title={b.branch}>{b.branch}</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-1 text-[9px]">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-slate-400">Total Qty</span>
+                                      <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{b.totalQuantity.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-slate-400">Loaded Qty</span>
+                                      <span className="font-bold text-emerald-500 font-mono">{b.loadedQuantity.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center col-span-2">
+                                      <span className="text-slate-400">Bal. Qty</span>
+                                      <span className="font-bold text-rose-500 font-mono">{bBalQty.toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </details>
+                    );
+                  })}
+                </div>
+              </div>
+            </details>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
         <Metric label="Total Records" value={summary.total} tone="slate" />
