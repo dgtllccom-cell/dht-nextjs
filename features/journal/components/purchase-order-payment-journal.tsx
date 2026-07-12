@@ -3270,21 +3270,19 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         }}
                         className="bg-slate-100/90 hover:bg-slate-200/90 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 cursor-pointer border-y border-slate-200 dark:border-slate-800 transition"
                       >
-                        <td colSpan={5} className="px-3 py-3 select-none">
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-[11px] uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                              {group.country}
-                            </span>
-                            <span className="text-slate-400 font-medium text-[10px]">
-                              ({group.rows.length} {group.rows.length === 1 ? "record" : "records"})
-                            </span>
-                            {group.rows.length > 0 && (
-                              <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ml-2">
-                                Currency: {rowOfficeCurrency(group.rows[0])}
-                              </span>
-                            )}
-                          </div>
+                        <td className="px-3 py-3 font-extrabold text-slate-900 dark:text-slate-100 text-[10px] tracking-wide text-center">
+                          {`PURCH: ${group.rows.length}`}
                         </td>
+                        <td className="px-3 py-3 font-black text-slate-950 dark:text-white text-[11px] uppercase tracking-wider text-left">
+                          {group.country}
+                        </td>
+                        <td className="px-3 py-3 font-bold text-slate-800 dark:text-slate-200 text-[10px] text-center">
+                          {`BRANCH (${new Set(group.rows.map((r) => rowBranchName(r)).filter(Boolean)).size || 1})`}
+                        </td>
+                        <td className="px-3 py-3 font-mono font-black text-slate-700 dark:text-slate-300 text-[10px] text-center">
+                          {group.rows.length > 0 ? rowOfficeCurrency(group.rows[0]) : "USD"}
+                        </td>
+                        <td className="px-3 py-3"></td>
                         <td className="px-3 py-3 font-bold text-rose-600 font-mono text-[11px]">{sumPurchaseLocal > 0 ? sumPurchaseLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
                         <td className="px-3 py-3 font-bold text-amber-600 font-mono text-[11px]">{sumReqAdvanceLocal > 0 ? sumReqAdvanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
                         <td className="px-3 py-3 font-bold text-emerald-600 font-mono text-[11px]">{sumPaidLocal > 0 ? sumPaidLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
