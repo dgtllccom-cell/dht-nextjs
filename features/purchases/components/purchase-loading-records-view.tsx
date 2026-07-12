@@ -1900,10 +1900,10 @@ export function PurchaseLoadingRecordsView() {
                       "Quantity",
                       "Net Weight",
                       "Gross Weight",
-                      "Purchase Amount (PKR)",
+                      "Purchase Amount",
                       "Exchange Rate",
-                      "Advance Amount (PKR)",
-                      "Balance Amount (PKR)",
+                      "Advance Amount",
+                      "Balance Amount",
                       "Payment Date",
                       "Loading Country",
                       "Loading Port",
@@ -1962,10 +1962,14 @@ export function PurchaseLoadingRecordsView() {
                       const loadedAdvanceAmt = totalQty > 0 ? (loadedQty / totalQty) * poAdvanceAmt : poAdvanceAmt;
                       const loadedAdvancePKR = loadedAdvanceAmt * loadedExRate;
                       const loadedBalancePKR = loadedPKR - loadedAdvancePKR;
+                      
+                      // Determine Base Currency
+                      const countryNameForCurrency = (record.countries?.name || form.branchCountry || "").toLowerCase();
+                      const baseCurrency = record.countries?.currency || form.branchCurrency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
 
-                      const loadedAmtPKRStr = loadedPKR > 0 ? `${loadedPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
-                      const loadedAdvancePKRStr = loadedAdvancePKR > 0 ? `${loadedAdvancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
-                      const loadedBalancePKRStr = loadedBalancePKR !== 0 ? `${loadedBalancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} PKR` : "-";
+                      const loadedAmtPKRStr = loadedPKR > 0 ? `${loadedPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${baseCurrency}` : "-";
+                      const loadedAdvancePKRStr = loadedAdvancePKR > 0 ? `${loadedAdvancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${baseCurrency}` : "-";
+                      const loadedBalancePKRStr = loadedBalancePKR !== 0 ? `${loadedBalancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${baseCurrency}` : "-";
                       
                       const paymentDate = form.advancePaymentDate || form.paymentDate || form.clearanceDate || "Nil";
                       

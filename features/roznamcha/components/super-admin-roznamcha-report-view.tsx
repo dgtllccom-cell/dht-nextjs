@@ -2082,6 +2082,21 @@ export function SuperAdminRoznamchaReportView({
                 </h3>
                 <p className="text-[11px] font-semibold text-slate-500">Detailed roznamcha transactions matching your filters</p>
               </div>
+              <div className="flex items-center gap-4">
+                <div className="text-xs text-muted-foreground dark:text-slate-500">
+                  Rows: <b className="text-foreground dark:text-slate-200">{visibleRows.length}</b>
+                </div>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:text-blue-800 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-300 dark:hover:bg-blue-900/40" 
+                  onClick={() => setPrintMode(true)}
+                >
+                  <Printer className="h-4 w-4" />
+                  Print Preview
+                </Button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1400px] border-collapse text-xs">
