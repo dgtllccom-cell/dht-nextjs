@@ -31,6 +31,17 @@ function CustomDropdown({ record, onLoadDetails }: { record: LoadingRecord, onLo
   );
 }
 
+function getDefaultExRate(currency: string) {
+  const c = String(currency || "").toUpperCase().trim();
+  if (c === "AED") return "3.67";
+  if (c === "AFN") return "72.5";
+  if (c === "IRR") return "42000";
+  if (c === "PKR") return "287";
+  if (c === "INR") return "83.5";
+  if (c === "USD") return "1";
+  return "287";
+}
+
 function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
   const qty = Number(h.report_payload?.loadedQuantity || h.report_payload?.loadingQuantity || h.loadedQuantity || 0);
   const poData = poRow?.form_data || {};
@@ -47,7 +58,11 @@ function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
   
   let amountUSD = totalQuantity > 0 ? (qty / totalQuantity) * poTotal : poTotal;
   
-  const exRate = Number(h.report_payload?.exchangeRatePKR || form.exchangeRate || poRow?.exchange_rate || 1);
+  const poCountryName = (poRow?.countryName || form.branchCountry || "").toLowerCase();
+  const poLocalCurrency = poRow?.countries?.currency || form.branchCurrency || (poCountryName.includes("emirate") || poCountryName.includes("uae") ? "AED" : poCountryName.includes("afghanistan") ? "AFN" : poCountryName.includes("iran") ? "IRR" : poCountryName.includes("china") ? "CNY" : poCountryName.includes("india") ? "INR" : "PKR");
+  const fallbackRate = getDefaultExRate(poLocalCurrency);
+
+  const exRate = Number(h.report_payload?.exchangeRatePKR || form.exchangeRate || poRow?.exchange_rate || fallbackRate);
   const amountPKR = amountUSD * exRate;
   const currency = h.report_payload?.pricingCurrency || form.currency || poRow?.currency_code || "USD";
   
@@ -56,6 +71,7 @@ function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
 
 function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord; onClose: () => void; onSaved?: () => void }) {
   const poData = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders)?.form_data || {};
+  const poRow = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders) || {};
   const form = poData.form || {};
   const goods = poData.goodsEntries || [];
 
@@ -63,6 +79,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
   const countryLabel = `${record.countries?.name || form.branchCountry || "-"}${record.countries?.iso2 ? ` (${record.countries.iso2})` : ""}`;
   const countryNameForCurrency = (record.countries?.name || form.branchCountry || "").toLowerCase();
   const localCurrency = record.countries?.currency || form.branchCurrency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
+  const defaultExRate = getDefaultExRate(localCurrency);
 
   const adminLabel = form.userName || form.userId || "Admin";
 
@@ -94,6 +111,68 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
   const [editingLoadingId, setEditingLoadingId] = useState<string | null>(null);
   const [containerNumberInput, setContainerNumberInput] = useState("");
   const [sealNumberInput, setSealNumberInput] = useState("");
+
+  const [newLoadingQuantity, setNewLoadingQuantity] = useState("");
+  const [newLoadingDate, setNewLoadingDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [newLoadingNote, setNewLoadingNote] = useState("");
+  const [originCountry, setOriginCountry] = useState("India");
+  const [goodsName, setGoodsName] = useState("");
+  const [hsCode, setHsCode] = useState("0000");
+  const [allotName, setAllotName] = useState("ALT-4733");
+  const [brand, setBrand] = useState("");
+  const [sizeSpec, setSizeSpec] = useState("");
+  const [qtyName, setQtyName] = useState("BAGS");
+  const [quantityNo, setQuantityNo] = useState("");
+  const [oneQtyKgs, setOneQtyKgs] = useState("");
+  const [oneEmptyKgs, setOneEmptyKgs] = useState("");
+  const [divideType, setDivideType] = useState("D/KGs");
+  const [divideWeightValue, setDivideWeightValue] = useState("1");
+  const [priceType, setPriceType] = useState("P/KGs");
+  const [priceRateC1, setPriceRateC1] = useState("");
+  const [qualityReportRef, setQualityReportRef] = useState("Passed");
+  const [pricingCurrency, setPricingCurrency] = useState("USD");
+  const [exchangeRatePKR, setExchangeRatePKR] = useState(defaultExRate);
+  const [blNumber, setBlNumber] = useState("");
+  const [containerCount, setContainerCount] = useState("1");
+  const [loadingCountryState, setLoadingCountryState] = useState(loadingCountry !== "-" ? loadingCountry : "");
+  const [loadingPortState, setLoadingPortState] = useState(loadingPort !== "-" ? loadingPort : "");
+  const [receivingCountryState, setReceivingCountryState] = useState(receivingCountry !== "-" ? receivingCountry : "");
+  const [receivingPortState, setReceivingPortState] = useState(receivingPort !== "-" ? receivingPort : "");
+  const [receivingDateState, setReceivingDateState] = useState(form.receivedDate || form.arrivalDate || "");
+  const [vesselName, setVesselName] = useState("");
+  const [savingNewLoading, setSavingNewLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+
+  // Fetch approved daily rate when country is set
+  useEffect(() => {
+    const countryId = poRow.country_id || record.countries?.id;
+    if (!countryId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          countryId: countryId,
+          currency: "USD"
+        });
+        const branchId = poRow.country_branch_id || record.country_branches?.id;
+        if (branchId) {
+          params.set("countryBranchId", branchId);
+        }
+        const res = await fetch(`/api/erp/currency/latest-rate?${params.toString()}`).then((r) => r.json());
+        if (!cancelled && res?.ok && res?.data) {
+          const rateVal = res.data.rate || res.data.sellRate || res.data.buyRate;
+          if (rateVal && !editingLoadingId) {
+            setExchangeRatePKR(String(rateVal));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load loading exchange rate", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [poRow.country_id, poRow.country_branch_id, record.countries?.id, record.country_branches?.id, editingLoadingId]);
 
   async function handleDeleteHistory(h: LoadingRecord) {
     if (!confirm("Are you sure you want to delete this loading record?")) return;
@@ -142,7 +221,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
     setPriceRateC1(h.report_payload?.priceRateC1 || "");
     setQualityReportRef(h.report_payload?.qualityReportRef || "Passed");
     setPricingCurrency(h.report_payload?.pricingCurrency || "USD");
-    setExchangeRatePKR(h.report_payload?.exchangeRatePKR || "287");
+    setExchangeRatePKR(h.report_payload?.exchangeRatePKR || defaultExRate);
     setContainerNumberInput(h.container_number || h.report_payload?.containerNumber || "");
     setSealNumberInput(h.report_payload?.sealNumber || "");
   }
@@ -665,8 +744,8 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                             <input value={pricingCurrency} onChange={(e) => setPricingCurrency(e.target.value)} placeholder="USD" className="h-9 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-200" />
                           </label>
                           <label className="space-y-1 text-[10px] font-bold text-teal-700 dark:text-teal-500">
-                            Exchange Rate to PKR
-                            <input value={exchangeRatePKR} onChange={(e) => setExchangeRatePKR(e.target.value)} placeholder="287" className="h-9 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-200" />
+                            Exchange Rate to {localCurrency}
+                            <input value={exchangeRatePKR} onChange={(e) => setExchangeRatePKR(e.target.value)} placeholder={defaultExRate} className="h-9 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-200" />
                           </label>
                           <label className="space-y-1 text-[10px] font-bold text-teal-700 dark:text-teal-500">
                             Container Number *
