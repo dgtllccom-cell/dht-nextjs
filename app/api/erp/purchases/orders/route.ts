@@ -89,6 +89,12 @@ export async function GET(request: NextRequest) {
     });
 
     const supabase = await createApiSupabaseClient();
+    const countRes = await supabase.from("purchase_orders").select("id", { count: "exact", head: true }).is("deleted_at", null);
+    const loadingRes = await supabase.from("purchase_loading_records").select("id", { count: "exact", head: true }).is("deleted_at", null);
+    console.log("=== API DIAGNOSTIC ===");
+    console.log("Session:", { userId: session.userId, isSuperAdmin: session.isSuperAdmin, countryIds: session.countryIds, countryBranchIds: session.countryBranchIds, cityBranchIds: session.cityBranchIds });
+    console.log("Query params:", query);
+    console.log("DB count orders:", countRes.count, "loading:", loadingRes.count, "orders_err:", countRes.error?.message, "loading_err:", loadingRes.error?.message);
     let q = supabase
       .from("purchase_orders")
       .select(`

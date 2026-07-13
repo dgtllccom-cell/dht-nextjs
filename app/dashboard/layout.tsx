@@ -26,6 +26,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Real session: either Supabase Auth or temporary bootstrapping session.
   const session = await getCurrentErpSession();
+  if (session) {
+    try {
+      const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+      const admin = createSupabaseAdminClient();
+      const countRes = await admin.from("purchase_orders").select("id", { count: "exact", head: true }).is("deleted_at", null);
+      const loadingRes = await admin.from("purchase_loading_records").select("id", { count: "exact", head: true }).is("deleted_at", null);
+      console.log("=== API DIAGNOSTIC IN LAYOUT ===");
+      console.log("Session:", { userId: session.userId, isSuperAdmin: session.isSuperAdmin, countryIds: session.countryIds, countryBranchIds: session.countryBranchIds, cityBranchIds: session.cityBranchIds });
+      console.log("DB count orders:", countRes.count, "loading:", loadingRes.count, "orders_err:", countRes.error?.message, "loading_err:", loadingRes.error?.message);
+    } catch (e) {
+      console.error("Layout diagnostic failed:", e);
+    }
+  }
   if (!session) {
     redirect("/auth/login");
   }
