@@ -100,7 +100,7 @@ function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
   }
 
   const poCountryName = (poRow?.countryName || form.branchCountry || "").toLowerCase();
-  const poLocalCurrency = poRow?.countries?.currency || form.branchCurrency || (poCountryName.includes("emirate") || poCountryName.includes("uae") ? "AED" : poCountryName.includes("afghanistan") ? "AFN" : poCountryName.includes("iran") ? "IRR" : poCountryName.includes("china") ? "CNY" : poCountryName.includes("india") ? "INR" : "PKR");
+  const poLocalCurrency = form.branchCurrency || poRow?.countries?.currency || (poCountryName.includes("emirate") || poCountryName.includes("uae") ? "AED" : poCountryName.includes("afghanistan") ? "AFN" : poCountryName.includes("iran") ? "IRR" : poCountryName.includes("china") ? "CNY" : poCountryName.includes("india") ? "INR" : "PKR");
   const fallbackRate = getDefaultExRate(poLocalCurrency);
 
   const exRate = Number(reportPayload.exchangeRatePKR || form.exchangeRate || poRow?.exchange_rate || fallbackRate);
@@ -120,7 +120,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
   const branchLabel = `${record.country_branches?.name || form.branchName || "-"}${record.country_branches?.code ? ` (${record.country_branches.code})` : ""}`;
   const countryLabel = `${record.countries?.name || form.branchCountry || "-"}${record.countries?.iso2 ? ` (${record.countries.iso2})` : ""}`;
   const countryNameForCurrency = (record.countries?.name || form.branchCountry || "").toLowerCase();
-  const localCurrency = record.countries?.currency || form.branchCurrency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
+  const localCurrency = form.branchCurrency || poRow?.countries?.currency || record.countries?.currency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
   const defaultExRate = getDefaultExRate(localCurrency);
 
   const adminLabel = form.userName || form.userId || "Admin";
@@ -1222,6 +1222,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">-</td>
                         </tr>
                       );
+                    }
                   })()}
                 </tbody>
               </table>
@@ -1511,7 +1512,7 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
       const loadedValPKR = poQty > 0 ? (loadedQty / poQty) * poValuePKR : 0;
 
       const countryNameForCurrency = country.toLowerCase();
-      const localCurrency = r.countries?.currency || form.branchCurrency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
+      const localCurrency = form.branchCurrency || r.countries?.currency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
 
       if (!groups[country]) {
         groups[country] = {

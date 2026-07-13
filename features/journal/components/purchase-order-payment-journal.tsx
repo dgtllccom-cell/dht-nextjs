@@ -2148,6 +2148,85 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [pageSize, setPageSize] = useState(10);
   const [pageIndex, setPageIndex] = useState(0);
 
+  // Container Selection local state
+  const [selectedLoadingRecord, setSelectedLoadingRecord] = useState<any>(null);
+  const [loadingRecords, setLoadingRecords] = useState<any[]>([]);
+  const [loadingLoadingRecords, setLoadingLoadingRecords] = useState(false);
+
+  // Fetch loaded container records for Remaining Payment mode
+  useEffect(() => {
+    if (selected && activeMode === "remaining") {
+      setLoadingLoadingRecords(true);
+      fetch(`/api/erp/purchases/loading-records?q=${selected.purchase_order_no}`, { credentials: "include" })
+        .then(res => res.json())
+        .then(res => {
+          if (res.ok && Array.isArray(res.data?.records)) {
+            const loaded = res.data.records.filter((r: any) =>
+              r.loading_status === "loaded" ||
+              Number(r.report_payload?.loadedQuantity || r.loadedQuantity || 0) > 0
+            );
+            setLoadingRecords(loaded);
+          }
+        })
+        .catch(err => console.error("Error loading container records:", err))
+        .finally(() => setLoadingLoadingRecords(false));
+    } else {
+      setLoadingRecords([]);
+      setSelectedLoadingRecord(null);
+    }
+  }, [selected, activeMode]);
+
+  // Sync selected container if URL has fromLoading parameters
+  useEffect(() => {
+    if (selected && activeMode === "remaining") {
+      const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+      const fromLoading = searchParams.get("fromLoading") === "true";
+      if (fromLoading) {
+        const cLoadingRecordId = searchParams.get("loadingRecordId") || "";
+        const cLoadedQty = Number(searchParams.get("loadedQty") || 0);
+        const cGrossWeight = Number(searchParams.get("grossWeight") || 0);
+        const cNetWeight = Number(searchParams.get("netWeight") || 0);
+        const cPriceRate = Number(searchParams.get("priceRate") || 0);
+        
+        setSelectedLoadingRecord({
+          id: cLoadingRecordId,
+          loading_record_no: searchParams.get("purchaseOrderNo") ? `Transferred Container (${searchParams.get("purchaseOrderNo")})` : "Transferred Container",
+          report_payload: {
+            loadedQuantity: cLoadedQty,
+            grossWeight: cGrossWeight,
+            netWeight: cNetWeight,
+            priceRateC1: cPriceRate
+          }
+        });
+      }
+    }
+  }, [selected, activeMode]);
+
+  const handleSelectLoadingRecord = (lr: any) => {
+    setSelectedLoadingRecord(lr);
+    if (!selected) return;
+
+    const poRow = selected || {};
+    const finance = calcLoadingFinance(lr, poRow, poRow.form_data?.form || {});
+    const loadedQty = lr.report_payload?.loadedQuantity || lr.loadedQuantity || 0;
+    const poAdvanceAmt = Number(poRow.advance_paid || poRow.form_data?.form?.advanceAmount || 0);
+    
+    const goods = poRow.form_data?.goodsEntries || [];
+    const totalPOQuantity = Number(
+      poRow.form_data?.totals?.totalQuantity ||
+      goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+      poRow.form_data?.form?.quantity ||
+      1
+    );
+
+    const loadedAdvanceUSD = totalPOQuantity > 0 ? (loadedQty / totalPOQuantity) * poAdvanceAmt : poAdvanceAmt;
+    const loadedRemainingUSD = Math.max(0, finance.amountUSD - loadedAdvanceUSD);
+    
+    const exRateVal = Number(exchangeRate || finance.exRate || 1);
+    setCalcAmount(loadedRemainingUSD.toFixed(4));
+    setFinalPayment((loadedRemainingUSD * exRateVal).toFixed(2));
+  };
+
   // Local cache for Bank/Method quick add
   const [savedBanks, setSavedBanks] = useState<SavedBankItem[]>([]);
   const [savedMethods, setSavedMethods] = useState<string[]>([]);
@@ -3821,7 +3900,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               const paidAdvanceBC = Number(selected.advance_paid || 0);
               const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
               const remainingDue = Number(selected.remaining_due || 0);
-
+              const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+              const fromLoading = searchParams.get("fromLoading") === "true";
               if (activeMode === "advance" && remainingAdvanceBC <= 0.01) {
                 return (
                   <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold p-3.5 rounded-xl flex items-center gap-2 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-400 animate-in fade-in duration-300">
@@ -3829,8 +3909,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </div>
                 );
               }
-              const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-              const fromLoading = searchParams.get("fromLoading") === "true";
               if (activeMode === "remaining" && remainingDue <= 0.01 && !fromLoading) {
                 return (
                   <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold p-3.5 rounded-xl flex items-center gap-2 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-400 animate-in fade-in duration-300">
@@ -3848,11 +3926,21 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "—";
 
               const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-              const fromLoading = searchParams.get("fromLoading") === "true";
-              const cLoadedQty = searchParams.get("loadedQty");
-              const cGrossWeight = searchParams.get("grossWeight");
-              const cNetWeight = searchParams.get("netWeight");
-              const cPriceRate = searchParams.get("priceRate");
+              const isUrlLoading = searchParams.get("fromLoading") === "true";
+              const fromLoading = isUrlLoading || Boolean(selectedLoadingRecord);
+
+              const cLoadedQty = selectedLoadingRecord
+                ? String(selectedLoadingRecord.report_payload?.loadedQuantity || selectedLoadingRecord.loadedQuantity || 0)
+                : (searchParams.get("loadedQty") || "0");
+              const cGrossWeight = selectedLoadingRecord
+                ? String(selectedLoadingRecord.report_payload?.grossWeight || 0)
+                : (searchParams.get("grossWeight") || "0");
+              const cNetWeight = selectedLoadingRecord
+                ? String(selectedLoadingRecord.report_payload?.netWeight || 0)
+                : (searchParams.get("netWeight") || "0");
+              const cPriceRate = selectedLoadingRecord
+                ? String(selectedLoadingRecord.report_payload?.priceRateC1 || 0)
+                : (searchParams.get("priceRate") || "0");
 
               return (
                 <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 dark:bg-slate-900/50 dark:border-slate-800 shadow-sm space-y-4">
@@ -3863,7 +3951,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                       <div>
                         <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Seller (Supplier)</span>
-                        <span className="font-extrabold text-slate-850 dark:text-slate-200">
+                        <span className="font-extrabold text-slate-855 dark:text-slate-200">
                           {form.salesAccountName || form.supplierName || "—"}
                         </span>
                         <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
@@ -3872,7 +3960,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       </div>
                       <div>
                         <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Purchaser (Purchase A/C)</span>
-                        <span className="font-extrabold text-slate-850 dark:text-slate-200">
+                        <span className="font-extrabold text-slate-855 dark:text-slate-200">
                           {form.purchaseAccountName || "—"}
                         </span>
                         <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
@@ -3881,7 +3969,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       </div>
                       <div>
                         <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Goods & Brand</span>
-                        <span className="font-extrabold text-slate-850 dark:text-slate-200 block truncate max-w-[200px]" title={goodsName}>
+                        <span className="font-extrabold text-slate-855 dark:text-slate-200 block truncate max-w-[200px]" title={goodsName}>
                           {goodsName}
                         </span>
                         <span className="block text-[9px] font-semibold text-slate-500 mt-0.5">
@@ -3890,7 +3978,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       </div>
                       <div>
                         <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Quantity & Loading Status</span>
-                        <span className="font-extrabold text-slate-850 dark:text-slate-200 block">
+                        <span className="font-extrabold text-slate-855 dark:text-slate-200 block">
                           PO: {form.quantity || 0} {form.quantityUnit || "BAGS"}
                         </span>
                         <span className="block text-[9px] font-semibold text-slate-500 mt-0.5">
@@ -3902,8 +3990,18 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                   {fromLoading && (
                     <div className="border-t border-dashed border-slate-200 dark:border-slate-850 pt-3">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">
-                        Transferred Container Specifications
+                      <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2 flex justify-between items-center">
+                        <span>Transferred Container Specifications</span>
+                        {/* Change Container option if direct select flow */}
+                        {!isUrlLoading && selectedLoadingRecord && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLoadingRecord(null)}
+                            className="text-[9px] font-bold text-rose-500 hover:text-rose-700 hover:underline transition uppercase tracking-wider"
+                          >
+                            Change Container
+                          </button>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs bg-blue-50/20 border border-blue-100/50 p-3 rounded-lg dark:bg-blue-950/10 dark:border-blue-900/20">
                         <div>
@@ -3912,15 +4010,15 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         </div>
                         <div>
                           <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Gross Weight</span>
-                          <span className="font-extrabold text-slate-850 dark:text-slate-200">{Number(cGrossWeight || 0).toLocaleString()} KGs</span>
+                          <span className="font-extrabold text-slate-855 dark:text-slate-200">{Number(cGrossWeight || 0).toLocaleString()} KGs</span>
                         </div>
                         <div>
                           <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Net Weight</span>
-                          <span className="font-extrabold text-slate-850 dark:text-slate-200">{Number(cNetWeight || 0).toLocaleString()} KGs</span>
+                          <span className="font-extrabold text-slate-855 dark:text-slate-200">{Number(cNetWeight || 0).toLocaleString()} KGs</span>
                         </div>
                         <div>
                           <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Purchase Price Rate</span>
-                          <span className="font-mono font-bold text-slate-850 dark:text-slate-200">{Number(cPriceRate || 0).toFixed(4)} USD</span>
+                          <span className="font-mono font-bold text-slate-855 dark:text-slate-200">{Number(cPriceRate || 0).toFixed(4)} USD</span>
                         </div>
                       </div>
                     </div>
@@ -3932,12 +4030,24 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             {/* Comprehensive Payment Summary Dashboard */}
             {(() => {
               const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-              const fromLoading = searchParams.get("fromLoading") === "true";
-              const cLoadedQty = Number(searchParams.get("loadedQty") || 0);
-              const cGrossWeight = Number(searchParams.get("grossWeight") || 0);
-              const cNetWeight = Number(searchParams.get("netWeight") || 0);
-              const cPriceRate = Number(searchParams.get("priceRate") || 0);
-              const cLoadingRecordId = searchParams.get("loadingRecordId") || "";
+              const isUrlLoading = searchParams.get("fromLoading") === "true";
+              const fromLoading = isUrlLoading || Boolean(selectedLoadingRecord);
+
+              const cLoadedQty = selectedLoadingRecord
+                ? Number(selectedLoadingRecord.report_payload?.loadedQuantity || selectedLoadingRecord.loadedQuantity || 0)
+                : Number(searchParams.get("loadedQty") || 0);
+              const cGrossWeight = selectedLoadingRecord
+                ? Number(selectedLoadingRecord.report_payload?.grossWeight || 0)
+                : Number(searchParams.get("grossWeight") || 0);
+              const cNetWeight = selectedLoadingRecord
+                ? Number(selectedLoadingRecord.report_payload?.netWeight || 0)
+                : Number(searchParams.get("netWeight") || 0);
+              const cPriceRate = selectedLoadingRecord
+                ? Number(selectedLoadingRecord.report_payload?.priceRateC1 || 0)
+                : Number(searchParams.get("priceRate") || 0);
+              const cLoadingRecordId = selectedLoadingRecord
+                ? selectedLoadingRecord.id
+                : (searchParams.get("loadingRecordId") || "");
 
               const form = (selected as any).form_data?.form || {};
               const goods = (selected as any).form_data?.goodsEntries || [];
@@ -4063,61 +4173,68 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     )}
                   </div>
 
-                  {/* Summary Metrics Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-slate-100 dark:divide-slate-800 border-t border-slate-100 dark:border-slate-800 mt-2">
-                    {/* Row 1: Purchase Summary */}
-                    <div className="px-4 py-3">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
-                        {fromLoading ? "Total Loading Purchase" : "Total Purchase"}
+                  {/* Multi-Currency Endorsement & Payment Summary Panels */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
+                    {/* Box 2: Purchase & Endorsement Summary (Transaction Currency) */}
+                    <div className="bg-white border border-slate-200/80 rounded-xl p-4 dark:bg-slate-950 dark:border-slate-800 shadow-sm space-y-3">
+                      <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          2. Purchase & Endorsement Summary ({poCurrency})
+                        </span>
+                        <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded uppercase font-mono">{poCurrency}</span>
                       </div>
-                      <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm font-mono">{money(loadingPurchaseAmount, poCurrency)}</div>
-                      <div className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{money(loadingPurchaseAmount * exRate, baseCurrency)}</div>
-                    </div>
-                    <div className="px-4 py-3">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-amber-500 mb-1">Required Advance ({advancePercent}%)</div>
-                      <div className="font-extrabold text-amber-600 dark:text-amber-400 text-sm font-mono">{money(loadingRequiredAdvance, poCurrency)}</div>
-                      <div className="text-[9px] font-bold text-amber-400 font-mono mt-0.5">{money(loadingRequiredAdvance * exRate, baseCurrency)}</div>
-                    </div>
-                    <div className="px-4 py-3">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-emerald-500 mb-1">Advance Paid</div>
-                      <div className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm font-mono">{money(loadingAdvancePaid, poCurrency)}</div>
-                      <div className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">{money(loadingAdvancePaid * exRate, baseCurrency)}</div>
-                    </div>
-                    <div className="px-4 py-3">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-rose-500 mb-1">Remaining Advance</div>
-                      <div className={"font-extrabold text-sm font-mono " + (loadingRemainingAdvance <= 0.01 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
-                        {loadingRemainingAdvance <= 0.01 ? "✓ Cleared" : money(loadingRemainingAdvance, poCurrency)}
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="bg-slate-50/60 border border-slate-100 p-2.5 rounded-lg dark:bg-slate-900/50 dark:border-slate-900 shadow-inner">
+                          <span className="text-[9px] font-semibold text-slate-400 block uppercase tracking-wider">Total Purchase Amount</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono text-sm">{money(loadingPurchaseAmount, poCurrency)}</span>
+                        </div>
+                        <div className="bg-slate-50/60 border border-slate-100 p-2.5 rounded-lg dark:bg-slate-900/50 dark:border-slate-900 shadow-inner">
+                          <span className="text-[9px] font-semibold text-slate-400 block uppercase tracking-wider">Endorsement Percentage</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono text-sm">{advancePercent.toFixed(2)}%</span>
+                        </div>
+                        <div className="bg-slate-50/60 border border-slate-100 p-2.5 rounded-lg dark:bg-slate-900/50 dark:border-slate-900 shadow-inner">
+                          <span className="text-[9px] font-semibold text-slate-400 block uppercase tracking-wider">Endorsement Amount</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono text-sm">{money(loadingRequiredAdvance, poCurrency)}</span>
+                        </div>
+                        <div className="bg-slate-50/60 border border-slate-100 p-2.5 rounded-lg dark:bg-slate-900/50 dark:border-slate-900 shadow-inner">
+                          <span className="text-[9px] font-semibold text-slate-400 block uppercase tracking-wider">Remaining Amount</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono text-sm">{money(loadingPurchaseAmount - loadingRequiredAdvance, poCurrency)}</span>
+                        </div>
                       </div>
-                      {loadingRemainingAdvance > 0.01 && <div className="text-[9px] font-bold text-rose-400 font-mono mt-0.5">{money(loadingRemainingAdvance * exRate, baseCurrency)}</div>}
                     </div>
-                    {/* Row 2: Remaining Payment Summary */}
-                    <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">Final Purchase Amount</div>
-                      <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm font-mono">{money(finalPurchaseAmount, poCurrency)}</div>
-                      <div className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{money(finalPurchaseAmount * exRate, baseCurrency)}</div>
-                    </div>
-                    <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-rose-400 mb-1">Total Remaining Amount</div>
-                      <div className={"font-extrabold text-sm font-mono " + (totalRemainingAmount <= 0.01 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
-                        {totalRemainingAmount <= 0.01 ? "✓ Cleared" : money(totalRemainingAmount, poCurrency)}
+
+                    {/* Box 3: Final Payment Summary (Final Currency) */}
+                    <div className="bg-white border border-slate-200/80 rounded-xl p-4 dark:bg-slate-950 dark:border-slate-800 shadow-sm space-y-3">
+                      <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          3. Final Payment Summary ({baseCurrency})
+                        </span>
+                        <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded uppercase font-mono">{baseCurrency}</span>
                       </div>
-                      {totalRemainingAmount > 0.01 && <div className="text-[9px] font-bold text-rose-400 font-mono mt-0.5">{money(totalRemainingAmount * exRate, baseCurrency)}</div>}
-                    </div>
-                    <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-blue-500 mb-1">Total Remaining Paid</div>
-                      <div className="font-extrabold text-blue-600 dark:text-blue-400 text-sm font-mono">{money(totalRemainingPaid, poCurrency)}</div>
-                      <div className="text-[9px] font-bold text-blue-400 font-mono mt-0.5">{money(totalRemainingPaid * exRate, baseCurrency)}</div>
-                    </div>
-                    <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-indigo-400 mb-1">Outstanding Balance</div>
-                      <div className={"font-extrabold text-sm font-mono " + (outstandingBalance <= 0.01 ? "text-emerald-600 dark:text-emerald-400" : "text-indigo-600 dark:text-indigo-400")}>
-                        {outstandingBalance <= 0.01 ? "✓ Fully Paid" : money(outstandingBalance, poCurrency)}
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="bg-slate-50/60 border border-slate-100 p-2.5 rounded-lg dark:bg-slate-900/50 dark:border-slate-900 shadow-inner">
+                          <span className="text-[9px] font-semibold text-slate-400 block uppercase tracking-wider">Total Final Amount</span>
+                          <span className="font-extrabold text-slate-855 dark:text-slate-200 font-mono text-sm">{money(loadingPurchaseAmount * exRate, baseCurrency)}</span>
+                        </div>
+                        <div className="bg-slate-50/60 border border-slate-100 p-2.5 rounded-lg dark:bg-slate-900/50 dark:border-slate-900 shadow-inner">
+                          <span className="text-[9px] font-semibold text-slate-400 block uppercase tracking-wider">Advance Amount</span>
+                          <span className="font-extrabold text-slate-855 dark:text-slate-200 font-mono text-sm">{money(loadingRequiredAdvance * exRate, baseCurrency)}</span>
+                        </div>
+                        <div className="bg-slate-50/60 border border-slate-100 p-2.5 rounded-lg dark:bg-slate-900/50 dark:border-slate-900 shadow-inner">
+                          <span className="text-[9px] font-semibold text-slate-400 block uppercase tracking-wider">Remaining Amount</span>
+                          <span className="font-extrabold text-slate-855 dark:text-slate-200 font-mono text-sm">{money((loadingPurchaseAmount - loadingRequiredAdvance) * exRate, baseCurrency)}</span>
+                        </div>
+                        <div className="bg-slate-50/60 border border-slate-100 p-2.5 rounded-lg dark:bg-slate-900/50 dark:border-slate-900 shadow-inner">
+                          <span className="text-[9px] font-semibold text-slate-400 block uppercase tracking-wider">Exchange Rate</span>
+                          <span className="font-bold text-[10.5px] text-slate-700 dark:text-slate-350 block truncate font-mono mt-0.5" title={`1 ${poCurrency} = ${Number(exRate).toFixed(4)} ${baseCurrency}`}>
+                            1 {poCurrency} = {Number(exRate).toFixed(4)} {baseCurrency}
+                          </span>
+                        </div>
                       </div>
-                      {outstandingBalance > 0.01 && <div className="text-[9px] font-bold text-indigo-400 font-mono mt-0.5">{money(outstandingBalance * exRate, baseCurrency)}</div>}
                     </div>
                   </div>
 
-                  {/* Exchange Rate + Payments Pill Footer */}
+                  {/* Exchange Rate & Recorded Payments Pill Footer */}
                   <div className="flex items-center justify-between px-5 py-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
                     <div className="text-[9px] font-semibold text-slate-500">
                       Exchange Rate: <span className="font-mono font-black text-slate-700 dark:text-slate-300">1 {poCurrency} = {Number(exRate).toFixed(2)} {baseCurrency}</span>
@@ -4132,8 +4249,76 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               );
             })()}
 
-            {/* Split Layout grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {activeMode === "remaining" && !selectedLoadingRecord ? (
+              <div className="bg-amber-50/40 border border-amber-200 rounded-xl p-6 dark:bg-amber-955/5 dark:border-amber-900/30 text-center space-y-4 max-w-3xl mx-auto my-6 animate-in fade-in slide-in-from-bottom-3 duration-300">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600">
+                  <Truck className="h-6 w-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black text-amber-800 dark:text-amber-400">Select a Loaded Container to Process Payment</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Remaining payments must be processed separately for each loaded container record. Please select one of the loaded containers below to continue:
+                  </p>
+                </div>
+                {loadingLoadingRecords ? (
+                  <div className="text-xs text-amber-700 italic flex items-center justify-center gap-1.5 py-8">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+                    Loading container records...
+                  </div>
+                ) : loadingRecords.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 max-h-[350px] overflow-y-auto p-1">
+                    {loadingRecords.map((lr) => {
+                      const poRow = selected || {};
+                      const finance = calcLoadingFinance(lr, poRow, poRow.form_data?.form || {});
+                      
+                      const loadedQty = lr.report_payload?.loadedQuantity || lr.loadedQuantity || 0;
+                      const poAdvanceAmt = Number(poRow.advance_paid || poRow.form_data?.form?.advanceAmount || 0);
+                      const goods = poRow.form_data?.goodsEntries || [];
+                      const totalPOQuantity = Number(
+                        poRow.form_data?.totals?.totalQuantity ||
+                        goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+                        poRow.form_data?.form?.quantity ||
+                        1
+                      );
+                      const loadedAdvanceUSD = totalPOQuantity > 0 ? (loadedQty / totalPOQuantity) * poAdvanceAmt : poAdvanceAmt;
+                      const loadedRemainingUSD = Math.max(0, finance.amountUSD - loadedAdvanceUSD);
+                      
+                      return (
+                        <button
+                          key={lr.id}
+                          type="button"
+                          onClick={() => handleSelectLoadingRecord(lr)}
+                          className="flex flex-col text-left p-4 rounded-xl border border-slate-200 bg-white hover:border-blue-500 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition text-xs space-y-2 dark:bg-slate-900 dark:border-slate-800 shadow-sm"
+                        >
+                          <div className="flex justify-between items-center w-full">
+                            <span className="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                              📦 Cont. #{lr.loading_record_no || lr.report_payload?.containerNumber || "—"}
+                            </span>
+                            <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 dark:bg-blue-950/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                              {loadedQty.toLocaleString()} Bags
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-400 w-full">
+                            <div>Net Wt: <span className="font-semibold text-slate-700 dark:text-slate-300">{finance.netWeight.toLocaleString()} KGs</span></div>
+                            <div>Gross Wt: <span className="font-semibold text-slate-700 dark:text-slate-300">{finance.grossWeight.toLocaleString()} KGs</span></div>
+                            <div className="col-span-2 border-t border-slate-100 dark:border-slate-800/85 pt-1.5 mt-1 flex justify-between items-center w-full">
+                              <span>Remaining Bal:</span>
+                              <span className="font-black text-xs text-emerald-600">{money(loadedRemainingUSD, lr.currency || "USD")}</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-400 italic py-8 bg-slate-50 dark:bg-slate-900/10 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                    No loaded containers found for this purchase order.
+                    <div className="text-[10px] text-slate-400 mt-1 font-normal">Please make sure the containers are added and loaded in the Loading module first.</div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Column: Input Form (Col Span 5) */}
               <div className="lg:col-span-5 space-y-4">
                 {/* Payment Input Form */}
@@ -4624,12 +4809,24 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 {/* Past Transactions Table */}
                 {(() => {
                   const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-                  const fromLoading = searchParams.get("fromLoading") === "true";
-                  const cLoadedQty = Number(searchParams.get("loadedQty") || 0);
-                  const cGrossWeight = Number(searchParams.get("grossWeight") || 0);
-                  const cNetWeight = Number(searchParams.get("netWeight") || 0);
-                  const cPriceRate = Number(searchParams.get("priceRate") || 0);
-                  const cLoadingRecordId = searchParams.get("loadingRecordId") || "";
+                  const isUrlLoading = searchParams.get("fromLoading") === "true";
+                  const fromLoading = isUrlLoading || Boolean(selectedLoadingRecord);
+
+                  const cLoadedQty = selectedLoadingRecord
+                    ? Number(selectedLoadingRecord.report_payload?.loadedQuantity || selectedLoadingRecord.loadedQuantity || 0)
+                    : Number(searchParams.get("loadedQty") || 0);
+                  const cGrossWeight = selectedLoadingRecord
+                    ? Number(selectedLoadingRecord.report_payload?.grossWeight || 0)
+                    : Number(searchParams.get("grossWeight") || 0);
+                  const cNetWeight = selectedLoadingRecord
+                    ? Number(selectedLoadingRecord.report_payload?.netWeight || 0)
+                    : Number(searchParams.get("netWeight") || 0);
+                  const cPriceRate = selectedLoadingRecord
+                    ? Number(selectedLoadingRecord.report_payload?.priceRateC1 || 0)
+                    : Number(searchParams.get("priceRate") || 0);
+                  const cLoadingRecordId = selectedLoadingRecord
+                    ? selectedLoadingRecord.id
+                    : (searchParams.get("loadingRecordId") || "");
 
                   const form = (selected as any).form_data?.form || {};
                   const goods = (selected as any).form_data?.goodsEntries || [];
@@ -4698,21 +4895,52 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   const chronological = displayPayments.sort((a: any, b: any) =>
                     new Date(a.entry_date || a.created_at).getTime() - new Date(b.entry_date || b.created_at).getTime()
                   );
-                  let runningTotalPaid = 0;
+                  let runningTotalUSD = 0;
+                  let runningTotalAED = 0;
                   const historyWithBalance = chronological.map((p: any, idx: number) => {
-                    const amtInBC = Number(p.amount || 0);
-                    runningTotalPaid += amtInBC;
-                    const remainAfterAdvance = p.kind === "advance"
-                      ? Math.max(0, loadingRequiredAdvance - runningTotalPaid)
+                    const isPayLocal = p.currency_code?.toUpperCase() === baseCurrency.toUpperCase();
+                    
+                    // Amount in USD (Transaction Currency)
+                    const amtUSD = isPayLocal
+                      ? Number(p.amount || 0) / Number(p.exchange_rate || exRate || 1)
+                      : Number(p.amount || 0);
+
+                    // Amount in AED (Final Currency)
+                    const amtAED = isPayLocal
+                      ? Number(p.amount || 0)
+                      : Number(p.amount || 0) * Number(p.exchange_rate || exRate || 1);
+
+                    runningTotalUSD += amtUSD;
+                    runningTotalAED += amtAED;
+
+                    const showRemainUSD = fromLoading
+                      ? Math.max(0, loadingPurchaseAmount - runningTotalUSD)
+                      : Math.max(0, loadingRequiredAdvance - runningTotalUSD);
+
+                    const showRemainAED = fromLoading
+                      ? Math.max(0, (loadingPurchaseAmount * exRate) - runningTotalAED)
+                      : Math.max(0, (loadingRequiredAdvance * exRate) - runningTotalAED);
+
+                    const remainingIndex = p.kind === "remaining"
+                      ? chronological.slice(0, idx + 1).filter((x: any) => x.kind === "remaining").length
                       : 0;
-                    const remainBalanceAfter = Math.max(0, loadingPurchaseAmount - runningTotalPaid);
+
+                    const paymentTypeLabel = p.kind === "advance"
+                      ? "Advance Payment"
+                      : p.kind === "remaining"
+                        ? `Remaining Payment - ${remainingIndex}`
+                        : p.kind || "Payment";
+
                     return {
                       ...p,
                       paymentNo: idx + 1,
-                      amtInBC,
-                      runningTotalPaid,
-                      remainAfterAdvance,
-                      remainBalanceAfter
+                      paymentTypeLabel,
+                      amtUSD,
+                      amtAED,
+                      runningTotalUSD,
+                      runningTotalAED,
+                      showRemainUSD,
+                      showRemainAED
                     };
                   });
 
@@ -4723,44 +4951,35 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         <div className="flex items-center gap-2">
                           <Landmark className="h-4 w-4 text-blue-500" />
                           <h3 className="text-[11px] font-black tracking-wider uppercase text-slate-800 dark:text-slate-200">
-                            {fromLoading ? "Container Loading Transactions History" : "Payment Transactions History"}
+                            {fromLoading ? "4. Payment Entry History (Container Wise)" : "4. Payment Entry History (All Transactions)"}
                           </h3>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[9px] font-bold bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-900">
-                            {historyWithBalance.length} Payment{historyWithBalance.length !== 1 ? 's' : ''}
+                            {historyWithBalance.length} Entry/Entries
                           </span>
-                          {historyWithBalance[historyWithBalance.length - 1]?.remainBalanceAfter <= 0.01 && (
-                            <span className="text-[9px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">✓ Fully Settled</span>
+                          {historyWithBalance[historyWithBalance.length - 1]?.showRemainUSD <= 0.01 && (
+                            <span className="text-[9px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">✓ Fully Paid</span>
                           )}
                         </div>
                       </div>
 
-                      {/* Target Amount Reminder */}
-                      {loadingRequiredAdvance > 0 && (
-                        <div className="px-4 py-2 bg-amber-50/50 dark:bg-amber-950/10 border-b border-amber-100 dark:border-amber-900/30 flex items-center justify-between text-[10px]">
-                          <span className="font-bold text-amber-700 dark:text-amber-400">
-                            {fromLoading ? "Advance Allocated to this Loading:" : "Total Advance Required:"}
-                          </span>
-                          <span className="font-black font-mono text-amber-600 dark:text-amber-300">
-                            {money(loadingRequiredAdvance, poCurrency)} ({money(loadingRequiredAdvance * exRate, baseCurrency)})
-                          </span>
-                        </div>
-                      )}
-
                       {/* Running Ledger Table */}
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs">
+                        <table className="w-full text-left text-xs border-collapse">
                           <thead className="bg-slate-50 dark:bg-slate-900 text-[9px] uppercase font-black tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                             <tr>
-                              <th className="px-3 py-2.5 text-center w-10">#</th>
-                              <th className="px-3 py-2.5">Date</th>
-                              <th className="px-3 py-2.5">Payment Method</th>
-                              <th className="px-3 py-2.5 text-right">Payment Amount</th>
-                              <th className="px-3 py-2.5 text-right">Total Paid</th>
-                              <th className="px-3 py-2.5 text-right">{fromLoading ? "Remaining Balance" : "Remaining Advance"}</th>
-                              <th className="px-3 py-2.5">Ref / User</th>
-                              <th className="px-3 py-2.5 text-center w-16">Actions</th>
+                              <th className="px-3 py-2 text-center w-10">#</th>
+                              <th className="px-3 py-2">Date</th>
+                              <th className="px-3 py-2">Payment Type</th>
+                              <th className="px-3 py-2 text-right">Payment Amount ({poCurrency})</th>
+                              <th className="px-3 py-2 text-right">Payment Amount ({baseCurrency})</th>
+                              <th className="px-3 py-2 text-right">Total Paid ({poCurrency})</th>
+                              <th className="px-3 py-2 text-right">Total Paid ({baseCurrency})</th>
+                              <th className="px-3 py-2 text-right">Remaining ({poCurrency})</th>
+                              <th className="px-3 py-2 text-right">Remaining ({baseCurrency})</th>
+                              <th className="px-3 py-2">Ref / User</th>
+                              <th className="px-3 py-2 text-center w-12">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -4770,105 +4989,70 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               const re = payment.roznamcha_entries || {};
                               const method = payment.typeDetails?.method || payment.payment_method || payment.typeDetails?.bankName || payment.bank_name || "—";
                               const userName = payment.created_by_name || payment.audit?.userName || payment.typeDetails?.receiverSenderName || re.created_by_name || "Admin";
-                              
-                              const showRemain = fromLoading ? payment.remainBalanceAfter : payment.remainAfterAdvance;
-                              const isCompleted = showRemain <= 0.01;
-                              
-                              const isPayLocal = payment.currency_code?.toUpperCase() === baseCurrency.toUpperCase();
-                              const payAmtDisplay = isPayLocal
-                                ? Number(payment.base_currency_amount || 0) || (Number(payment.amount) * Number(payment.exchange_rate || 1))
-                                : Number(payment.amount);
-                              const payAmtLocalDisplay = isPayLocal ? Number(payment.amount) : Number(payment.amount) * Number(payment.exchange_rate || 1);
+
+                              const isCompleted = payment.showRemainUSD <= 0.01;
 
                               return (
                                 <tr
                                   key={payment.id}
-                                  className={"border-b border-slate-100 dark:border-slate-800/60 transition " + (isCompleted ? "bg-emerald-50/30 dark:bg-emerald-950/10" : "hover:bg-slate-50/50 dark:hover:bg-slate-900/30")}
+                                  className={"border-b border-slate-100 dark:border-slate-800/60 text-xs transition " + (isCompleted ? "bg-emerald-50/20 dark:bg-emerald-950/5" : "hover:bg-slate-50/50 dark:hover:bg-slate-900/30")}
                                 >
                                   {/* Payment No. */}
-                                  <td className="px-3 py-3 text-center">
-                                    <span className={"inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black " + (isCompleted ? "bg-emerald-500 text-white" : "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300")}>
-                                      {payment.paymentNo}
-                                    </span>
+                                  <td className="px-3 py-2 text-center font-bold text-slate-700 dark:text-slate-300">
+                                    {payment.paymentNo}
                                   </td>
 
                                   {/* Date */}
-                                  <td className="px-3 py-3 whitespace-nowrap">
-                                    <div className="font-bold text-slate-700 dark:text-slate-300">{date(payment.entry_date || payment.created_at)}</div>
-                                    <div className="text-[9px] font-mono text-slate-400 mt-0.5">
-                                      {re.super_admin_serial_number || payment.branchName || "—"}
-                                    </div>
+                                  <td className="px-3 py-2 whitespace-nowrap text-slate-600 dark:text-slate-400 font-semibold">
+                                    {date(payment.entry_date || payment.created_at)}
                                   </td>
 
-                                  {/* Payment Method */}
-                                  <td className="px-3 py-3">
-                                    <div className="font-bold text-slate-700 dark:text-slate-300">{method}</div>
-                                    {drLedger && (
-                                      <div className="text-[9px] text-indigo-500 font-medium mt-0.5 truncate max-w-[120px]" title={ledgerName(drLedger)}>
-                                        Dr: {ledgerName(drLedger)}
-                                      </div>
-                                    )}
-                                    {crLedger && (
-                                      <div className="text-[9px] text-violet-500 font-medium mt-0.5 truncate max-w-[120px]" title={ledgerName(crLedger)}>
-                                        Cr: {ledgerName(crLedger)}
-                                      </div>
-                                    )}
+                                  {/* Payment Type */}
+                                  <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-300">
+                                    {payment.paymentTypeLabel}
+                                    <div className="text-[8px] font-normal text-slate-400">Via {method}</div>
                                   </td>
 
-                                  {/* Payment Amount */}
-                                  <td className="px-3 py-3 text-right">
-                                    <div className="font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
-                                      {money(payAmtDisplay, poCurrency)}
-                                    </div>
-                                    <div className="text-[9px] font-bold text-emerald-500/70 font-mono mt-0.5">
-                                      {money(payAmtLocalDisplay, baseCurrency)}
-                                    </div>
-                                    <div className="text-[8px] font-semibold text-slate-400 bg-slate-100 dark:bg-slate-800 rounded px-1 mt-1 inline-block">
-                                      Rate: {Number(payment.exchange_rate || 1).toFixed(2)}
-                                    </div>
+                                  {/* Payment Amount (PO Currency) */}
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-800 dark:text-slate-200">
+                                    {money(payment.amtUSD, poCurrency)}
                                   </td>
 
-                                  {/* Total Paid After This */}
-                                  <td className="px-3 py-3 text-right">
-                                    <div className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
-                                      {money(payment.runningTotalPaid, poCurrency)}
-                                    </div>
-                                    <div className="text-[9px] font-bold text-blue-500/70 font-mono mt-0.5">
-                                      {money(payment.runningTotalPaid * exRate, baseCurrency)}
-                                    </div>
+                                  {/* Payment Amount (Base Currency) */}
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-800 dark:text-slate-200">
+                                    {money(payment.amtAED, baseCurrency)}
                                   </td>
 
-                                  {/* Remaining Advance / Balance After This */}
-                                  <td className="px-3 py-3 text-right">
-                                    {isCompleted ? (
-                                      <span className="inline-flex items-center gap-1 font-black text-emerald-600 dark:text-emerald-400 text-xs">
-                                        <CheckCircle className="h-3.5 w-3.5" />
-                                        <span className="font-mono">0.00 {poCurrency}</span>
-                                      </span>
-                                    ) : (
-                                      <>
-                                        <div className="font-extrabold text-rose-600 dark:text-rose-400 font-mono">
-                                          {money(showRemain, poCurrency)}
-                                        </div>
-                                        <div className="text-[9px] font-bold text-rose-500/70 font-mono mt-0.5">
-                                          {money(showRemain * exRate, baseCurrency)}
-                                        </div>
-                                      </>
-                                    )}
+                                  {/* Total (PO Currency) */}
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-blue-600 dark:text-blue-400">
+                                    {money(payment.runningTotalUSD, poCurrency)}
+                                  </td>
+
+                                  {/* Total Paid (Base Currency) */}
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-blue-600 dark:text-blue-400">
+                                    {money(payment.runningTotalAED, baseCurrency)}
+                                  </td>
+
+                                  {/* Remaining (PO Currency) */}
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-rose-600 dark:text-rose-400">
+                                    {payment.showRemainUSD <= 0.01 ? `0.00 ${poCurrency}` : money(payment.showRemainUSD, poCurrency)}
+                                  </td>
+
+                                  {/* Remaining (Base Currency) */}
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-rose-600 dark:text-rose-400">
+                                    {payment.showRemainAED <= 0.01 ? `0.00 ${baseCurrency}` : money(payment.showRemainAED, baseCurrency)}
                                   </td>
 
                                   {/* Ref / User */}
-                                  <td className="px-3 py-3">
-                                    <div className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate max-w-[110px]" title={userName}>
-                                      <User className="inline h-3 w-3 mr-1 text-slate-400" />{userName}
+                                  <td className="px-3 py-2 text-[10px] text-slate-500 whitespace-nowrap">
+                                    <div className="font-bold flex items-center gap-1">
+                                      <User className="h-3 w-3 text-slate-400" />{userName}
                                     </div>
-                                    <div className="text-[9px] font-mono text-slate-400 mt-0.5 truncate max-w-[110px]">
-                                      Ref: {payment.reference_no || "-"}
-                                    </div>
+                                    <div className="font-mono text-[8px]">Ref: {payment.reference_no || "-"}</div>
                                   </td>
 
                                   {/* Actions */}
-                                  <td className="px-3 py-3 text-center">
+                                  <td className="px-3 py-2 text-center">
                                     {payment.id === "synthetic-advance-payment" ? (
                                       <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 italic">Allocation</span>
                                     ) : (
@@ -4881,19 +5065,25 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           </tbody>
                           {/* Summary Footer Row */}
                           <tfoot>
-                            <tr className="bg-slate-100 dark:bg-slate-800/60 border-t-2 border-slate-300 dark:border-slate-700">
-                              <td colSpan={3} className="px-3 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wide">Total Summary</td>
-                              <td className="px-3 py-2.5 text-right font-black font-mono text-emerald-700 dark:text-emerald-400 text-[11px]">
-                                {money(historyWithBalance.reduce((s: number, p: any) => s + p.amtInBC, 0), poCurrency)}
+                            <tr className="bg-slate-100 dark:bg-slate-900 border-t-2 border-slate-300 dark:border-slate-700 text-xs font-black text-slate-700 dark:text-slate-300">
+                              <td colSpan={3} className="px-3 py-2 uppercase tracking-wide text-center">Totals</td>
+                              <td className="px-3 py-2 text-right font-mono text-emerald-700 dark:text-emerald-400 font-black">
+                                {money(historyWithBalance.reduce((s: number, p: any) => s + p.amtUSD, 0), poCurrency)}
                               </td>
-                              <td className="px-3 py-2.5 text-right font-black font-mono text-blue-700 dark:text-blue-400 text-[11px]">
-                                {money(historyWithBalance[historyWithBalance.length - 1]?.runningTotalPaid || 0, poCurrency)}
+                              <td className="px-3 py-2 text-right font-mono text-emerald-700 dark:text-emerald-400 font-black">
+                                {money(historyWithBalance.reduce((s: number, p: any) => s + p.amtAED, 0), baseCurrency)}
                               </td>
-                              <td className="px-3 py-2.5 text-right font-black font-mono text-rose-600 dark:text-rose-400 text-[11px]">
-                                {historyWithBalance[historyWithBalance.length - 1]?.remainBalanceAfter <= 0.01
-                                  ? <span className="text-emerald-600">✓ Settled</span>
-                                  : money(fromLoading ? historyWithBalance[historyWithBalance.length - 1]?.remainBalanceAfter : historyWithBalance[historyWithBalance.length - 1]?.remainAfterAdvance || 0, poCurrency)
-                                }
+                              <td className="px-3 py-2 text-right font-mono text-blue-700 dark:text-blue-400 font-black">
+                                {money(historyWithBalance[historyWithBalance.length - 1]?.runningTotalUSD || 0, poCurrency)}
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono text-blue-700 dark:text-blue-400 font-black">
+                                {money(historyWithBalance[historyWithBalance.length - 1]?.runningTotalAED || 0, baseCurrency)}
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono text-rose-600 dark:text-rose-400 font-black">
+                                {money(historyWithBalance[historyWithBalance.length - 1]?.showRemainUSD || 0, poCurrency)}
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono text-rose-600 dark:text-rose-400 font-black">
+                                {money(historyWithBalance[historyWithBalance.length - 1]?.showRemainAED || 0, baseCurrency)}
                               </td>
                               <td colSpan={2} />
                             </tr>
@@ -4911,117 +5101,71 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   <table className="w-full text-xs border-collapse">
                     <thead>
                       <tr className="bg-muted/60 border-b border-border text-[10px] uppercase font-black tracking-wider text-muted-foreground">
-                        <th className="px-3 py-2.5 text-left">Type</th>
+                        <th className="px-3 py-2.5 text-left w-16">DR / CR</th>
                         <th className="px-3 py-2.5 text-left">Account</th>
-                        <th className="px-3 py-2.5 text-right">Amount ({currency})</th>
+                        <th className="px-3 py-2.5 text-right">Amount ({poCurrency})</th>
+                        <th className="px-3 py-2.5 text-right">Amount ({baseCurrency})</th>
                         <th className="px-2 py-2.5 text-center">✓</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="border-b border-border bg-indigo-500/5 ring-1 ring-inset ring-indigo-400/20">
-                        <td className="px-3 py-3">
-                          <span className="inline-flex items-center rounded-full bg-indigo-500/10 border border-indigo-400/20 px-2 py-0.5 text-[9px] font-black text-indigo-600 uppercase">
-                            DEBIT (Dr)
-                          </span>
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="font-bold text-foreground line-clamp-1">{doubleEntry.debitName}</div>
-                          <div className="text-[9px] text-muted-foreground font-mono">
-                            {doubleEntry.debitCode} {doubleEntry.debitBranch && doubleEntry.debitBranch !== "-" && `| Branch: ${doubleEntry.debitBranch}`}
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-right font-mono font-bold text-indigo-600 whitespace-nowrap">
-                          {(() => {
-                            if (!amount) return <span className="text-muted-foreground">—</span>;
-                            const drLedger = ledgers.find((l) => ledgerCode(l) === doubleEntry.debitCode);
-                            const drCurrency = (ledgerCurrency(drLedger) || currency || baseCurrency).toUpperCase();
-                            const isDrLocal = drCurrency === baseCurrency.toUpperCase();
-                            if (isDrLocal) {
-                              return (
-                                <>
-                                  {money(amount, baseCurrency)}
-                                  {currency !== baseCurrency && (
-                                    <span className="block text-[9px] text-muted-foreground font-normal mt-0.5">
-                                      {money(amount / Number(exchangeRate || 1), currency)}
-                                    </span>
-                                  )}
-                                </>
-                              );
-                            } else {
-                              return (
-                                <>
-                                  {money(amount / Number(exchangeRate || 1), drCurrency)}
-                                  {drCurrency !== baseCurrency && (
-                                    <span className="block text-[9px] text-muted-foreground font-normal mt-0.5">
-                                      {money(amount, baseCurrency)}
-                                    </span>
-                                  )}
-                                </>
-                              );
-                            }
-                          })()}
-                        </td>
-                        <td className="px-2 py-3 text-center">
-                          <input
-                            type="radio"
-                            checked
-                            readOnly
-                            className="h-3.5 w-3.5 accent-indigo-600"
-                          />
-                        </td>
-                      </tr>
-                      <tr className="bg-violet-500/5 ring-1 ring-inset ring-violet-400/20">
-                        <td className="px-3 py-3">
-                          <span className="inline-flex items-center rounded-full bg-violet-500/10 border border-violet-400/20 px-2 py-0.5 text-[9px] font-black text-violet-600 uppercase">
-                            CREDIT (Cr)
-                          </span>
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="font-bold text-foreground line-clamp-1">{doubleEntry.creditName}</div>
-                          <div className="text-[9px] text-muted-foreground font-mono">
-                            {doubleEntry.creditCode} {doubleEntry.creditBranch && doubleEntry.creditBranch !== "-" && `| Branch: ${doubleEntry.creditBranch}`}
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-right font-mono font-bold text-violet-600 whitespace-nowrap">
-                          {(() => {
-                            if (!amount) return <span className="text-muted-foreground">—</span>;
-                            const crLedger = ledgers.find((l) => ledgerCode(l) === doubleEntry.creditCode) || selectedSourceLedger;
-                            const crCurrency = (ledgerCurrency(crLedger) || currency || baseCurrency).toUpperCase();
-                            const isCrLocal = crCurrency === baseCurrency.toUpperCase();
-                            if (isCrLocal) {
-                              return (
-                                <>
-                                  {money(amount, baseCurrency)}
-                                  {currency !== baseCurrency && (
-                                    <span className="block text-[9px] text-muted-foreground font-normal mt-0.5">
-                                      {money(amount / Number(exchangeRate || 1), currency)}
-                                    </span>
-                                  )}
-                                </>
-                              );
-                            } else {
-                              return (
-                                <>
-                                  {money(amount / Number(exchangeRate || 1), crCurrency)}
-                                  {crCurrency !== baseCurrency && (
-                                    <span className="block text-[9px] text-muted-foreground font-normal mt-0.5">
-                                      {money(amount, baseCurrency)}
-                                    </span>
-                                  )}
-                                </>
-                              );
-                            }
-                          })()}
-                        </td>
-                        <td className="px-2 py-3 text-center">
-                          <input
-                            type="radio"
-                            checked
-                            readOnly
-                            className="h-3.5 w-3.5 accent-violet-600"
-                          />
-                        </td>
-                      </tr>
+                      {(() => {
+                        const previewUsd = showCalcPanel 
+                          ? (currency === baseCurrency ? amount : Number(calcAmount || 0)) 
+                          : (amount / Number(exchangeRate || 1));
+                        const previewAed = amount;
+
+                        return (
+                          <>
+                            <tr className="border-b border-border bg-indigo-500/5 ring-1 ring-inset ring-indigo-400/20">
+                              <td className="px-3 py-3 font-black text-xs text-indigo-600">DR</td>
+                              <td className="px-3 py-3">
+                                <div className="font-bold text-foreground line-clamp-1">{doubleEntry.debitName}</div>
+                                <div className="text-[9px] text-muted-foreground font-mono">
+                                  {doubleEntry.debitCode} {doubleEntry.debitBranch && doubleEntry.debitBranch !== "-" && `| Branch: ${doubleEntry.debitBranch}`}
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-right font-mono font-bold text-indigo-600 whitespace-nowrap">
+                                {previewUsd > 0 ? money(previewUsd, poCurrency) : "—"}
+                              </td>
+                              <td className="px-3 py-3 text-right font-mono font-bold text-indigo-600 whitespace-nowrap">
+                                {previewAed > 0 ? money(previewAed, baseCurrency) : "—"}
+                              </td>
+                              <td className="px-2 py-3 text-center">
+                                <input
+                                  type="radio"
+                                  checked
+                                  readOnly
+                                  className="h-3.5 w-3.5 accent-indigo-600"
+                                />
+                              </td>
+                            </tr>
+                            <tr className="bg-violet-500/5 ring-1 ring-inset ring-violet-400/20">
+                              <td className="px-3 py-3 font-black text-xs text-violet-600">CR</td>
+                              <td className="px-3 py-3">
+                                <div className="font-bold text-foreground line-clamp-1">{doubleEntry.creditName}</div>
+                                <div className="text-[9px] text-muted-foreground font-mono">
+                                  {doubleEntry.creditCode} {doubleEntry.creditBranch && doubleEntry.creditBranch !== "-" && `| Branch: ${doubleEntry.creditBranch}`}
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-right font-mono font-bold text-violet-600 whitespace-nowrap">
+                                {previewUsd > 0 ? money(previewUsd, poCurrency) : "—"}
+                              </td>
+                              <td className="px-3 py-3 text-right font-mono font-bold text-violet-600 whitespace-nowrap">
+                                {previewAed > 0 ? money(previewAed, baseCurrency) : "—"}
+                              </td>
+                              <td className="px-2 py-3 text-center">
+                                <input
+                                  type="radio"
+                                  checked
+                                  readOnly
+                                  className="h-3.5 w-3.5 accent-violet-600"
+                                />
+                              </td>
+                            </tr>
+                          </>
+                        );
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -5039,6 +5183,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 </div>
               </div>
             </div>
+            )}
           </div>
         </SimpleModal>
       )}
