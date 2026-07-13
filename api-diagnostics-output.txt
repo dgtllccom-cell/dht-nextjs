@@ -760,3 +760,111 @@ Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
 
 [CLIENT LOG] Time: 2026-07-13T19:52:59.423Z
 Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T20:00:51.627Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T20:00:53.200Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T20:00:53.537Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T20:01:10.503Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T20:22:24.711Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T20:23:58.135Z
+Params: limit=150
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T20:24:21.781Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T20:25:02.241Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T20:25:20.357Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T20:25:25.105Z
+Params: limit=150
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T20:26:15.375Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T20:26:24.874Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T20:26:27.877Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T20:28:00.993Z
+Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T20:33:00.987Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T21:02:57.379Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T21:03:00.942Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T21:06:23.006Z
+Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T21:06:31.250Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T21:06:39.680Z
+Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T21:07:09.107Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T21:10:02.856Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T21:10:02.858Z
+Params: limit=200
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:10:34.698Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:10:34.709Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:10:34.715Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:10:45.682Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:11:10.665Z
+Params: limit=150
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T21:11:23.872Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T21:12:31.322Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:15:35.071Z
+Params: limit=150
+
+[CLIENT LOG] Time: 2026-07-13T21:16:00.861Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T21:25:05.512Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T21:28:39.728Z
+Params: limit=200
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:29:14.705Z
+Params: limit=150
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T21:29:24.912Z
+Params: limit=200
