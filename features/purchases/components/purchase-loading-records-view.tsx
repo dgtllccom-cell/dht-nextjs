@@ -226,36 +226,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
     setSealNumberInput(h.report_payload?.sealNumber || "");
   }
 
-  const [newLoadingQuantity, setNewLoadingQuantity] = useState("");
-  const [newLoadingDate, setNewLoadingDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [newLoadingNote, setNewLoadingNote] = useState("");
-  const [originCountry, setOriginCountry] = useState("India");
-  const [goodsName, setGoodsName] = useState("");
-  const [hsCode, setHsCode] = useState("0000");
-  const [allotName, setAllotName] = useState("ALT-4733");
-  const [brand, setBrand] = useState("");
-  const [sizeSpec, setSizeSpec] = useState("");
-  const [qtyName, setQtyName] = useState("BAGS");
-  const [quantityNo, setQuantityNo] = useState("");
-  const [oneQtyKgs, setOneQtyKgs] = useState("");
-  const [oneEmptyKgs, setOneEmptyKgs] = useState("");
-  const [divideType, setDivideType] = useState("D/KGs");
-  const [divideWeightValue, setDivideWeightValue] = useState("1");
-  const [priceType, setPriceType] = useState("P/KGs");
-  const [priceRateC1, setPriceRateC1] = useState("");
-  const [qualityReportRef, setQualityReportRef] = useState("Passed");
-  const [pricingCurrency, setPricingCurrency] = useState("USD");
-  const [exchangeRatePKR, setExchangeRatePKR] = useState("287");
-  const [blNumber, setBlNumber] = useState("");
-  const [containerCount, setContainerCount] = useState("1");
-  const [loadingCountryState, setLoadingCountryState] = useState(loadingCountry !== "-" ? loadingCountry : "");
-  const [loadingPortState, setLoadingPortState] = useState(loadingPort !== "-" ? loadingPort : "");
-  const [receivingCountryState, setReceivingCountryState] = useState(receivingCountry !== "-" ? receivingCountry : "");
-  const [receivingPortState, setReceivingPortState] = useState(receivingPort !== "-" ? receivingPort : "");
-  const [receivingDateState, setReceivingDateState] = useState(form.receivedDate || form.arrivalDate || "");
-  const [vesselName, setVesselName] = useState("");
-  const [savingNewLoading, setSavingNewLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState("");
+
 
   const [history, setHistory] = useState<LoadingRecord[]>([]);
   useEffect(() => {
@@ -1248,6 +1219,20 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                             <button onClick={() => handleDeleteHistory(h)} disabled={savingNewLoading} className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50 transition disabled:opacity-50" title="Delete Entry">
                               <Trash2 className="w-4 h-4" />
                             </button>
+                            <button 
+                              onClick={() => window.open(`/dashboard/purchase/purchase-loading-records/${h.id}?print=true`, "_blank")} 
+                              className="text-slate-500 hover:text-slate-700 p-1 rounded hover:bg-slate-50 transition" 
+                              title="Print Loading Slip"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => window.open(`/dashboard/purchase/purchase-loading-records/${h.id}?print=true`, "_blank")} 
+                              className="text-indigo-500 hover:text-indigo-700 p-1 rounded hover:bg-indigo-50 transition" 
+                              title="Export PDF"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
                             {h.report_payload?.loadedQuantity && (
                               <button 
                                 onClick={() => {
@@ -1393,7 +1378,7 @@ function emptyForm() {
   };
 }
 
-export function PurchaseLoadingRecordsView() {
+export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: string }) {
   const [actionsSlot, setActionsSlot] = useState<Element | null>(null);
 
   useEffect(() => {
@@ -1422,6 +1407,16 @@ export function PurchaseLoadingRecordsView() {
   const [message, setMessage] = useState("");
   const [form, setForm] = useState(() => emptyForm());
   const [selectedLoadDetailsRecord, setSelectedLoadDetailsRecord] = useState<LoadingRecord | null>(null);
+
+  useEffect(() => {
+    if (openRecordId && records.length > 0 && !selectedLoadDetailsRecord) {
+      const match = records.find(r => r.id === openRecordId);
+      if (match) {
+        setSelectedLoadDetailsRecord(match);
+      }
+    }
+  }, [openRecordId, records, selectedLoadDetailsRecord]);
+
   const [expandedSummaryCountries, setExpandedSummaryCountries] = useState<Record<string, boolean>>({});
 
   const loadingSummaryRows = useMemo(() => {

@@ -2810,6 +2810,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       || row.ledger_posting_status === "posted"
       || row.ledger_posting_status === "Transferred"
       || row.ledger_posting_status === "transferred";
+    const isPaymentCompleted = (activeMode === "remaining" || activeMode === "credit")
+      ? balanceAmountBC <= 0.01
+      : isPosted;
     const getRowColor = () => isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
 
     // Per-row derived display values
@@ -2944,19 +2947,24 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] })); setOpenDropdownId(null); }}>
                       <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> Details & History
                     </button>
-                    {!isPosted && (
-                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { handleSettlementClick(row); setOpenDropdownId(null); }}>
+                    {!isPaymentCompleted && (
+                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-red-650 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { selectOrder(row.id); setOpenDropdownId(null); }}>
                         <Banknote className="mr-2.5 h-4 w-4 text-red-500" /> Pay / Transfer
                       </button>
                     )}
                     {isPosted && (
                       <>
-                        <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { setOpenDropdownId(null); handleOpenA4PDF(row); }}>
+                        <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-650 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { setOpenDropdownId(null); handleOpenA4PDF(row); }}>
                           <Printer className="mr-2.5 h-4 w-4 text-indigo-500" /> Print Voucher (A4)
                         </button>
-                        <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { setOpenDropdownId(null); handleRevertClick(row); }}>
-                          <RefreshCw className="mr-2.5 h-4 w-4 text-indigo-500" /> Revert & Edit Advance
-                        </button>
+                        {activeMode === "advance" && (
+                          <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-650 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { 
+                            setOpenDropdownId(null); 
+                            router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(row.purchase_order_no)}`);
+                          }}>
+                            <RefreshCw className="mr-2.5 h-4 w-4 text-indigo-500" /> Revert & Edit Advance
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
@@ -3372,6 +3380,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       || row.ledger_posting_status === "posted"
                                       || row.ledger_posting_status === "Transferred"
                                       || row.ledger_posting_status === "transferred";
+                                    const isPaymentCompleted = (activeMode === "remaining" || activeMode === "credit")
+                                      ? balanceAmountBC <= 0.01
+                                      : isPosted;
                                     const getRowColor = () => isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
                                     
                                     // Derived details
@@ -3445,7 +3456,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                             <div className="flex justify-center items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                                               {activeMode !== "advance_completed" && (
                                                 <>
-                                                  {isPosted ? (
+                                                  {isPaymentCompleted ? (
                                                     <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
                                                       Transferred ✓
                                                     </span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Printer, Download, MapPin, Truck, Building2, User, FileText, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,9 @@ import { createPortal } from "react-dom";
 import { numberToWords } from "@/lib/utils/number-to-words";
 
 export function PurchaseLoadingRecordDetailsView({ recordId }: { recordId: string }) {
+  const searchParams = useSearchParams();
+  const shouldPrint = searchParams.get("print") === "true";
+
   const [record, setRecord] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [printMode, setPrintMode] = useState(false);
@@ -30,6 +34,12 @@ export function PurchaseLoadingRecordDetailsView({ recordId }: { recordId: strin
     }
     fetchRecord();
   }, [recordId]);
+
+  useEffect(() => {
+    if (!loading && record && shouldPrint) {
+      setPrintMode(true);
+    }
+  }, [loading, record, shouldPrint]);
 
   if (loading) {
     return <div className="flex h-[400px] items-center justify-center text-muted-foreground">Loading details...</div>;
@@ -106,7 +116,7 @@ export function PurchaseLoadingRecordDetailsView({ recordId }: { recordId: strin
   return (
     <div className="space-y-6">
       <ErpPageActions
-        backLink="/dashboard/purchase/purchase-loading-records"
+        backLink={`/dashboard/purchase/purchase-loading-records?openRecordId=${recordId}`}
         title="Loading Record Details"
         subtitle="Comprehensive view of loading, purchase, sales, and goods."
       >
