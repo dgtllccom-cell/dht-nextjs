@@ -2147,85 +2147,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [pageSize, setPageSize] = useState(10);
   const [pageIndex, setPageIndex] = useState(0);
-
-  // Container Selection local state
-  const [selectedLoadingRecord, setSelectedLoadingRecord] = useState<any>(null);
-  const [loadingRecords, setLoadingRecords] = useState<any[]>([]);
-  const [loadingLoadingRecords, setLoadingLoadingRecords] = useState(false);
-
-  // Fetch loaded container records for Remaining Payment mode
-  useEffect(() => {
-    if (selected && activeMode === "remaining") {
-      setLoadingLoadingRecords(true);
-      fetch(`/api/erp/purchases/loading-records?q=${selected.purchase_order_no}`, { credentials: "include" })
-        .then(res => res.json())
-        .then(res => {
-          if (res.ok && Array.isArray(res.data?.records)) {
-            const loaded = res.data.records.filter((r: any) =>
-              r.loading_status === "loaded" ||
-              Number(r.report_payload?.loadedQuantity || r.loadedQuantity || 0) > 0
-            );
-            setLoadingRecords(loaded);
-          }
-        })
-        .catch(err => console.error("Error loading container records:", err))
-        .finally(() => setLoadingLoadingRecords(false));
-    } else {
-      setLoadingRecords([]);
-      setSelectedLoadingRecord(null);
-    }
-  }, [selected, activeMode]);
-
-  // Sync selected container if URL has fromLoading parameters
-  useEffect(() => {
-    if (selected && activeMode === "remaining") {
-      const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-      const fromLoading = searchParams.get("fromLoading") === "true";
-      if (fromLoading) {
-        const cLoadingRecordId = searchParams.get("loadingRecordId") || "";
-        const cLoadedQty = Number(searchParams.get("loadedQty") || 0);
-        const cGrossWeight = Number(searchParams.get("grossWeight") || 0);
-        const cNetWeight = Number(searchParams.get("netWeight") || 0);
-        const cPriceRate = Number(searchParams.get("priceRate") || 0);
-        
-        setSelectedLoadingRecord({
-          id: cLoadingRecordId,
-          loading_record_no: searchParams.get("purchaseOrderNo") ? `Transferred Container (${searchParams.get("purchaseOrderNo")})` : "Transferred Container",
-          report_payload: {
-            loadedQuantity: cLoadedQty,
-            grossWeight: cGrossWeight,
-            netWeight: cNetWeight,
-            priceRateC1: cPriceRate
-          }
-        });
-      }
-    }
-  }, [selected, activeMode]);
-
-  const handleSelectLoadingRecord = (lr: any) => {
-    setSelectedLoadingRecord(lr);
-    if (!selected) return;
-
-    const poRow = selected || {};
-    const finance = calcLoadingFinance(lr, poRow, poRow.form_data?.form || {});
-    const loadedQty = lr.report_payload?.loadedQuantity || lr.loadedQuantity || 0;
-    const poAdvanceAmt = Number(poRow.advance_paid || poRow.form_data?.form?.advanceAmount || 0);
-    
-    const goods = poRow.form_data?.goodsEntries || [];
-    const totalPOQuantity = Number(
-      poRow.form_data?.totals?.totalQuantity ||
-      goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
-      poRow.form_data?.form?.quantity ||
-      1
-    );
-
-    const loadedAdvanceUSD = totalPOQuantity > 0 ? (loadedQty / totalPOQuantity) * poAdvanceAmt : poAdvanceAmt;
-    const loadedRemainingUSD = Math.max(0, finance.amountUSD - loadedAdvanceUSD);
-    
-    const exRateVal = Number(exchangeRate || finance.exRate || 1);
-    setCalcAmount(loadedRemainingUSD.toFixed(4));
-    setFinalPayment((loadedRemainingUSD * exRateVal).toFixed(2));
-  };
+  // Container state moved below 'selected' declaration to prevent ReferenceError
 
   // Local cache for Bank/Method quick add
   const [savedBanks, setSavedBanks] = useState<SavedBankItem[]>([]);
@@ -2530,6 +2452,86 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }, [activeMode, branchFilter, countryFilter, currencyFilter, draftFilter, orders, query]);
 
   const selected = selectedId ? (filtered.find((row) => row.id === selectedId) ?? null) : null;
+
+  // Container Selection local state (moved here to allow access to 'selected' initialization)
+  const [selectedLoadingRecord, setSelectedLoadingRecord] = useState<any>(null);
+  const [loadingRecords, setLoadingRecords] = useState<any[]>([]);
+  const [loadingLoadingRecords, setLoadingLoadingRecords] = useState(false);
+
+  // Fetch loaded container records for Remaining Payment mode
+  useEffect(() => {
+    if (selected && activeMode === "remaining") {
+      setLoadingLoadingRecords(true);
+      fetch(`/api/erp/purchases/loading-records?q=${selected.purchase_order_no}`, { credentials: "include" })
+        .then(res => res.json())
+        .then(res => {
+          if (res.ok && Array.isArray(res.data?.records)) {
+            const loaded = res.data.records.filter((r: any) =>
+              r.loading_status === "loaded" ||
+              Number(r.report_payload?.loadedQuantity || r.loadedQuantity || 0) > 0
+            );
+            setLoadingRecords(loaded);
+          }
+        })
+        .catch(err => console.error("Error loading container records:", err))
+        .finally(() => setLoadingLoadingRecords(false));
+    } else {
+      setLoadingRecords([]);
+      setSelectedLoadingRecord(null);
+    }
+  }, [selected, activeMode]);
+
+  // Sync selected container if URL has fromLoading parameters
+  useEffect(() => {
+    if (selected && activeMode === "remaining") {
+      const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+      const fromLoading = searchParams.get("fromLoading") === "true";
+      if (fromLoading) {
+        const cLoadingRecordId = searchParams.get("loadingRecordId") || "";
+        const cLoadedQty = Number(searchParams.get("loadedQty") || 0);
+        const cGrossWeight = Number(searchParams.get("grossWeight") || 0);
+        const cNetWeight = Number(searchParams.get("netWeight") || 0);
+        const cPriceRate = Number(searchParams.get("priceRate") || 0);
+        
+        setSelectedLoadingRecord({
+          id: cLoadingRecordId,
+          loading_record_no: searchParams.get("purchaseOrderNo") ? `Transferred Container (${searchParams.get("purchaseOrderNo")})` : "Transferred Container",
+          report_payload: {
+            loadedQuantity: cLoadedQty,
+            grossWeight: cGrossWeight,
+            netWeight: cNetWeight,
+            priceRateC1: cPriceRate
+          }
+        });
+      }
+    }
+  }, [selected, activeMode]);
+
+  const handleSelectLoadingRecord = (lr: any) => {
+    setSelectedLoadingRecord(lr);
+    if (!selected) return;
+
+    const poRow = selected || {};
+    const finance = calcLoadingFinance(lr, poRow, poRow.form_data?.form || {});
+    const loadedQty = lr.report_payload?.loadedQuantity || lr.loadedQuantity || 0;
+    const poAdvanceAmt = Number(poRow.advance_paid || poRow.form_data?.form?.advanceAmount || 0);
+    
+    const goods = poRow.form_data?.goodsEntries || [];
+    const totalPOQuantity = Number(
+      poRow.form_data?.totals?.totalQuantity ||
+      goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+      poRow.form_data?.form?.quantity ||
+      1
+    );
+
+    const loadedAdvanceUSD = totalPOQuantity > 0 ? (loadedQty / totalPOQuantity) * poAdvanceAmt : poAdvanceAmt;
+    const loadedRemainingUSD = Math.max(0, finance.amountUSD - loadedAdvanceUSD);
+    
+    const exRateVal = Number(exchangeRate || finance.exRate || 1);
+    setCalcAmount(loadedRemainingUSD.toFixed(4));
+    setFinalPayment((loadedRemainingUSD * exRateVal).toFixed(2));
+  };
+
   const pageRows = useMemo(() => {
     return filtered.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
   }, [filtered, pageIndex, pageSize]);

@@ -2538,7 +2538,7 @@ export function PurchaseOrderManagementDashboard() {
                   const defaultCurrency = group.rows[0]?.currency || "USD";
                   
                   return (
-                    <React.Fragment key={`group-${countryName}`}>
+                    <Fragment key={`group-${countryName}`}>
                       <tr 
                         className="bg-slate-50 border-y border-slate-200 cursor-pointer hover:bg-blue-50 dark:bg-slate-900/40 dark:border-slate-800 dark:hover:bg-blue-900/20 transition-colors"
                         onClick={() => setExpandedTableCountries(prev => ({ ...prev, [countryName]: !isExpanded }))}
@@ -2762,7 +2762,7 @@ export function PurchaseOrderManagementDashboard() {
                     </tr>
                   );
                 })}
-                    </React.Fragment>
+                    </Fragment>
                   );
                 })}
                 {!filtered.length ? (
