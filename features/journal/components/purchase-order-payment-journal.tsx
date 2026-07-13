@@ -2834,7 +2834,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     return (
       <React.Fragment key={row.id}>
         <tr
-          onClick={() => selectOrder(row.id)}
+          onClick={() => setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] }))}
           style={{ background: rowBg, borderBottom: "1px solid #e2e8f0", cursor: "pointer", outline: isSelected ? "2px solid #3b82f6" : undefined, outlineOffset: -1 }}
           onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "#f0f9ff"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}
@@ -3404,8 +3404,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     return (
                                       <React.Fragment key={row.id}>
                                         <tr
-                                          onClick={() => selectOrder(row.id)}
-                                          className={cn("cursor-pointer border-b border-slate-100 dark:border-slate-800/60 text-center hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors", isSelected && "bg-blue-50/80 dark:bg-blue-900/30")}
+                                          className={cn("border-b border-slate-100 dark:border-slate-800/60 text-center hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors", isSelected && "bg-blue-50/80 dark:bg-blue-900/30")}
                                         >
                                           {/* Serials */}
                                           <td className={cn("px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 font-mono text-[9px] align-middle", getRowColor())}>{index + 1}</td>
