@@ -1914,6 +1914,13 @@ function DashboardSummaryHeader({
 export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentMode }) {
   const router = useRouter();
   const activeMode: PaymentMode = mode === "charges" ? "credit" : mode;
+  const logClientError = (msg: string) => {
+    fetch("/api/erp/purchases/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientLog: msg })
+    }).catch(() => {});
+  };
   const [orders, setOrders] = useState<PurchaseOrderRow[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const selectOrder = (id: string) => {
@@ -3498,7 +3505,15 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                   )}
                                   <div className="py-1">
                                     {activeMode !== "advance_completed" && (
-                                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-800 transition font-bold" onClick={() => { selectOrder(row.id); close(); }}>
+                                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-800 transition font-bold" onClick={() => {
+                                        try {
+                                          logClientError(`Click Payment Entry. row.id: ${row.id}`);
+                                          selectOrder(row.id);
+                                          close();
+                                        } catch (e: any) {
+                                          logClientError(`Error in Payment Entry click: ${e.stack || e.message || String(e)}`);
+                                        }
+                                      }}>
                                         <WalletCards className="mr-2.5 h-4 w-4 text-slate-500" /> Payment Entry
                                       </button>
                                     )}
@@ -3519,7 +3534,15 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, false); close(); }}>
                                       <FileText className="mr-2.5 h-4 w-4 text-slate-500" /> View Statement
                                     </button>
-                                    <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] })); close(); }}>
+                                    <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => {
+                                      try {
+                                        logClientError(`Click Show Payment History. row.id: ${row.id}`);
+                                        setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] }));
+                                        close();
+                                      } catch (e: any) {
+                                        logClientError(`Error in Show Payment History click: ${e.stack || e.message || String(e)}`);
+                                      }
+                                    }}>
                                       {isExpanded ? <XCircle className="mr-2.5 h-4 w-4 text-slate-500" /> : <Plus className="mr-2.5 h-4 w-4 text-slate-500" />} {isExpanded ? "Hide Payment History" : "Show Payment History"}
                                     </button>
                                     {activeMode === "advance_completed" && (

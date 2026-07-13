@@ -198,17 +198,28 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const rawBody = await request.json();
+    if (rawBody && typeof rawBody === "object" && "clientLog" in rawBody) {
+      try {
+        const fs = await import("node:fs");
+        fs.appendFileSync(
+          "C:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/api-diagnostics-output.txt",
+          `\n[CLIENT LOG] Time: ${new Date().toISOString()}\nMessage: ${rawBody.clientLog}\n`,
+          "utf8"
+        );
+      } catch (_) {}
+      return apiOk({});
+    }
     try {
-      const bodyText = await request.clone().text();
       const fs = await import("node:fs");
       fs.appendFileSync(
         "C:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/api-diagnostics-output.txt",
-        `\n[POST /api/erp/purchases/orders] Time: ${new Date().toISOString()}\nBody: ${bodyText}\n`,
+        `\n[POST /api/erp/purchases/orders] Time: ${new Date().toISOString()}\nBody: ${JSON.stringify(rawBody, null, 2)}\n`,
         "utf8"
       );
     } catch (_) {}
     const session = await requireErpSession();
-    const body = purchaseOrderCreateSchema.parse(await request.json());
+    const body = purchaseOrderCreateSchema.parse(rawBody);
 
     const effective = await resolveEffectiveScope({
       countryId: body.countryId ?? null,
