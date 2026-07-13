@@ -825,7 +825,25 @@ function NestedRowActions({ payment, row, ledgers, localCurrency }: any) {
   );
 }
 
-function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row: any, ledgers: any[], baseCurrency: string, activeMode: string }) {
+function NestedPaymentHistory({ 
+  row, 
+  ledgers, 
+  baseCurrency, 
+  activeMode,
+  selectOrder,
+  expandedIds,
+  setExpandedIds,
+  logClientError
+}: { 
+  row: any, 
+  ledgers: any[], 
+  baseCurrency: string, 
+  activeMode: string,
+  selectOrder: (id: string) => void,
+  expandedIds: Record<string, boolean>,
+  setExpandedIds: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
+  logClientError: (msg: string) => void
+}) {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -859,11 +877,53 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
   // Filter out the initial booking liability transfer so it only shows actual payments
   const filteredPayments = payments.filter((p: any) => !p.narration?.toLowerCase().includes("initial booking transfer"));
   
-  // Payments come newest first
-  const historyWithBalance = filteredPayments.map((p: any) => {
-    const amtUSD = Number(p.amount || 0) / Number(p.exchange_rate || 1);
-    return { ...p, amount_usd: amtUSD };
+  // Payments come newest first. Sort chronologically (oldest first) to compute running balances.
+  const chronological = [...filteredPayments].sort((a: any, b: any) =>
+    new Date(a.entry_date || a.created_at).getTime() - new Date(b.entry_date || b.created_at).getTime()
+  );
+
+  let runningPaidForeign = 0;
+  let runningPaidLocal = 0;
+
+  const computedHistory = chronological.map((p: any) => {
+    const drLedger = ledgers.find((l) => ledgerId(l) === p.debit_ledger_id);
+    const crLedger = ledgers.find((l) => ledgerId(l) === p.credit_ledger_id);
+    const localCurrency = (ledgerCurrency(drLedger) || ledgerCurrency(crLedger) || baseCurrency).toUpperCase();
+
+    // Determine correct amount in pricing/foreign currency vs local currency
+    const isPayLocal = p.currency_code?.toUpperCase() === localCurrency;
+    const amtForeign = isPayLocal
+      ? Number(p.base_currency_amount || 0) || (Number(p.amount) / Number(p.exchange_rate || 1))
+      : Number(p.amount || 0);
+    const amtLocal = isPayLocal
+      ? Number(p.amount)
+      : Number(p.amount) * Number(p.exchange_rate || 1);
+
+    runningPaidForeign += amtForeign;
+    runningPaidLocal += amtLocal;
+
+    // Remaining total purchase balance after this payment
+    const remainingForeign = Math.max(0, totalPrice - runningPaidForeign);
+    const remainingLocal = remainingForeign * Number(p.exchange_rate || 1);
+
+    // Remaining required advance balance after this payment
+    const remainingRequiredAdvance = Math.max(0, totalRequiredAdvanceFC - runningPaidForeign);
+
+    return {
+      ...p,
+      amtForeign,
+      amtLocal,
+      localCurrency,
+      runningPaidForeign,
+      runningPaidLocal,
+      remainingForeign,
+      remainingLocal,
+      remainingRequiredAdvance
+    };
   });
+
+  // Display newest first in UI table view (reversed chronological)
+  const historyWithBalance = [...computedHistory].reverse();
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
@@ -885,6 +945,7 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
                 <th className="px-4 py-3 text-right border-r">Paid (Foreign)</th>
                 <th className="px-4 py-3 text-center border-r">Exchange Rate</th>
                 <th className="px-4 py-3 text-right border-r">Paid (Local)</th>
+                <th className="px-4 py-3 text-right border-r">Remaining Balance</th>
                 <th className="px-4 py-3 border-r">Ledger Postings</th>
                 <th className="px-4 py-3 text-center w-28">Actions</th>
               </tr>
@@ -895,7 +956,6 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
                 const crLedger = ledgers.find((l) => ledgerId(l) === p.credit_ledger_id);
                 const drLabel = drLedger ? ledgerName(drLedger) : "-";
                 const crLabel = crLedger ? ledgerName(crLedger) : "-";
-                const localCurrency = (ledgerCurrency(drLedger) || ledgerCurrency(crLedger) || baseCurrency).toUpperCase();
                 const re = p.roznamcha_entries || {};
 
                 return (
@@ -909,23 +969,45 @@ function NestedPaymentHistory({ row, ledgers, baseCurrency, activeMode }: { row:
                       <div className="font-bold text-slate-800 dark:text-slate-200">{p.users?.full_name || row.form_data?.form?.userName || "Admin"}</div>
                       <div className="text-muted-foreground">{date(p.entry_date || p.created_at)}</div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-emerald-600 whitespace-nowrap border-r align-top">
-                      <div className="text-sm">{money(p.amount_usd, p.currency_code || "USD")}</div>
+                    <td className="px-4 py-3 text-right font-mono border-r align-top whitespace-nowrap">
+                      <div className="text-sm font-bold text-emerald-600">{money(p.amtForeign, p.currency_code || "USD")}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5" title="Cumulative Foreign Paid">
+                        Cum: {money(p.runningPaidForeign, p.currency_code || "USD")}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center font-mono text-slate-600 whitespace-nowrap border-r align-top">
                       <div className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[11px] font-bold inline-block">
                         {Number(p.exchange_rate || 1).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap border-r align-top">
-                      <div className="text-sm">{money(p.amount, localCurrency)}</div>
+                    <td className="px-4 py-3 text-right font-mono border-r align-top whitespace-nowrap">
+                      <div className="text-sm font-bold text-slate-700 dark:text-slate-300">{money(p.amtLocal, p.localCurrency)}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5" title="Cumulative Local Paid">
+                        Cum: {money(p.runningPaidLocal, p.localCurrency)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono border-r align-top whitespace-nowrap">
+                      <div className="text-sm font-bold text-rose-600">
+                        {p.remainingForeign <= 0.01 ? "✓ Fully Paid" : money(p.remainingForeign, p.currency_code || "USD")}
+                      </div>
+                      <div className="text-[10px] font-semibold text-rose-500 mt-0.5">
+                        {p.remainingForeign <= 0.01 ? "" : money(p.remainingLocal, p.localCurrency)}
+                      </div>
+                      {totalRequiredAdvanceFC > 0 && (
+                        <div className="text-[9px] font-bold text-amber-500 mt-1">
+                          {p.remainingRequiredAdvance <= 0.01
+                            ? "✓ Adv Cleared"
+                            : `Adv Bal: ${money(p.remainingRequiredAdvance, p.currency_code || "USD")}`
+                          }
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 border-r text-[10px] align-top">
                       <div className="font-semibold text-indigo-600 mb-1 leading-tight" title={drLabel}><span className="font-black text-indigo-800 mr-1">DR:</span>{drLabel}</div>
                       <div className="font-semibold text-violet-600 leading-tight" title={crLabel}><span className="font-black text-violet-800 mr-1">CR:</span>{crLabel}</div>
                     </td>
                     <td className="px-4 py-3 text-center align-top">
-                      <NestedRowActions payment={p} row={row} ledgers={ledgers} localCurrency={localCurrency} />
+                      <NestedRowActions payment={p} row={row} ledgers={ledgers} localCurrency={p.localCurrency} />
                     </td>
                   </tr>
                 );
@@ -2313,9 +2395,19 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         if (remainingAdvance > 0.01) return false; // Not yet cleared
         if (paidAdvance <= 0) return false; // Not paid anything
       } else if (activeMode === "remaining") {
+        // Required advance must be fully cleared first before appearing in remaining payments
+        if (advancePercent > 0 && remainingAdvance > 0.01) return false;
         if (remainingDue <= 0.01) return false; // Already cleared
-        // If it reaches here, it has a remaining balance > 0, we should show it.
-        // We removed the strict hasContainerMovement check because some loading flows might not correctly update the workflow JSON.
+
+        // STRICT BUSINESS RULE: Remaining payment requires Transfer to Loading first.
+        // An order must have been transferred (dispatched) before remaining payment is allowed.
+        const workflow = row.form_data?.workflow || {};
+        const hasTransferStatus = (workflow.transferStatus || "").toLowerCase() === "transferred";
+        const hasTransferAudit  = Boolean(row.form_data?.form?.transferAudit || workflow.transferAudit);
+        const hasLoadingRecord  = Number((row as any).loading_record_count || 0) > 0
+          || Boolean(workflow.loadedQuantity && Number(workflow.loadedQuantity) > 0);
+        const hasContainerMovement = hasTransferStatus || hasTransferAudit || hasLoadingRecord;
+        if (!hasContainerMovement) return false; // Block: not yet transferred to loading
       } else if (activeMode === "credit") {
         if (isCreditPaid) return false; // Already cleared
       } else if (activeMode === "history") {
@@ -2705,6 +2797,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         return;
       }
       
+      const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+      const fromLoading = searchParams.get("fromLoading") === "true";
+      const loadingRecordId = searchParams.get("loadingRecordId") || "";
+
       const payload = {
         purchaseOrderId: selected.id,
         purchaseOrderNo: selected.purchase_order_no,
@@ -2721,7 +2817,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         narration: finalRemarks,
         entryDate: paymentDate,
         referenceNo: roznamchaNumber || undefined,
-        typeDetails,
+        typeDetails: {
+          ...typeDetails,
+          ...(fromLoading && loadingRecordId ? { loadingRecordId } : {})
+        },
         doubleEntry,
         countryId: selected.country_id || null,
         countryBranchId: selected.country_branch_id || null,
@@ -2732,9 +2831,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       if (attachmentFile) {
         formData.append("attachment", attachmentFile);
       }
-
-      const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-      const fromLoading = searchParams.get("fromLoading") === "true";
       const postUrl = `/api/erp/purchases/orders/${selected.id}/payments${fromLoading ? "?fromLoading=true" : ""}`;
 
       const res = await fetch(postUrl, {
@@ -2983,7 +3079,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         {isExpanded && (
           <tr onClick={(e) => e.stopPropagation()} style={{ background: "#f8fafc" }}>
             <td colSpan={10} className="p-4 border-b border-slate-100 dark:border-slate-800">
-              <NestedPaymentHistory row={row} ledgers={ledgers} baseCurrency={baseCurrency} activeMode={activeMode} />
+              <NestedPaymentHistory 
+                row={row} 
+                ledgers={ledgers} 
+                baseCurrency={baseCurrency} 
+                activeMode={activeMode} 
+                selectOrder={selectOrder}
+                expandedIds={expandedIds}
+                setExpandedIds={setExpandedIds}
+                logClientError={logClientError}
+              />
             </td>
           </tr>
         )}
@@ -3485,7 +3590,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               ) : (
                                 <MoreVertical className="h-3.5 w-3.5" />
                               )}
-                              menuClassName="font-semibold p-0 w-48 shadow-lg ring-1 ring-black ring-opacity-5 z-50 overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                              menuClassName="font-semibold p-0 w-48 shadow-lg ring-1 ring-black ring-opacity-5 overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                             >
                               {(close) => (
                                 <>
@@ -3567,7 +3672,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                         {isExpanded && (
                                           <tr onClick={(e) => e.stopPropagation()} className="bg-slate-50/50 dark:bg-slate-900/30">
                                             <td colSpan={17} className="p-3 border-b border-slate-200 dark:border-slate-800">
-                                              <NestedPaymentHistory row={row} ledgers={ledgers} baseCurrency={baseCurrency} activeMode={activeMode} />
+                                              <NestedPaymentHistory 
+                row={row} 
+                ledgers={ledgers} 
+                baseCurrency={baseCurrency} 
+                activeMode={activeMode} 
+                selectOrder={selectOrder}
+                expandedIds={expandedIds}
+                setExpandedIds={setExpandedIds}
+                logClientError={logClientError}
+              />
                                             </td>
                                           </tr>
                                         )}
@@ -3595,11 +3709,23 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                       <FileSpreadsheet style={{ width: 40, height: 40, opacity: 0.3 }} />
                       <span>No purchase order payment records found.</span>
-                      <span style={{ fontSize: 11, color: "#cbd5e1" }}>Try adjusting filters or check if orders are posted.</span>
+                      {activeMode === "remaining" ? (
+                        <div style={{ maxWidth: 420, textAlign: "center" }}>
+                          <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, display: "block" }}>
+                            ⚠️ Workflow Rule: Remaining Payment requires Transfer to Loading first.
+                          </span>
+                          <span style={{ fontSize: 10, color: "#cbd5e1", display: "block", marginTop: 4 }}>
+                            Orders only appear here after: Booking → Advance Payment → Transfer to Loading → Loading Confirmation. Ensure the order has been transferred to loading before making a remaining payment.
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#cbd5e1" }}>Try adjusting filters or check if orders are posted.</span>
+                      )}
                     </div>
                   </td>
                 </tr>
               )}
+
               {loading && (
                 <tr>
                   <td colSpan={11} style={{ padding: "60px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
@@ -3803,158 +3929,208 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               );
             })()}
 
-            {/* Prominent Active PO Banner */}
-            <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 dark:bg-blue-950/20 dark:border-blue-900/30">
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white font-extrabold text-xs shadow-sm">
-                  PO
-                </span>
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Active Bill Selection</div>
-                  <div className="text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <span>{selected.purchase_order_no}</span>
-                    {selected.purchase_contract_no && (
-                      <span className="text-[10px] font-bold text-slate-500 font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border">
-                        Contract: {selected.purchase_contract_no}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
-                <div>
-                  <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Total Value</span>
-                  <span className="font-extrabold text-slate-900 dark:text-slate-100">{money(Number(selected.order_total || 0), (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
-                  <span className="block text-[10px] font-bold text-slate-500 mt-0.5">
-                    {money(Number(selected.order_total || 0) * (selected.exchange_rate || 1), baseCurrency)}
-                  </span>
-                </div>
-                {activeMode === "advance" && (
-                  <>
-                    <div className="relative">
-                      <span className="text-[10px] font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
-                        <span>Paid Advance</span>
-                        <button
-                          type="button"
-                          onClick={() => setShowModalHistory(!showModalHistory)}
-                          className="inline-flex h-4 w-4 items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-blue-100 hover:text-blue-600 transition shadow-sm border border-slate-200 dark:border-slate-700"
-                          title="Toggle Payment History"
-                        >
-                          <Plus className="h-2.5 w-2.5" />
-                        </button>
-                      </span>
-                      <span className="font-extrabold text-emerald-600">{money(Number(selected.advance_paid || 0), (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
-                      <span className="block text-[10px] font-bold text-emerald-700/70 mt-0.5">
-                        {money(Number(selected.advance_paid || 0) * (selected.exchange_rate || 1), baseCurrency)}
-                      </span>
+            {/* Comprehensive Payment Summary Dashboard */}
+            {(() => {
+              const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+              const fromLoading = searchParams.get("fromLoading") === "true";
+              const cLoadedQty = Number(searchParams.get("loadedQty") || 0);
+              const cGrossWeight = Number(searchParams.get("grossWeight") || 0);
+              const cNetWeight = Number(searchParams.get("netWeight") || 0);
+              const cPriceRate = Number(searchParams.get("priceRate") || 0);
+              const cLoadingRecordId = searchParams.get("loadingRecordId") || "";
 
-                      {/* Floating Payment History Popover */}
-                      {showModalHistory && (
-                        <>
-                          <div className="fixed inset-0 z-45" onClick={() => setShowModalHistory(false)} />
-                          <div className="absolute left-0 mt-2 w-80 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 text-left">
-                            <div className="flex items-center justify-between border-b pb-2 mb-2 border-slate-100 dark:border-slate-800">
-                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">Payment History</span>
-                              <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">
-                                {selectedOrderPayments.length} entries
-                              </span>
-                            </div>
-                            {selectedOrderPayments.length === 0 ? (
-                              <div className="text-[10px] text-slate-400 dark:text-slate-500 py-3 text-center font-bold">
-                                No previous payments recorded.
-                              </div>
-                            ) : (
-                              <div className="max-h-48 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
-                                {selectedOrderPayments.map((payment: any) => {
-                                  const bankName = payment.typeDetails?.bankName || payment.bank_name || "-";
-                                  const method = payment.typeDetails?.method || payment.payment_method || "-";
-                                  const re = payment.roznamcha_entries || {};
-                                  return (
-                                    <div key={payment.id} className="text-[10px] border-b border-slate-100 dark:border-slate-800/50 pb-2 last:border-b-0 last:pb-0">
-                                      <div className="flex justify-between font-bold text-slate-800 dark:text-slate-250 mb-0.5 animate-in fade-in">
-                                        <span>{new Date(payment.entry_date || payment.created_at).toLocaleDateString("en-GB")}</span>
-                                        <span className="text-emerald-600 font-mono text-right">
-                                          {(() => {
-                                            const isPayLocal = payment.currency_code?.toUpperCase() === baseCurrency.toUpperCase();
-                                            const mainAmount = isPayLocal ? (Number(payment.base_currency_amount || 0) || Number(payment.amount) * Number(payment.exchange_rate || 1)) : Number(payment.amount);
-                                            const mainCurrency = payment.currency_code || "USD";
-                                            const subAmount = isPayLocal ? Number(payment.amount) : Number(payment.amount) * Number(payment.exchange_rate || 1);
-                                            const subCurrency = isPayLocal ? (selected.currency_code || "USD") : baseCurrency;
-                                            return (
-                                              <>
-                                                <div>{money(mainAmount, mainCurrency)}</div>
-                                                {isPayLocal && (
-                                                  <div className="text-[8px] font-normal text-slate-400 dark:text-slate-500">
-                                                    Contract: {money(subAmount, subCurrency)}
-                                                  </div>
-                                                )}
-                                              </>
-                                            );
-                                          })()}
-                                        </span>
-                                      </div>
-                                      <div className="text-slate-450 dark:text-slate-500 flex justify-between text-[9px] font-semibold">
-                                        <span>Method: <span className="text-slate-650 dark:text-slate-350">{method}</span></span>
-                                        <span>Bank: <span className="text-slate-650 dark:text-slate-350">{bankName}</span></span>
-                                      </div>
-                                      {re.super_admin_serial_number && (
-                                        <div className="text-[8px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
-                                          Serial: {re.super_admin_serial_number}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </>
+              const form = (selected as any).form_data?.form || {};
+              const goods = (selected as any).form_data?.goodsEntries || [];
+              const totalPrice = goods.length
+                ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
+                : Number(form.totalAmount || 0);
+              const poOrderTotal = Number(selected.order_total || totalPrice || 0);
+              const totalPOQuantity = Number(
+                selected.form_data?.totals?.totalQuantity ||
+                goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+                form.quantity ||
+                1
+              );
+              const advancePercent = Number(form.advancePercent || 0);
+
+              // Resolve price type: is it weight-based?
+              const firstGood = goods[0] || {};
+              const isPerKg = firstGood.priceType === "P/KGs" || String(firstGood.priceType || "").toLowerCase().includes("kg");
+
+              // Purchase Amount for this loading only
+              const loadingPurchaseAmount = fromLoading
+                ? (isPerKg ? cNetWeight * cPriceRate : cLoadedQty * cPriceRate)
+                : poOrderTotal;
+
+              // Total Purchase Amount metric: loadingPurchaseAmount
+              // Required Advance allocated to this loading
+              const loadingRequiredAdvance = (loadingPurchaseAmount * advancePercent) / 100;
+
+              // Advance already paid for this loading: pro-rated share of actual advance paid on the PO
+              const poAdvancePaid = Number(selected.advance_paid || 0);
+              const loadingAdvancePaid = fromLoading
+                ? (totalPOQuantity > 0 ? (cLoadedQty / totalPOQuantity) * poAdvancePaid : poAdvancePaid)
+                : poAdvancePaid;
+
+              // Remaining Advance for this loading
+              const loadingRemainingAdvance = Math.max(0, loadingRequiredAdvance - loadingAdvancePaid);
+
+              // Final Purchase Amount
+              const finalPurchaseAmount = loadingPurchaseAmount;
+
+              // Total Remaining Amount (which is Final Purchase Amount - Advance deducted/allocated)
+              const totalRemainingAmount = Math.max(0, finalPurchaseAmount - loadingAdvancePaid);
+
+              // Total Remaining Paid (specifically for this loading)
+              const remainingPaymentsForThisLoading = selectedOrderPayments.filter((p: any) => {
+                const payKind = p.kind || "";
+                if (payKind !== "remaining") return false;
+                if (!fromLoading) return true; // if not from loading, sum all remaining payments
+                const payRecordId = p.typeDetails?.loadingRecordId || p.typeDetails?.loading_record_id || "";
+                return payRecordId === cLoadingRecordId;
+              });
+              const totalRemainingPaid = remainingPaymentsForThisLoading.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+
+              // Outstanding Balance (Final Currency Balance remaining)
+              const outstandingBalance = Math.max(0, finalPurchaseAmount - loadingAdvancePaid - totalRemainingPaid);
+
+              const totalPaidSoFar = loadingAdvancePaid + totalRemainingPaid;
+              const paidPercent = finalPurchaseAmount > 0 ? Math.min(100, (totalPaidSoFar / finalPurchaseAmount) * 100) : 0;
+              const advancePaidPercent = loadingRequiredAdvance > 0 ? Math.min(100, (loadingAdvancePaid / loadingRequiredAdvance) * 100) : 0;
+
+              const poCurrency = (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || selected.currency_code || "USD";
+              const exRate = selected.exchange_rate || 1;
+              const isAdvComplete = loadingRemainingAdvance <= 0.01;
+              const isFullyPaid = outstandingBalance <= 0.01;
+
+              return (
+                <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm overflow-hidden">
+                  {/* Header Bar */}
+                  <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 font-extrabold text-xs shadow-sm">PO</span>
+                      <div>
+                        <div className="text-[9px] font-bold uppercase tracking-widest opacity-80">
+                          {fromLoading ? "Active Container Loading Selection" : "Active Bill Selection"}
+                        </div>
+                        <div className="font-extrabold text-base flex items-center gap-2">
+                          {selected.purchase_order_no}
+                          {selected.purchase_contract_no && (
+                            <span className="text-[9px] font-bold bg-white/20 px-1.5 py-0.5 rounded font-mono tracking-wide">
+                              Contract: {selected.purchase_contract_no}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold">
+                      {isFullyPaid ? (
+                        <span className="inline-flex items-center gap-1 bg-emerald-500 text-white px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider">
+                          <CheckCircle className="h-3 w-3" /> Fully Paid
+                        </span>
+                      ) : isAdvComplete ? (
+                        <span className="inline-flex items-center gap-1 bg-amber-400 text-amber-900 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider">
+                          <CheckCircle className="h-3 w-3" /> Advance Done
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 bg-white/20 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+                          Advance Pending
+                        </span>
                       )}
                     </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Remaining Advance</span>
-                      {(() => {
-                        const form = (selected as any).form_data?.form || {};
-                        const totalPrice = (selected as any).form_data?.goodsEntries?.length
-                          ? (selected as any).form_data.goodsEntries.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
-                          : Number(form.totalAmount || 0);
-                        const advancePercent = Number(form.advancePercent || 0);
-                        const requiredAdvanceBC = (totalPrice * advancePercent) / 100;
-                        const paidAdvanceBC = Number(selected.advance_paid || 0);
-                        const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
-                        return (
-                          <>
-                            <span className="font-extrabold text-rose-600">{money(remainingAdvanceBC, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
-                            <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
-                              {money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)}
-                            </span>
-                          </>
-                        );
-                      })()}
+                  </div>
+
+                  {/* Overall Progress Bar */}
+                  <div className="px-5 pt-3 pb-1">
+                    <div className="flex items-center justify-between text-[9px] font-bold text-slate-500 mb-1.5">
+                      <span>{fromLoading ? "Loading Payment Progress" : "Payment Progress"}</span>
+                      <span className="font-mono">{paidPercent.toFixed(1)}% paid</span>
                     </div>
-                  </>
-                )}
-                {activeMode === "remaining" && (() => {
-                  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-                  const fromLoading = searchParams.get("fromLoading") === "true";
-                  const containerRemaining = Number(searchParams.get("amount") || 0);
-                  const showDue = fromLoading ? containerRemaining : Number(selected.remaining_due || 0);
-                  return (
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">{fromLoading ? "Container Balance" : "Remaining Due"}</span>
-                      <span className="font-extrabold text-rose-600">{money(showDue, (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD")}</span>
-                      <span className="block text-[10px] font-bold text-rose-700/70 mt-0.5">
-                        {money(showDue * (selected.exchange_rate || 1), baseCurrency)}
+                    <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${paidPercent}%`,
+                          background: isFullyPaid ? "#10b981" : "linear-gradient(90deg, #3b82f6, #6366f1)"
+                        }}
+                      />
+                    </div>
+                    {loadingRequiredAdvance > 0 && (
+                      <div className="flex items-center justify-between text-[8px] font-semibold text-slate-400 mt-1">
+                        <span>Advance Progress: {advancePaidPercent.toFixed(1)}%</span>
+                        <span className="font-mono">{money(loadingAdvancePaid, poCurrency)} / {money(loadingRequiredAdvance, poCurrency)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary Metrics Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-slate-100 dark:divide-slate-800 border-t border-slate-100 dark:border-slate-800 mt-2">
+                    {/* Row 1: Purchase Summary */}
+                    <div className="px-4 py-3">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                        {fromLoading ? "Total Loading Purchase" : "Total Purchase"}
+                      </div>
+                      <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm font-mono">{money(loadingPurchaseAmount, poCurrency)}</div>
+                      <div className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{money(loadingPurchaseAmount * exRate, baseCurrency)}</div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-amber-500 mb-1">Required Advance ({advancePercent}%)</div>
+                      <div className="font-extrabold text-amber-600 dark:text-amber-400 text-sm font-mono">{money(loadingRequiredAdvance, poCurrency)}</div>
+                      <div className="text-[9px] font-bold text-amber-400 font-mono mt-0.5">{money(loadingRequiredAdvance * exRate, baseCurrency)}</div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-emerald-500 mb-1">Advance Paid</div>
+                      <div className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm font-mono">{money(loadingAdvancePaid, poCurrency)}</div>
+                      <div className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">{money(loadingAdvancePaid * exRate, baseCurrency)}</div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-rose-500 mb-1">Remaining Advance</div>
+                      <div className={"font-extrabold text-sm font-mono " + (loadingRemainingAdvance <= 0.01 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                        {loadingRemainingAdvance <= 0.01 ? "✓ Cleared" : money(loadingRemainingAdvance, poCurrency)}
+                      </div>
+                      {loadingRemainingAdvance > 0.01 && <div className="text-[9px] font-bold text-rose-400 font-mono mt-0.5">{money(loadingRemainingAdvance * exRate, baseCurrency)}</div>}
+                    </div>
+                    {/* Row 2: Remaining Payment Summary */}
+                    <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">Final Purchase Amount</div>
+                      <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm font-mono">{money(finalPurchaseAmount, poCurrency)}</div>
+                      <div className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{money(finalPurchaseAmount * exRate, baseCurrency)}</div>
+                    </div>
+                    <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-rose-400 mb-1">Total Remaining Amount</div>
+                      <div className={"font-extrabold text-sm font-mono " + (totalRemainingAmount <= 0.01 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                        {totalRemainingAmount <= 0.01 ? "✓ Cleared" : money(totalRemainingAmount, poCurrency)}
+                      </div>
+                      {totalRemainingAmount > 0.01 && <div className="text-[9px] font-bold text-rose-400 font-mono mt-0.5">{money(totalRemainingAmount * exRate, baseCurrency)}</div>}
+                    </div>
+                    <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-blue-500 mb-1">Total Remaining Paid</div>
+                      <div className="font-extrabold text-blue-600 dark:text-blue-400 text-sm font-mono">{money(totalRemainingPaid, poCurrency)}</div>
+                      <div className="text-[9px] font-bold text-blue-400 font-mono mt-0.5">{money(totalRemainingPaid * exRate, baseCurrency)}</div>
+                    </div>
+                    <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-indigo-400 mb-1">Outstanding Balance</div>
+                      <div className={"font-extrabold text-sm font-mono " + (outstandingBalance <= 0.01 ? "text-emerald-600 dark:text-emerald-400" : "text-indigo-600 dark:text-indigo-400")}>
+                        {outstandingBalance <= 0.01 ? "✓ Fully Paid" : money(outstandingBalance, poCurrency)}
+                      </div>
+                      {outstandingBalance > 0.01 && <div className="text-[9px] font-bold text-indigo-400 font-mono mt-0.5">{money(outstandingBalance * exRate, baseCurrency)}</div>}
+                    </div>
+                  </div>
+
+                  {/* Exchange Rate + Payments Pill Footer */}
+                  <div className="flex items-center justify-between px-5 py-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
+                    <div className="text-[9px] font-semibold text-slate-500">
+                      Exchange Rate: <span className="font-mono font-black text-slate-700 dark:text-slate-300">1 {poCurrency} = {Number(exRate).toFixed(2)} {baseCurrency}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-900">
+                        {remainingPaymentsForThisLoading.length} Payment{remainingPaymentsForThisLoading.length !== 1 ? 's' : ''} Recorded
                       </span>
                     </div>
-                  );
-                })()}
-                <div>
-                  <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Exchange Rate</span>
-                  <span className="font-bold text-slate-600 dark:text-slate-400 font-mono">1 {(selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || "USD"} = {Number(selected.exchange_rate || 1).toFixed(2)} {baseCurrency}</span>
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Split Layout grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -4446,112 +4622,282 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               {/* Right Column: Double-entry Ledger Preview & History (Col Span 7) */}
               <div className="lg:col-span-7 space-y-4 lg:sticky lg:top-4">
                 {/* Past Transactions Table */}
-                {selectedOrderPayments.length > 0 && (() => {
+                {(() => {
+                  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+                  const fromLoading = searchParams.get("fromLoading") === "true";
+                  const cLoadedQty = Number(searchParams.get("loadedQty") || 0);
+                  const cGrossWeight = Number(searchParams.get("grossWeight") || 0);
+                  const cNetWeight = Number(searchParams.get("netWeight") || 0);
+                  const cPriceRate = Number(searchParams.get("priceRate") || 0);
+                  const cLoadingRecordId = searchParams.get("loadingRecordId") || "";
+
                   const form = (selected as any).form_data?.form || {};
-                  const totalPrice = (selected as any).form_data?.goodsEntries?.length
-                    ? (selected as any).form_data.goodsEntries.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
-                    : Number(form.totalAmount || 0);
+                  const goods = (selected as any).form_data?.goodsEntries || [];
+                  const totalPurchaseBC = Number(selected.order_total || 0) ||
+                    (goods.length ? goods.reduce((s: number, g: any) => s + Number(g.totalAmount || 0), 0) : Number(form.totalAmount || 0));
+                  const totalPOQuantity = Number(
+                    selected.form_data?.totals?.totalQuantity ||
+                    goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+                    form.quantity ||
+                    1
+                  );
                   const advancePercent = Number(form.advancePercent || 0);
-                  const totalRequiredFC = (totalPrice * advancePercent) / 100;
+                  const poCurrency = (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || selected.currency_code || "USD";
+                  const exRate = selected.exchange_rate || 1;
+
+                  // Resolve pricing mode
+                  const firstGood = goods[0] || {};
+                  const isPerKg = firstGood.priceType === "P/KGs" || String(firstGood.priceType || "").toLowerCase().includes("kg");
+
+                  // Determine active totals based on loading record vs PO total
+                  const loadingPurchaseAmount = fromLoading
+                    ? (isPerKg ? cNetWeight * cPriceRate : cLoadedQty * cPriceRate)
+                    : totalPurchaseBC;
+
+                  const loadingRequiredAdvance = (loadingPurchaseAmount * advancePercent) / 100;
+
+                  // Build history array
+                  let displayPayments: any[] = [];
                   
-                  // Compute running balance
-                  let currentBalance = totalRequiredFC;
-                  let accumulatedPaid = 0;
-                  const reversed = [...selectedOrderPayments].reverse();
-                  const historyWithBalance = reversed.map(p => {
-                    const amt = Number(p.amount || 0);
-                    currentBalance -= amt;
-                    const prevPaid = accumulatedPaid;
-                    accumulatedPaid += amt;
-                    return { ...p, remaining_balance: currentBalance, previous_balance_paid: prevPaid };
-                  }).reverse();
+                  if (fromLoading && cLoadingRecordId) {
+                    // 1. Synthetic pro-rated advance deduction row
+                    const poAdvancePaid = Number(selected.advance_paid || 0);
+                    const loadingAdvancePaid = totalPOQuantity > 0 ? (cLoadedQty / totalPOQuantity) * poAdvancePaid : poAdvancePaid;
+                    
+                    const poAdvancePayment = selectedOrderPayments.find((p: any) => p.kind === "advance");
+                    const advanceSynthetic = {
+                      id: "synthetic-advance-payment",
+                      kind: "advance",
+                      entry_date: poAdvancePayment?.entry_date || selected.created_at,
+                      created_at: poAdvancePayment?.created_at || selected.created_at,
+                      amount: loadingAdvancePaid,
+                      currency_code: poCurrency,
+                      exchange_rate: exRate,
+                      payment_method: poAdvancePayment?.payment_method || "Advance deducted",
+                      created_by_name: poAdvancePayment?.created_by_name || "System Allocation",
+                      typeDetails: poAdvancePayment?.typeDetails || { method: "Advance deducted" },
+                      narration: `Advance deduction allocated for ${cLoadedQty.toLocaleString()} units`,
+                      reference_no: poAdvancePayment?.reference_no || "-"
+                    };
+                    
+                    const loadingRemainingPayments = selectedOrderPayments.filter((p: any) => {
+                      const payKind = p.kind || "";
+                      if (payKind !== "remaining") return false;
+                      const payRecordId = p.typeDetails?.loadingRecordId || p.typeDetails?.loading_record_id || "";
+                      return payRecordId === cLoadingRecordId;
+                    });
+                    
+                    displayPayments = [advanceSynthetic, ...loadingRemainingPayments];
+                  } else {
+                    displayPayments = [...selectedOrderPayments];
+                  }
+
+                  if (displayPayments.length === 0) return null;
+
+                  // Compute chronological running balances
+                  const chronological = displayPayments.sort((a: any, b: any) =>
+                    new Date(a.entry_date || a.created_at).getTime() - new Date(b.entry_date || b.created_at).getTime()
+                  );
+                  let runningTotalPaid = 0;
+                  const historyWithBalance = chronological.map((p: any, idx: number) => {
+                    const amtInBC = Number(p.amount || 0);
+                    runningTotalPaid += amtInBC;
+                    const remainAfterAdvance = p.kind === "advance"
+                      ? Math.max(0, loadingRequiredAdvance - runningTotalPaid)
+                      : 0;
+                    const remainBalanceAfter = Math.max(0, loadingPurchaseAmount - runningTotalPaid);
+                    return {
+                      ...p,
+                      paymentNo: idx + 1,
+                      amtInBC,
+                      runningTotalPaid,
+                      remainAfterAdvance,
+                      remainBalanceAfter
+                    };
+                  });
 
                   return (
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden dark:bg-slate-900/50 dark:border-slate-800">
-                      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-950">
-                        <h3 className="text-[11px] font-black tracking-wider uppercase text-slate-800 dark:text-slate-200">
-                          Payment Transactions History
-                        </h3>
-                        <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
-                          {selectedOrderPayments.length} Entries
-                        </span>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm overflow-hidden">
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60">
+                        <div className="flex items-center gap-2">
+                          <Landmark className="h-4 w-4 text-blue-500" />
+                          <h3 className="text-[11px] font-black tracking-wider uppercase text-slate-800 dark:text-slate-200">
+                            {fromLoading ? "Container Loading Transactions History" : "Payment Transactions History"}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-bold bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-900">
+                            {historyWithBalance.length} Payment{historyWithBalance.length !== 1 ? 's' : ''}
+                          </span>
+                          {historyWithBalance[historyWithBalance.length - 1]?.remainBalanceAfter <= 0.01 && (
+                            <span className="text-[9px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">✓ Fully Settled</span>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Target Amount Reminder */}
+                      {loadingRequiredAdvance > 0 && (
+                        <div className="px-4 py-2 bg-amber-50/50 dark:bg-amber-950/10 border-b border-amber-100 dark:border-amber-900/30 flex items-center justify-between text-[10px]">
+                          <span className="font-bold text-amber-700 dark:text-amber-400">
+                            {fromLoading ? "Advance Allocated to this Loading:" : "Total Advance Required:"}
+                          </span>
+                          <span className="font-black font-mono text-amber-600 dark:text-amber-300">
+                            {money(loadingRequiredAdvance, poCurrency)} ({money(loadingRequiredAdvance * exRate, baseCurrency)})
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Running Ledger Table */}
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs">
-                          <thead className="bg-slate-100/50 text-[10px] uppercase font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                          <thead className="bg-slate-50 dark:bg-slate-900 text-[9px] uppercase font-black tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                             <tr>
-                              <th className="px-3 py-2 border-b dark:border-slate-800">Date</th>
-                              <th className="px-3 py-2 border-b dark:border-slate-800">Ref / Accounts</th>
-                              <th className="px-3 py-2 border-b dark:border-slate-800 text-right">Paid</th>
-                              <th className="px-3 py-2 border-b dark:border-slate-800 text-right">Remaining (Advance)</th>
-                              <th className="px-3 py-2 border-b dark:border-slate-800 text-center w-20">Actions</th>
+                              <th className="px-3 py-2.5 text-center w-10">#</th>
+                              <th className="px-3 py-2.5">Date</th>
+                              <th className="px-3 py-2.5">Payment Method</th>
+                              <th className="px-3 py-2.5 text-right">Payment Amount</th>
+                              <th className="px-3 py-2.5 text-right">Total Paid</th>
+                              <th className="px-3 py-2.5 text-right">{fromLoading ? "Remaining Balance" : "Remaining Advance"}</th>
+                              <th className="px-3 py-2.5">Ref / User</th>
+                              <th className="px-3 py-2.5 text-center w-16">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          <tbody>
                             {historyWithBalance.map((payment: any) => {
                               const drLedger = ledgers.find((l) => ledgerId(l) === payment.debit_ledger_id);
                               const crLedger = ledgers.find((l) => ledgerId(l) === payment.credit_ledger_id);
                               const re = payment.roznamcha_entries || {};
+                              const method = payment.typeDetails?.method || payment.payment_method || payment.typeDetails?.bankName || payment.bank_name || "—";
+                              const userName = payment.created_by_name || payment.audit?.userName || payment.typeDetails?.receiverSenderName || re.created_by_name || "Admin";
                               
+                              const showRemain = fromLoading ? payment.remainBalanceAfter : payment.remainAfterAdvance;
+                              const isCompleted = showRemain <= 0.01;
+                              
+                              const isPayLocal = payment.currency_code?.toUpperCase() === baseCurrency.toUpperCase();
+                              const payAmtDisplay = isPayLocal
+                                ? Number(payment.base_currency_amount || 0) || (Number(payment.amount) * Number(payment.exchange_rate || 1))
+                                : Number(payment.amount);
+                              const payAmtLocalDisplay = isPayLocal ? Number(payment.amount) : Number(payment.amount) * Number(payment.exchange_rate || 1);
+
                               return (
-                                <tr key={payment.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                                  <td className="px-3 py-2 font-medium whitespace-nowrap text-slate-700 dark:text-slate-300 align-top">
-                                    {date(payment.entry_date || payment.created_at)}
+                                <tr
+                                  key={payment.id}
+                                  className={"border-b border-slate-100 dark:border-slate-800/60 transition " + (isCompleted ? "bg-emerald-50/30 dark:bg-emerald-950/10" : "hover:bg-slate-50/50 dark:hover:bg-slate-900/30")}
+                                >
+                                  {/* Payment No. */}
+                                  <td className="px-3 py-3 text-center">
+                                    <span className={"inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black " + (isCompleted ? "bg-emerald-500 text-white" : "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300")}>
+                                      {payment.paymentNo}
+                                    </span>
                                   </td>
-                                  <td className="px-3 py-2 align-top">
-                                    <div className="text-[9px] font-mono font-bold text-slate-500 truncate max-w-[120px] mb-1">{re.super_admin_serial_number || "—"}</div>
-                                    <div className="text-[10px] font-mono text-slate-800 dark:text-slate-200 truncate max-w-[120px] mb-1">Ref: {payment.reference_no || "-"}</div>
-                                    <div className="text-[9px] font-bold text-indigo-500 truncate max-w-[120px] mb-1" title={payment.branchName || "Main Branch"}>Branch: {payment.branchName || "Main Branch"}</div>
-                                    <div className="text-indigo-600 dark:text-indigo-400 font-medium text-[9px] truncate max-w-[120px]" title={drLedger ? ledgerName(drLedger) : "-"}>Dr (Purchase): {drLedger ? ledgerName(drLedger) : "-"}</div>
-                                    <div className="text-violet-600 dark:text-violet-400 font-medium text-[9px] truncate max-w-[120px]" title={crLedger ? ledgerName(crLedger) : "-"}>Cr (Payment): {crLedger ? ledgerName(crLedger) : "-"}</div>
+
+                                  {/* Date */}
+                                  <td className="px-3 py-3 whitespace-nowrap">
+                                    <div className="font-bold text-slate-700 dark:text-slate-300">{date(payment.entry_date || payment.created_at)}</div>
+                                    <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                                      {re.super_admin_serial_number || payment.branchName || "—"}
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-2 text-right font-bold text-emerald-600 whitespace-nowrap align-top">
-                                    {(() => {
-                                       const isPayLocal = payment.currency_code?.toUpperCase() === baseCurrency.toUpperCase();
-                                       const mainAmount = isPayLocal ? (Number(payment.base_currency_amount || 0) || Number(payment.amount) * Number(payment.exchange_rate || 1)) : Number(payment.amount);
-                                       const mainCurrency = payment.currency_code || "USD";
-                                       const subAmount = isPayLocal ? Number(payment.amount) : Number(payment.amount) * Number(payment.exchange_rate || 1);
-                                       const subCurrency = isPayLocal ? (selected.currency_code || "USD") : baseCurrency;
-                                       return (
-                                         <>
-                                           <div>{money(mainAmount, mainCurrency)}</div>
-                                           <div className="flex flex-col items-end mt-1">
-                                             <span className="text-[8px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded mb-0.5">Rate: {Number(payment.exchange_rate || 1).toFixed(4)}</span>
-                                             <span className="text-[9px] text-emerald-800 dark:text-emerald-450">
-                                               {isPayLocal ? "Contract: " : "Final: "}{money(subAmount, subCurrency)}
-                                             </span>
-                                           </div>
-                                         </>
-                                       );
-                                     })()}
+
+                                  {/* Payment Method */}
+                                  <td className="px-3 py-3">
+                                    <div className="font-bold text-slate-700 dark:text-slate-300">{method}</div>
+                                    {drLedger && (
+                                      <div className="text-[9px] text-indigo-500 font-medium mt-0.5 truncate max-w-[120px]" title={ledgerName(drLedger)}>
+                                        Dr: {ledgerName(drLedger)}
+                                      </div>
+                                    )}
+                                    {crLedger && (
+                                      <div className="text-[9px] text-violet-500 font-medium mt-0.5 truncate max-w-[120px]" title={ledgerName(crLedger)}>
+                                        Cr: {ledgerName(crLedger)}
+                                      </div>
+                                    )}
                                   </td>
-                                  <td className="px-3 py-2 text-right font-black text-rose-600 whitespace-nowrap align-top">
-                                    {(() => {
-                                       const isPayLocal = payment.currency_code?.toUpperCase() === baseCurrency.toUpperCase();
-                                       const mainRemaining = isPayLocal ? (Number(payment.remaining_balance) * Number(payment.exchange_rate || 1)) : Number(payment.remaining_balance);
-                                       const mainCurrency = payment.currency_code || "USD";
-                                       const subRemaining = isPayLocal ? Number(payment.remaining_balance) : Number(payment.remaining_balance) * Number(payment.exchange_rate || 1);
-                                       const subCurrency = isPayLocal ? (selected.currency_code || "USD") : baseCurrency;
-                                       return (
-                                         <>
-                                           <div>{money(mainRemaining, mainCurrency)}</div>
-                                           <div className="flex flex-col items-end mt-1">
-                                             <span className="text-[8px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded opacity-0 mb-0.5">-</span>
-                                             <span className="text-[9px] text-rose-800 dark:text-rose-400">
-                                               {isPayLocal ? "Contract: " : "Final: "}{money(subRemaining, subCurrency)}
-                                             </span>
-                                           </div>
-                                         </>
-                                       );
-                                     })()}
+
+                                  {/* Payment Amount */}
+                                  <td className="px-3 py-3 text-right">
+                                    <div className="font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
+                                      {money(payAmtDisplay, poCurrency)}
+                                    </div>
+                                    <div className="text-[9px] font-bold text-emerald-500/70 font-mono mt-0.5">
+                                      {money(payAmtLocalDisplay, baseCurrency)}
+                                    </div>
+                                    <div className="text-[8px] font-semibold text-slate-400 bg-slate-100 dark:bg-slate-800 rounded px-1 mt-1 inline-block">
+                                      Rate: {Number(payment.exchange_rate || 1).toFixed(2)}
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-2 text-center align-top">
-                                    <NestedRowActions payment={payment} row={selected} ledgers={ledgers} localCurrency={baseCurrency} />
+
+                                  {/* Total Paid After This */}
+                                  <td className="px-3 py-3 text-right">
+                                    <div className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
+                                      {money(payment.runningTotalPaid, poCurrency)}
+                                    </div>
+                                    <div className="text-[9px] font-bold text-blue-500/70 font-mono mt-0.5">
+                                      {money(payment.runningTotalPaid * exRate, baseCurrency)}
+                                    </div>
+                                  </td>
+
+                                  {/* Remaining Advance / Balance After This */}
+                                  <td className="px-3 py-3 text-right">
+                                    {isCompleted ? (
+                                      <span className="inline-flex items-center gap-1 font-black text-emerald-600 dark:text-emerald-400 text-xs">
+                                        <CheckCircle className="h-3.5 w-3.5" />
+                                        <span className="font-mono">0.00 {poCurrency}</span>
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <div className="font-extrabold text-rose-600 dark:text-rose-400 font-mono">
+                                          {money(showRemain, poCurrency)}
+                                        </div>
+                                        <div className="text-[9px] font-bold text-rose-500/70 font-mono mt-0.5">
+                                          {money(showRemain * exRate, baseCurrency)}
+                                        </div>
+                                      </>
+                                    )}
+                                  </td>
+
+                                  {/* Ref / User */}
+                                  <td className="px-3 py-3">
+                                    <div className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate max-w-[110px]" title={userName}>
+                                      <User className="inline h-3 w-3 mr-1 text-slate-400" />{userName}
+                                    </div>
+                                    <div className="text-[9px] font-mono text-slate-400 mt-0.5 truncate max-w-[110px]">
+                                      Ref: {payment.reference_no || "-"}
+                                    </div>
+                                  </td>
+
+                                  {/* Actions */}
+                                  <td className="px-3 py-3 text-center">
+                                    {payment.id === "synthetic-advance-payment" ? (
+                                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 italic">Allocation</span>
+                                    ) : (
+                                      <NestedRowActions payment={payment} row={selected} ledgers={ledgers} localCurrency={baseCurrency} />
+                                    )}
                                   </td>
                                 </tr>
                               );
                             })}
                           </tbody>
+                          {/* Summary Footer Row */}
+                          <tfoot>
+                            <tr className="bg-slate-100 dark:bg-slate-800/60 border-t-2 border-slate-300 dark:border-slate-700">
+                              <td colSpan={3} className="px-3 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wide">Total Summary</td>
+                              <td className="px-3 py-2.5 text-right font-black font-mono text-emerald-700 dark:text-emerald-400 text-[11px]">
+                                {money(historyWithBalance.reduce((s: number, p: any) => s + p.amtInBC, 0), poCurrency)}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-black font-mono text-blue-700 dark:text-blue-400 text-[11px]">
+                                {money(historyWithBalance[historyWithBalance.length - 1]?.runningTotalPaid || 0, poCurrency)}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-black font-mono text-rose-600 dark:text-rose-400 text-[11px]">
+                                {historyWithBalance[historyWithBalance.length - 1]?.remainBalanceAfter <= 0.01
+                                  ? <span className="text-emerald-600">✓ Settled</span>
+                                  : money(fromLoading ? historyWithBalance[historyWithBalance.length - 1]?.remainBalanceAfter : historyWithBalance[historyWithBalance.length - 1]?.remainAfterAdvance || 0, poCurrency)
+                                }
+                              </td>
+                              <td colSpan={2} />
+                            </tr>
+                          </tfoot>
                         </table>
                       </div>
                     </div>

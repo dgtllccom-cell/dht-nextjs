@@ -43,31 +43,73 @@ function getDefaultExRate(currency: string) {
 }
 
 function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
-  const qty = Number(h.report_payload?.loadedQuantity || h.report_payload?.loadingQuantity || h.loadedQuantity || 0);
+  const reportPayload = h.report_payload || {};
+  const qty = Number(reportPayload.loadedQuantity || reportPayload.loadingQuantity || h.loadedQuantity || 0);
   const poData = poRow?.form_data || {};
   const goods = poData.goodsEntries || [];
+
+  // Determine loaded Gross and Net weight
+  const qtyKgs = Number(reportPayload.oneQtyKgs || 0);
+  const emptyKgs = Number(reportPayload.oneEmptyKgs || 0);
   
-  const totalQuantity = Number(
-    poData.totals?.totalQuantity ||
-    goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
-    form.quantity ||
-    0
-  );
+  let grossWeight = Number(reportPayload.grossWeight || 0);
+  let netWeight = Number(reportPayload.netWeight || 0);
   
-  const poTotal = Number(poRow?.order_total || poData.totals?.grandFinal || form.totalAmount || 0);
-  
-  let amountUSD = totalQuantity > 0 ? (qty / totalQuantity) * poTotal : poTotal;
-  
+  if (grossWeight === 0 && qtyKgs > 0) {
+    grossWeight = qty * qtyKgs;
+  }
+  if (netWeight === 0 && qtyKgs > 0) {
+    netWeight = qty * (qtyKgs - emptyKgs);
+  }
+
+  // Price Rate
+  let priceRate = Number(reportPayload.priceRateC1 || 0);
+  let priceType = String(reportPayload.priceType || "");
+
+  // Find matching good from contract if we don't have rate or type
+  const goodName = reportPayload.goodsName || reportPayload.item || "";
+  const good = goods.find((g: any) => (g.itemName || g.goodsName || g.item) === goodName);
+  if (good) {
+    if (priceRate === 0) priceRate = Number(good.coursePrice || 0);
+    if (!priceType) priceType = good.priceType || "P/Unit";
+  }
+
+  // If still 0, look at first good from PO or PO totals
+  if (priceRate === 0 && goods.length > 0) {
+    const firstGood = goods[0] || {};
+    priceRate = Number(firstGood.coursePrice || 0);
+    if (!priceType) priceType = firstGood.priceType || "P/Unit";
+  }
+
+  const isPerKg = priceType === "P/KGs" || priceType.toLowerCase().includes("kg");
+
+  // Calculate Purchase Amount for this loading only
+  let amountUSD = 0;
+  if (priceRate > 0) {
+    amountUSD = isPerKg ? (netWeight * priceRate) : (qty * priceRate);
+  } else {
+    // Pro-rate fallback as a safety net
+    const totalQuantity = Number(
+      poData.totals?.totalQuantity ||
+      goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+      form.quantity ||
+      0
+    );
+    const poTotal = Number(poRow?.order_total || poData.totals?.grandFinal || form.totalAmount || 0);
+    amountUSD = totalQuantity > 0 ? (qty / totalQuantity) * poTotal : poTotal;
+  }
+
   const poCountryName = (poRow?.countryName || form.branchCountry || "").toLowerCase();
   const poLocalCurrency = poRow?.countries?.currency || form.branchCurrency || (poCountryName.includes("emirate") || poCountryName.includes("uae") ? "AED" : poCountryName.includes("afghanistan") ? "AFN" : poCountryName.includes("iran") ? "IRR" : poCountryName.includes("china") ? "CNY" : poCountryName.includes("india") ? "INR" : "PKR");
   const fallbackRate = getDefaultExRate(poLocalCurrency);
 
-  const exRate = Number(h.report_payload?.exchangeRatePKR || form.exchangeRate || poRow?.exchange_rate || fallbackRate);
+  const exRate = Number(reportPayload.exchangeRatePKR || form.exchangeRate || poRow?.exchange_rate || fallbackRate);
   const amountPKR = amountUSD * exRate;
-  const currency = h.report_payload?.pricingCurrency || form.currency || poRow?.currency_code || "USD";
+  const currency = reportPayload.pricingCurrency || form.currency || poRow?.currency_code || "USD";
   
-  return { amountUSD, exRate, amountPKR, currency };
+  return { amountUSD, exRate, amountPKR, currency, grossWeight, netWeight, priceRate, priceType };
 }
+
 
 function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord; onClose: () => void; onSaved?: () => void }) {
   const poData = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders)?.form_data || {};
@@ -1088,40 +1130,50 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {goods.length > 0 ? (
-                    goods.map((g: any, i: number) => {
-                      const gName = g.goodsName || g.item_name || form.itemName || "-";
-                      const gDetails = g.brand || g.size || g.item_details || form.itemDetails || "";
-                      const nameCombined = gDetails ? `${gName} - ${gDetails}` : gName;
-                      const totals = poData.totals || {};
-                      const finance = poData.finance || {};
-                      
-                      const itemPurchaseAmount = Number(g.purchaseAmount || g.amount || g.totalAmount || g.finalAmount) || Number(totals.totalAmount || totals.finalAmount || form.totalAmount || form.finalAmount || 0);
-                      const exRate = Number(g.exchangeRate || form.exchangeRate || (poData as any).exchange_rate || 1);
-                      const itemFinalAmountPKR = itemPurchaseAmount * exRate;
-                      
-                      const advAmt = Number(g.advanceAmount || finance.advanceAmount || form.advanceAmount || 0);
-                      const advPKR = advAmt * exRate;
-                      const balAmt = itemPurchaseAmount - advAmt;
-                      const balPKR = balAmt * exRate;
-                      const payDate = g.paymentDate || finance.paymentDate || form.paymentDate || form.purchaseDate || "-";
+                  {(() => {
+                    const hasLoading = record.loading_status === "loaded" || Number(record.report_payload?.loadedQuantity || record.loadedQuantity || 0) > 0;
+                    
+                    if (hasLoading) {
+                      const finance = calcLoadingFinance(record, poRow, form);
+                      const gName = record.report_payload?.goodsName || record.report_payload?.item || form.itemName || "-";
+                      const brandName = record.report_payload?.brand || "";
+                      const sizeName = record.report_payload?.sizeSpec || "";
+                      const nameCombined = [gName, brandName, sizeName].filter(Boolean).join(" - ") || "-";
+
+                      const loadedQty = Number(record.report_payload?.loadedQuantity || record.report_payload?.loadingQuantity || record.loadedQuantity || 0);
+                      const grossWeight = finance.grossWeight;
+                      const netWeight = finance.netWeight;
+
+                      const itemFinalAmountPKR = finance.amountPKR;
+                      const exRate = finance.exRate;
+
+                      const poAdvancePaid = Number(poRow.advance_paid || 0);
+                      const totalPOQuantity = Number(
+                        poData.totals?.totalQuantity ||
+                        goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+                        form.quantity ||
+                        1
+                      );
+                      const advancePaidForThisLoadingLocal = (totalPOQuantity > 0 ? (loadedQty / totalPOQuantity) : 1) * poAdvancePaid * exRate;
+                      const balPKR = itemFinalAmountPKR - advancePaidForThisLoadingLocal;
+                      const payDate = form.advancePaymentDate || form.paymentDate || form.clearanceDate || "-";
 
                       return (
-                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                          <td className="px-6 py-3 font-medium text-slate-400">{String(i + 1).padStart(2, '0')}</td>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                          <td className="px-6 py-3 font-medium text-slate-400">01</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{countryLabel}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{record.loading_record_no || "-"}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{record.purchase_order_no || "-"}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{form.salesAccountName || form.salesAccountNumber || "-"}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{form.purchaseAccountName || form.supplierName || "-"}</td>
                           <td className="px-6 py-3 font-bold text-slate-700 dark:text-slate-200">{nameCombined}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{g.qtyNo || g.quantity || 0}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{g.netWeight || 0}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{g.grossWeight || 0}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{itemFinalAmountPKR > 0 ? itemFinalAmountPKR.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{exRate > 1 ? exRate.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400 text-right">{advPKR > 0 ? advPKR.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-rose-600 dark:text-rose-400 text-right">{balPKR !== 0 ? balPKR.toLocaleString() : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{loadedQty.toLocaleString()}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{netWeight.toLocaleString()}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{grossWeight.toLocaleString()}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{itemFinalAmountPKR > 0 ? itemFinalAmountPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{exRate > 1 ? exRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4}) : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400 text-right">{advancePaidForThisLoadingLocal > 0 ? advancePaidForThisLoadingLocal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-rose-600 dark:text-rose-400 text-right">{balPKR !== 0 ? balPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "-"}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{payDate}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{loadingCountry}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{loadingPort}</td>
@@ -1132,20 +1184,15 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">-</td>
                         </tr>
                       );
-                    })
-                  ) : (() => {
-                      const totals = poData.totals || {};
-                      const finance = poData.finance || {};
-                      
-                      const itemPurchaseAmount = Number(totals.totalAmount || totals.finalAmount || form.totalAmount || form.finalAmount || 0);
+                    } else {
+                      // Fallback: PO contract value row
+                      const poTotal = Number(poRow?.order_total || poData.totals?.grandFinal || form.totalAmount || 0);
                       const exRate = Number(form.exchangeRate || (poData as any).exchange_rate || 1);
-                      const itemFinalAmountPKR = itemPurchaseAmount * exRate;
-                      
-                      const advAmt = Number(finance.advanceAmount || form.advanceAmount || 0);
-                      const advPKR = advAmt * exRate;
-                      const balAmt = itemPurchaseAmount - advAmt;
-                      const balPKR = balAmt * exRate;
-                      const payDate = finance.paymentDate || form.paymentDate || form.purchaseDate || "-";
+                      const itemFinalAmountPKR = poTotal * exRate;
+                      const poAdvancePaid = Number(poRow.advance_paid || 0);
+                      const advancePaidLocal = poAdvancePaid * exRate;
+                      const balPKR = itemFinalAmountPKR - advancePaidLocal;
+                      const payDate = form.advancePaymentDate || form.paymentDate || form.purchaseDate || "-";
 
                       return (
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
@@ -1161,10 +1208,10 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{form.quantity || 0}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{form.netWeight || 0}</td>
                           <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{form.grossWeight || 0}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{itemFinalAmountPKR > 0 ? itemFinalAmountPKR.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{exRate > 1 ? exRate.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400 text-right">{advPKR > 0 ? advPKR.toLocaleString() : "-"}</td>
-                          <td className="px-6 py-3 font-mono font-semibold text-rose-600 dark:text-rose-400 text-right">{balPKR !== 0 ? balPKR.toLocaleString() : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{itemFinalAmountPKR > 0 ? itemFinalAmountPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-slate-600 dark:text-slate-300 text-right">{exRate > 1 ? exRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4}) : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400 text-right">{advancePaidLocal > 0 ? advancePaidLocal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "-"}</td>
+                          <td className="px-6 py-3 font-mono font-semibold text-rose-600 dark:text-rose-400 text-right">{balPKR !== 0 ? balPKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "-"}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{payDate}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{loadingCountry}</td>
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">{loadingPort}</td>
@@ -1175,7 +1222,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           <td className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300">-</td>
                         </tr>
                       );
-                    })()}
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -2047,14 +2094,15 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
                       const totalGross = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
                       
                       // Specific values for this loaded record
+                      const finance = calcLoadingFinance(record, poRow, form);
                       const loadedQty = Number(record.report_payload?.loadedQuantity || record.report_payload?.loadingQuantity || record.loadedQuantity || totalQty || 0);
-                      const loadedQtyKgs = Number(record.report_payload?.oneQtyKgs || 0);
-                      const loadedEmptyKgs = Number(record.report_payload?.oneEmptyKgs || 0);
+                      const netWeight = finance.netWeight;
+                      const grossWeight = finance.grossWeight;
                       
-                      const netWeight = loadedQtyKgs > 0 ? loadedQty * (loadedQtyKgs - loadedEmptyKgs) : (totalQty > 0 ? (loadedQty / totalQty) * totalNet : totalNet);
-                      const grossWeight = loadedQtyKgs > 0 ? loadedQty * loadedQtyKgs : (totalQty > 0 ? (loadedQty / totalQty) * totalGross : totalGross);
-
-                      const { amountUSD: loadedUSD, exRate: loadedExRate, amountPKR: loadedPKR, currency: loadedCurrency } = calcLoadingFinance(record, poRow, form);
+                      const loadedUSD = finance.amountUSD;
+                      const loadedExRate = finance.exRate;
+                      const loadedPKR = finance.amountPKR;
+                      const loadedCurrency = finance.currency;
 
                       // Proportional advance amount for this loaded record
                       const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);

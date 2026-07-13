@@ -88,7 +88,98 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     }
     // -------------------------------------------------
 
+    const isAlreadyPosted = (before as any)?.ledger_posting_status === "posted" || (before as any)?.ledger_posting_status === "transferred";
+    const isRevertingOrEditing = isAlreadyPosted && (
+      body.ledgerPostingStatus === "draft" ||
+      body.ledgerPostingStatus === "pending" ||
+      body.ledgerPostingStatus === "cancelled" ||
+      body.orderTotal !== undefined ||
+      body.formData !== undefined ||
+      body.items !== undefined
+    );
+
+    if (isRevertingOrEditing) {
+      const adminSupabase = createSupabaseAdminClient() as any;
+
+      // 1. Revert the booking transfer Roznamcha entry if it exists
+      const { data: existingRoz } = await supabase
+        .from("roznamcha_entries")
+        .select("id")
+        .eq("journal_no", (before as any).purchase_order_no)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (existingRoz) {
+        const { data: lines } = await supabase
+          .from("roznamcha_lines")
+          .select("ledger_id, enterprise_account_id, debit, credit")
+          .eq("roznamcha_entry_id", existingRoz.id);
+
+        if (lines && lines.length > 0) {
+          for (const line of lines) {
+            const { data: ledger } = await adminSupabase
+              .from("ledgers")
+              .select("debit_total, credit_total, current_balance")
+              .eq("id", line.ledger_id)
+              .maybeSingle();
+            if (ledger) {
+              await adminSupabase
+                .from("ledgers")
+                .update({
+                  debit_total: Number(ledger.debit_total || 0) - Number(line.debit || 0),
+                  credit_total: Number(ledger.credit_total || 0) - Number(line.credit || 0),
+                  current_balance: Number(ledger.current_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", line.ledger_id);
+            }
+
+            if (line.enterprise_account_id) {
+              const { data: entAcc } = await adminSupabase
+                .from("enterprise_accounts")
+                .select("current_balance")
+                .eq("id", line.enterprise_account_id)
+                .maybeSingle();
+              if (entAcc) {
+                await adminSupabase
+                  .from("enterprise_accounts")
+                  .update({
+                    current_balance: Number(entAcc.current_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq("id", line.enterprise_account_id);
+              }
+            }
+          }
+        }
+
+        await adminSupabase
+          .from("roznamcha_entries")
+          .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq("id", existingRoz.id);
+      }
+
+      // 2. Revert ALL payments and their ledger/roznamcha entries
+      await revertAllOrderPayments(params.id, supabase, adminSupabase);
+
+      // 3. Soft-delete the payments records
+      await supabase
+        .from("purchase_order_payments")
+        .update({ 
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("purchase_order_id", params.id);
+    }
+
     const patch: Record<string, unknown> = {};
+    if (isRevertingOrEditing) {
+      patch.advance_paid = 0;
+      patch.remaining_paid = 0;
+      patch.credit_amount = 0;
+      patch.remaining_due = body.orderTotal !== undefined ? body.orderTotal : (before as any).order_total;
+      patch.payment_status = "pending";
+    }
     if (body.countryId !== undefined) patch.country_id = body.countryId ?? null;
     if (body.countryBranchId !== undefined) patch.country_branch_id = body.countryBranchId ?? null;
     if (body.cityBranchId !== undefined) patch.city_branch_id = body.cityBranchId ?? null;
