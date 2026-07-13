@@ -69,8 +69,16 @@ async function resolveEffectiveScope(req: { countryId?: string | null; countryBr
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireErpSession();
     const { searchParams } = new URL(request.url);
+    try {
+      const fs = await import("node:fs");
+      fs.appendFileSync(
+        "C:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/api-diagnostics-output.txt",
+        `\n[GET /api/erp/purchases/orders] Time: ${new Date().toISOString()}\nParams: ${searchParams.toString()}\n`,
+        "utf8"
+      );
+    } catch (_) {}
+    const session = await requireErpSession();
 
     const query = listQuerySchema.parse({
       countryId: searchParams.get("countryId") || undefined,
@@ -188,6 +196,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    try {
+      const bodyText = await request.clone().text();
+      const fs = await import("node:fs");
+      fs.appendFileSync(
+        "C:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/api-diagnostics-output.txt",
+        `\n[POST /api/erp/purchases/orders] Time: ${new Date().toISOString()}\nBody: ${bodyText}\n`,
+        "utf8"
+      );
+    } catch (_) {}
     const session = await requireErpSession();
     const body = purchaseOrderCreateSchema.parse(await request.json());
 
@@ -322,6 +339,14 @@ export async function POST(request: NextRequest) {
       );
     } catch (e: any) {
       const errMsg = String(e.message || e);
+      try {
+        const fs = await import("node:fs");
+        fs.appendFileSync(
+          "C:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/api-diagnostics-output.txt",
+          `\n[POST purchase_orders INSERT ERROR] Time: ${new Date().toISOString()}\nError: ${errMsg}\nPayload: ${JSON.stringify(payload, null, 2)}\n`,
+          "utf8"
+        );
+      } catch (_) {}
       if (errMsg.includes("schema cache") || errMsg.includes("column") || errMsg.includes("relation") || errMsg.includes("landed_cost") || errMsg.includes("currency")) {
         await ensurePurchaseSchemaAndEnums();
         try {
@@ -329,6 +354,14 @@ export async function POST(request: NextRequest) {
             supabase.from("purchase_orders").insert(payload).select("id, purchase_order_no").single()
           );
         } catch (retryErr: any) {
+          try {
+            const fs = await import("node:fs");
+            fs.appendFileSync(
+              "C:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/api-diagnostics-output.txt",
+              `\n[POST purchase_orders RETRY INSERT ERROR] Time: ${new Date().toISOString()}\nError: ${retryErr.message || String(retryErr)}\n`,
+              "utf8"
+            );
+          } catch (_) {}
           return apiError("INSERT_FAILED", retryErr.message || String(retryErr), 400);
         }
       } else {
@@ -405,7 +438,15 @@ export async function POST(request: NextRequest) {
       purchaseOrderId: orderId as string,
       purchaseOrderNo: (inserted as any).purchase_order_no as string
     });
-  } catch (error) {
+  } catch (error: any) {
+    try {
+      const fs = await import("node:fs");
+      fs.appendFileSync(
+        "C:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/api-diagnostics-output.txt",
+        `\n[POST purchase_orders GLOBAL ERROR] Time: ${new Date().toISOString()}\nError: ${error.message || String(error)}\nStack: ${error.stack}\n`,
+        "utf8"
+      );
+    } catch (_) {}
     return handleApiError(error);
   }
 }

@@ -125,6 +125,14 @@ function summarize(rows: any[]) {
 
 export async function GET(request: NextRequest) {
   try {
+    try {
+      const fs = await import("node:fs");
+      fs.appendFileSync(
+        "C:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/api-diagnostics-output.txt",
+        `\n[GET /api/erp/purchases/loading-records] Time: ${new Date().toISOString()}\nParams: ${request.nextUrl.searchParams.toString()}\n`,
+        "utf8"
+      );
+    } catch (_) {}
     const session = await requireErpSession();
     const query = querySchema.parse({
       countryId: request.nextUrl.searchParams.get("countryId") ?? undefined,
@@ -233,7 +241,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (body.purchaseOrderId) {
-      const { data: po } = await supabase.from("purchase_orders").select("form_data, payment_status, remaining_due, status").eq("id", body.purchaseOrderId).single();
+      const { data: po } = await supabase.from("purchase_orders").select("form_data, payment_status, remaining_due").eq("id", body.purchaseOrderId).single();
       if (po) {
         const formData = po.form_data || {};
         const workflow = formData.workflow || {};
@@ -269,17 +277,14 @@ export async function POST(request: NextRequest) {
         formData.workflow = workflow;
         
         const isPaid = po.payment_status === "completed" || po.remaining_due === 0;
-        let newStatus = po.status;
         
         // Step 6: Move to Finalized Purchase Orders automatically if paid and fully loaded
         if (isPaid && remainingContainers === 0) {
-           newStatus = "completed";
            workflow.lifecycleStatus = "Finalized Purchase Orders";
         }
 
         await supabase.from("purchase_orders").update({ 
-           form_data: formData,
-           status: newStatus 
+           form_data: formData
         }).eq("id", body.purchaseOrderId);
       }
     }
