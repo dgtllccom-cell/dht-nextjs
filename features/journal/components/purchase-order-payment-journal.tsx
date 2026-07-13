@@ -4217,7 +4217,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </div>
 
                   {/* Multi-Currency Endorsement & Payment Summary Panels */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
+                  <div className="hidden">
                     {/* Box 2: Purchase & Endorsement Summary (Transaction Currency) */}
                     <div className="bg-white border border-slate-200/80 rounded-xl p-4 dark:bg-slate-950 dark:border-slate-800 shadow-sm space-y-3">
                       <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-2">
@@ -5100,6 +5100,62 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
               {/* Double-entry Preview, Ledger Posting, and supporting notes */}
               <div className="xl:col-span-5 space-y-4">
+                {/* Compact right-side payment context summaries */}
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm dark:border-blue-900/60 dark:bg-blue-950/20">
+                    <div className="mb-3 flex items-center justify-between border-b border-blue-200/70 pb-2 dark:border-blue-900/60">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">2. Purchase Summary ({poCurrency})</span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-blue-700 shadow-sm dark:bg-blue-950 dark:text-blue-200">{poCurrency}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Total Purchase</div>
+                        <div className="font-mono text-sm font-black text-slate-900 dark:text-slate-100">{money(loadingPurchaseAmount, poCurrency)}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Required Advance</div>
+                        <div className="font-mono text-sm font-black text-blue-700 dark:text-blue-300">{money(loadingRequiredAdvance, poCurrency)}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Paid So Far</div>
+                        <div className="font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">{money(totalPaidSoFar, poCurrency)}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Outstanding</div>
+                        <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(outstandingBalance, poCurrency)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                    <div className="mb-3 flex items-center justify-between border-b border-emerald-200/70 pb-2 dark:border-emerald-900/60">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">3. Final Currency Summary ({baseCurrency})</span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-emerald-700 shadow-sm dark:bg-emerald-950 dark:text-emerald-200">{baseCurrency}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Total Local</div>
+                        <div className="font-mono text-sm font-black text-slate-900 dark:text-slate-100">{money(loadingPurchaseAmount * Number(exRate || 1), baseCurrency)}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Advance Local</div>
+                        <div className="font-mono text-sm font-black text-blue-700 dark:text-blue-300">{money(loadingRequiredAdvance * Number(exRate || 1), baseCurrency)}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Paid Local</div>
+                        <div className="font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">{money(totalPaidSoFar * Number(exRate || 1), baseCurrency)}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Balance Local</div>
+                        <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(outstandingBalance * Number(exRate || 1), baseCurrency)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 rounded-lg border border-emerald-200/80 bg-white/70 px-2 py-1 text-[10px] font-bold text-slate-600 dark:border-emerald-900/60 dark:bg-slate-950/40 dark:text-slate-300">
+                      Exchange Rate: <span className="font-mono">1 {poCurrency} = {Number(exRate || 1).toFixed(4)} {baseCurrency}</span>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mt-4 block">
                   Double-Entry Journal Posting Preview
                 </div>

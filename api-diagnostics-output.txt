@@ -868,3 +868,18 @@ Params: limit=150
 
 [GET /api/erp/purchases/orders] Time: 2026-07-13T21:29:24.912Z
 Params: limit=200
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:30:56.263Z
+Params: limit=150
+
+[CLIENT LOG] Time: 2026-07-13T21:31:51.738Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:31:55.190Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:32:41.211Z
+Params: limit=150
+
+[GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:32:45.897Z
+Params: limit=150
