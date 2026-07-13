@@ -238,6 +238,8 @@ export async function GET(request: NextRequest) {
   try {
     const session = await requireErpSession();
     const scope = getScopeFromSearchParams(request);
+    const requestedLimit = Number(request.nextUrl.searchParams.get("limit") ?? 500);
+    const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? requestedLimit : 500, 1000));
 
     authorizeApiScope(session, {
       resource: "accounts",
@@ -246,7 +248,7 @@ export async function GET(request: NextRequest) {
     });
 
     const supabase = await createApiSupabaseClient();
-    let query = supabase
+    let query: any = supabase
       .from("enterprise_accounts")
       .select(
         "id, scope, country_id, country_branch_id, city_branch_id, parent_id, customer_id, company_id, code, account_number, customer_number, account_serial_number, country_serial_number, branch_serial_number, manual_reference_number, creation_date, branch_code, branch_account_sequence, name, kind, currency, opening_balance, current_balance, status, is_control_account, created_at, updated_at, customers:customer_id(id, customer_name, mobile, whatsapp)"
@@ -279,7 +281,7 @@ export async function GET(request: NextRequest) {
       query = query.or(`city_branch_id.eq.${scope.cityBranchId},city_branch_id.is.null`);
     }
 
-    const { data, error } = await query.limit(200);
+    const { data, error } = await query.limit(limit);
 
     if (error) {
       throw new Error(error.message);
@@ -287,7 +289,7 @@ export async function GET(request: NextRequest) {
 
     return apiOk({
       accounts: data ?? [],
-      limit: 200
+      limit
     });
   } catch (error) {
     return handleApiError(error);

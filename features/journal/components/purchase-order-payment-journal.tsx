@@ -4976,17 +4976,19 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               <th className="px-3 py-2">Payment Type</th>
                               <th className="px-3 py-2 text-right">Payment Amount ({poCurrency})</th>
                               <th className="px-3 py-2 text-right">Payment Amount ({baseCurrency})</th>
-                              <th className="px-3 py-2 text-right">Total Paid ({poCurrency})</th>
-                              <th className="px-3 py-2 text-right">Total Paid ({baseCurrency})</th>
+                              <th className="px-3 py-2 text-center w-10">#</th>
+                              <th className="px-3 py-2">Journal Serial / Date</th>
+                              <th className="px-3 py-2">User / Payment Type</th>
+                              <th className="px-3 py-2 text-right">Original Purchase ({poCurrency})</th>
+                              <th className="px-3 py-2 text-right">Original Purchase ({baseCurrency})</th>
+                              <th className="px-3 py-2 text-right">Current Paid ({poCurrency})</th>
+                              <th className="px-3 py-2 text-right">Exchange Rate</th>
+                              <th className="px-3 py-2 text-right">Current Paid ({baseCurrency})</th>
+                              <th className="px-3 py-2 text-right">Total Paid Till Now</th>
                               <th className="px-3 py-2 text-right">Remaining ({poCurrency})</th>
                               <th className="px-3 py-2 text-right">Remaining ({baseCurrency})</th>
-                              <th className="px-3 py-2">Ref / User</th>
+                              <th className="px-3 py-2">Ledger Posting</th>
                               <th className="px-3 py-2 text-center w-12">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {historyWithBalance.map((payment: any) => {
-                              const drLedger = ledgers.find((l) => ledgerId(l) === payment.debit_ledger_id);
                               const crLedger = ledgers.find((l) => ledgerId(l) === payment.credit_ledger_id);
                               const re = payment.roznamcha_entries || {};
                               const method = payment.typeDetails?.method || payment.payment_method || payment.typeDetails?.bankName || payment.bank_name || "—";
@@ -4994,8 +4996,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                               const isCompleted = payment.showRemainUSD <= 0.01;
 
-                              return (
-                                <tr
+                              const method = payment.typeDetails?.method || payment.payment_method || payment.typeDetails?.bankName || payment.bank_name || "-";
+                              const userName = payment.created_by_name || payment.audit?.userName || payment.typeDetails?.receiverSenderName || re.created_by_name || "Admin";
+                              const journalSerial = re.super_admin_serial_number || payment.super_admin_serial_number || "Pending";
+                              const countrySerial = re.country_transaction_serial_number || payment.country_transaction_serial_number || "-";
+                              const branchSerial = re.branch_transaction_serial_number || payment.branch_transaction_serial_number || "-";
+                              const drLabel = drLedger ? ledgerName(drLedger) : "-";
+                              const crLabel = crLedger ? ledgerName(crLedger) : "-";
                                   key={payment.id}
                                   className={"border-b border-slate-100 dark:border-slate-800/60 text-xs transition " + (isCompleted ? "bg-emerald-50/20 dark:bg-emerald-950/5" : "hover:bg-slate-50/50 dark:hover:bg-slate-900/30")}
                                 >
@@ -5009,54 +5016,63 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     {date(payment.entry_date || payment.created_at)}
                                   </td>
 
-                                  {/* Payment Type */}
+                                  {/* Journal Serial / Date */}
+                                  <td className="px-3 py-2 whitespace-nowrap text-slate-600 dark:text-slate-400 font-semibold">
+                                    <div className="font-mono text-[10px] font-black text-slate-800 dark:text-slate-200">{journalSerial}</div>
+                                    <div className="text-[9px]">Country: {countrySerial}</div>
+                                    <div className="text-[9px]">Branch: {branchSerial}</div>
+                                    <div className="text-[9px] mt-1">{date(payment.entry_date || payment.created_at)}</div>
+                                  </td>
+
+                                  {/* User / Payment Type */}
                                   <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-300">
-                                    {payment.paymentTypeLabel}
-                                    <div className="text-[8px] font-normal text-slate-400">Via {method}</div>
-                                  </td>
-
-                                  {/* Payment Amount (PO Currency) */}
-                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-800 dark:text-slate-200">
-                                    {money(payment.amtUSD, poCurrency)}
-                                  </td>
-
-                                  {/* Payment Amount (Base Currency) */}
-                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-800 dark:text-slate-200">
-                                    {money(payment.amtAED, baseCurrency)}
-                                  </td>
-
-                                  {/* Total (PO Currency) */}
-                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-blue-600 dark:text-blue-400">
-                                    {money(payment.runningTotalUSD, poCurrency)}
-                                  </td>
-
-                                  {/* Total Paid (Base Currency) */}
-                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-blue-600 dark:text-blue-400">
-                                    {money(payment.runningTotalAED, baseCurrency)}
-                                  </td>
-
-                                  {/* Remaining (PO Currency) */}
-                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-rose-600 dark:text-rose-400">
-                                    {payment.showRemainUSD <= 0.01 ? `0.00 ${poCurrency}` : money(payment.showRemainUSD, poCurrency)}
-                                  </td>
-
-                                  {/* Remaining (Base Currency) */}
-                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-rose-600 dark:text-rose-400">
-                                    {payment.showRemainAED <= 0.01 ? `0.00 ${baseCurrency}` : money(payment.showRemainAED, baseCurrency)}
-                                  </td>
-
-                                  {/* Ref / User */}
-                                  <td className="px-3 py-2 text-[10px] text-slate-500 whitespace-nowrap">
-                                    <div className="font-bold flex items-center gap-1">
+                                    <div className="flex items-center gap-1">
                                       <User className="h-3 w-3 text-slate-400" />{userName}
                                     </div>
-                                    <div className="font-mono text-[8px]">Ref: {payment.reference_no || "-"}</div>
+                                    <div className="text-[10px] mt-1">{payment.paymentTypeLabel}</div>
+                                    <div className="text-[8px] font-normal text-slate-400">Via {method}</div>
+                                    <div className="font-mono text-[8px] text-slate-400">Ref: {payment.reference_no || "-"}</div>
                                   </td>
 
-                                  {/* Actions */}
-                                  <td className="px-3 py-2 text-center">
-                                    {payment.id === "synthetic-advance-payment" ? (
-                                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 italic">Allocation</span>
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-800 dark:text-slate-200">
+                                    {money(payment.purchaseForeignTotal, poCurrency)}
+                                  </td>
+
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-800 dark:text-slate-200">
+                                    {money(payment.purchaseLocalTotal, baseCurrency)}
+                                  </td>
+
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-emerald-700 dark:text-emerald-400">
+                                    {money(payment.paidForeign, poCurrency)}
+                                  </td>
+
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-700 dark:text-slate-300">
+                                    {Number(payment.paymentRate || 1).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                                  </td>
+
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-emerald-700 dark:text-emerald-400">
+                                    {money(payment.paidLocal, baseCurrency)}
+                                  </td>
+
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-blue-600 dark:text-blue-400">
+                                    <div>{money(payment.runningTotalForeign, poCurrency)}</div>
+                                    <div className="text-[9px] text-blue-500">{money(payment.runningTotalLocal, baseCurrency)}</div>
+                                  </td>
+
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-rose-600 dark:text-rose-400">
+                                    {payment.remainingForeign <= 0.01 ? `0.00 ${poCurrency}` : money(payment.remainingForeign, poCurrency)}
+                                  </td>
+
+                                  <td className="px-3 py-2 text-right font-mono font-extrabold text-rose-600 dark:text-rose-400">
+                                    {payment.remainingLocal <= 0.01 ? `0.00 ${baseCurrency}` : money(payment.remainingLocal, baseCurrency)}
+                                  </td>
+
+                                  {/* Ledger Posting */}
+                                  <td className="px-3 py-2 text-[10px] text-slate-600 dark:text-slate-300 min-w-[180px]">
+                                    <div className="font-bold text-blue-700 dark:text-blue-400">DR: {drLabel}</div>
+                                    <div className="font-bold text-rose-700 dark:text-rose-400">CR: {crLabel}</div>
+                                    <div className="font-mono text-[8px] text-slate-400 mt-1">Amount: {money(payment.paidLocal, baseCurrency)}</div>
+                                  </td>
                                     ) : (
                                       <NestedRowActions payment={payment} row={selected} ledgers={ledgers} localCurrency={baseCurrency} />
                                     )}

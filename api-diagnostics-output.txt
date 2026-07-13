@@ -323,3 +323,440 @@ Params: limit=200
 
 [GET /api/erp/purchases/orders] Time: 2026-07-13T16:38:18.550Z
 Params: limit=200
+
+[POST /api/erp/purchases/orders] Time: 2026-07-13T18:08:57.709Z
+Body: {
+  "countryId": "7b757efe-7aea-4e9e-9cc4-34b2e842958f",
+  "countryBranchId": "a7a7f280-825b-4fdd-8205-78e224a17100",
+  "cityBranchId": "18ca382f-928c-42bf-9c4a-4db301679e8b",
+  "supplierCompanyId": "eca6d727-34a2-4d37-aa8f-6e66679f48b8",
+  "purchaseOrderNo": "PO-2026-6528",
+  "purchaseContractNo": "PC-2026-6528",
+  "currencyCode": "USD",
+  "paymentCurrencyCode": "USD",
+  "exchangeRate": 1,
+  "orderTotal": 0,
+  "totalGoodsOriginal": 0,
+  "totalGoodsLocal": 0,
+  "totalGoodsUsd": 0,
+  "items": [],
+  "paymentStatus": "pending",
+  "ledgerPostingStatus": "Pending",
+  "formData": {
+    "form": {
+      "countryId": "7b757efe-7aea-4e9e-9cc4-34b2e842958f",
+      "countryBranchId": "a7a7f280-825b-4fdd-8205-78e224a17100",
+      "cityBranchId": "18ca382f-928c-42bf-9c4a-4db301679e8b",
+      "purchaseAccountNo": "PK-CHM-AC-0002",
+      "purchaseAccountName": "مال خراید اکاؤنٹ",
+      "purchaseAccountBranch": "PAKPKB",
+      "purchaseAccountCurrency": "PKR",
+      "purchaseAccountKind": "income",
+      "purchaseAccountIsControl": false,
+      "purchaseAccountCurrentBalance": 0,
+      "purchaseAccountOpeningBalance": 0,
+      "purchaseAccountStatus": "active",
+      "purchaseAccountSerialNumber": 6,
+      "purchaseAccountCountrySerialNumber": "PAK-000006",
+      "purchaseAccountBranchSerialNumber": "PAK-CHM-000002",
+      "purchaseAccountManualReferenceNumber": "00124",
+      "purchaseAccountMobile": "+92 32283832844",
+      "purchaseAccountWhatsapp": "+923228383284",
+      "salesAccountNo": "PK-CHM-AC-000018",
+      "salesAccountName": "نجیب اللہ شخصی کھاتہ",
+      "salesAccountBranch": "PAK-PKBA-001",
+      "salesAccountCurrency": "PKR",
+      "salesAccountKind": "asset",
+      "salesAccountIsControl": false,
+      "salesAccountCurrentBalance": 0,
+      "salesAccountOpeningBalance": 0,
+      "salesAccountStatus": "active",
+      "salesAccountSerialNumber": 24,
+      "salesAccountCountrySerialNumber": "PAK-000024",
+      "salesAccountBranchSerialNumber": "PAK-CHM-000018",
+      "salesAccountManualReferenceNumber": "AS2025",
+      "salesAccountMobile": "",
+      "salesAccountWhatsapp": "",
+      "salesOrderNo": "SO-2026-6528",
+      "purchaseContractNo": "PC-2026-6528",
+      "purchaseOrderNo": "PO-2026-6528",
+      "billNo": "CH/01-6528",
+      "purchaseContact": "+93 700 000 000",
+      "purchaseDate": "2026-07-13",
+      "currencyType": "USD",
+      "purchaseCurrency": "PKR",
+      "exchangeRate": 1,
+      "branchName": "CH/01",
+      "branchCode": "PAK-PKBA-6528",
+      "branchCity": "Chaman",
+      "branchCountry": "Pakistan",
+      "userName": "ADMIN",
+      "userId": "USR-1001",
+      "paymentType": "Advance Payment",
+      "shipmentType": "By Ship",
+      "shippingMode": "By Sea",
+      "supplierId": "430cb4ec-73c7-46f2-b9ba-b949faf1d8c2",
+      "supplierName": "مال خراید اکاؤنٹ",
+      "customerId": "8c1403b5-54c3-4efc-9ea8-61071e06ecc2",
+      "customerName": "نجیب اللہ شخصی کھاتہ",
+      "salesStatus": "Draft",
+      "remarks": "",
+      "paymentReport": "",
+      "loadingReport": "",
+      "orderReportRemarks": "",
+      "purchaseReportRemarks": "",
+      "purchaseInvoiceRemarks": "",
+      "showRemarksOnA4": true,
+      "advancePercent": 10,
+      "advancePaymentDate": "2026-07-13",
+      "paymentDate": "2026-07-13",
+      "paymentDaysAndMethodDetails": "",
+      "loadingCountry": "",
+      "loadingPort": "",
+      "loadingDate": "",
+      "receivedCountry": "",
+      "receivedPort": "",
+      "receivedDate": "",
+      "loadingBorder": "",
+      "receivedBorder": "",
+      "airportName": "",
+      "receivedPortName": "",
+      "transportAgent": "",
+      "airlineName": "",
+      "receivedAgentName": "",
+      "containerCount": 1,
+      "containerSize": "40 FT",
+      "containerNumbers": "",
+      "vesselName": "",
+      "sealNumber": "",
+      "goodsName": "",
+      "size": "",
+      "brand": "",
+      "origin": "",
+      "hsCode": "",
+      "allotName": "",
+      "qtyName": "BAGS",
+      "qtyNo": 100,
+      "qtyKgs": 50,
+      "emptyKgs": 0.1,
+      "netWeight": 4990,
+      "divideType": "D/KGs",
+      "divideWeight": 1,
+      "priceType": "P/KGs",
+      "coursePrice": 12.5,
+      "secondaryCurrency": "USD",
+      "rate2": 280,
+      "operator": "*",
+      "qualityReport": "Passed",
+      "manualTotalAmount": "",
+      "manualFinalAmount": "",
+      "purchaseCompanyId": "eca6d727-34a2-4d37-aa8f-6e66679f48b8",
+      "purchaseCompanyName": "NAJEEB AND COMPANY",
+      "purchaseCompanyCode": "COM-NAJ",
+      "salesCompanyId": "eca6d727-34a2-4d37-aa8f-6e66679f48b8",
+      "salesCompanyName": "NAJEEB AND COMPANY",
+      "salesCompanyCode": "COM-NAJ"
+    },
+    "totals": {
+      "totalGross": 0,
+      "totalNet": 0,
+      "grandFinal": 0,
+      "grandPrimaryFinal": 0,
+      "totalQty": 0,
+      "totalDeductions": 0
+    },
+    "goodsEntries": [],
+    "reports": [],
+    "workflow": {
+      "currentStep": "Booking Purchase Order",
+      "nextStep": "Booking Confirm",
+      "bookingStatus": "Saved",
+      "confirmationStatus": "Pending",
+      "journalStatus": "Pending",
+      "paymentStatus": "Pending",
+      "containerStatus": "Pending",
+      "inventoryStatus": "Pending",
+      "deliveryStatus": "Pending",
+      "savedAt": "2026-07-13T18:08:44.198Z"
+    },
+    "savedAt": "2026-07-13T18:08:44.198Z"
+  }
+}
+
+[POST /api/erp/purchases/orders] Time: 2026-07-13T19:06:30.876Z
+Body: {
+  "countryId": "3f3820cb-bb36-4ff9-8183-86359b1996d3",
+  "countryBranchId": "13aede91-d589-4df2-9920-ba60f5e38710",
+  "cityBranchId": "a27f94c2-71c4-4ce6-bb31-3088808c9854",
+  "supplierCompanyId": "242c561c-ce46-407d-a85c-a09aac1da669",
+  "purchaseOrderNo": "PO-2026-2133",
+  "purchaseContractNo": "PC-2026-2133",
+  "currencyCode": "USD",
+  "paymentCurrencyCode": "AED",
+  "exchangeRate": 3.675,
+  "orderTotal": 916912.5,
+  "totalGoodsOriginal": 249500,
+  "totalGoodsLocal": 916912.5,
+  "totalGoodsUsd": 249500,
+  "items": [
+    {
+      "goodsName": "CASHEW NUTS (W320)",
+      "hsCode": "CASHEW NUT",
+      "size": "12",
+      "brand": "A",
+      "origin": "India",
+      "quantity": 1000,
+      "unitName": "BAGS",
+      "unitWeight": 1,
+      "grossWeight": 50000,
+      "netWeight": 49900,
+      "rateOriginal": 5,
+      "rateLocal": 18.375,
+      "rateUsd": 5,
+      "totalOriginal": 249500,
+      "totalLocal": 916912.5,
+      "totalUsd": 249500
+    }
+  ],
+  "paymentStatus": "pending",
+  "ledgerPostingStatus": "Pending",
+  "formData": {
+    "form": {
+      "countryId": "3f3820cb-bb36-4ff9-8183-86359b1996d3",
+      "countryBranchId": "13aede91-d589-4df2-9920-ba60f5e38710",
+      "cityBranchId": "a27f94c2-71c4-4ce6-bb31-3088808c9854",
+      "purchaseAccountNo": "AE-DUB-AC-000019",
+      "purchaseAccountName": "RAN PURCHASE/SALES",
+      "purchaseAccountBranch": "ARE-AEDU-001",
+      "purchaseAccountCurrency": "AED",
+      "purchaseAccountKind": "asset",
+      "purchaseAccountIsControl": false,
+      "purchaseAccountCurrentBalance": 0,
+      "purchaseAccountOpeningBalance": 0,
+      "purchaseAccountStatus": "active",
+      "purchaseAccountSerialNumber": 446,
+      "purchaseAccountCountrySerialNumber": "ARE-000019",
+      "purchaseAccountBranchSerialNumber": "ARE-DUB-000019",
+      "purchaseAccountManualReferenceNumber": "D/SC0000119-DUB",
+      "purchaseAccountMobile": "",
+      "purchaseAccountWhatsapp": "",
+      "salesAccountNo": "AE-DUB-AC-000003",
+      "salesAccountName": "MUZAMMIL AKHTAR",
+      "salesAccountBranch": "ARE-AEDU-001",
+      "salesAccountCurrency": "AED",
+      "salesAccountKind": "asset",
+      "salesAccountIsControl": false,
+      "salesAccountCurrentBalance": 0,
+      "salesAccountOpeningBalance": 0,
+      "salesAccountStatus": "active",
+      "salesAccountSerialNumber": 430,
+      "salesAccountCountrySerialNumber": "ARE-000003",
+      "salesAccountBranchSerialNumber": "ARE-DUB-000003",
+      "salesAccountManualReferenceNumber": "D/SC0000103-DUB",
+      "salesAccountMobile": "",
+      "salesAccountWhatsapp": "",
+      "salesOrderNo": "SO-2026-2133",
+      "purchaseContractNo": "PC-2026-2133",
+      "purchaseOrderNo": "PO-2026-2133",
+      "billNo": "DUBAI-2133",
+      "purchaseDate": "2026-07-13",
+      "currencyType": "USD",
+      "purchaseCurrency": "AED",
+      "exchangeRate": 3.675,
+      "branchName": "dubai al ras",
+      "branchCode": "ARE-AEDU-001",
+      "branchCity": "Dubai",
+      "branchCountry": "UAE",
+      "userName": "ADMIN",
+      "userId": "USR-1001",
+      "paymentType": "Advance Payment",
+      "shipmentType": "By Ship",
+      "shippingMode": "By Sea",
+      "supplierId": "d3fbaea1-f01d-42d2-a916-a163c8413d44",
+      "supplierName": "RAN PURCHASE/SALES",
+      "customerId": "8ff2e5eb-9001-49e3-9d91-9abe4d99d74c",
+      "customerName": "MUZAMMIL AKHTAR",
+      "salesStatus": "Draft",
+      "remarks": "KAFNMDVK,BN HRTBLOUHN BJSHRB;OSRVNDSKJFG",
+      "paymentReport": "JKHZVKFB MX BADLIFKBHN.",
+      "loadingReport": "JKHDAFKBNFM,BKJSDFGHNKJRTSHJNJK",
+      "orderReportRemarks": "",
+      "purchaseReportRemarks": "",
+      "purchaseInvoiceRemarks": "",
+      "showRemarksOnA4": true,
+      "advancePercent": 30,
+      "advancePaymentDate": "2026-07-13",
+      "paymentDate": "2026-07-13",
+      "paymentDaysAndMethodDetails": "",
+      "loadingCountry": "chin",
+      "loadingPort": "pot",
+      "loadingDate": "2026-07-16",
+      "receivedCountry": "chin",
+      "receivedPort": "pot",
+      "receivedDate": "2026-07-23",
+      "loadingBorder": "",
+      "receivedBorder": "",
+      "airportName": "",
+      "receivedPortName": "",
+      "transportAgent": "",
+      "airlineName": "",
+      "receivedAgentName": "",
+      "containerCount": 1,
+      "containerSize": "40 FT",
+      "containerNumbers": "GFDDF",
+      "vesselName": "",
+      "sealNumber": "",
+      "goodsName": "",
+      "size": "",
+      "brand": "",
+      "origin": "chin",
+      "hsCode": "",
+      "allotName": "ALT-5396",
+      "qtyName": "BAGS",
+      "qtyNo": 0,
+      "qtyKgs": 0,
+      "emptyKgs": 0,
+      "netWeight": "",
+      "divideType": "D/KGs",
+      "divideWeight": 1,
+      "priceType": "P/KGs",
+      "coursePrice": 0,
+      "secondaryCurrency": "AED",
+      "rate2": 280,
+      "operator": "*",
+      "qualityReport": "Passed",
+      "manualTotalAmount": "",
+      "manualFinalAmount": "",
+      "paymentCurrency": "AED",
+      "salesCompanyId": "242c561c-ce46-407d-a85c-a09aac1da669",
+      "salesCompanyName": "DAMAAN GENERAL TRADING L L C",
+      "salesCompanyCode": "COM-DAM",
+      "purchaseCompanyId": "242c561c-ce46-407d-a85c-a09aac1da669",
+      "purchaseCompanyName": "DAMAAN GENERAL TRADING L L C",
+      "purchaseCompanyCode": "COM-DAM",
+      "originCountry": "chin",
+      "loadingLocation": "pot",
+      "receivingCountry": "chin",
+      "destinationCountry": "chin",
+      "receivingPort": "pot",
+      "destinationPort": "pot"
+    },
+    "totals": {
+      "totalGross": 50000,
+      "totalNet": 49900,
+      "grandFinal": 916912.5,
+      "grandPrimaryFinal": 249500,
+      "totalQty": 1000,
+      "totalDeductions": 100
+    },
+    "goodsEntries": [
+      {
+        "allotName": "898",
+        "goodsName": "CASHEW NUTS (W320)",
+        "size": "12",
+        "brand": "A",
+        "origin": "India",
+        "hsCode": "CASHEW NUT",
+        "qtyName": "BAGS",
+        "qtyNo": 1000,
+        "qtyKgs": 50,
+        "grossWeight": 50000,
+        "emptyKgs": 0.1,
+        "netWeight": 49900,
+        "priceType": "P/KGs",
+        "divideType": "D/KGs",
+        "divideWeight": 1,
+        "coursePrice": 5,
+        "currencyType": "USD",
+        "purchaseCurrency": "AED",
+        "exchangeRate": 3.675,
+        "totalAmount": 249500,
+        "op": "*",
+        "finalAmount": 916912.5
+      }
+    ],
+    "reports": [],
+    "workflow": {
+      "currentStep": "Booking Purchase Order",
+      "nextStep": "Booking Confirm",
+      "bookingStatus": "Saved",
+      "confirmationStatus": "Pending",
+      "journalStatus": "Pending",
+      "paymentStatus": "Pending",
+      "containerStatus": "Pending",
+      "inventoryStatus": "Pending",
+      "deliveryStatus": "Pending",
+      "savedAt": "2026-07-13T19:06:28.789Z"
+    },
+    "savedAt": "2026-07-13T19:06:28.789Z"
+  }
+}
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T19:07:33.067Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T19:08:01.093Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T19:20:27.154Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T19:25:48.720Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T19:27:51.462Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T19:27:59.097Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T19:29:15.599Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T19:30:39.124Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T19:32:06.150Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T19:32:23.823Z
+Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T19:38:07.002Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T19:38:54.997Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T19:39:06.233Z
+Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T19:39:09.381Z
+Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T19:40:06.775Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T19:42:17.667Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T19:42:27.119Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T19:42:30.891Z
+Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T19:50:42.258Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[GET /api/erp/purchases/orders] Time: 2026-07-13T19:51:36.964Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-13T19:51:57.902Z
+Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T19:52:00.093Z
+Message: Click Payment Entry. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85
+
+[CLIENT LOG] Time: 2026-07-13T19:52:59.423Z
+Message: Click Show Payment History. row.id: 66e54245-e971-4506-b6e2-f92d9aeabc85

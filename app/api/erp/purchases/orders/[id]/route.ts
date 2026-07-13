@@ -88,8 +88,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     }
     // -------------------------------------------------
 
-    const isAlreadyPosted = (before as any)?.ledger_posting_status === "posted" || (before as any)?.ledger_posting_status === "transferred";
-    const isRevertingOrEditing = isAlreadyPosted && (
+    const isAlreadyPostedOrTransferred = (before as any)?.ledger_posting_status === "posted" || (before as any)?.ledger_posting_status === "transferred";
+    const isRevertingOrEditing = isAlreadyPostedOrTransferred && (
       body.ledgerPostingStatus === "draft" ||
       body.ledgerPostingStatus === "pending" ||
       body.ledgerPostingStatus === "cancelled" ||
