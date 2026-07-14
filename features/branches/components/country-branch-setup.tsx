@@ -309,9 +309,9 @@ export function CountryBranchSetup() {
     };
   }, [ownerName, company, existingMainBranch?.name, locationMeta.country?.name]);
 
-  const zip = locationMeta.city?.zip_code ?? "";
+  const zip = locationMeta.area?.postal_code ?? locationMeta.city?.zip_code ?? "";
   const previewCountry = locationMeta.country?.name || "-";
-  const previewLocation = [locationMeta.state?.name, locationMeta.district?.name, locationMeta.city?.name, zip].filter(Boolean).join(" / ") || "-";
+  const previewLocation = [locationMeta.state?.name, locationMeta.city?.name, locationMeta.area?.name, zip].filter(Boolean).join(" / ") || "-";
   const previewCompany = company?.name || "-";
   const companyCode = company?.id ? compactCode(company.id, "CMP") : "-";
 
@@ -1052,7 +1052,8 @@ export function CountryBranchSetup() {
                     <LocationHierarchySelect
                       value={location}
                       showCountry={false}
-                      showArea={false}
+                      showDistrict={false}
+                      showArea={true}
                       allowManageLink={false}
                       onChange={onLocationChange}
                       disabled={!location.countryId}
@@ -1061,14 +1062,14 @@ export function CountryBranchSetup() {
 
                   <div className="space-y-2 md:col-span-4">
                     <Label className="text-xs text-slate-600">Zip / Postal Code</Label>
-                    <Input value={zip} readOnly placeholder="Zip is taken from selected City" />
+                    <Input value={zip} readOnly placeholder="Auto from selected Area or City" />
                   </div>
                   <div className="space-y-2 md:col-span-8">
                     <Label className="text-xs text-slate-600">Full Address</Label>
                     <textarea
                       value={fullAddress}
                       onChange={(event) => setFullAddress(event.target.value)}
-                      placeholder="Street, Area, Building, etc."
+                      placeholder="Area / Road, Building, Street, Landmark, etc."
                       className="min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </div>
@@ -1359,3 +1360,4 @@ export function CountryBranchSetup() {
     </div>
   );
 }
+

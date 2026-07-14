@@ -302,7 +302,7 @@ export function SuperAdminBranchSetup() {
   const stateName = locationMeta.state?.name ?? "";
   const districtName = locationMeta.district?.name ?? "";
   const cityName = locationMeta.city?.name ?? "";
-  const zip = locationMeta.city?.zip_code ?? "";
+  const zip = locationMeta.area?.postal_code ?? locationMeta.city?.zip_code ?? "";
 
   const branchCode = "SUPER-HQ-001";
   const contactsText = contacts.length ? contacts.map((row) => `${row.type}: ${row.value}`).join(", ") : "No Contacts";
@@ -979,6 +979,8 @@ export function SuperAdminBranchSetup() {
               <div className="space-y-4">
                 <LocationHierarchySelect
                   value={location}
+                  showDistrict={false}
+                  showArea={true}
                   onChange={(next, meta) => {
                     setLocation(next);
                     setLocationMeta(meta);
@@ -988,14 +990,14 @@ export function SuperAdminBranchSetup() {
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Zip Code</Label>
-                    <Input value={zip} readOnly className="bg-muted/50 font-semibold" />
+                    <Label>ZIP / Postal Code</Label>
+                    <Input value={zip} readOnly placeholder="Auto from selected Area or City" className="bg-muted/50 font-semibold" />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Full Address</Label>
-                  <TextArea value={address} onChange={setAddress} placeholder="Enter full branch address" />
+                  <TextArea value={address} onChange={setAddress} placeholder="Area / Road, Building, Street, Landmark, etc." />
                 </div>
               </div>
             </section>
@@ -1241,3 +1243,4 @@ export function SuperAdminBranchSetup() {
     </div>
   );
 }
+

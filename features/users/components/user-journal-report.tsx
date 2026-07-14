@@ -3,6 +3,7 @@
 import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
 
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -509,72 +510,86 @@ export function UserJournalReport() {
     return sessionInfo?.roles.includes("super_admin") ?? false;
   }, [sessionInfo]);
 
-  return (
-    <div className="ujr-shell space-y-4 text-[var(--ujr-text)]">
-      <UserJournalStyles />
-      <main className="min-w-0">
-        {/* Page Title & Main Action Toolbar */}
-        <header className="mb-2 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-xl border border-blue-300/70 bg-gradient-to-br from-blue-50 to-indigo-100 text-[#1d4ed8] shadow-[0_8px_18px_rgba(37,99,235,.14)] dark:from-blue-950 dark:to-indigo-950">
-              <Users className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black leading-tight tracking-[-.03em] text-[var(--ujr-title)]">User Journal Report</h1>
-              <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm font-medium text-[var(--ujr-muted)]">
-                Tracks user registration, logins, activity, and journal-style ERP actions.
-                <Info className="h-3.5 w-3.5" />
-              </p>
-            </div>
-          </div>
+  // Portal slots — inject title + toolbar into sticky ERP header
+  const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setTitleSlot(document.getElementById("erp-page-title-slot"));
+    setActionsSlot(document.getElementById("erp-page-actions-slot"));
+  }, []);
 
-          <TopToolbar
-            openMenu={openMenu}
-            setOpenMenu={setOpenMenu}
-            data={data}
-            draftQuery={draftQuery}
-            setDraftQuery={setDraftQuery}
-            draftFromDate={draftFromDate}
-            setDraftFromDate={setDraftFromDate}
-            draftToDate={draftToDate}
-            setDraftToDate={setDraftToDate}
-            draftShareBy={draftShareBy}
-            setDraftShareBy={setDraftShareBy}
-            draftStatus={draftStatus}
-            setDraftStatus={setDraftStatus}
-            draftRole={draftRole}
-            setDraftRole={setDraftRole}
-            draftCountryId={draftCountryId}
-            setDraftCountryId={setDraftCountryId}
-            draftBranchId={draftBranchId}
-            setDraftBranchId={setDraftBranchId}
-            applyFilters={applyFilters}
-            resetFilters={resetFilters}
-            editReport={editReport}
-            printReport={printReport}
-            exportPdf={exportPdf}
-            exportExcel={exportExcel}
-            emailReport={emailReport}
-            whatsappReport={whatsappReport}
-            shareReport={() => void shareReport()}
-            openNewUser={openNewUser}
-            summary={summary}
-            status={status}
-            setStatus={setStatus}
-            shareBy={shareBy}
-            setShareBy={setShareBy}
-            adminOnly={adminOnly}
-            setAdminOnly={setAdminOnly}
-            recentLoginsOnly={recentLoginsOnly}
-            setRecentLoginsOnly={setRecentLoginsOnly}
-            query={query}
-            countryId={countryId}
-            branchId={branchId}
-            role={role}
-            fromDate={fromDate}
-            toDate={toDate}
-          />
-        </header>
+  const toolbarProps = {
+    openMenu,
+    setOpenMenu,
+    data,
+    draftQuery,
+    setDraftQuery,
+    draftFromDate,
+    setDraftFromDate,
+    draftToDate,
+    setDraftToDate,
+    draftShareBy,
+    setDraftShareBy,
+    draftStatus,
+    setDraftStatus,
+    draftRole,
+    setDraftRole,
+    draftCountryId,
+    setDraftCountryId,
+    draftBranchId,
+    setDraftBranchId,
+    applyFilters,
+    resetFilters,
+    editReport,
+    printReport,
+    exportPdf,
+    exportExcel,
+    emailReport,
+    whatsappReport,
+    shareReport: () => void shareReport(),
+    openNewUser,
+    summary,
+    status,
+    setStatus,
+    shareBy,
+    setShareBy,
+    adminOnly,
+    setAdminOnly,
+    recentLoginsOnly,
+    setRecentLoginsOnly,
+    query,
+    countryId,
+    branchId,
+    role,
+    fromDate,
+    toDate
+  };
+
+  return (
+    <div className="ujr-shell text-[var(--ujr-text)]">
+      <UserJournalStyles />
+
+      {/* Title portal — injects into the sticky ERP header left slot */}
+      {titleSlot && createPortal(
+        <div className="flex items-center gap-2.5">
+          <div className="grid h-7 w-7 place-items-center rounded-lg border border-blue-300/70 bg-gradient-to-br from-blue-50 to-indigo-100 text-[#1d4ed8] shadow-sm dark:from-blue-950 dark:to-indigo-950">
+            <Users className="h-3.5 w-3.5" />
+          </div>
+          <div>
+            <div className="text-[8px] font-black uppercase tracking-wider text-slate-400 leading-none">Users</div>
+            <h1 className="text-xs font-black tracking-tight text-slate-900 dark:text-slate-100 leading-none mt-0.5">User Journal Report</h1>
+          </div>
+        </div>,
+        titleSlot
+      )}
+
+      {/* Actions portal — injects all toolbar buttons into the sticky ERP header right slot */}
+      {actionsSlot && createPortal(
+        <TopToolbar {...toolbarProps} />,
+        actionsSlot
+      )}
+
+      <main className="min-w-0">
 
         {/* Expanded Executive Management Summary Area */}
         <section className="mb-4 rounded-xl border border-[var(--ujr-line)] bg-[var(--ujr-card)] p-5 shadow-sm">

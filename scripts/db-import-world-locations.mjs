@@ -1,4 +1,4 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import postgres from "postgres";
 
@@ -251,9 +251,13 @@ async function importPostalCodes(sql, sourceDir, countryMap, stateMap, districtM
           admin1_name text, admin1_code text, admin2_name text, admin2_code text, admin3_name text, admin3_code text,
           latitude numeric, longitude numeric, accuracy text
         )
+      ), dedup as (
+        select distinct on (country_id, postal_code, lower(place_name), coalesce(admin1_code,''), coalesce(admin2_code,''), coalesce(admin3_code,'')) *
+        from input
+        order by country_id, postal_code, lower(place_name), coalesce(admin1_code,''), coalesce(admin2_code,''), coalesce(admin3_code,''), place_name
       ), ins as (
         insert into postal_codes (country_id, state_province_id, district_id, city_id, country_code, postal_code, place_name, admin1_name, admin1_code, admin2_name, admin2_code, admin3_name, admin3_code, latitude, longitude, accuracy)
-        select i.country_id, i.state_province_id, i.district_id, i.city_id, i.country_code, i.postal_code, i.place_name, i.admin1_name, i.admin1_code, i.admin2_name, i.admin2_code, i.admin3_name, i.admin3_code, i.latitude, i.longitude, i.accuracy from input i
+        select i.country_id, i.state_province_id, i.district_id, i.city_id, i.country_code, i.postal_code, i.place_name, i.admin1_name, i.admin1_code, i.admin2_name, i.admin2_code, i.admin3_name, i.admin3_code, i.latitude, i.longitude, i.accuracy from dedup i
         where not exists (
           select 1 from postal_codes p where p.country_id=i.country_id and p.postal_code=i.postal_code and lower(p.place_name)=lower(i.place_name) and coalesce(p.admin1_code,'')=coalesce(i.admin1_code,'') and coalesce(p.admin2_code,'')=coalesce(i.admin2_code,'') and coalesce(p.admin3_code,'')=coalesce(i.admin3_code,'') and p.deleted_at is null
         )
@@ -326,3 +330,4 @@ async function main() {
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
+

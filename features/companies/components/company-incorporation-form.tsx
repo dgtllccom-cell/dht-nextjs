@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { Building2, CheckCircle2, Plus, Save, Trash2, RefreshCcw } from "lucide-react";
+import { Building2, CheckCircle2, Plus, Save, Trash2, RefreshCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,7 @@ export type CompanyIncorporationData = {
   ownerName: string;
   companyName: string;
   businessName: string;
+  businessType?: string;
   countryId?: string;
   stateProvinceId?: string;
   districtId?: string;
@@ -47,10 +48,33 @@ export type CompanyIncorporationData = {
 
 const defaultTypes: Record<DynamicList, string[]> = {
   contacts: ["Mobile Number", "Office Number", "WhatsApp Number", "Email Address"],
-  registrations: ["Sales Tax No", "GST No", "PSI No", "NTN No", "Trade License No"],
-  ownerIds: ["CNIC No", "Passport No", "National ID", "Residence Permit"]
+  registrations: ["Trade License Number", "VAT/TRN", "Sales Tax No", "GST No", "PSI No", "NTN No"],
+  ownerIds: ["Passport / Emirates ID / National ID", "CNIC No", "Passport No", "National ID", "Residence Permit"]
 };
 
+
+const damaamDraftLocationMeta: LocationHierarchyMeta = {
+  country: { id: "", name: "United Arab Emirates", iso2: "AE", currency_code: "AED" } as any,
+  state: { id: "", name: "Dubai", code: "DXB" } as any,
+  district: null,
+  city: { id: "", name: "Deira", zip_code: "0000", postal_code: "0000" } as any,
+  area: { id: "", name: "Al Ras", postal_code: "0000", zip_code: "0000" } as any
+};
+
+const damaamDraftContacts: DynamicRow[] = [
+  { id: "draft-email", type: "Email Address", value: "asmattrader@gmail.com" },
+  { id: "draft-mobile", type: "Mobile Number", value: "" },
+  { id: "draft-office", type: "Office Number", value: "" }
+];
+
+const damaamDraftRegistrations: DynamicRow[] = [
+  { id: "draft-trade-license", type: "Trade License Number", value: "" },
+  { id: "draft-vat-trn", type: "VAT/TRN", value: "" }
+];
+
+const damaamDraftOwnerIds: DynamicRow[] = [
+  { id: "draft-owner-id", type: "Passport / Emirates ID / National ID", value: "" }
+];
 const initialCompanies: (CompanyIncorporationData & { id: string })[] = [
   {
     id: "co-1",
@@ -223,33 +247,37 @@ function DynamicRows({
 export function CompanyIncorporationForm({
   mode = "standalone",
   initialCompanyId,
-  onSave
+  onSave,
+  onClose
 }: {
   mode?: "standalone" | "embedded";
   initialCompanyId?: string;
   onSave?: (data: CompanyIncorporationData) => void;
+  onClose?: () => void;
 }) {
   const router = useRouter();
-  const [ownerName, setOwnerName] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [businessName, setBusinessName] = useState("");
+  function handleClose() {
+    if (onClose) {
+      onClose();
+      return;
+    }
+    router.push("/dashboard/settings/company" as Route);
+  }
+  const [ownerName, setOwnerName] = useState("Asmat Khan");
+  const [companyName, setCompanyName] = useState("DAMAAN Trading Company LLC");
+  const [businessName, setBusinessName] = useState("Import Export Trading");
+  const [businessType, setBusinessType] = useState("Import, Export, Trading, Steel & Purchase");
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
     districtId: "",
     cityId: ""
   });
-  const [locationMeta, setLocationMeta] = useState<LocationHierarchyMeta>({
-    country: null,
-    state: null,
-    district: null,
-    city: null,
-    area: null
-  });
-  const [address, setAddress] = useState("");
-  const [contacts, setContacts] = useState<DynamicRow[]>([newRow()]);
-  const [registrations, setRegistrations] = useState<DynamicRow[]>([newRow()]);
-  const [ownerIds, setOwnerIds] = useState<DynamicRow[]>([newRow()]);
+  const [locationMeta, setLocationMeta] = useState<LocationHierarchyMeta>(damaamDraftLocationMeta);
+  const [address, setAddress] = useState("Al Ras, Deira, Dubai, United Arab Emirates");
+  const [contacts, setContacts] = useState<DynamicRow[]>(damaamDraftContacts);
+  const [registrations, setRegistrations] = useState<DynamicRow[]>(damaamDraftRegistrations);
+  const [ownerIds, setOwnerIds] = useState<DynamicRow[]>(damaamDraftOwnerIds);
   const [types, setTypes] = useState(defaultTypes);
   const [typeModal, setTypeModal] = useState<DynamicList | null>(null);
   const [newType, setNewType] = useState("");
@@ -282,6 +310,7 @@ export function CompanyIncorporationForm({
         setOwnerName(comp.ownerName);
         setCompanyName(comp.companyName);
         setBusinessName(comp.businessName);
+        setBusinessType(comp.businessType || "");
         setAddress(comp.address);
         setContacts(comp.contacts.length > 0 ? comp.contacts : [newRow()]);
         setRegistrations(comp.registrations.length > 0 ? comp.registrations : [newRow()]);
@@ -298,7 +327,7 @@ export function CompanyIncorporationForm({
           state: comp.state ? { id: comp.stateProvinceId || "", name: comp.state } as any : null,
           district: comp.district ? { id: comp.districtId || "", name: comp.district } as any : null,
           city: comp.city ? { id: comp.cityId || "", name: comp.city, zip_code: comp.zipCode } as any : null,
-          area: null
+          area: (comp as any).area ? { id: comp.areaLocationId || "", name: (comp as any).area, postal_code: comp.zipCode, zip_code: comp.zipCode } as any : null
         });
       }
     }
@@ -308,7 +337,8 @@ export function CompanyIncorporationForm({
   const stateName = locationMeta.state?.name ?? "";
   const districtName = locationMeta.district?.name ?? "";
   const city = locationMeta.city?.name ?? "";
-  const zipCode = locationMeta.city?.zip_code ?? "";
+  const areaName = locationMeta.area?.name ?? "";
+  const zipCode = ((locationMeta.area as any)?.postal_code || (locationMeta.area as any)?.zip_code || (locationMeta.city as any)?.postal_code || locationMeta.city?.zip_code || "");
 
   // Auto-fill Country phone prefix when country selects
   useEffect(() => {
@@ -336,10 +366,12 @@ export function CompanyIncorporationForm({
       ownerName: ownerName || "-",
       companyName: companyName || "-",
       businessName: businessName || "-",
+      businessType: businessType || "-",
       country: country || "-",
       state: stateName || "-",
       district: districtName || "-",
       city: city || "-",
+      area: areaName || "-",
       zipCode: zipCode || "-",
       address: address || "-",
       contacts: contacts.filter((row) => row.type && row.value),
@@ -352,10 +384,12 @@ export function CompanyIncorporationForm({
     ownerName,
     companyName,
     businessName,
+    businessType,
     country,
     stateName,
     districtName,
     city,
+    areaName,
     zipCode,
     address,
     contacts,
@@ -409,6 +443,7 @@ export function CompanyIncorporationForm({
             ownerName,
             companyName,
             businessName,
+            businessType,
             countryId: location.countryId || undefined,
             stateProvinceId: location.stateProvinceId || undefined,
             districtId: location.districtId || undefined,
@@ -418,6 +453,7 @@ export function CompanyIncorporationForm({
             state: stateName,
             district: districtName,
             city,
+            area: areaName,
             zipCode,
             address,
             contacts: contacts.filter((row) => row.type && row.value),
@@ -456,6 +492,7 @@ export function CompanyIncorporationForm({
           ownerName,
           companyName,
           businessName,
+          businessType,
           countryId: location.countryId || undefined,
           stateProvinceId: location.stateProvinceId || undefined,
           districtId: location.districtId || undefined,
@@ -465,6 +502,7 @@ export function CompanyIncorporationForm({
           state: stateName,
           district: districtName,
           city,
+          area: areaName,
           zipCode,
           address,
           contacts: contacts.filter((row) => row.type && row.value),
@@ -491,7 +529,7 @@ export function CompanyIncorporationForm({
   }
 
   return (
-    <div className={mode === "standalone" ? "space-y-6" : "space-y-4"}>
+    <div className={mode === "standalone" ? "mx-auto flex h-[calc(100vh-2rem)] w-full max-w-[min(1600px,calc(100vw-2rem))] flex-col overflow-y-auto rounded-2xl border bg-white p-5 shadow-2xl" : "flex h-[86vh] w-full flex-col overflow-y-auto rounded-xl bg-white p-4"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Settings / Company</p>
@@ -502,6 +540,7 @@ export function CompanyIncorporationForm({
             {initialCompanyId ? "Modify business profile records and registration information." : "Register new business entities with locations, registrations, contact lists, and owners."}
           </p>
         </div>
+        <div className="flex items-center gap-2">
         <span
           className={
             ready
@@ -512,9 +551,13 @@ export function CompanyIncorporationForm({
           <CheckCircle2 className="h-4 w-4" aria-hidden />
           {ready ? "Ready" : "Draft"}
         </span>
+        <Button type="button" variant="outline" size="icon" onClick={handleClose} className="h-9 w-9 rounded-full border-slate-200" aria-label="Close company incorporation form">
+          <X className="h-4 w-4" aria-hidden />
+        </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-semibold text-slate-500 mb-2">
+      <div className="sticky top-0 z-20 mb-3 grid grid-cols-2 gap-2 rounded-xl border bg-white/95 p-2 text-xs font-semibold text-slate-500 shadow-sm backdrop-blur md:grid-cols-4">
         {[
           { id: 1, label: "1. Company Details" },
           { id: 2, label: "2. Location" },
@@ -549,9 +592,9 @@ export function CompanyIncorporationForm({
         })}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-6">
-          <section className="space-y-5 rounded-lg border bg-card p-5 shadow-sm">
+          <section className="space-y-5 rounded-lg border bg-card p-5 pb-24 shadow-sm">
           {currentStep === 1 && (
             <>
             <SectionTitle>Company Details</SectionTitle>
@@ -582,7 +625,7 @@ export function CompanyIncorporationForm({
                 setLocationMeta(meta);
                 setSelectedCompanyId(null);
               }}
-              showArea={false}
+              showArea={true}
             />
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -645,7 +688,7 @@ export function CompanyIncorporationForm({
             </div>
           )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4 mt-4">
+            <div className="sticky bottom-0 z-20 -mx-5 -mb-24 mt-6 flex flex-wrap items-center justify-between gap-3 border-t bg-white/95 p-4 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur">
               <Button
                 type="button"
                 variant="outline"
@@ -724,13 +767,17 @@ export function CompanyIncorporationForm({
                 <p className="text-xs font-semibold text-slate-700 mt-0.5">{previewData.businessName || "-"}</p>
               </div>
               <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Business Type</p>
+                <p className="text-xs font-semibold text-slate-700 mt-0.5">{previewData.businessType || "-"}</p>
+              </div>
+              <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Owner Name</p>
                 <p className="text-xs font-bold text-slate-800 mt-0.5">{previewData.ownerName}</p>
               </div>
               <div className="border-t pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Location</p>
                 <p className="text-xs text-slate-700 font-semibold mt-0.5">
-                  {[previewData.city, previewData.district, previewData.state, previewData.country].filter(Boolean).join(", ") || "-"}
+                  {[previewData.area, previewData.city, previewData.state, previewData.country].filter((item) => item && item !== "-").join(", ") || "-"}
                 </p>
                 {previewData.zipCode && previewData.zipCode !== "-" && (
                   <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">Zip: {previewData.zipCode}</p>
@@ -832,3 +879,8 @@ export function CompanyIncorporationForm({
     </div>
   );
 }
+
+
+
+
+

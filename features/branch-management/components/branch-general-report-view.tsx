@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, ReactNode, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { 
   Ban,
@@ -508,6 +508,101 @@ function LoginListPanel({ users, onClose }: { users: BranchUserDetail[]; onClose
   );
 }
 
+/**
+ * ActionDropdownMenu — portal-based floating menu anchored to a button rect.
+ * Renders at document.body level (z-[9999]) so it's never clipped by
+ * overflow:hidden containers such as scrollable tables.
+ * Auto-flips upward when there is insufficient space below the button.
+ */
+function ActionDropdownMenu({
+  anchorRect,
+  onClose,
+  children
+}: {
+  anchorRect: DOMRect;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const MENU_HEIGHT_ESTIMATE = 160;
+  const MENU_WIDTH = 200;
+  const OFFSET = 6;
+  const viewportH = typeof window !== "undefined" ? window.innerHeight : 800;
+  const viewportW = typeof window !== "undefined" ? window.innerWidth : 1200;
+
+  const spaceBelow = viewportH - anchorRect.bottom;
+  const openUpward = spaceBelow < MENU_HEIGHT_ESTIMATE + OFFSET && anchorRect.top > MENU_HEIGHT_ESTIMATE;
+
+  const top = openUpward
+    ? anchorRect.top + window.scrollY - MENU_HEIGHT_ESTIMATE - OFFSET
+    : anchorRect.bottom + window.scrollY + OFFSET;
+
+  // Align right edge with button, but clamp to viewport
+  let left = anchorRect.right + window.scrollX - MENU_WIDTH;
+  if (left < 8) left = 8;
+  if (left + MENU_WIDTH > viewportW - 8) left = viewportW - MENU_WIDTH - 8;
+
+  return (
+    <div
+      className="bgr-action-portal fixed z-[9999] pointer-events-none"
+      style={{ top: 0, left: 0, width: 0, height: 0 }}
+    >
+      <div
+        className="bgr-action-portal absolute pointer-events-auto"
+        style={{ top, left, width: MENU_WIDTH }}
+      >
+        {/* Backdrop for easy close */}
+        <div className="fixed inset-0 z-[-1]" onClick={onClose} />
+        {/* Menu panel */}
+        <div className={cn(
+          "rounded-xl border border-slate-200 bg-white py-1.5 shadow-2xl ring-1 ring-black/5",
+          "animate-in fade-in slide-in-from-top-1 duration-100"
+        )}>
+          <div className="px-3 pb-1.5 pt-0.5 text-[8px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 mb-1">
+            Actions
+          </div>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActionItem({
+  icon,
+  label,
+  onClick,
+  color = "default",
+  disabled = false
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  color?: "default" | "emerald" | "indigo" | "rose";
+  disabled?: boolean;
+}) {
+  const colorMap = {
+    default: "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
+    emerald: "text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800",
+    indigo: "text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800",
+    rose: "text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+  };
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2.5 px-3 py-2 text-[10px] font-semibold text-left transition-colors rounded-none first:rounded-t-lg last:rounded-b-lg disabled:opacity-40 disabled:cursor-not-allowed",
+        colorMap[color]
+      )}
+    >
+      <span className="flex-shrink-0 opacity-75">{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+
 export function BranchGeneralReportView({
   title,
   subtitle
@@ -525,11 +620,21 @@ export function BranchGeneralReportView({
   const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
   const [expandedUserScope, setExpandedUserScope] = useState<string | null>(null);
   
-  // Popover states
   const [activeContactPopup, setActiveContactPopup] = useState<{ id: string; type: "phone" | "email" } | null>(null);
   const [activeProductPopup, setActiveProductPopup] = useState<string | null>(null);
   const [activeActionDropdownId, setActiveActionDropdownId] = useState<string | null>(null);
+  const [activeActionAnchorRect, setActiveActionAnchorRect] = useState<DOMRect | null>(null);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
+
+  function openActionDropdown(id: string, btn: HTMLButtonElement) {
+    if (activeActionDropdownId === id) {
+      setActiveActionDropdownId(null);
+      setActiveActionAnchorRect(null);
+    } else {
+      setActiveActionDropdownId(id);
+      setActiveActionAnchorRect(btn.getBoundingClientRect());
+    }
+  }
 
   const [viewLoadingId, setViewLoadingId] = useState<string | null>(null);
   const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null);
@@ -730,14 +835,23 @@ export function BranchGeneralReportView({
     function handleGlobalClick(e: MouseEvent) {
       const target = e.target as HTMLElement;
       if (!target.closest(".popup-trigger") && !target.closest(".popup-content") &&
-          !target.closest(".action-dropdown-trigger") && !target.closest(".action-dropdown-content")) {
+          !target.closest(".action-dropdown-trigger") && !target.closest(".bgr-action-portal")) {
         setActiveContactPopup(null);
         setActiveProductPopup(null);
         setActiveActionDropdownId(null);
+        setActiveActionAnchorRect(null);
       }
     }
+    function handleScroll() {
+      setActiveActionDropdownId(null);
+      setActiveActionAnchorRect(null);
+    }
     document.addEventListener("mousedown", handleGlobalClick);
-    return () => document.removeEventListener("mousedown", handleGlobalClick);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleGlobalClick);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
   }, []);
 
   const filteredSuperAdminBranches = useMemo(() => {
@@ -793,7 +907,7 @@ export function BranchGeneralReportView({
           mainBranches
         };
       })
-      .filter((country): country is CountryNode => country !== null);
+      .filter((country): country is CountryNode => country !== null && country.mainBranches.length > 0);
   }, [data?.countries, searchQuery, searchType]);
 
   const visibleSummary = useMemo(() => {
@@ -1110,7 +1224,7 @@ export function BranchGeneralReportView({
               {title}
             </h1>
             <div className="text-[9px] font-bold text-slate-500 mt-1">
-              {subtitle || "Super Admin — Countries — Main Branches — City Branches"}
+              {subtitle || "Super Admin â€” Countries â€” Main Branches â€” City Branches"}
             </div>
           </div>
         </div>
@@ -1467,61 +1581,54 @@ export function BranchGeneralReportView({
                                 </div>
                               )}
                             </div>
-                          </td>
-                          <td className="p-2 relative">
-                            <div className="flex items-center justify-center popup-trigger">
+                                           <td className="p-2 relative">
+                            <div className="flex items-center justify-center">
                               <button
-                                onClick={() => setActiveActionDropdownId(activeActionDropdownId === country.id ? null : country.id)}
-                                className="action-dropdown-trigger flex h-5 items-center gap-1 rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-800 hover:bg-slate-200 transition-all shadow-sm"
+                                onClick={(e) => openActionDropdown(country.id, e.currentTarget)}
+                                className="action-dropdown-trigger inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[9px] font-bold text-slate-700 shadow-sm hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400"
                               >
-                                Actions <span className="text-[7px]">▼</span>
+                                Actions
+                                <ChevronRight className={cn("h-2.5 w-2.5 transition-transform duration-150", activeActionDropdownId === country.id ? "rotate-90" : "")} />
                               </button>
-                              {activeActionDropdownId === country.id && (
-                                <div className="action-dropdown-content absolute right-2 top-7 z-50 min-w-[120px] rounded-md border border-slate-200 bg-white p-1 text-[9px] shadow-lg popup-content flex flex-col gap-0.5 font-semibold text-slate-700">
-                                  <button
-                                    onClick={() => {
-                                      toggleCountryRow(country.id);
-                                      setActiveActionDropdownId(null);
-                                    }}
-                                    className="flex w-full items-center px-2 py-1 hover:bg-slate-100 rounded text-left transition-colors text-slate-800"
-                                  >
-                                    {isExpanded ? "Hide City Branches" : "Show City Branches"}
-                                  </button>
-                                  {mainBranch ? (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          viewCountryBranch(mainBranch.id, country.name);
-                                          setActiveActionDropdownId(null);
-                                        }}
-                                        disabled={viewLoadingId !== null}
-                                        className="flex w-full items-center px-2 py-1 hover:bg-slate-100 rounded text-left transition-colors text-emerald-600 font-bold"
-                                      >
-                                        {viewLoadingId === mainBranch.id ? "Loading..." : "View Main Branch"}
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          openCountryBranchEdit(mainBranch.id);
-                                          setActiveActionDropdownId(null);
-                                        }}
-                                        className="flex w-full items-center px-2 py-1 hover:bg-slate-100 rounded text-left transition-colors text-indigo-600 font-bold"
-                                      >
-                                        Edit Main Branch
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button
-                                      onClick={() => {
-                                        setActiveActionDropdownId(null);
-                                      }}
-                                      className="flex w-full items-center px-2 py-1 hover:bg-slate-100 rounded text-left transition-colors text-indigo-600 font-bold"
-                                    >
-                                      Edit
-                                    </button>
-                                  )}
-                                </div>
-                              )}
                             </div>
+                            {/* Portal dropdown — rendered at body level to escape table overflow:hidden */}
+                            {activeActionDropdownId === country.id && activeActionAnchorRect && createPortal(
+                              <ActionDropdownMenu
+                                anchorRect={activeActionAnchorRect}
+                                onClose={() => { setActiveActionDropdownId(null); setActiveActionAnchorRect(null); }}
+                              >
+                                <ActionItem
+                                  icon={<ChevronRight className={cn("h-3.5 w-3.5 transition-transform", isExpanded ? "rotate-90" : "")} />}
+                                  label={isExpanded ? "Hide City Branches" : "Show City Branches"}
+                                  onClick={() => { toggleCountryRow(country.id); setActiveActionDropdownId(null); setActiveActionAnchorRect(null); }}
+                                />
+                                {mainBranch ? (
+                                  <>
+                                    <ActionItem
+                                      icon={<Eye className="h-3.5 w-3.5" />}
+                                      label={viewLoadingId === mainBranch.id ? "Loading..." : "View Main Branch"}
+                                      color="emerald"
+                                      onClick={() => { viewCountryBranch(mainBranch.id, country.name); setActiveActionDropdownId(null); setActiveActionAnchorRect(null); }}
+                                      disabled={viewLoadingId !== null}
+                                    />
+                                    <ActionItem
+                                      icon={<PencilLine className="h-3.5 w-3.5" />}
+                                      label="Edit Main Branch"
+                                      color="indigo"
+                                      onClick={() => { openCountryBranchEdit(mainBranch.id); setActiveActionDropdownId(null); setActiveActionAnchorRect(null); }}
+                                    />
+                                  </>
+                                ) : (
+                                  <ActionItem
+                                    icon={<PencilLine className="h-3.5 w-3.5" />}
+                                    label="Edit"
+                                    color="indigo"
+                                    onClick={() => { setActiveActionDropdownId(null); setActiveActionAnchorRect(null); }}
+                                  />
+                                )}
+                              </ActionDropdownMenu>,
+                              document.body
+                            )}
                           </td>
                         </tr>
 
@@ -1724,3 +1831,4 @@ export function BranchGeneralReportView({
     </div>
   );
 }
+

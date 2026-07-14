@@ -337,8 +337,8 @@ export function LocationHierarchySelect({
             <SearchSelect
               label={loadingCities ? "City (Loading...)" : "City"}
               value={value.cityId}
-              placeholder={value.districtId || value.stateProvinceId ? "Select city" : "Select state/district first"}
-              disabled={disabled || !value.countryId || (!value.stateProvinceId && !value.districtId) || loadingCities}
+              placeholder={value.stateProvinceId ? "Select city" : "Select state first"}
+              disabled={disabled || !value.countryId || !value.stateProvinceId || loadingCities}
               options={toOptions(cities)}
               onValueChange={(cityId) => {
                 const next: LocationHierarchyValue = { ...value, cityId, areaId: "" };
@@ -352,9 +352,9 @@ export function LocationHierarchySelect({
 
           {showArea && (
             <SearchSelect
-              label={loadingAreas ? "Tehsil / Sub-District / Postal Code (Loading...)" : "Tehsil / Sub-District / Postal Code"}
+              label={loadingAreas ? "Area / Town / Locality / Road (Loading...)" : "Area / Town / Locality / Road"}
               value={value.areaId ?? ""}
-              placeholder={value.cityId ? "Select tehsil/area" : "Select city first"}
+              placeholder={value.cityId ? "Select area, locality, road, or street" : "Select city first"}
               disabled={disabled || !value.cityId || loadingAreas}
               options={toOptions(areas)}
               onValueChange={(areaId) => {
@@ -578,3 +578,4 @@ function LocationQuickCreateModal({
     </SimpleModal>
   );
 }
+
