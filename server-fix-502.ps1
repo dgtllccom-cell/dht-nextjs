@@ -12,7 +12,7 @@ $PM2_NAME = "dgt-nextjs"
 function Invoke-SSH {
     param([string]$Script, [string]$Label = "")
     if ($Label) { Write-Host "`n========== $Label ==========" -ForegroundColor Cyan }
-    $out = ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 $SERVER "bash -s" 2>&1 <<< $Script
+    $out = $Script | ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 $SERVER "bash -s" 2>&1
     $out | ForEach-Object { Write-Host $_ }
     return $out
 }

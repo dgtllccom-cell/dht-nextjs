@@ -162,6 +162,7 @@ export async function POST(request: NextRequest) {
       user_metadata: {
         user_code: issuedUserCode,
         phone: body.phone ?? null,
+        company_id: body.companyId ?? null,
         id_type: body.idType ?? null,
         id_value: body.idValue ?? null
       }

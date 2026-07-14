@@ -272,6 +272,37 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
       fetchSpecificUser(urlUserId);
     }
   }, [urlUserId, editUserId]);
+  useEffect(() => {
+    if (!selectedCompanyId) {
+      setSelectedCompany(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingSelectedCompany(true);
+    apiGet<{ company: CompanyRow }>(`/api/erp/companies/${encodeURIComponent(selectedCompanyId)}`)
+      .then((res) => {
+        if (cancelled) return;
+        const company = res.company ?? null;
+        setSelectedCompany(company);
+        if (!company) return;
+
+        const ownerOrName = company.owner_name || company.legal_name || company.name || "";
+        if (ownerOrName) setFullName(ownerOrName);
+        if (company.country_id) setCountryId((current) => current || company.country_id || "");
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedCompany(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSelectedCompany(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCompanyId]);
+
 
   const countryOptions = useMemo(() => countries.map(toCountryOption), [countries]);
   const branchTypeSelectOptions = useMemo(
