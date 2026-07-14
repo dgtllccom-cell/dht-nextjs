@@ -906,10 +906,14 @@ export function SuperAdminBranchSetup() {
   }, []);
 
   useEffect(() => {
-    if (!isUuid(editId) || !savedBranchRows.length) return;
-    const row = savedBranchRows.find((r) => r.id === editId);
-    if (row && editingBranchId !== editId) {
-      beginEditBranch(row);
+    if (savedBranchRows.length) {
+      const targetId = isUuid(editId) ? editId : (savedBranchRows.length === 1 ? savedBranchRows[0].id : "");
+      if (isUuid(targetId)) {
+        const row = savedBranchRows.find((r) => r.id === targetId);
+        if (row && editingBranchId !== targetId) {
+          beginEditBranch(row);
+        }
+      }
     }
   }, [editId, savedBranchRows, editingBranchId]);
 
