@@ -1772,9 +1772,28 @@ export function PurchaseOrderWizard({ session }) {
   };
 
   const accountMatchesScope = (acc) => {
-    return (!form.countryId || !acc.countryId || acc.countryId === form.countryId) &&
-      (!form.countryBranchId || !acc.countryBranchId || acc.countryBranchId === form.countryBranchId) &&
-      (!form.cityBranchId || !acc.cityBranchId || acc.cityBranchId === form.cityBranchId);
+    // For non-Super Admins, strictly enforce session country/branch scopes first
+    if (!isSuperAdmin) {
+      const allowedCountryId = activeSession?.countryIds?.[0] || activeSession?.scopes?.countryIds?.[0] || null;
+      const allowedBranchId = activeSession?.cityBranchIds?.[0] || activeSession?.scopes?.cityBranchIds?.[0] || null;
+      
+      if (allowedCountryId && acc.countryId !== allowedCountryId) {
+        return false;
+      }
+      if (allowedBranchId && acc.cityBranchId !== allowedBranchId) {
+        return false;
+      }
+    }
+    
+    // Narrow down based on form country/branch selection (e.g. for Super Admins)
+    if (form.countryId && acc.countryId !== form.countryId) {
+      return false;
+    }
+    if (form.cityBranchId && acc.cityBranchId !== form.cityBranchId) {
+      return false;
+    }
+    
+    return true;
   };
   const formatAccountDisplayLabel = (accountName, accountCode, manualReferenceNumber) => {
     const name = accountName || "Unnamed Account";

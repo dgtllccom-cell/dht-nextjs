@@ -337,7 +337,16 @@ function rowBranchName(row: PurchaseOrderRow) {
 
 function rowCurrency(row: PurchaseOrderRow) {
   const form = rowForm(row);
-  const explicit = normalizeCurrency(form.currency || row.currency_code || form.currencyType || form.purchaseCurrency || form.baseCurrency || form.purchaseAccountCurrency, "");
+  const explicit = normalizeCurrency(
+    form.currencyType || 
+    form.purchaseCurrency || 
+    (row as any).currency || 
+    form.currency || 
+    row.currency_code || 
+    form.baseCurrency || 
+    form.purchaseAccountCurrency, 
+    ""
+  );
   if (explicit) return explicit;
   const country = rowCountryName(row).toLowerCase();
   return COUNTRY_CURRENCY[country] || "USD";
@@ -2140,16 +2149,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       currency: row.currency_code || "USD",
       status: row.payment_status || "Pending",
       paymentStatus: row.payment_status || "Pending",
-      branchName: form.purchaseAccountBranch || "Kabul Main Branch",
-      countryName: form.loadingCountry || "N/A",
+      branchName: rowBranchName(row) || form.purchaseAccountBranch || "Kabul Main Branch",
+      countryName: rowCountryName(row) || form.loadingCountry || "N/A",
       createdAt: row.created_at || "",
       form_data: row.form_data || {},
       paymentHistory,
       finalCurrency: rowOfficeCurrency(row),
       audit: {
-        userName: session?.name || session?.username || "SUPER ADMIN",
-        userId: session?.id || "USR-1001",
-        branchCode: form.branchCode || "QTA-01"
+        userName: row.audit?.userName || session?.name || session?.username || "SUPER ADMIN",
+        userId: row.audit?.userId || session?.id || "USR-1001",
+        branchCode: row.audit?.branchCode || form.branchCode || "QTA-01"
       }
     };
 
@@ -2587,7 +2596,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     const paidPercent = finalPurchaseAmount > 0 ? Math.min(100, (totalPaidSoFar / finalPurchaseAmount) * 100) : 0;
     const advancePaidPercent = loadingRequiredAdvance > 0 ? Math.min(100, (loadingAdvancePaid / loadingRequiredAdvance) * 100) : 0;
 
-    const poCurrency = (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || selected.currency_code || "USD";
     const exRate = selected.exchange_rate || 1;
     const isAdvComplete = loadingRemainingAdvance <= 0.01;
     const isFullyPaid = outstandingBalance <= 0.01;
@@ -2598,7 +2606,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       loadingRequiredAdvance,
       totalPaidSoFar,
       outstandingBalance,
-      poCurrency,
       exRate,
       isAdvComplete,
       isFullyPaid,
@@ -2617,7 +2624,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     loadingRequiredAdvance,
     totalPaidSoFar,
     outstandingBalance,
-    poCurrency,
     exRate,
     isAdvComplete,
     isFullyPaid,
@@ -2931,8 +2937,35 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
   // Load custom select options
   const ledgerOptions = useMemo(() => {
-    return ledgers.map(toLedgerOption);
-  }, [ledgers]);
+    // Determine the target country and branch to filter by
+    let targetCountryId = isSuperAdmin ? (saCountryId || null) : (session?.scopes?.countryIds?.[0] || session?.countryId || null);
+    let targetCityBranchId = isSuperAdmin ? (saBranchId || null) : (session?.scopes?.cityBranchIds?.[0] || session?.cityBranchId || null);
+
+    // If a purchase order is selected, narrow or set the target country/branch based on the selected purchase order
+    if (selected) {
+      if (selected.country_id) {
+        targetCountryId = selected.country_id;
+      }
+      if (selected.city_branch_id) {
+        targetCityBranchId = selected.city_branch_id;
+      }
+    }
+
+    // Filter strictly by the active scope
+    const filteredLedgers = ledgers.filter((l) => {
+      // Filter by Country ID if specified
+      if (targetCountryId && l.countryId && l.countryId !== targetCountryId) {
+        return false;
+      }
+      // Filter by Branch ID if specified
+      if (targetCityBranchId && l.cityBranchId && l.cityBranchId !== targetCityBranchId) {
+        return false;
+      }
+      return true;
+    });
+
+    return filteredLedgers.map(toLedgerOption);
+  }, [ledgers, isSuperAdmin, saCountryId, saBranchId, session, selected]);
 
   // Calculate dynamic currency values
   const isLocalCurrency = currency === baseCurrency;
@@ -3266,26 +3299,42 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             </div>
           </td>
           {/* Total / Rate */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-            <div className="flex flex-col">
-              <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200">{totalAmountLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span>
-              <span className="text-[10px] text-slate-500 mt-1 font-bold">
-                Rate: {conversionRate.toFixed(4)}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
+            <div className="flex flex-col gap-0.5 font-mono">
+              <span className="font-black text-[11px] text-rose-600 dark:text-rose-400">{money(totalAmountBC, bookCur)}</span>
+              <span className="text-[9px] text-slate-500 font-bold">
+                {money(totalAmountLocal, officeCur)} (Rate: {conversionRate.toFixed(4)})
               </span>
             </div>
           </td>
           {/* Adv Details */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-            <div className="flex flex-col text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-              <span>Req: <span className="font-black text-slate-800 dark:text-slate-200">{requiredAdvance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span></span>
-              <span>Paid: <span className="font-black text-slate-800 dark:text-slate-200">{paidAdvance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span></span>
-              <span>Rem: <span className="font-black text-slate-800 dark:text-slate-200">{remainingAdvance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span></span>
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
+            <div className="flex flex-col gap-1 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+              <span className="flex items-center justify-between gap-2">
+                <span>Req:</span>
+                <span className="font-black text-slate-800 dark:text-slate-200">
+                  {money(requiredAdvanceBC, bookCur)} / {money(requiredAdvance, officeCur)}
+                </span>
+              </span>
+              <span className="flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/40 pt-0.5">
+                <span>Paid:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400">
+                  {money(paidAdvanceBC, bookCur)} / {money(paidAdvance, officeCur)}
+                </span>
+              </span>
+              <span className="flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/40 pt-0.5">
+                <span>Rem:</span>
+                <span className="font-black text-rose-600 dark:text-rose-400">
+                  {money(remainingAdvanceBC, bookCur)} / {money(remainingAdvance, officeCur)}
+                </span>
+              </span>
             </div>
           </td>
           {/* Balance */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-            <div className="flex flex-col font-bold">
-              <span className="text-slate-800 dark:text-slate-200 text-[11px]">{balanceAmountLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {rowLocalCurrency}</span>
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
+            <div className="flex flex-col gap-0.5 font-mono">
+              <span className="font-black text-[11px] text-indigo-600 dark:text-indigo-400">{money(balanceAmountBC, bookCur)}</span>
+              <span className="text-[9px] text-slate-500 font-bold">{money(balanceAmountLocal, officeCur)}</span>
             </div>
           </td>
           {/* Status / Action */}
@@ -3301,48 +3350,77 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               )}>
                 {statusText}
               </span>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); toggleDropdown(row.id); }}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 transition"
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <ViewportActionMenu
+                  ariaLabel="Row actions"
+                  buttonClassName="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 transition text-slate-500"
+                  trigger={<MoreVertical className="h-3.5 w-3.5" />}
+                  menuClassName="font-semibold p-0 w-48 shadow-lg ring-1 ring-black ring-opacity-5 overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                 >
-                  <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
-                </button>
-                {openDropdownId === row.id && (
-                  <div className="absolute right-0 mt-1 w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900 z-50">
-                    <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] })); setOpenDropdownId(null); }}>
-                      <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> Details & History
-                    </button>
-                    {!isPaymentCompleted && (
-                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-red-650 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { selectOrder(row.id); setOpenDropdownId(null); }}>
-                        <Banknote className="mr-2.5 h-4 w-4 text-red-500" /> Pay / Transfer
-                      </button>
-                    )}
-                    {isPosted && (
-                      <>
-                        <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-650 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { setOpenDropdownId(null); handleOpenA4PDF(row); }}>
-                          <Printer className="mr-2.5 h-4 w-4 text-indigo-500" /> Print Voucher (A4)
+                  {(close) => (
+                    <div className="py-1">
+                      {activeMode !== "advance_completed" && (
+                        <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-800 transition font-bold" onClick={() => {
+                          try {
+                            logClientError(`Click Payment Entry. row.id: ${row.id}`);
+                            selectOrder(row.id);
+                            close();
+                          } catch (e: any) {
+                            logClientError(`Error in Payment Entry click: ${e.stack || e.message || String(e)}`);
+                          }
+                        }}>
+                          <WalletCards className="mr-2.5 h-4 w-4 text-slate-500" /> Payment Entry
                         </button>
-                        {activeMode === "advance" && (
-                          <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-650 hover:bg-slate-100 dark:hover:bg-slate-800 transition" onClick={() => { 
-                            setOpenDropdownId(null); 
+                      )}
+                      {activeMode === "advance" && isPosted && (
+                        <button className="flex w-full items-center px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition" onClick={() => { 
+                          close();
+                          router.push(`/dashboard/purchase/loading-form`);
+                        }}>
+                          <Truck className="mr-2.5 h-4 w-4 text-blue-600 dark:text-blue-400" /> Transfer to Loading
+                        </button>
+                      )}
+                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setViewingRow(row); close(); }}>
+                        <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> View Detailed Bill
+                      </button>
+                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, true); close(); }}>
+                        <Printer className="mr-2.5 h-4 w-4 text-slate-500" /> Print Statement
+                      </button>
+                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, false); close(); }}>
+                        <FileText className="mr-2.5 h-4 w-4 text-slate-500" /> View Statement
+                      </button>
+                      <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => {
+                        try {
+                          logClientError(`Click Show Payment History. row.id: ${row.id}`);
+                          setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] }));
+                          close();
+                        } catch (e: any) {
+                          logClientError(`Error in Show Payment History click: ${e.stack || e.message || String(e)}`);
+                        }
+                      }}>
+                        {isExpanded ? <XCircle className="mr-2.5 h-4 w-4 text-slate-500" /> : <Plus className="mr-2.5 h-4 w-4 text-slate-500" />} {isExpanded ? "Hide Payment History" : "Show Payment History"}
+                      </button>
+                      {activeMode === "advance_completed" && (
+                        <>
+                          <div className="border-t border-slate-100 dark:border-slate-800 my-1"></div>
+                          <button className="flex w-full items-center px-4 py-2.5 text-xs text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30 transition" onClick={() => { 
+                            close();
                             router.push(`/dashboard/journal/purchase-order-payment/advance?purchaseOrderNo=${encodeURIComponent(row.purchase_order_no)}`);
                           }}>
                             <RefreshCw className="mr-2.5 h-4 w-4 text-indigo-500" /> Revert & Edit Advance
                           </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </ViewportActionMenu>
               </div>
             </div>
           </td>
         </tr>
         {isExpanded && (
           <tr onClick={(e) => e.stopPropagation()} style={{ background: "#f8fafc" }}>
-            <td colSpan={10} className="p-4 border-b border-slate-100 dark:border-slate-800">
+            <td colSpan={11} className="p-4 border-b border-slate-100 dark:border-slate-800">
               <NestedPaymentHistory 
                 row={row} 
                 ledgers={ledgers} 
@@ -3389,7 +3467,41 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       "Rem. Advance": { en: "Rem. Advance", ur: "Ø¨Ø§Ù‚ÛŒ Ù…Ø§Ù†Ø¯Û Ø§ÛŒÚˆÙˆØ§Ù†Ø³", ar: "Ø§Ù„Ø¯ÙØ¹Ø© Ø§Ù„Ù…Ù‚Ø¯Ù…Ø© Ø§Ù„Ù…ØªØ¨Ù‚ÙŠØ©", fa: "Ù¾ÛŒØ´ Ù¾Ø±Ø¯Ø§Ø®Øª Ø¨Ø§Ù‚ÛŒÙ…Ø§Ù†Ø¯Ù‡", ps: "Ù¾Ø§ØªÛ Ù¾Ø±Ù…Ø®ØªÚ«" },
       "Action": { en: "Action", ur: "Ø¹Ù…Ù„", ar: "Ø¥Ø¬Ø±Ø§Ø¡", fa: "Ø¹Ù…Ù„", ps: "Ø¹Ù…Ù„" }
     };
-    return headersMap[h]?.[currentLanguage] || h;
+    const result = headersMap[h]?.[currentLanguage] || h;
+
+    if (currentLanguage === "en") {
+      if (h === "Total Purchase") return "Cargo / Brand";
+      if (h === "Req. Advance") return "Cargo Details";
+      if (h === "Paid Advance") return "Purchase Amount";
+      if (h === "Final Amount") return "Advance Details";
+      if (h === "Rem. Advance") return "Outstanding Due";
+    } else if (currentLanguage === "ur") {
+      if (h === "Total Purchase") return "کارگو / برانڈ";
+      if (h === "Req. Advance") return "وزن اور تعداد";
+      if (h === "Paid Advance") return "کل قیمت";
+      if (h === "Final Amount") return "ایڈوانس تفصیلات";
+      if (h === "Rem. Advance") return "بقایا رقم";
+    } else if (currentLanguage === "ar") {
+      if (h === "Total Purchase") return "البضائع / العلامة التجارية";
+      if (h === "Req. Advance") return "تفاصيل البضائع";
+      if (h === "Paid Advance") return "قيمة المشتريات";
+      if (h === "Final Amount") return "تفاصيل الدفعة المقدمة";
+      if (h === "Rem. Advance") return "المبلغ المتبقي";
+    } else if (currentLanguage === "fa") {
+      if (h === "Total Purchase") return "کالا / برند";
+      if (h === "Req. Advance") return "جزئیات کالا";
+      if (h === "Paid Advance") return "مبلغ خرید";
+      if (h === "Final Amount") return "جزئیات پیش پرداخت";
+      if (h === "Rem. Advance") return "مبلغ باقیمانده";
+    } else if (currentLanguage === "ps") {
+      if (h === "Total Purchase") return "کارګو / برانډ";
+      if (h === "Req. Advance") return "د کارګو جزیات";
+      if (h === "Paid Advance") return "د پیرودلو قیمت";
+      if (h === "Final Amount") return "د پرمختګ جزیات";
+      if (h === "Rem. Advance") return "پاتې رقم";
+    }
+
+    return result;
   };
 
   return (

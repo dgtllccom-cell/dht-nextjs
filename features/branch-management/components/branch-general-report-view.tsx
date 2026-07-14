@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { 
   Ban,
   ChevronRight, 
@@ -528,8 +529,16 @@ export function BranchGeneralReportView({
   const [activeContactPopup, setActiveContactPopup] = useState<{ id: string; type: "phone" | "email" } | null>(null);
   const [activeProductPopup, setActiveProductPopup] = useState<string | null>(null);
   const [activeActionDropdownId, setActiveActionDropdownId] = useState<string | null>(null);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
 
   const [viewLoadingId, setViewLoadingId] = useState<string | null>(null);
+  const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setTitleSlot(document.getElementById("erp-page-title-slot"));
+    setActionsSlot(document.getElementById("erp-page-actions-slot"));
+  }, []);
 
   async function viewCountryBranch(branchId: string, countryName: string) {
     try {
@@ -863,66 +872,64 @@ export function BranchGeneralReportView({
   return (
     <div className={containerClassName}>
       
-      {/* Unified Header, Metrics & Control Bar */}
-      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
-        
-        {/* Left Side: Title and Subtitle */}
-        <div className="min-w-[180px]">
-          <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+      {/* Title Slot Portal */}
+      {titleSlot && createPortal(
+        <div className="min-w-[120px]">
+          <div className="text-[8px] font-black uppercase tracking-wider text-slate-400 leading-none">
             Super Admin
           </div>
-          <h1 className="text-sm font-black tracking-tight text-slate-900 leading-none mt-0.5">
+          <h1 className="text-xs font-black tracking-tight text-slate-900 dark:text-slate-100 leading-none mt-0.5">
             {title}
           </h1>
-          <div className="text-[9px] font-bold text-slate-500 mt-1">
-            {subtitle || "Super Admin — Countries — Main Branches — City Branches"}
-          </div>
-        </div>
+        </div>,
+        titleSlot
+      )}
 
-        {/* Middle Left: Filter Controls */}
-        <div className="flex items-center gap-2 flex-grow max-w-sm">
+      {/* Actions Slot Portal */}
+      {actionsSlot && createPortal(
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          {/* Category Selector */}
           <select
             id="searchType"
-            className="h-8 rounded-lg border border-slate-300 bg-white px-2.5 text-[10px] font-extrabold text-slate-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[9px] font-extrabold text-slate-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
             value={searchType}
             onChange={(e) => setSearchType(e.target.value)}
           >
-            <option value="">Select Category</option>
+            <option value="">Category</option>
             <option value="branch">Branch</option>
             <option value="country">Country</option>
             <option value="city">City</option>
           </select>
 
-          <div className="relative flex items-center bg-white border border-slate-300 rounded-lg px-2.5 h-8 shadow-sm flex-grow">
-            <Search className="h-3.5 w-3.5 text-slate-400 mr-1.5" />
+          {/* Search Bar */}
+          <div className="relative flex items-center bg-white border border-slate-300 rounded-lg px-2 h-7 shadow-sm w-36">
+            <Search className="h-3 w-3 text-slate-400 mr-1.5 flex-shrink-0" />
             <input
               type="text"
               id="branchSearch"
-              placeholder="Search branch, city, country..."
-              className="w-full bg-transparent border-none outline-none text-[10px] font-semibold placeholder:text-slate-400"
+              placeholder="Search..."
+              className="w-full bg-transparent border-none outline-none text-[9px] font-semibold placeholder:text-slate-400"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-        </div>
 
-        {/* Right: Actions */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          
+          <div className="border-l border-slate-200 h-5 mx-0.5"></div>
+
           {/* Interactive Metric Filter Buttons */}
           <button
             type="button"
             className={cn(
-              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500",
+              "h-7 px-2 rounded-lg border text-[9px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1 focus:outline-none focus:ring-1 focus:ring-indigo-500",
               searchType === "country"
-                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-100"
-                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-350"
+                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
             )}
             onClick={() => setSearchType(searchType === "country" ? "" : "country")}
           >
             <span>Countries</span>
             <span className={cn(
-              "px-1.5 py-0.5 rounded font-mono text-[9px] font-extrabold leading-none",
+              "px-1 py-0.2 rounded font-mono text-[8px] font-extrabold leading-none",
               searchType === "country" ? "bg-indigo-500/40 text-white" : "bg-slate-100 text-slate-600"
             )}>
               {visibleSummary.totalCountries}
@@ -932,16 +939,16 @@ export function BranchGeneralReportView({
           <button
             type="button"
             className={cn(
-              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500",
+              "h-7 px-2 rounded-lg border text-[9px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1 focus:outline-none focus:ring-1 focus:ring-indigo-500",
               searchType === "branch"
-                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-100"
-                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-355"
+                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
             )}
             onClick={() => setSearchType(searchType === "branch" ? "" : "branch")}
           >
             <span>Branches</span>
             <span className={cn(
-              "px-1.5 py-0.5 rounded font-mono text-[9px] font-extrabold leading-none",
+              "px-1 py-0.2 rounded font-mono text-[8px] font-extrabold leading-none",
               searchType === "branch" ? "bg-indigo-500/40 text-white" : "bg-slate-100 text-slate-600"
             )}>
               {visibleSummary.totalMainBranches + visibleSummary.totalCityBranches}
@@ -951,18 +958,16 @@ export function BranchGeneralReportView({
           <button
             type="button"
             className={cn(
-              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500",
+              "h-7 px-2 rounded-lg border text-[9px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1 focus:outline-none focus:ring-1 focus:ring-indigo-500",
               expandedUserScope === "all-users"
-                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-100"
-                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-355"
+                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
             )}
             onClick={() => toggleUserScope("all-users")}
-            title="Show all user details"
-            aria-label="Show all user details"
           >
             <span>Users</span>
             <span className={cn(
-              "px-1.5 py-0.5 rounded font-mono text-[9px] font-extrabold leading-none",
+              "px-1 py-0.2 rounded font-mono text-[8px] font-extrabold leading-none",
               expandedUserScope === "all-users" ? "bg-indigo-500/40 text-white" : "bg-slate-100 text-slate-600"
             )}>
               {data?.summary.totalActiveUsers ?? "95+"}
@@ -972,14 +977,12 @@ export function BranchGeneralReportView({
           <button
             type="button"
             className={cn(
-              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500",
+              "h-7 px-2 rounded-lg border text-[9px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1 focus:outline-none focus:ring-1 focus:ring-blue-500",
               expandedUserScope === "login-list"
-                ? "bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-100"
-                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-355"
+                ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
             )}
             onClick={() => toggleUserScope("login-list")}
-            title="Show user login list"
-            aria-label="Show user login list"
           >
             <LogIn className="h-3 w-3" />
             <span>Login</span>
@@ -988,43 +991,89 @@ export function BranchGeneralReportView({
           <button
             type="button"
             className={cn(
-              "h-8 px-2.5 rounded-lg border text-[10px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500",
+              "h-7 px-2 rounded-lg border text-[9px] font-bold shadow-sm transition-all duration-200 flex items-center gap-1 focus:outline-none focus:ring-1 focus:ring-emerald-500",
               (!searchType && !searchQuery)
-                ? "bg-emerald-600 border-emerald-600 text-white shadow-sm shadow-emerald-100"
-                : "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100/80 hover:border-amber-300"
+                ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                : "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100/80"
             )}
             onClick={() => {
               setSearchType("");
               setSearchQuery("");
             }}
-            title={(!searchType && !searchQuery) ? "All filters cleared" : "Reset category & search query"}
           >
             <span>Reports</span>
-            <span className={cn(
-              "px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase leading-none font-mono",
-              (!searchType && !searchQuery) ? "bg-emerald-500/40 text-white" : "bg-amber-200 text-amber-900"
-            )}>
-              {(!searchType && !searchQuery) ? "Active" : "Reset"}
-            </span>
           </button>
 
-          <div className="border-l border-slate-200 h-6 mx-1"></div>
+          <div className="border-l border-slate-200 h-5 mx-0.5"></div>
+
+          {/* Action Buttons */}
+          <div className="relative">
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="h-7 text-[9px] font-bold gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs focus:ring-1 focus:ring-indigo-500 transition-colors py-0 px-2"
+              onClick={() => setNewMenuOpen(prev => !prev)}
+            >
+              <span>+ New Setup</span>
+              <ChevronRight className={cn("h-2.5 w-2.5 transition-transform duration-200", newMenuOpen ? "rotate-90" : "")} />
+            </Button>
+            
+            {newMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setNewMenuOpen(false)}></div>
+                <div className="absolute right-0 mt-1.5 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 z-50 animate-in fade-in slide-in-from-top-1 duration-150 font-sans">
+                  <div className="px-3 py-1 text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
+                    Select Hierarchy Level
+                  </div>
+                  <button
+                    onClick={() => {
+                      setNewMenuOpen(false);
+                      window.location.href = "/dashboard/new-entry/branches/super-admin";
+                    }}
+                    className="flex w-full items-center px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition"
+                  >
+                    1. Create Country (Super Admin)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNewMenuOpen(false);
+                      window.location.href = "/dashboard/new-entry/branch-entry/country-branch";
+                    }}
+                    className="flex w-full items-center px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition"
+                  >
+                    2. Create Main Branch (Country)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNewMenuOpen(false);
+                      window.location.href = "/dashboard/new-entry/branch-entry/city-branch";
+                    }}
+                    className="flex w-full items-center px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition"
+                  >
+                    3. Create City Branch (City)
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 text-[10px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500"
+            className="h-7 text-[9px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500 py-0 px-2"
             onClick={() => window.print()}
           >
-            <Printer className="h-3.5 w-3.5" />
+            <Printer className="h-3 w-3" />
             Print
           </Button>
+
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 text-[10px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500"
+            className="h-7 text-[9px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500 py-0 px-2"
             onClick={() => {
               const link = document.createElement("a");
               link.href = "/exports/DGT_Standard_Branch_Users.pdf";
@@ -1032,33 +1081,40 @@ export function BranchGeneralReportView({
               link.click();
             }}
           >
-            <Download className="h-3.5 w-3.5 text-blue-600" />
-            Download PDF
+            <Download className="h-3 w-3 text-blue-600" />
+            PDF
           </Button>
+
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 text-[10px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500"
+            className="h-7 text-[9px] font-bold gap-1 bg-white border-slate-300 hover:bg-slate-50 focus:ring-1 focus:ring-indigo-500 py-0 px-2"
             onClick={() => setExpandedView((current) => !current)}
           >
-            {expandedView ? <Minimize2 className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
+            {expandedView ? <Minimize2 className="h-3 w-3" /> : <Expand className="h-3 w-3" />}
             {expandedView ? "Shrink" : "Expand"}
           </Button>
+        </div>,
+        actionsSlot
+      )}
 
-          <div className="border-l border-slate-200 h-6 mx-1"></div>
-
-          {/* Very compact user info info bubble/pill */}
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 h-8">
-            <div className="text-right">
-              <div className="text-[8px] font-bold text-slate-400 uppercase leading-none">User</div>
-              <div className="text-[9px] font-extrabold text-slate-700 leading-none mt-0.5">{data?.summary.superAdminName || "Super Admin"}</div>
+      {/* Fallback Header (Only shown while slot/portal is loading on initial render) */}
+      {!actionsSlot && (
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs mb-4">
+          <div className="min-w-[180px]">
+            <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+              Super Admin
             </div>
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Open Branch: Super Admin"></div>
+            <h1 className="text-sm font-black tracking-tight text-slate-900 leading-none mt-0.5">
+              {title}
+            </h1>
+            <div className="text-[9px] font-bold text-slate-500 mt-1">
+              {subtitle || "Super Admin — Countries — Main Branches — City Branches"}
+            </div>
           </div>
         </div>
-
-      </div>
+      )}
 
       {error ? (
         <Card className="border-rose-200 bg-rose-50/60">

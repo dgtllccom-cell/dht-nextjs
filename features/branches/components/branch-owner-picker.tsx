@@ -36,8 +36,8 @@ function normalize(value: string) {
     .trim();
 }
 
-function toOwnerOption(label: string, keywords?: string): SearchSelectOption {
-  return { value: label, label, keywords };
+function toOwnerOption(value: string, label: string, keywords?: string): SearchSelectOption {
+  return { value, label, keywords };
 }
 
 function guessOriginalLanguage(): "en" | "ar" | "ur" | "fa" | "ps" {
@@ -76,6 +76,7 @@ export function BranchOwnerPicker({
         const label = row.company_name ? `${row.customer_name} (${row.company_name})` : row.customer_name;
         next.push(
           toOwnerOption(
+            row.customer_name,
             label,
             [row.customer_name, row.company_name, row.contact_person, row.mobile, row.whatsapp, row.email].filter(Boolean).join(" ")
           )
@@ -83,7 +84,7 @@ export function BranchOwnerPicker({
       }
       for (const row of usersRes.rows ?? []) {
         const label = [row.fullName, row.role, row.branchName].filter(Boolean).join(" · ");
-        next.push(toOwnerOption(label, [row.userCode, row.fullName, row.countryName, row.branchName, row.role].join(" ")));
+        next.push(toOwnerOption(row.fullName, label, [row.userCode, row.fullName, row.countryName, row.branchName, row.role].join(" ")));
       }
 
       const unique = new Map<string, SearchSelectOption>();
@@ -164,6 +165,7 @@ export function BranchOwnerPicker({
                     const customerName = rawCustomer.customer_name || rawCustomer.customerName || "";
                     const companyName = rawCustomer.company_name || rawCustomer.companyName || "";
                     const option = toOwnerOption(
+                      customerName,
                       label,
                       [
                         customerName,

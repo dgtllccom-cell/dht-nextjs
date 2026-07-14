@@ -308,7 +308,7 @@ export function SuperAdminBranchSetup() {
   const contactsText = contacts.length ? contacts.map((row) => `${row.type}: ${row.value}`).join(", ") : "No Contacts";
   const companyName = companyDetails?.name ?? "";
   const companyCode = companyDetails?.id ? compactCode(companyDetails.id, "CMP") : "-";
-  const readyToSave = Boolean(countryName && stateName && cityName && branchCode && currency && companyName && owner && address);
+  const readyToSave = Boolean(countryName && stateName && (cityName || districtName) && branchCode && currency && companyName && owner && address);
 
   const hasAny = useMemo(() => Boolean(
     location.countryId ||
@@ -479,6 +479,8 @@ export function SuperAdminBranchSetup() {
       areaRegion: locationMeta.area?.name || "-",
       zipCode: zip || "-",
       fullAddress: address || "-",
+      phone: contacts.find((row) => row.type.toLowerCase().includes("phone") || row.type.toLowerCase().includes("mobile"))?.value || "",
+      email: contacts.find((row) => row.type.toLowerCase().includes("email"))?.value || "",
 
       ownerName: ownerPreview?.name || owner || "-",
       ownerCode: ownerPreview?.code || "OWN-0001",
@@ -494,6 +496,7 @@ export function SuperAdminBranchSetup() {
       ownerAltEmail: "-",
       ownerLandline: "-",
       ownerWebsite: ownerPreview?.address || "-",
+      ownerCountry: ownerPreview?.country || "-",
 
       companyName: companyDetails?.name || "-",
       companyCode: companyCode || "-",
