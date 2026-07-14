@@ -168,7 +168,7 @@ async function importDistricts(sql, sourceDir, countryMap, stateMap) {
         select * from jsonb_to_recordset(${sql.json(chunk)}::jsonb) as x(country_id uuid, state_province_id uuid, code text, name text)
       ), ins as (
         insert into districts (country_id, state_province_id, code, name, is_active)
-        select i.country_id, i.state_province_id, i.code, i.name, true from input i
+        select i.country_id, i.state_province_id, i.code, i.name, true from (select distinct on (state_province_id, lower(name)) * from input order by state_province_id, lower(name), code) i
         where not exists (
           select 1 from districts d where d.state_province_id=i.state_province_id and lower(d.name)=lower(i.name) and d.deleted_at is null
         )

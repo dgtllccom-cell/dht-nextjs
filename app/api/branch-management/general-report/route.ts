@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { requireErpSession } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -209,26 +209,49 @@ export async function GET() {
       );
     }
 
-    const countriesQuery = admin
-      .from("countries")
-      .select("id, name, iso2, iso3, currency_code, is_active")
-      .is("deleted_at", null)
-      .order("name", { ascending: true });
-    if (accessibleCountryIds) countriesQuery.in("id", accessibleCountryIds);
-    const { data: countryData, error: countryError } = await countriesQuery;
-    if (countryError) throw new Error(countryError.message);
-
-    const countries = (countryData ?? []) as CountryRow[];
-    const countryIds = countries.map((country) => country.id);
-
     const countryBranchesQuery = admin
       .from("country_branches")
       .select("id, country_id, name, code, local_currency, status, is_main, address, company_id, owner_name, contacts, created_at, updated_at, deleted_at")
       .is("deleted_at", null)
       .order("name", { ascending: true });
-    if (countryIds.length) countryBranchesQuery.in("country_id", countryIds);
+    if (accessibleCountryIds) countryBranchesQuery.in("country_id", accessibleCountryIds);
     const { data: countryBranchData, error: countryBranchError } = await countryBranchesQuery;
     if (countryBranchError) throw new Error(countryBranchError.message);
+
+    const countryBranches = (countryBranchData ?? []) as CountryBranchRow[];
+    const branchCountryIds = [...new Set(countryBranches.map((branch) => branch.country_id).filter(Boolean))];
+
+    if (!branchCountryIds.length) {
+      return NextResponse.json(
+        {
+          summary: {
+            superAdminName: session.fullName || session.email || "Super Admin",
+            totalCountries: 0,
+            totalMainBranches: 0,
+            totalCityBranches: 0,
+            totalActiveUsers: 0,
+            totalActiveBranches: 0,
+            users: []
+          },
+          superAdminBranches,
+          countries: [],
+          generatedAt: new Date().toISOString()
+        },
+        { status: 200 }
+      );
+    }
+
+    const countriesQuery = admin
+      .from("countries")
+      .select("id, name, iso2, iso3, currency_code, is_active")
+      .in("id", branchCountryIds)
+      .is("deleted_at", null)
+      .order("name", { ascending: true });
+    const { data: countryData, error: countryError } = await countriesQuery;
+    if (countryError) throw new Error(countryError.message);
+
+    const countries = (countryData ?? []) as CountryRow[];
+    const countryIds = countries.map((country) => country.id);
 
     const cityBranchesQuery = admin
       .from("city_branches")
@@ -247,7 +270,6 @@ export async function GET() {
     const { data: assignmentData, error: assignmentError } = await assignmentsQuery;
     if (assignmentError) throw new Error(assignmentError.message);
 
-    const countryBranches = (countryBranchData ?? []) as CountryBranchRow[];
     const cityBranches = (cityBranchData ?? []) as CityBranchRow[];
     const assignments = (assignmentData ?? []) as AssignmentRow[];
     const [profileRes, permissionRes, authUsersRes] = await Promise.all([

@@ -121,7 +121,10 @@ export function LocationManagementWorkspace() {
             {/* List Skeleton / Blank State */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px] flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
               <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-4 ring-8 ring-emerald-50/50">
-                {tabs.find(t => t.id === activeTab)?.icon({ className: "h-8 w-8" })}
+                {(() => {
+                  const ActiveIcon = tabs.find((t) => t.id === activeTab)?.icon;
+                  return ActiveIcon ? <ActiveIcon className="h-8 w-8" /> : null;
+                })()}
               </div>
               <h3 className="text-lg font-black text-slate-800 mb-2">Centralized {activeTab} Database</h3>
               <p className="text-sm text-slate-500 max-w-sm mb-6">
