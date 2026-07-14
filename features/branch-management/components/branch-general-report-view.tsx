@@ -1581,7 +1581,8 @@ export function BranchGeneralReportView({
                                 </div>
                               )}
                             </div>
-                                           <td className="p-2 relative">
+                          </td>
+                          <td className="p-2 relative">
                             <div className="flex items-center justify-center">
                               <button
                                 onClick={(e) => openActionDropdown(country.id, e.currentTarget)}

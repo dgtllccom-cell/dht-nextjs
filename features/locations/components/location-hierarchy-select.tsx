@@ -90,7 +90,7 @@ export function LocationHierarchySelect({
   const [loadingCities, setLoadingCities] = useState(false);
   const [loadingAreas, setLoadingAreas] = useState(false);
 
-  const [openCreateType, setOpenCreateType] = useState<"country" | "state" | "district" | "city" | null>(null);
+  const [openCreateType, setOpenCreateType] = useState<"country" | "state" | "district" | "city" | "area" | null>(null);
 
   const selectedCountry = useMemo(
     () => countries.find((c) => c.id === value.countryId) ?? null,
@@ -351,17 +351,22 @@ export function LocationHierarchySelect({
           )}
 
           {showArea && (
-            <SearchSelect
-              label={loadingAreas ? "Area / Town / Locality / Road (Loading...)" : "Area / Town / Locality / Road"}
-              value={value.areaId ?? ""}
-              placeholder={value.cityId ? "Select area, locality, road, or street" : "Select city first"}
-              disabled={disabled || !value.cityId || loadingAreas}
-              options={toOptions(areas)}
-              onValueChange={(areaId) => {
-                const next: LocationHierarchyValue = { ...value, areaId };
-                onChange(next, { ...meta, area: areas.find((a) => a.id === areaId) ?? null });
-              }}
-            />
+            <div className="space-y-1.5">
+              <SearchSelect
+                label={loadingAreas ? "Area / Town / Locality / Road (Loading...)" : "Area / Town / Locality / Road"}
+                value={value.areaId ?? ""}
+                placeholder={value.cityId ? "Select area, locality, road, or street" : "Select city first"}
+                disabled={disabled || !value.cityId || loadingAreas}
+                options={toOptions(areas)}
+                onValueChange={(areaId) => {
+                  const next: LocationHierarchyValue = { ...value, areaId };
+                  onChange(next, { ...meta, area: areas.find((a) => a.id === areaId) ?? null });
+                }}
+                createLabel="+ New Area"
+                createButtonPlacement="both"
+                onCreateNew={async () => setOpenCreateType("area")}
+              />
+            </div>
           )}
         </div>
       ) : null}
@@ -372,6 +377,7 @@ export function LocationHierarchySelect({
           countryId={value.countryId}
           stateProvinceId={value.stateProvinceId}
           districtId={value.districtId}
+          cityId={value.cityId}
           onClose={() => setOpenCreateType(null)}
           onCreated={(newId, item) => {
             if (openCreateType === "country") {
@@ -423,6 +429,13 @@ export function LocationHierarchySelect({
                 city: item,
                 area: null
               });
+            } else if (openCreateType === "area") {
+              setAreas((cur) => {
+                if (cur.some((a) => a.id === item.id)) return cur;
+                return [item, ...cur];
+              });
+              const next: LocationHierarchyValue = { ...value, areaId: newId };
+              onChange(next, { ...meta, area: item });
             }
             setOpenCreateType(null);
           }}
@@ -437,13 +450,15 @@ function LocationQuickCreateModal({
   countryId,
   stateProvinceId,
   districtId,
+  cityId,
   onClose,
   onCreated
 }: {
-  type: "country" | "state" | "district" | "city";
+  type: "country" | "state" | "district" | "city" | "area" | null;
   countryId?: string;
   stateProvinceId?: string;
   districtId?: string;
+  cityId?: string;
   onClose: () => void;
   onCreated: (newId: string, item: any) => void;
 }) {
@@ -454,11 +469,14 @@ function LocationQuickCreateModal({
   // Country-specific fields
   const [iso2, setIso2] = useState("");
 
-  // State/District/City-specific fields
+  // State/District/City/Area-specific fields
   const [code, setCode] = useState("");
   const [zipCode, setZipCode] = useState("");
 
-  const typeLabel = type === "district" ? "District / City" : type.charAt(0).toUpperCase() + type.slice(1);
+  const typeLabel =
+    type === "district" ? "District / City" :
+    type === "area" ? "Area / Town / Locality / Road" :
+    type ? type.charAt(0).toUpperCase() + type.slice(1) : "";
 
   const canSave = useMemo(() => {
     if (type === "country") {
@@ -468,7 +486,7 @@ function LocationQuickCreateModal({
   }, [type, name, iso2]);
 
   async function handleSave() {
-    if (!canSave) return;
+    if (!canSave || !type) return;
     setSaving(true);
     setError(null);
     try {
@@ -503,6 +521,17 @@ function LocationQuickCreateModal({
           zipCode: zipCode.trim() || null
         });
         onCreated(res.city.id, res.city);
+      } else if (type === "area") {
+        const res = await apiPost<{ area: LocationArea }>("/api/erp/locations/areas", {
+          countryId,
+          stateProvinceId: stateProvinceId || null,
+          districtId: districtId || null,
+          cityId,
+          name: name.trim(),
+          code: code.trim() || null,
+          postalCode: zipCode.trim() || null
+        });
+        onCreated(res.area.id, res.area);
       }
     } catch (err: any) {
       setError(err?.message || "An error occurred while saving.");
@@ -543,25 +572,30 @@ function LocationQuickCreateModal({
           </div>
         )}
 
-        {(type === "state" || type === "district" || type === "city") && (
+        {(type === "state" || type === "district" || type === "city" || type === "area") && (
           <div className="space-y-2">
             <Label>{typeLabel} Code</Label>
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder={`Enter ${typeLabel.toLowerCase()} code`}
+              placeholder={`Enter ${typeLabel.toLowerCase()} code (optional)`}
             />
           </div>
         )}
 
-        {type === "city" && (
+        {(type === "city" || type === "area") && (
           <div className="space-y-2">
-            <Label>Zip Code</Label>
+            <Label>ZIP / Postal Code</Label>
             <Input
               value={zipCode}
               onChange={(e) => setZipCode(e.target.value)}
-              placeholder="Enter zip code"
+              placeholder="e.g. 10001"
             />
+            {type === "area" && (
+              <p className="text-[10px] text-slate-500 leading-tight">
+                This postal code will be linked to the new area and available for future use with this City + State.
+              </p>
+            )}
           </div>
         )}
 

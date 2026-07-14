@@ -39,7 +39,24 @@ export async function POST(request: NextRequest) {
         name: body.name,
         legalName: body.legalName ?? null,
         baseCurrency: body.baseCurrency,
-        originalLanguage: body.originalLanguage
+        originalLanguage: body.originalLanguage,
+        ownerName: body.ownerName ?? null,
+        businessType: body.businessType ?? null,
+        countryId: body.countryId ?? null,
+        stateProvinceId: body.stateProvinceId ?? null,
+        districtId: body.districtId ?? null,
+        cityId: body.cityId ?? null,
+        areaLocationId: body.areaLocationId ?? null,
+        countryName: body.countryName ?? null,
+        stateName: body.stateName ?? null,
+        districtName: body.districtName ?? null,
+        cityName: body.cityName ?? null,
+        areaName: body.areaName ?? null,
+        zipCode: body.zipCode ?? null,
+        address: body.address ?? null,
+        contacts: body.contacts ?? [],
+        registrations: body.registrations ?? [],
+        ownerIds: body.ownerIds ?? []
       },
       session.userId
     );
@@ -60,4 +77,5 @@ export async function POST(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
 

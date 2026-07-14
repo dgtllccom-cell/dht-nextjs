@@ -640,6 +640,7 @@ export class LocationsRepository {
     cityId: string;
     name: string;
     code?: string | null;
+    postalCode?: string | null;
     createdBy?: string | null;
   }) {
     const supabase = createSupabaseAdminClient() as any;
@@ -653,6 +654,7 @@ export class LocationsRepository {
         city_id: input.cityId,
         name: input.name.trim(),
         code: normalizedCode,
+        postal_code: input.postalCode?.trim() || null,
         created_by: input.createdBy ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

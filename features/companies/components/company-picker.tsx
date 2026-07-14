@@ -10,11 +10,28 @@ import { SimpleModal } from "@/components/ui/simple-modal";
 import { apiGet, apiPost } from "@/lib/api/client";
 import { CompanyIncorporationForm } from "./company-incorporation-form";
 
-type CompanyRow = {
+export type CompanyRow = {
   id: string;
   name: string;
   legal_name: string | null;
   base_currency: string;
+  owner_name?: string | null;
+  business_type?: string | null;
+  country_id?: string | null;
+  state_province_id?: string | null;
+  district_id?: string | null;
+  city_id?: string | null;
+  area_location_id?: string | null;
+  country_name?: string | null;
+  state_name?: string | null;
+  district_name?: string | null;
+  city_name?: string | null;
+  area_name?: string | null;
+  zip_code?: string | null;
+  address?: string | null;
+  contacts?: Array<{ type?: string; value?: string; isPrimary?: boolean }>;
+  registrations?: Array<{ type?: string; value?: string }>;
+  owner_ids?: Array<{ type?: string; value?: string }>;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -22,7 +39,7 @@ type CompanyRow = {
 
 function toOption(row: CompanyRow): SearchSelectOption {
   const label = row.legal_name ? `${row.name} (${row.legal_name})` : row.name;
-  const keywords = [row.name, row.legal_name, row.base_currency].filter(Boolean).join(" ");
+  const keywords = [row.name, row.legal_name, row.owner_name, row.country_name, row.city_name, row.base_currency].filter(Boolean).join(" ");
   return { value: row.id, label, keywords };
 }
 
@@ -111,7 +128,7 @@ export function CompanyPicker({
 
       {openCreate ? (
         <SimpleModal
-          title="New Company — Company Master"
+          title="New Company - Company Master"
           onClose={() => setOpenCreate(false)}
           className="max-w-[90vw] lg:max-w-6xl max-h-[90vh] overflow-y-auto"
         >
@@ -130,3 +147,5 @@ export function CompanyPicker({
     </>
   );
 }
+
+

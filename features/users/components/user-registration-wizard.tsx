@@ -25,8 +25,9 @@ import type { LocationCountry } from "@/features/locations/location-api";
 import { listCities, listCountries, type LocationCity } from "@/features/locations/location-api";
 import type { EnterpriseRole } from "@/lib/permissions/enterprise-roles";
 import { enterpriseRolePermissions } from "@/lib/permissions/enterprise-roles";
-import { apiPost } from "@/lib/api/client";
+import { apiGet, apiPost } from "@/lib/api/client";
 import { normalizeUserCode } from "@/lib/services/user-identity-service";
+import { CompanyPicker, type CompanyRow } from "@/features/companies/components/company-picker";
 import { UserLiveReportPanel } from "./user-live-report-panel";
 
 type MainBranchRow = { id: string; name: string; code: string; local_currency: string; is_main: boolean; city_id?: string | null };
@@ -35,6 +36,19 @@ type CityBranchRow = { id: string; name: string; code: string; city_name: string
 type WizardStep = 1 | 2 | 3;
 
 type Banner = { tone: "ok" | "err"; text: string } | null;
+type CompanyContact = { type?: string; value?: string; isPrimary?: boolean };
+
+function getCompanyContact(company: CompanyRow | null, types: string[]) {
+  if (!company?.contacts?.length) return "";
+  const normalized = types.map((type) => type.toLowerCase());
+  const primary = company.contacts.find((contact: CompanyContact) => contact.isPrimary && normalized.includes((contact.type ?? "").toLowerCase()));
+  const match = primary ?? company.contacts.find((contact: CompanyContact) => normalized.includes((contact.type ?? "").toLowerCase()));
+  return match?.value ?? "";
+}
+
+function companyValue(value: string | null | undefined) {
+  return value?.trim() ? value.trim() : "-";
+}
 
 const genderOptions = ["Male", "Female", "Other"] as const;
 
@@ -117,6 +131,9 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
   // Step 1
   const [gender, setGender] = useState("");
   const [fullName, setFullName] = useState("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState<CompanyRow | null>(null);
+  const [loadingSelectedCompany, setLoadingSelectedCompany] = useState(false);
   const [accountRegNo, setAccountRegNo] = useState(() => makeAutoRegNo());
 
   // Step 2
@@ -187,6 +204,7 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
         setUserCode(data.userCode);
         setRole(data.role);
         setCountryId(data.countryId || "");
+        setSelectedCompanyId(data.defaultCompanyId || data.companyId || "");
 
         if (data.countryBranchId && !data.cityBranchId) {
           setBranchType("main");
@@ -224,6 +242,7 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
     setUserCode(row.userCode);
     setRole(row.role);
     setCountryId(row.countryId || "");
+    setSelectedCompanyId(row.defaultCompanyId || row.companyId || "");
 
     const isMain = row.branchType === "Main Branch" || row.role === "main_branch_admin";
     const isCity = row.branchType === "City Branch" && row.role !== "main_branch_admin";
@@ -272,6 +291,9 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
   const selectedCountry = useMemo(() => countries.find((c) => c.id === countryId) ?? null, [countries, countryId]);
   const selectedMainBranch = useMemo(() => mainBranches.find((b) => b.id === countryBranchId) ?? null, [mainBranches, countryBranchId]);
   const selectedCityBranch = useMemo(() => cityBranches.find((b) => b.id === cityBranchId) ?? null, [cityBranches, cityBranchId]);
+
+  const selectedCompanyEmail = useMemo(() => getCompanyContact(selectedCompany, ["email"]), [selectedCompany]);
+  const selectedCompanyPhone = useMemo(() => getCompanyContact(selectedCompany, ["phone", "mobile", "telephone", "office"]), [selectedCompany]);
 
   const branchCode = useMemo(() => {
     if (branchType === "main") return selectedMainBranch?.code ?? "";
@@ -435,7 +457,7 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
   }
 
   function canGoNext() {
-    if (step === 1) return Boolean(gender && fullName.trim().length >= 2);
+    if (step === 1) return Boolean(selectedCompanyId && gender && fullName.trim().length >= 2);
     if (step === 2) {
       if (role === "super_admin") return true;
       if (!isUuid(countryId)) return false;
@@ -533,6 +555,7 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
     try {
       const payload: any = {
         role,
+        companyId: selectedCompanyId || null,
         fullName: fullName.trim(),
         userCode: issuedCode,
         countryId: resolvedCountryId,
@@ -736,6 +759,37 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
               <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Personal Information</h2>
             </div>
 
+            <div className="space-y-2 rounded-lg border border-blue-100 bg-blue-50/40 p-3">
+              <CompanyPicker
+                label="Company / Owner (Master Data) *"
+                value={selectedCompanyId}
+                onValueChange={setSelectedCompanyId}
+                placeholder="Search Company Management records"
+                createButtonPlacement="both"
+              />
+              {selectedCompanyId ? (
+                <div className="rounded-lg border bg-white p-3 text-[10px] shadow-sm">
+                  <div className="mb-2 flex items-center justify-between gap-2 border-b pb-2">
+                    <div className="font-black uppercase tracking-wide text-slate-700">Master Data Profile</div>
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700">{loadingSelectedCompany ? "Loading" : "Linked"}</span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div><span className="text-slate-400">Company:</span> <b>{companyValue(selectedCompany?.name)}</b></div>
+                    <div><span className="text-slate-400">Owner:</span> <b>{companyValue(selectedCompany?.owner_name || selectedCompany?.legal_name)}</b></div>
+                    <div><span className="text-slate-400">Country:</span> <b>{companyValue(selectedCompany?.country_name)}</b></div>
+                    <div><span className="text-slate-400">State / City:</span> <b>{companyValue([selectedCompany?.state_name, selectedCompany?.city_name].filter(Boolean).join(" / "))}</b></div>
+                    <div><span className="text-slate-400">Area:</span> <b>{companyValue(selectedCompany?.area_name)}</b></div>
+                    <div><span className="text-slate-400">ZIP:</span> <b>{companyValue(selectedCompany?.zip_code)}</b></div>
+                    <div><span className="text-slate-400">Email:</span> <b>{companyValue(selectedCompanyEmail)}</b></div>
+                    <div><span className="text-slate-400">Phone:</span> <b>{companyValue(selectedCompanyPhone)}</b></div>
+                    <div className="sm:col-span-2"><span className="text-slate-400">Address:</span> <b>{companyValue(selectedCompany?.address)}</b></div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed bg-white/70 px-3 py-2 text-[10px] font-semibold text-slate-500">Select a Company Management record. Company, owner, country, city, address, email, and phone will auto-fill from Master Data.</div>
+              )}
+            </div>
+
             <div className="flex items-center gap-3 rounded-lg border bg-slate-50/50 p-3">
               <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border bg-white shadow-xs shrink-0">
                 {previewImageUrl ? (
@@ -784,7 +838,7 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold">Full Name *</Label>
-                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className="h-9 text-xs" />
+                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Owner / user name from Company Master" readOnly={Boolean(selectedCompany)} className={`h-9 text-xs ${selectedCompany ? "bg-slate-50 font-semibold" : ""}`} />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-[10px] font-bold">Account Registration Number (Auto)</Label>
@@ -995,3 +1049,7 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
     </div>
   );
 }
+
+
+
+

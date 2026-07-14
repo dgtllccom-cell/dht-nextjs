@@ -165,6 +165,7 @@ export const userCreateSchema = scopeSchema.extend({
   userCode: z.string().trim().min(2).max(80).optional(),
   permissions: z.array(z.string().trim().min(3).max(120)).optional(),
   phone: z.string().trim().max(50).optional(),
+  companyId: optionalUuidSchema,
   idType: z.string().trim().max(80).optional(),
   idValue: z.string().trim().max(120).optional()
 });
@@ -313,6 +314,19 @@ export const customerUpdateSchema = customerCreateSchema.partial().extend({
   countryId: uuidSchema
 });
 
+const companyContactSchema = z.object({
+  id: z.string().trim().max(80).optional(),
+  type: z.string().trim().max(80).optional(),
+  value: z.string().trim().max(200).optional(),
+  isPrimary: z.coerce.boolean().optional()
+});
+
+const companyRegistrationSchema = z.object({
+  id: z.string().trim().max(80).optional(),
+  type: z.string().trim().max(80).optional(),
+  value: z.string().trim().max(200).optional()
+});
+
 export const companyCreateSchema = z.object({
   name: z.string().trim().min(2).max(200),
   legalName: z.string().trim().max(200).nullable().optional(),
@@ -322,7 +336,24 @@ export const companyCreateSchema = z.object({
     .length(3)
     .transform((value) => value.toUpperCase())
     .default("USD"),
-  originalLanguage: supportedLanguageSchema.default("en")
+  originalLanguage: supportedLanguageSchema.default("en"),
+  ownerName: z.string().trim().max(200).nullable().optional(),
+  businessType: z.string().trim().max(300).nullable().optional(),
+  countryId: optionalUuidSchema,
+  stateProvinceId: optionalUuidSchema,
+  districtId: optionalUuidSchema,
+  cityId: optionalUuidSchema,
+  areaLocationId: optionalUuidSchema,
+  countryName: z.string().trim().max(200).nullable().optional(),
+  stateName: z.string().trim().max(200).nullable().optional(),
+  districtName: z.string().trim().max(200).nullable().optional(),
+  cityName: z.string().trim().max(200).nullable().optional(),
+  areaName: z.string().trim().max(200).nullable().optional(),
+  zipCode: z.string().trim().max(40).nullable().optional(),
+  address: z.string().trim().max(1000).nullable().optional(),
+  contacts: z.array(companyContactSchema).default([]),
+  registrations: z.array(companyRegistrationSchema).default([]),
+  ownerIds: z.array(companyRegistrationSchema).default([])
 });
 
 export const companyUpdateSchema = companyCreateSchema.partial();
@@ -515,4 +546,6 @@ export const portCreateSchema = z.object({
 });
 
 export const portUpdateSchema = portCreateSchema.partial();
+
+
 

@@ -52,6 +52,23 @@ export const companies = pgTable(
     name: text("name").notNull(),
     legalName: text("legal_name"),
     baseCurrency: text("base_currency").default("USD").notNull(),
+    ownerName: text("owner_name"),
+    businessType: text("business_type"),
+    countryId: uuid("country_id"),
+    stateProvinceId: uuid("state_province_id"),
+    districtId: uuid("district_id"),
+    cityId: uuid("city_id"),
+    areaLocationId: uuid("area_location_id"),
+    countryName: text("country_name"),
+    stateName: text("state_name"),
+    districtName: text("district_name"),
+    cityName: text("city_name"),
+    areaName: text("area_name"),
+    zipCode: text("zip_code"),
+    address: text("address"),
+    contacts: jsonb("contacts").$type<Array<Record<string, unknown>>>().default(sql`'[]'::jsonb`).notNull(),
+    registrations: jsonb("registrations").$type<Array<Record<string, unknown>>>().default(sql`'[]'::jsonb`).notNull(),
+    ownerIds: jsonb("owner_ids").$type<Array<Record<string, unknown>>>().default(sql`'[]'::jsonb`).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     ...timestamps
   },
@@ -155,7 +172,7 @@ export const userRoleAssignments = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id").references(() => profiles.id).notNull(),
     role: appRole("role").notNull(),
-    countryId: uuid("country_id").references(() => countries.id),
+    countryId: uuid("country_id"),
     countryBranchId: uuid("country_branch_id").references(() => countryBranches.id),
     cityBranchId: uuid("city_branch_id").references(() => cityBranches.id),
     isActive: boolean("is_active").default(true).notNull(),
@@ -324,7 +341,7 @@ export const currencyRates = pgTable(
   "currency_rates",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    countryId: uuid("country_id").references(() => countries.id),
+    countryId: uuid("country_id"),
     fromCurrency: text("from_currency").notNull(),
     toCurrency: text("to_currency").default("USD").notNull(),
     rate: numeric("rate", { precision: 18, scale: 8 }).notNull(),
@@ -345,7 +362,7 @@ export const dailyUsdRates = pgTable(
   "daily_usd_rates",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    countryId: uuid("country_id").references(() => countries.id),
+    countryId: uuid("country_id"),
     countryBranchId: uuid("country_branch_id"),
     rateDate: date("rate_date").notNull(),
     buyingRate: numeric("buying_rate", { precision: 18, scale: 8 }).notNull(),
@@ -391,7 +408,7 @@ export const reports = pgTable(
   "reports",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    countryId: uuid("country_id").references(() => countries.id),
+    countryId: uuid("country_id"),
     cityBranchId: uuid("city_branch_id").references(() => cityBranches.id),
     reportType: text("report_type").notNull(),
     periodStart: date("period_start").notNull(),
@@ -427,7 +444,7 @@ export const erpDocuments = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     companyId: uuid("company_id").references(() => companies.id).notNull(),
-    countryId: uuid("country_id").references(() => countries.id),
+    countryId: uuid("country_id"),
     cityBranchId: uuid("city_branch_id").references(() => cityBranches.id),
     name: text("name").notNull(),
     entityType: text("entity_type").notNull(),
@@ -526,3 +543,5 @@ export const savedReports = pgTable("saved_reports", {
   isPublic: boolean("is_public").default(false).notNull(),
   ...timestamps
 });
+
+

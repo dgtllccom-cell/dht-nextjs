@@ -484,7 +484,24 @@ export function CompanyIncorporationForm({
           name: companyName.trim(),
           legalName: businessName.trim() || companyName.trim(),
           baseCurrency: "USD",
-          originalLanguage
+          originalLanguage,
+          ownerName,
+          businessType,
+          countryId: location.countryId || undefined,
+          stateProvinceId: location.stateProvinceId || undefined,
+          districtId: location.districtId || undefined,
+          cityId: location.cityId || undefined,
+          areaLocationId: location.areaId || undefined,
+          countryName: country,
+          stateName,
+          districtName,
+          cityName: city,
+          areaName,
+          zipCode,
+          address,
+          contacts: contacts.filter((row) => row.type && row.value),
+          registrations: registrations.filter((row) => row.type && row.value),
+          ownerIds: ownerIds.filter((row) => row.type && row.value)
         });
 
         const newCompany: CompanyIncorporationData & { id: string } = {
@@ -879,6 +896,8 @@ export function CompanyIncorporationForm({
     </div>
   );
 }
+
+
 
 
 

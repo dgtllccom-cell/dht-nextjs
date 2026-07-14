@@ -178,6 +178,7 @@ export async function POST(request: NextRequest) {
       full_name: body.fullName,
       user_code: issuedUserCode,
       preferred_language_code: body.preferredLanguage,
+      default_company_id: body.companyId ?? null,
       raw_password: body.password,
       updated_at: new Date().toISOString()
     };
@@ -226,7 +227,8 @@ export async function POST(request: NextRequest) {
         userCode: issuedUserCode,
         countryId: body.countryId ?? null,
         countryBranchId: body.countryBranchId ?? null,
-        cityBranchId: body.cityBranchId ?? null
+        cityBranchId: body.cityBranchId ?? null,
+        companyId: body.companyId ?? null
       }
     });
 
@@ -276,6 +278,7 @@ export async function GET(request: NextRequest) {
       userId,
       userCode: profile.user_code,
       fullName: profile.full_name,
+      defaultCompanyId: profile.default_company_id ?? null,
       isActive: assignment?.is_active ?? false,
       role: assignment?.role ?? "city_branch_admin",
       countryId: assignment?.country_id ?? null,
@@ -299,6 +302,7 @@ export async function PATCH(request: NextRequest) {
       isActive: z.boolean().optional(),
       password: z.string().min(8).max(128).optional(),
       fullName: z.string().trim().min(2).max(200).optional(),
+      companyId: uuidSchema.nullable().optional(),
       role: z.string().trim().max(64).optional(),
       countryId: uuidSchema.nullable().optional(),
       countryBranchId: uuidSchema.nullable().optional(),
@@ -341,12 +345,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 1. Update profiles table if fullName or password is provided
-    if (body.fullName !== undefined || body.password !== undefined) {
+    if (body.fullName !== undefined || body.password !== undefined || body.companyId !== undefined) {
       const profileUpdates: any = {
         updated_at: new Date().toISOString()
       };
       if (body.fullName !== undefined) profileUpdates.full_name = body.fullName;
       if (body.password !== undefined) profileUpdates.raw_password = body.password;
+      if (body.companyId !== undefined) profileUpdates.default_company_id = body.companyId;
 
       const { error: profileError } = await admin
         .from("profiles")
@@ -556,4 +561,7 @@ export async function DELETE(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
+
+
 

@@ -225,6 +225,7 @@ export function CityBranchSetup() {
   const [permissionGrants, setPermissionGrants] = useState<string[]>(() => getPermissionKeysForTemplate("city-standard"));
 
   const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [manualZip, setManualZip] = useState("");
 
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -349,7 +350,9 @@ export function CityBranchSetup() {
       contacts.some((c) => c.type || c.value)
   );
 
-  const zip = locationMeta.area?.postal_code ?? locationMeta.city?.zip_code ?? "";
+  const autoZip = locationMeta.area?.postal_code ?? locationMeta.city?.zip_code ?? "";
+  // zip: manual entry wins; if empty, fall back to auto-derived value
+  const zip = manualZip || autoZip;
   const previewCountry = locationMeta.country?.name || "-";
   const previewMainBranch = selectedMainBranch?.name || "-";
   const previewLocation = [locationMeta.state?.name, locationMeta.city?.name, locationMeta.area?.name, zip].filter(Boolean).join(" / ") || "-";
@@ -941,6 +944,10 @@ export function CityBranchSetup() {
     setLocation(next);
     setLocationMeta(meta);
 
+    // Auto-fill ZIP from newly selected area or city (only if user hasn't typed a manual zip)
+    const derivedZip = meta.area?.postal_code ?? meta.city?.zip_code ?? "";
+    if (derivedZip) setManualZip(""); // clear manual so auto shows through
+
     if (editingCityBranchId) return;
 
     if (!branchName.trim()) {
@@ -1224,9 +1231,27 @@ export function CityBranchSetup() {
                     />
                   </div>
 
-                  <div className="space-y-2 md:col-span-4">
-                    <Label className="text-xs text-slate-600">Zip / Postal Code</Label>
-                    <Input value={zip} readOnly placeholder="Auto from selected Area or City" />
+                  <div className="space-y-1.5 md:col-span-4">
+                    <Label className="text-xs text-slate-600">ZIP / Postal Code</Label>
+                    <Input
+                      value={zip}
+                      onChange={(e) => setManualZip(e.target.value)}
+                      placeholder={autoZip ? autoZip : "Enter ZIP / postal code"}
+                    />
+                    {!manualZip && autoZip && (
+                      <p className="text-[10px] text-slate-400 leading-tight">
+                        Auto from selected area or city &mdash; type to override
+                      </p>
+                    )}
+                    {manualZip && (
+                      <button
+                        type="button"
+                        onClick={() => setManualZip("")}
+                        className="text-[10px] text-indigo-500 hover:text-indigo-700 underline leading-tight"
+                      >
+                        Clear manual &mdash; use auto ({autoZip || "none"})
+                      </button>
+                    )}
                   </div>
                   <div className="space-y-2 md:col-span-8">
                     <Label className="text-xs text-slate-600">Full Address</Label>

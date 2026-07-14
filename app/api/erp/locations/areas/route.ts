@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
       cityId: string;
       name: string;
       code?: string | null;
+      postalCode?: string | null;
     };
 
     if (!body.countryId || !body.cityId || !body.name?.trim()) {
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
       cityId: body.cityId,
       name: body.name,
       code: body.code ?? null,
+      postalCode: body.postalCode ?? null,
       createdBy: isUuid(session.userId) ? session.userId : null
     });
 
