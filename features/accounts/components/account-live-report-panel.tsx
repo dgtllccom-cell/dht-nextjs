@@ -302,8 +302,9 @@ export function AccountLiveReportPanel({
 
   const isExpense = category === "EX";
   const isBank = accountTitle === "Bank";
-  const isCompany = accountTitle === "Company";
-  const isPersonal = accountTitle === "Personal" || accountTitle === "Customer" || accountTitle === "Employee";
+  const isCompany = accountTitle === "Company" || (accountTitle === "Customer" && subType === "Business Account");
+  const isPersonal = accountTitle === "Personal" || (accountTitle === "Customer" && subType !== "Business Account") || accountTitle === "Employee";
+
 
   const allowedSectionIds = [1, 6];
   if (isExpense) {

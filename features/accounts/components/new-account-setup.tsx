@@ -238,13 +238,13 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   const [loadingAccount, setLoadingAccount] = useState(false);
   const [actionsPortal, setActionsPortal] = useState<HTMLElement | null>(null);
 
-  // Dynamic active steps list based on accountTitle and category
+  // Dynamic active steps list based on accountTitle, category and subType
   const activeSteps = useMemo(() => {
     const steps: number[] = [1];
     const isExpense = category === "EX";
     const isBank = accountTitle === "Bank";
-    const isCompany = accountTitle === "Company";
-    const isPersonal = accountTitle === "Personal" || accountTitle === "Customer" || accountTitle === "Employee";
+    const isCompany = accountTitle === "Company" || (accountTitle === "Customer" && subType === "Business Account");
+    const isPersonal = accountTitle === "Personal" || (accountTitle === "Customer" && subType !== "Business Account") || accountTitle === "Employee";
 
     if (isExpense) {
       steps.push(6);
@@ -258,7 +258,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
       steps.push(2, 3, 4, 5, 6);
     }
     return steps;
-  }, [category, accountTitle]);
+  }, [category, accountTitle, subType]);
 
   const prevStep = useMemo(() => {
     const idx = activeSteps.indexOf(currentStep);

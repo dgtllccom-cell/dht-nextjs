@@ -67,7 +67,8 @@ export function CustomerForm({
     countryId: "",
     stateProvinceId: "",
     districtId: "",
-    cityId: ""
+    cityId: "",
+    areaId: ""
   });
   const [locationMeta, setLocationMeta] = useState<LocationHierarchyMeta>({
     country: null,
@@ -134,7 +135,8 @@ export function CustomerForm({
           countryId: c.country_id || "",
           stateProvinceId: c.state_province_id || "",
           districtId: c.district_id || "",
-          cityId: c.city_id || ""
+          cityId: c.city_id || "",
+          areaId: c.area_location_id || ""
         });
 
         if (c.notes) {
@@ -213,6 +215,7 @@ export function CustomerForm({
   const stateName = locationMeta.state?.name ?? "";
   const districtName = locationMeta.district?.name ?? "";
   const city = locationMeta.city?.name ?? "";
+  const areaName = locationMeta.area?.name ?? "";
 
   // Sync utilities for dynamic prefilling
   useEffect(() => {
@@ -299,9 +302,9 @@ export function CustomerForm({
   );
 
   const previewLocation = useMemo(() => {
-    const parts = [city, districtName, stateName, country].filter(Boolean);
+    const parts = [areaName, city, stateName, country].filter(Boolean);
     return parts.length ? parts.join(" \u00b7 ") : "-";
-  }, [city, districtName, stateName, country]);
+  }, [areaName, city, stateName, country]);
 
   // Submit/Save
   const submitForm = async () => {
@@ -323,6 +326,7 @@ export function CustomerForm({
       stateProvince: stateName,
       district: districtName,
       city,
+      areaName,
       cityCode,
       contacts: contacts.map(c => ({
         type: c.type.startsWith("Custom: ") ? c.type.slice(8).trim() || "Custom" : c.type,
@@ -367,7 +371,7 @@ export function CustomerForm({
       stateProvinceId: location.stateProvinceId || null,
       districtId: location.districtId || null,
       cityId: location.cityId || null,
-      areaLocationId: null,
+      areaLocationId: location.areaId || null,
       customerName: customerType === "Business" ? businessName.trim() : `${firstName} ${lastName}`.trim(),
       companyName: customerType === "Business" ? businessName.trim() : null,
       contactPerson: customerType === "Business" ? `${firstName} ${lastName}`.trim() : (fatherName || null),
@@ -591,7 +595,8 @@ export function CustomerForm({
                     setLocation(next);
                     setLocationMeta(meta);
                   }}
-                  showArea={false}
+                  showDistrict={false}
+                  showArea={true}
                 />
                 <div className="grid gap-3 grid-cols-2">
                   <div className="space-y-1.5">

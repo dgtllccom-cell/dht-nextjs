@@ -1,4 +1,6 @@
 "use client";
+// Force rebuild trigger
+
 
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -355,7 +357,7 @@ export function CompanyIncorporationForm({
     }
   }, [locationMeta.country]);
 
-  const ready = Boolean(ownerName && companyName && businessName && country && stateName && city && zipCode && address);
+  const ready = Boolean(ownerName && companyName && businessName && country && stateName && city && address);
 
   const previewData = useMemo(() => {
     if (selectedCompanyId) {
@@ -642,6 +644,7 @@ export function CompanyIncorporationForm({
                 setLocationMeta(meta);
                 setSelectedCompanyId(null);
               }}
+              showDistrict={false}
               showArea={true}
             />
 
@@ -896,10 +899,3 @@ export function CompanyIncorporationForm({
     </div>
   );
 }
-
-
-
-
-
-
-
