@@ -20,9 +20,12 @@ export class ErpPermissionError extends Error {
 export function hasRolePermission(session: ErpSession, resource: string, action: string) {
   if (session?.isSuperAdmin) return true;
 
-  const required = `${resource}:${action}`;
+  // Map 'goods' resource to 'products' to match roles configuration
+  const normalizedResource = resource === "goods" ? "products" : resource;
+
+  const required = `${normalizedResource}:${action}`;
   const perms = session?.permissions || [];
-  return perms.includes(required) || perms.includes(`${resource}:*`) || perms.includes("*:*");
+  return perms.includes(required) || perms.includes(`${normalizedResource}:*`) || perms.includes("*:*");
 }
 
 export function canAccessCountry(session: ErpSession, countryId?: string | null) {

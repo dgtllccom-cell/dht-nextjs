@@ -2487,6 +2487,148 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [loadingRecords, setLoadingRecords] = useState<any[]>([]);
   const [loadingLoadingRecords, setLoadingLoadingRecords] = useState(false);
 
+  // Compute PO metrics at the component level to avoid ReferenceErrors in summary sidebar
+  const orderDetails = useMemo(() => {
+    if (!selected) {
+      return {
+        fromLoading: false,
+        loadingPurchaseAmount: 0,
+        loadingRequiredAdvance: 0,
+        totalPaidSoFar: 0,
+        outstandingBalance: 0,
+        poCurrency: "USD",
+        exRate: 1,
+        isAdvComplete: false,
+        isFullyPaid: false,
+        loadingAdvancePaid: 0,
+        loadingRemainingAdvance: 0,
+        finalPurchaseAmount: 0,
+        totalRemainingAmount: 0,
+        paidPercent: 0,
+        advancePaidPercent: 0
+      };
+    }
+
+    const form = selected.form_data?.form || {};
+    const goods = selected.form_data?.goodsEntries || [];
+    const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+    const isUrlLoading = searchParams.get("fromLoading") === "true";
+    const fromLoading = isUrlLoading || Boolean(selectedLoadingRecord);
+
+    const cLoadedQty = selectedLoadingRecord
+      ? Number(selectedLoadingRecord.report_payload?.loadedQuantity || selectedLoadingRecord.loadedQuantity || 0)
+      : Number(searchParams.get("loadedQty") || 0);
+    const cGrossWeight = selectedLoadingRecord
+      ? Number(selectedLoadingRecord.report_payload?.grossWeight || 0)
+      : Number(searchParams.get("grossWeight") || 0);
+    const cNetWeight = selectedLoadingRecord
+      ? Number(selectedLoadingRecord.report_payload?.netWeight || 0)
+      : Number(searchParams.get("netWeight") || 0);
+    const cPriceRate = selectedLoadingRecord
+      ? Number(selectedLoadingRecord.report_payload?.priceRateC1 || 0)
+      : Number(searchParams.get("priceRate") || 0);
+    const cLoadingRecordId = selectedLoadingRecord
+      ? selectedLoadingRecord.id
+      : (searchParams.get("loadingRecordId") || "");
+
+    const totalPrice = goods.length
+      ? goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0)
+      : Number(form.totalAmount || 0);
+    const poOrderTotal = Number(selected.order_total || totalPrice || 0);
+    const totalPOQuantity = Number(
+      selected.form_data?.totals?.totalQuantity ||
+      goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+      form.quantity ||
+      1
+    );
+    const advancePercent = Number(form.advancePercent || 0);
+
+    // Resolve price type: is it weight-based?
+    const firstGood = goods[0] || {};
+    const isPerKg = firstGood.priceType === "P/KGs" || String(firstGood.priceType || "").toLowerCase().includes("kg");
+
+    // Purchase Amount for this loading only
+    const loadingPurchaseAmount = fromLoading
+      ? (isPerKg ? cNetWeight * cPriceRate : cLoadedQty * cPriceRate)
+      : poOrderTotal;
+
+    // Required Advance allocated to this loading
+    const loadingRequiredAdvance = (loadingPurchaseAmount * advancePercent) / 100;
+
+    // Advance already paid for this loading: pro-rated share of actual advance paid on the PO
+    const poAdvancePaid = Number(selected.advance_paid || 0);
+    const loadingAdvancePaid = fromLoading
+      ? (totalPOQuantity > 0 ? (cLoadedQty / totalPOQuantity) * poAdvancePaid : poAdvancePaid)
+      : poAdvancePaid;
+
+    // Remaining Advance for this loading
+    const loadingRemainingAdvance = Math.max(0, loadingRequiredAdvance - loadingAdvancePaid);
+
+    // Final Purchase Amount
+    const finalPurchaseAmount = loadingPurchaseAmount;
+
+    // Total Remaining Amount (which is Final Purchase Amount - Advance deducted/allocated)
+    const totalRemainingAmount = Math.max(0, finalPurchaseAmount - loadingAdvancePaid);
+
+    // Total Remaining Paid (specifically for this loading)
+    const remainingPaymentsForThisLoading = selectedOrderPayments.filter((p: any) => {
+      const payKind = p.kind || "";
+      if (payKind !== "remaining") return false;
+      if (!fromLoading) return true; // if not from loading, sum all remaining payments
+      const payRecordId = p.typeDetails?.loadingRecordId || p.typeDetails?.loading_record_id || "";
+      return payRecordId === cLoadingRecordId;
+    });
+    const totalRemainingPaid = remainingPaymentsForThisLoading.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+
+    // Outstanding Balance (Final Currency Balance remaining)
+    const outstandingBalance = Math.max(0, finalPurchaseAmount - loadingAdvancePaid - totalRemainingPaid);
+
+    const totalPaidSoFar = loadingAdvancePaid + totalRemainingPaid;
+    const paidPercent = finalPurchaseAmount > 0 ? Math.min(100, (totalPaidSoFar / finalPurchaseAmount) * 100) : 0;
+    const advancePaidPercent = loadingRequiredAdvance > 0 ? Math.min(100, (loadingAdvancePaid / loadingRequiredAdvance) * 100) : 0;
+
+    const poCurrency = (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || selected.currency_code || "USD";
+    const exRate = selected.exchange_rate || 1;
+    const isAdvComplete = loadingRemainingAdvance <= 0.01;
+    const isFullyPaid = outstandingBalance <= 0.01;
+
+    return {
+      fromLoading,
+      loadingPurchaseAmount,
+      loadingRequiredAdvance,
+      totalPaidSoFar,
+      outstandingBalance,
+      poCurrency,
+      exRate,
+      isAdvComplete,
+      isFullyPaid,
+      loadingAdvancePaid,
+      loadingRemainingAdvance,
+      finalPurchaseAmount,
+      totalRemainingAmount,
+      paidPercent,
+      advancePaidPercent
+    };
+  }, [selected, selectedLoadingRecord, selectedOrderPayments]);
+
+  const {
+    fromLoading,
+    loadingPurchaseAmount,
+    loadingRequiredAdvance,
+    totalPaidSoFar,
+    outstandingBalance,
+    poCurrency,
+    exRate,
+    isAdvComplete,
+    isFullyPaid,
+    loadingAdvancePaid,
+    loadingRemainingAdvance,
+    finalPurchaseAmount,
+    totalRemainingAmount,
+    paidPercent,
+    advancePaidPercent
+  } = orderDetails;
+
   // Fetch loaded container records for Remaining Payment mode
   useEffect(() => {
     if (selected && activeMode === "remaining") {

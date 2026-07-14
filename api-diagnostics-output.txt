@@ -883,3 +883,21 @@ Params: limit=150
 
 [GET /api/erp/purchases/loading-records] Time: 2026-07-13T21:32:45.897Z
 Params: limit=150
+
+[GET /api/erp/purchases/orders] Time: 2026-07-14T09:52:53.569Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-14T10:01:24.019Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-14T10:03:33.904Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-14T10:04:15.486Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-14T10:04:45.730Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-14T10:06:37.837Z
+Params: limit=200

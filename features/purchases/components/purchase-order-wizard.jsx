@@ -1992,7 +1992,31 @@ export function PurchaseOrderWizard({ session }) {
     const brandStr = (form.brand || "").trim();
 
     if (selectedGood && sizeStr && brandStr) {
-      // Variation creation logic is now handled in the Brand/Size SearchSelect components.
+      const hasVar = (selectedGood.variations || []).some(v => 
+        (v.size || "").trim().toUpperCase() === sizeStr.toUpperCase() &&
+        (v.brand || "").trim().toUpperCase() === brandStr.toUpperCase()
+      );
+      if (!hasVar) {
+        fetch("/api/erp/goods/variations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            goodsId: selectedGood.id,
+            size: sizeStr.toUpperCase(),
+            brand: brandStr.toUpperCase()
+          })
+        }).then(res => res.json())
+          .then(data => {
+            if (data.ok) {
+              fetch("/api/erp/goods?limit=500")
+                .then(r => r.json())
+                .then(reloadRes => {
+                  const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+                  if (goodsData) setDbGoods(goodsData);
+                }).catch(() => {});
+            }
+          }).catch(() => {});
+      }
     }
 
     const calculated = calculateItemTotals(form);
@@ -4348,7 +4372,18 @@ Amount: ${row.totalAmount.toLocaleString()} ${row.currencyType}`);
                           value={form.brand || ""}
                           onChange={(val) => {
                             if (val === "__ADD_NEW__") {
-                              handleAddNewVariationItem("brand");
+                              const selGood = dbGoods.find(g => (g.goods_name || g.goodsName || "").trim().toUpperCase() === (form.goodsName || "").trim().toUpperCase());
+                              if (!selGood) {
+                                alert(`Please select a Good first before adding a new Brand. (Current goodsName: "${form.goodsName || ""}", dbGoods count: ${dbGoods.length})`);
+                                return;
+                              }
+                              setCustomVariationForm({
+                                goodsName: selGood.goods_name || selGood.goodsName,
+                                brand: "",
+                                size: form.size || "",
+                                originCountryId: ""
+                              });
+                              setCustomVariationModal(true);
                             } else {
                               setValue("brand", val);
                             }
@@ -4373,7 +4408,18 @@ Amount: ${row.totalAmount.toLocaleString()} ${row.currencyType}`);
                           value={form.size || ""}
                           onChange={(val) => {
                             if (val === "__ADD_NEW__") {
-                              handleAddNewVariationItem("size");
+                              const selGood = dbGoods.find(g => (g.goods_name || g.goodsName || "").trim().toUpperCase() === (form.goodsName || "").trim().toUpperCase());
+                              if (!selGood) {
+                                alert(`Please select a Good first before adding a new Size. (Current goodsName: "${form.goodsName || ""}", dbGoods count: ${dbGoods.length})`);
+                                return;
+                              }
+                              setCustomVariationForm({
+                                goodsName: selGood.goods_name || selGood.goodsName,
+                                brand: form.brand || "",
+                                size: "",
+                                originCountryId: ""
+                              });
+                              setCustomVariationModal(true);
                             } else {
                               setValue("size", val);
                             }
