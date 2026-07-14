@@ -486,7 +486,7 @@ export async function GET() {
         users: usersByCountry.get(country.id) ?? [],
         mainBranches
       };
-    });
+    }).filter((country) => country.mainBranches.length > 0);
 
     return NextResponse.json(
       {
@@ -511,3 +511,4 @@ export async function GET() {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Server error" }, { status: 500 });
   }
 }
+
