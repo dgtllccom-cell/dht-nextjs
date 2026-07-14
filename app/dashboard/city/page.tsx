@@ -1,13 +1,7 @@
-import Link from "next/link";
-import type { Route } from "next";
-import { ArrowRight, Banknote, Building, ClipboardList, Database, Landmark, ReceiptText, ShieldCheck, UserPlus, Users, Wallet } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/layout/stat-card";
-import { getRequestLanguage } from "@/lib/i18n/server";
-import { t } from "@/lib/i18n/ui";
+import { Card, CardContent } from "@/components/ui/card";
 import { getCurrentErpSession } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { BranchAdminDashboardOverview } from "@/features/dashboard/components/branch-admin-dashboard-overview";
 
 type CustomerRow = {
   id: string;
@@ -43,16 +37,20 @@ type BranchDashboardData = {
   usersCount: number;
   customersCount: number;
   totalLedgersCount: number;
+  purchaseTotal: number;
+  salesTotal: number;
+  purchaseCount: number;
+  salesCount: number;
+  cashBalance: number;
+  bankBalance: number;
+  pendingPayments: number;
+  productsCount: number;
   ledgers: LedgerRow[];
   customers: CustomerRow[];
   recentRoznamcha: RecentEntry[];
   databaseReady: boolean;
   error: string | null;
 };
-
-function money(value: number, currency = "USD") {
-  return `${currency} ${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)}`;
-}
 
 async function loadBranchDashboardData(
   sessionCountryBranchId: string | null,
@@ -69,7 +67,11 @@ async function loadBranchDashboardData(
     let queryValue = "";
 
     if (sessionCityBranchId) {
-      const res = (await supabase.from("city_branches").select("name, code, country_id, local_currency").eq("id", sessionCityBranchId).maybeSingle()) as any;
+      const res = await supabase
+        .from("city_branches")
+        .select("name, code, country_id, local_currency")
+        .eq("id", sessionCityBranchId)
+        .maybeSingle();
       branchName = res.data?.name || "City Branch";
       branchCode = res.data?.code || "CBR";
       countryId = res.data?.country_id || "";
@@ -77,7 +79,11 @@ async function loadBranchDashboardData(
       queryField = "city_branch_id";
       queryValue = sessionCityBranchId;
     } else if (sessionCountryBranchId) {
-      const res = (await supabase.from("country_branches").select("name, code, country_id, local_currency").eq("id", sessionCountryBranchId).maybeSingle()) as any;
+      const res = await supabase
+        .from("country_branches")
+        .select("name, code, country_id, local_currency")
+        .eq("id", sessionCountryBranchId)
+        .maybeSingle();
       branchName = res.data?.name || "Main Branch";
       branchCode = res.data?.code || "MBR";
       countryId = res.data?.country_id || "";
@@ -96,7 +102,10 @@ async function loadBranchDashboardData(
       customersCountRes,
       ledgersRes,
       customersRes,
-      recentRows
+      recentRows,
+      purchaseRows,
+      salesRows,
+      productsCountRes
     ] = await Promise.all([
       supabase.from("roznamcha_entries").select("id", { count: "exact", head: true }).eq(queryField, queryValue).eq("entry_date", todayStr).is("deleted_at", null),
       supabase.from("user_role_assignments").select("user_id", { count: "exact", head: true }).eq(queryField, queryValue).eq("is_active", true).is("deleted_at", null),
@@ -109,20 +118,28 @@ async function loadBranchDashboardData(
         .eq(queryField, queryValue)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(8)
+        .limit(8),
+      supabase.from("purchase_orders").select("order_total, payment_status, status").eq(queryField, queryValue).is("deleted_at", null),
+      supabase.from("sales_orders").select("order_total, payment_status, status").eq(queryField, queryValue).is("deleted_at", null),
+      supabase.from("products").select("id", { count: "exact", head: true }).eq("country_id", countryId).is("deleted_at", null)
     ]);
 
-    const todayCount = todayPostings.count || 0;
-    const usersCount = usersRes.count || 0;
-    const customersCount = customersCountRes.count || 0;
-    const totalLedgersCount = ledgersRes.data?.length || 0;
+    const rawLedgers = ledgersRes.data ?? [];
+    const purchaseTotal = (purchaseRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.order_total || 0), 0);
+    const salesTotal = (salesRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.order_total || 0), 0);
+    const cashBalance = rawLedgers
+      .filter((l: any) => `${l.name || ""} ${l.code || ""}`.toLowerCase().includes("cash"))
+      .reduce((sum: number, l: any) => sum + Number(l.current_balance || 0), 0);
+    const bankBalance = rawLedgers
+      .filter((l: any) => `${l.name || ""} ${l.code || ""}`.toLowerCase().includes("bank"))
+      .reduce((sum: number, l: any) => sum + Number(l.current_balance || 0), 0);
 
-    const ledgers: LedgerRow[] = (ledgersRes.data ?? []).map((l: any) => ({
+    const ledgers: LedgerRow[] = rawLedgers.map((l: any) => ({
       id: l.id,
       name: l.name,
       code: l.code,
       current_balance: Number(l.current_balance || 0),
-      currency: l.currency
+      currency: l.currency || currency
     }));
 
     const customers: CustomerRow[] = (customersRes.data ?? []).map((c: any) => ({
@@ -147,10 +164,18 @@ async function loadBranchDashboardData(
       branchName,
       branchCode,
       currency,
-      todayCount,
-      usersCount,
-      customersCount,
-      totalLedgersCount,
+      todayCount: todayPostings.count || 0,
+      usersCount: usersRes.count || 0,
+      customersCount: customersCountRes.count || 0,
+      totalLedgersCount: ledgers.length,
+      purchaseTotal,
+      salesTotal,
+      purchaseCount: purchaseRows.data?.length || 0,
+      salesCount: salesRows.data?.length || 0,
+      cashBalance,
+      bankBalance,
+      pendingPayments: Math.max(purchaseTotal - salesTotal, 0),
+      productsCount: productsCountRes.count || 0,
       ledgers,
       customers,
       recentRoznamcha,
@@ -166,6 +191,14 @@ async function loadBranchDashboardData(
       usersCount: 0,
       customersCount: 0,
       totalLedgersCount: 0,
+      purchaseTotal: 0,
+      salesTotal: 0,
+      purchaseCount: 0,
+      salesCount: 0,
+      cashBalance: 0,
+      bankBalance: 0,
+      pendingPayments: 0,
+      productsCount: 0,
       ledgers: [],
       customers: [],
       recentRoznamcha: [],
@@ -175,18 +208,7 @@ async function loadBranchDashboardData(
   }
 }
 
-function StatusPill({ value }: { value: string }) {
-  const tone =
-    value === "posted" || value === "approved"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
-      : value === "draft"
-        ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
-        : "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800";
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}>{value}</span>;
-}
-
 export default async function CityDashboardPage() {
-  const lang = await getRequestLanguage();
   const session = await getCurrentErpSession();
 
   const cityBranchId = session?.cityBranchIds?.[0] || null;
@@ -198,7 +220,7 @@ export default async function CityDashboardPage() {
         <Card className="border-amber-200 bg-amber-50 text-amber-900">
           <CardContent className="p-4">
             <h2 className="text-lg font-bold">Branch Access Required</h2>
-            <p className="text-sm mt-1">Your user role does not have an assigned City Branch or Country Branch. Please contact administration to assign your branch location.</p>
+            <p className="mt-1 text-sm">Your user role does not have an assigned City Branch or Country Branch. Please contact administration to assign your branch location.</p>
           </CardContent>
         </Card>
       </div>
@@ -209,35 +231,6 @@ export default async function CityDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-6 items-center rounded-md bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-teal-700/10 dark:bg-teal-950/40 dark:text-teal-300 dark:ring-teal-500/20">
-              Branch Scope ({data.branchCode})
-            </span>
-          </div>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-            {data.branchName} Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Daily branch cash management, roznamcha entries, customer lists, and branch ledgers.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href={"/dashboard/settings/customers/setup" as Route}>
-              <UserPlus className="mr-2 h-4 w-4" /> Add Customer
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href={"/dashboard/roznamcha/cash-entry" as Route}>
-              <ClipboardList className="mr-2 h-4 w-4" /> Roznamcha Entry
-            </Link>
-          </Button>
-        </div>
-      </section>
-
       {!data.databaseReady ? (
         <Card className="border-red-200 bg-red-50 text-red-900 dark:border-red-950/40 dark:bg-red-950/20 dark:text-red-300">
           <CardContent className="p-4 text-sm font-semibold">
@@ -245,146 +238,7 @@ export default async function CityDashboardPage() {
           </CardContent>
         </Card>
       ) : null}
-
-      {/* Grid of stats */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Today's Postings" value={String(data.todayCount)} icon={ShieldCheck} />
-        <StatCard label="Branch Staff" value={String(data.usersCount)} icon={Users} />
-        <StatCard label="Branch Customers" value={String(data.customersCount)} icon={UserPlus} />
-        <StatCard label="Total Ledgers" value={String(data.totalLedgersCount)} icon={ReceiptText} />
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-3">
-        {/* Cash & Bank Balances list */}
-        <Card className="border border-slate-200/80 shadow-sm dark:border-slate-800">
-          <CardHeader className="bg-slate-50/50 py-4 dark:bg-slate-900/50">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Landmark className="h-5 w-5 text-indigo-500" /> Cash & Bank Accounts
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">Current standings of branch-scoped ledgers.</p>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {data.ledgers.length ? (
-                data.ledgers.map((l) => (
-                  <div key={l.id} className="flex items-center justify-between p-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">{l.name}</p>
-                      <span className="font-mono text-[10px] text-muted-foreground">Code: {l.code}</span>
-                    </div>
-                    <span className="font-bold text-sm font-mono text-slate-800 dark:text-slate-200">
-                      {money(l.current_balance, l.currency)}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-muted-foreground p-4 italic text-center">No active ledgers for this branch.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Branch Customers List */}
-        <Card className="border border-slate-200/80 shadow-sm dark:border-slate-800">
-          <CardHeader className="bg-slate-50/50 py-4 dark:bg-slate-900/50">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Users className="h-5 w-5 text-indigo-500" /> Local Customers Directory
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">Registered customers within the country scope of this branch.</p>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {data.customers.length ? (
-                data.customers.map((c) => (
-                  <div key={c.id} className="p-3 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                    <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">{c.customer_name}</p>
-                    {c.company_name && (
-                      <p className="text-[10px] text-indigo-600 font-medium dark:text-indigo-400">{c.company_name}</p>
-                    )}
-                    <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span>{c.mobile || "No Mobile"}</span>
-                      <span>{c.email || "No Email"}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-muted-foreground p-4 italic text-center">No customers registered under this scope.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quick Operations Shortcuts */}
-        <Card className="border border-slate-200/80 shadow-sm dark:border-slate-800">
-          <CardHeader className="bg-slate-50/50 py-4 dark:bg-slate-900/50">
-            <CardTitle className="text-base font-semibold">Quick Branch Operations</CardTitle>
-            <p className="text-xs text-muted-foreground">Common administrative tasks and links.</p>
-          </CardHeader>
-          <CardContent className="p-4 space-y-3">
-            {[
-              { label: "Cash Payment Voucher", desc: "Create roznamcha cash disbursement entry", href: "/dashboard/roznamcha/cash-entry" },
-              { label: "Voucher History Log", desc: "Review all posted vouchers in this branch", href: "/dashboard/roznamcha/all" },
-              { label: "Local Sales Bookings", desc: "Access the local branch sales records", href: "/dashboard/sales/local-sales" },
-              { label: "Voucher Journal Reports", desc: "Print or export daily branch ledger journals", href: "/dashboard/ledger/general-report" }
-            ].map((shortcut, idx) => (
-              <Link key={idx} href={shortcut.href as Route} className="block group">
-                <div className="rounded-lg border border-slate-200/80 p-3 hover:border-primary/80 transition duration-150 bg-card hover:bg-primary/[0.02] dark:border-slate-800/80 dark:hover:border-primary/40">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-800 group-hover:text-primary dark:text-slate-200">{shortcut.label}</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 transition duration-150" />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{shortcut.desc}</p>
-                </div>
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Scoped Recent Branch Postings */}
-        <Card className="xl:col-span-3 border border-slate-200/80 shadow-sm dark:border-slate-800">
-          <CardHeader className="bg-slate-50/50 py-4 dark:bg-slate-900/50">
-            <CardTitle className="text-base font-semibold">Recent Branch Vouchers</CardTitle>
-            <p className="text-xs text-muted-foreground">Latest live postings in this specific branch office location.</p>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100 text-xs uppercase text-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                  <tr className="border-b">
-                    <th className="px-4 py-2.5 text-start font-semibold">Voucher / ID</th>
-                    <th className="px-4 py-2.5 text-start font-semibold">Date</th>
-                    <th className="px-4 py-2.5 text-start font-semibold">Type</th>
-                    <th className="px-4 py-2.5 text-start font-semibold">Narration</th>
-                    <th className="px-4 py-2.5 text-start font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.recentRoznamcha.length ? (
-                    data.recentRoznamcha.map((row) => (
-                      <tr key={row.id} className="border-b last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                        <td className="px-4 py-3">
-                          <p className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">{row.voucher_no || "N/A"}</p>
-                          <span className="font-mono text-[9px] text-muted-foreground">{row.id}</span>
-                        </td>
-                        <td className="px-4 py-3 text-xs">{row.entry_date || "-"}</td>
-                        <td className="px-4 py-3 text-xs capitalize">{row.type || "-"}</td>
-                        <td className="px-4 py-3 text-xs max-w-xs truncate">{row.narration || "-"}</td>
-                        <td className="px-4 py-3"><StatusPill value={row.status || "draft"} /></td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
-                        No vouchers posted in this branch yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+      <BranchAdminDashboardOverview data={data} />
     </div>
   );
 }

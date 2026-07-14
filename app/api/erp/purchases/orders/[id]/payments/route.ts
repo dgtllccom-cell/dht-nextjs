@@ -42,6 +42,34 @@ function buildPurchaseTrace(orderRow: any, fallbackReference?: string | null) {
   return { systemBillNumber, manualBillNumber, partyName, countryName, branchName, referenceNo, narrationPrefix };
 }
 
+function formatAuditNumber(value: unknown) {
+  const numeric = Number(String(value ?? "").replace(/,/g, ""));
+  if (!Number.isFinite(numeric)) return "0";
+  return numeric.toLocaleString(undefined, {
+    minimumFractionDigits: numeric % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function buildPurchaseGoodsAuditRemark(orderRow: any, fallbackReference?: string | null) {
+  const data = orderRow.form_data ?? {};
+  const form = data.form ?? {};
+  const totals = data.totals ?? {};
+  const goodsEntries = Array.isArray(data.goodsEntries) && data.goodsEntries.length
+    ? data.goodsEntries
+    : form.goodsName
+      ? [form]
+      : [];
+  const billNo = String(form.manualBillNumber || form.manual_bill_number || form.billNo || form.purchaseContractNo || orderRow.purchase_contract_no || orderRow.purchase_order_no || fallbackReference || "Purchase Bill").trim();
+  const goodsName = goodsEntries.map((item: any) => item.goodsName || item.name || item.productName).filter(Boolean).join(", ") || form.goodsName || "Purchase Goods";
+  const totalQty = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.qtyNo ?? item.quantity ?? item.qty ?? 0), 0) || Number(form.qtyNo || form.quantity || 0);
+  const unit = String(goodsEntries[0]?.qtyName || goodsEntries[0]?.unit || form.qtyName || form.quantityUnit || "").trim();
+  const grossWeight = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.grossWeight ?? item.gross_weight ?? 0), 0) || Number(form.grossWeight || totals.totalGross || 0);
+  const netWeight = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.netWeight ?? item.net_weight ?? 0), 0) || Number(form.netWeight || totals.totalNet || 0);
+  const purchaseAmount = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.totalAmount ?? item.purchaseAmount ?? 0), 0) || Number(form.totalAmount || totals.grandPrimaryFinal || orderRow.order_total || 0);
+  const purchaseCurrency = String(goodsEntries[0]?.purchaseCurrency || goodsEntries[0]?.pricingCurrency || form.purchaseCurrency || form.pricingCurrency || orderRow.currency_code || "USD").toUpperCase();
+  return `Purchase Bill: ${billNo} | Goods: ${goodsName} | Qty: ${formatAuditNumber(totalQty)}${unit ? ` ${unit}` : ""} | Gross WT: ${formatAuditNumber(grossWeight)} KG | Net WT: ${formatAuditNumber(netWeight)} KG | Purchase Price: ${formatAuditNumber(purchaseAmount)} ${purchaseCurrency}`;
+}
 async function assertLedgerMatchesPurchaseScope(supabase: any, ledgerId: string, orderRow: any, label: string) {
   const { data: ledger, error } = await supabase
     .from("ledgers")
@@ -200,12 +228,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const creditLedger = await assertLedgerMatchesPurchaseScope(supabase, body.creditLedgerId, orderRow, "Credit");
     const trace = buildPurchaseTrace(orderRow, body.referenceNo ?? null);
     const postingReferenceNo = body.referenceNo?.trim() || trace.referenceNo;
+    const goodsAuditRemark = buildPurchaseGoodsAuditRemark(orderRow, postingReferenceNo);
     const postingNarration = [
-      body.narration?.trim(),
+      goodsAuditRemark,
+      body.narration?.trim() ? "Notes: " + body.narration.trim() : null,
       trace.narrationPrefix,
-      "Currency: " + body.currencyCode,
+      "Payment Currency: " + body.currencyCode,
       "Exchange Rate: " + body.exchangeRate,
-      "Final Amount: " + body.amount
+      "Paid Amount: " + body.amount
     ].filter(Boolean).join(" | ");
 
     const isForeignCurrency = body.currencyCode?.toUpperCase() === (orderRow.currency_code?.toUpperCase() || "USD");
@@ -478,4 +508,5 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return handleApiError(error);
   }
 }
+
 

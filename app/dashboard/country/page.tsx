@@ -59,6 +59,7 @@ type CountryDashboardData = {
   ledgerBalance: number;
   recentRoznamcha: RecentEntry[];
   cityBranches: CityBranchData[];
+  branchSummaries: BranchFinancialSummary[];
   databaseReady: boolean;
   error: string | null;
 };
@@ -221,6 +222,7 @@ async function loadCountryData(countryId: string): Promise<CountryDashboardData>
       ledgerBalance,
       recentRoznamcha,
       cityBranches,
+      branchSummaries,
       databaseReady: true,
       error: null
     };
@@ -242,6 +244,7 @@ async function loadCountryData(countryId: string): Promise<CountryDashboardData>
       ledgerBalance: 0,
       recentRoznamcha: [],
       cityBranches: [],
+      branchSummaries: [],
       databaseReady: false,
       error: error instanceof Error ? error.message : "Failed to load country data"
     };
@@ -355,3 +358,4 @@ export default async function CountryDashboardPage(props: { searchParams?: Promi
     </div>
   );
 }
+

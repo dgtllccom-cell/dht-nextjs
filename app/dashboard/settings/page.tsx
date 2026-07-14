@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { Anchor, Building2, Landmark, MapPin, Settings, Ship, SlidersHorizontal, Warehouse } from "lucide-react";
+import { Anchor, Building2, Landmark, MapPin, Settings, Ship, SlidersHorizontal, Warehouse, Globe } from "lucide-react";
 
 const settingsItems = [
   {
@@ -38,6 +38,12 @@ const settingsItems = [
     description: "Draft parameter area for registration, contract, country, customer, and document types.",
     href: "/dashboard/settings/management" as Route,
     icon: SlidersHorizontal
+  },
+  {
+    title: "Nations & Branch Networks",
+    description: "Country -> Main Branch -> City Branch topology overview and master configurations.",
+    href: "/dashboard/settings/branch-network" as Route,
+    icon: Globe
   }
 ];
 

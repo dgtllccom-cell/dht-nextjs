@@ -1295,15 +1295,13 @@ export function PurchaseOrderWizard({ session }) {
       const targetCountry = (form.loadingCountry || "").trim().toLowerCase();
       ports = ports.filter(p => (p.country?.name || "").trim().toLowerCase() === targetCountry || (p.country_name || "").trim().toLowerCase() === targetCountry);
     }
-    if (form.shippingMode === "By Road") {
-      const roadPorts = ports.filter(p => p.transport_type === "road");
-      if (roadPorts.length > 0) return roadPorts;
-    } else if (form.shippingMode === "By Air") {
-      const airPorts = ports.filter(p => p.transport_type === "air");
-      if (airPorts.length > 0) return airPorts;
-    } else if (form.shippingMode === "By Sea") {
-      const seaPorts = ports.filter(p => p.transport_type === "sea");
-      if (seaPorts.length > 0) return seaPorts;
+    const mode = form.shippingMode || "By Sea";
+    if (mode === "By Road") {
+      return ports.filter(p => p.transport_type === "road");
+    } else if (mode === "By Air") {
+      return ports.filter(p => p.transport_type === "air");
+    } else if (mode === "By Sea") {
+      return ports.filter(p => p.transport_type === "sea");
     }
     return ports;
   }, [dbLoadingPorts, form.loadingCountry, form.shippingMode]);
@@ -1316,15 +1314,13 @@ export function PurchaseOrderWizard({ session }) {
       const targetCountry = recCountry.trim().toLowerCase();
       ports = ports.filter(p => (p.country?.name || "").trim().toLowerCase() === targetCountry || (p.country_name || "").trim().toLowerCase() === targetCountry);
     }
-    if (form.shippingMode === "By Road") {
-      const roadPorts = ports.filter(p => p.transport_type === "road");
-      if (roadPorts.length > 0) return roadPorts;
-    } else if (form.shippingMode === "By Air") {
-      const airPorts = ports.filter(p => p.transport_type === "air");
-      if (airPorts.length > 0) return airPorts;
-    } else if (form.shippingMode === "By Sea") {
-      const seaPorts = ports.filter(p => p.transport_type === "sea");
-      if (seaPorts.length > 0) return seaPorts;
+    const mode = form.shippingMode || "By Sea";
+    if (mode === "By Road") {
+      return ports.filter(p => p.transport_type === "road");
+    } else if (mode === "By Air") {
+      return ports.filter(p => p.transport_type === "air");
+    } else if (mode === "By Sea") {
+      return ports.filter(p => p.transport_type === "sea");
     }
     return ports;
   }, [dbReceivedPorts, form.receivingCountry, form.receivedCountry, form.destinationCountry, form.shippingMode]);

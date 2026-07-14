@@ -63,22 +63,10 @@ export const sidebarTree: SidebarNode[] = [
         roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
       },
       {
-        key: "dash-agent",
-        labelKey: "nav.agent_dashboard",
-        href: "/dashboard/agent" as Route,
+        key: "dash-logistics",
+        labelKey: "nav.shipping_clearing",
+        href: "/dashboard/logistics" as Route,
         roles: ["super_admin", "agent_user"]
-      },
-      {
-        key: "dash-shipping",
-        labelKey: "nav.shipping_line_dashboard",
-        href: "/dashboard/shipping-line" as Route,
-        roles: ["super_admin"]
-      },
-      {
-        key: "dash-clearing",
-        labelKey: "nav.clearing_agent_dashboard",
-        href: "/dashboard/clearing-agent" as Route,
-        roles: ["super_admin"]
       }
     ]
   },
@@ -273,7 +261,7 @@ export const sidebarTree: SidebarNode[] = [
               },
               {
                 key: "roz-money-exchange",
-                labelKey: "Money Changer",
+                labelKey: "Money Changer" as any,
                 href: "/dashboard/roznamcha/money-exchange" as Route,
                 roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
               }
@@ -289,59 +277,50 @@ export const sidebarTree: SidebarNode[] = [
       },
   {
     key: "logistics",
-    labelKey: "nav.logistics" as any,
+    labelKey: "nav.shipping_clearing",
     iconKey: "truck",
     children: [
       {
-        key: "shipping-line",
-        labelKey: "nav.shipping_line",
-        iconKey: "file-text",
-        children: [
-          {
-            key: "shipping-shipment-details",
-            labelKey: "nav.shipment_details",
-            href: "/dashboard/shipping-line/shipment-details" as Route,
-            roles: ["super_admin"]
-          },
-          {
-            key: "shipping-shipment-report",
-            labelKey: "nav.shipment_report",
-            href: "/dashboard/shipping-line/shipment-report" as Route,
-            roles: ["super_admin"]
-          },
-
-          {
-            key: "shipping-agent",
-            labelKey: "nav.shipping_agent_entry",
-            href: "/dashboard/shipping-line/agent-entry" as Route,
-            roles: ["super_admin"]
-          }
-        ]
+        key: "logistics-dashboard",
+        labelKey: "nav.shipping_clearing",
+        href: "/dashboard/logistics" as Route,
+        roles: ["super_admin", "agent_user"]
       },
       {
-        key: "clearing-agent",
-        labelKey: "nav.clearing_agent",
-        iconKey: "clipboard-list",
-        children: [
-          {
-            key: "clearing-custom",
-            labelKey: "nav.agent_custom_entry",
-            href: "/dashboard/clearing-agent/agent-custom-entry" as Route,
-            roles: ["super_admin"]
-          },
-          {
-            key: "clearing-bill",
-            labelKey: "nav.clearing_bill_entry",
-            href: "/dashboard/clearing-agent/bill-entry" as Route,
-            roles: ["super_admin"]
-          },
-          {
-            key: "clearing-payment-bill",
-            labelKey: "nav.payment_bill_entry",
-            href: "/dashboard/clearing-agent/payment-bill-entry" as Route,
-            roles: ["super_admin"]
-          }
-        ]
+        key: "shipping-shipment-details",
+        labelKey: "nav.shipment_details",
+        href: "/dashboard/shipping-line/shipment-details" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "shipping-shipment-report",
+        labelKey: "nav.shipment_report",
+        href: "/dashboard/shipping-line/shipment-report" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "shipping-agent",
+        labelKey: "nav.shipping_agent_entry",
+        href: "/dashboard/shipping-line/agent-entry" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "clearing-custom",
+        labelKey: "nav.agent_custom_entry",
+        href: "/dashboard/clearing-agent/agent-custom-entry" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "clearing-bill",
+        labelKey: "nav.clearing_bill_entry",
+        href: "/dashboard/clearing-agent/bill-entry" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "clearing-payment-bill",
+        labelKey: "nav.payment_bill_entry",
+        href: "/dashboard/clearing-agent/payment-bill-entry" as Route,
+        roles: ["super_admin", "agent_user"]
       }
     ]
   },
@@ -382,7 +361,7 @@ export const sidebarTree: SidebarNode[] = [
           },
           {
             key: "purchase-loading-form",
-            label: "Ready for Loading (Form)",
+            labelKey: "Ready for Loading (Form)" as any,
             href: "/dashboard/purchase/loading-form" as Route
           },
           {
@@ -932,3 +911,5 @@ export function filterSidebarTree(
     })
     .filter((node): node is SidebarNode => node !== null);
 }
+
+

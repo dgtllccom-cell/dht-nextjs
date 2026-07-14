@@ -11,6 +11,34 @@ const paramsSchema = z.object({
   id: uuidSchema
 });
 
+function formatAuditNumber(value: unknown) {
+  const numeric = Number(String(value ?? "").replace(/,/g, ""));
+  if (!Number.isFinite(numeric)) return "0";
+  return numeric.toLocaleString(undefined, {
+    minimumFractionDigits: numeric % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function buildPurchaseGoodsAuditRemark(orderRow: any, fallbackReference?: string | null) {
+  const data = orderRow.form_data ?? {};
+  const form = data.form ?? {};
+  const totals = data.totals ?? {};
+  const goodsEntries = Array.isArray(data.goodsEntries) && data.goodsEntries.length
+    ? data.goodsEntries
+    : form.goodsName
+      ? [form]
+      : [];
+  const billNo = String(form.manualBillNumber || form.manual_bill_number || form.billNo || form.purchaseContractNo || orderRow.purchase_contract_no || orderRow.purchase_order_no || fallbackReference || "Purchase Bill").trim();
+  const goodsName = goodsEntries.map((item: any) => item.goodsName || item.name || item.productName).filter(Boolean).join(", ") || form.goodsName || "Purchase Goods";
+  const totalQty = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.qtyNo ?? item.quantity ?? item.qty ?? 0), 0) || Number(form.qtyNo || form.quantity || 0);
+  const unit = String(goodsEntries[0]?.qtyName || goodsEntries[0]?.unit || form.qtyName || form.quantityUnit || "").trim();
+  const grossWeight = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.grossWeight ?? item.gross_weight ?? 0), 0) || Number(form.grossWeight || totals.totalGross || 0);
+  const netWeight = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.netWeight ?? item.net_weight ?? 0), 0) || Number(form.netWeight || totals.totalNet || 0);
+  const purchaseAmount = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.totalAmount ?? item.purchaseAmount ?? 0), 0) || Number(form.totalAmount || totals.grandPrimaryFinal || orderRow.order_total || 0);
+  const purchaseCurrency = String(goodsEntries[0]?.purchaseCurrency || goodsEntries[0]?.pricingCurrency || form.purchaseCurrency || form.pricingCurrency || orderRow.currency_code || "USD").toUpperCase();
+  return `Purchase Bill: ${billNo} | Goods: ${goodsName} | Qty: ${formatAuditNumber(totalQty)}${unit ? ` ${unit}` : ""} | Gross WT: ${formatAuditNumber(grossWeight)} KG | Net WT: ${formatAuditNumber(netWeight)} KG | Purchase Price: ${formatAuditNumber(purchaseAmount)} ${purchaseCurrency}`;
+}
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     await ensurePurchaseSchemaAndEnums();
@@ -71,6 +99,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const partyName = String(form.purchaseAccountName || form.supplierName || form.salesAccountName || form.customerName || "Purchase Party").trim();
     const referenceNo = [systemBillNumber, manualBillNumber].filter(Boolean).join(" / ") || systemBillNumber || manualBillNumber || null;
     const now = new Date().toISOString();
+    const goodsAuditRemark = buildPurchaseGoodsAuditRemark(orderRow, referenceNo);
 
     const updatedFormData = {
       ...formData,
@@ -126,141 +155,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       }
     };
 
-    // --- AUTOMATIC ROZNAMCHA POSTING LOGIC ---
-    
-    // Helper to get enterpriseAccountId and ledgerId
-    const getAccountInfo = async (accountCode: string) => {
-      const { data: entAccount, error } = await supabase
-        .from("enterprise_accounts")
-        .select("id, currency, country_id, country_branch_id, city_branch_id")
-        .eq("account_number", accountCode)
-        .is("deleted_at", null)
-        .limit(1)
-        .maybeSingle();
-      if (error || !entAccount) return null;
-
-      const { data: ledger } = await supabase
-        .from("ledgers")
-        .select("id")
-        .eq("enterprise_account_id", entAccount.id)
-        .is("deleted_at", null)
-        .limit(1)
-        .maybeSingle();
-
-      return {
-        enterpriseAccountId: entAccount.id,
-        ledgerId: ledger?.id || null,
-        currency: entAccount.currency || "USD",
-        countryId: entAccount.country_id,
-        countryBranchId: entAccount.country_branch_id,
-        cityBranchId: entAccount.city_branch_id
-      };
-    };
-
-    const purchaseAccountInfo = await getAccountInfo(form.purchaseAccountNo);
-    const salesAccountInfo = await getAccountInfo(form.salesAccountNo);
-
-    if (!purchaseAccountInfo?.ledgerId) {
-      throw new Error(`Could not resolve ledger for Purchase Account: ${form.purchaseAccountNo}. Please ensure the account exists and has a ledger.`);
-    }
-    if (!salesAccountInfo?.ledgerId) {
-      throw new Error(`Could not resolve ledger for Sales Account: ${form.salesAccountNo}. Please ensure the account exists and has a ledger.`);
-    }
-
-    const finalCityBranchId = orderRow.city_branch_id || purchaseAccountInfo.cityBranchId;
-    const finalCountryBranchId = orderRow.country_branch_id || purchaseAccountInfo.countryBranchId;
-    const finalCountryId = orderRow.country_id || purchaseAccountInfo.countryId;
-
-    const roznamchaType = finalCityBranchId ? "branch" : finalCountryBranchId ? "country" : finalCountryId ? "country" : "super_admin";
-
-    const roznamchaPayload = {
-      mode: "post",
-      type: roznamchaType,
-      countryId: finalCountryId,
-      countryBranchId: finalCountryBranchId,
-      cityBranchId: finalCityBranchId,
-      entryDate: now.split("T")[0],
-      journalNo: systemBillNumber,
-      voucherNo: manualBillNumber || systemBillNumber,
-      referenceNo: referenceNo,
-      narration: "Purchase Booking Auto-Transfer",
-      lines: [
-        {
-          enterpriseAccountId: purchaseAccountInfo.enterpriseAccountId,
-          ledgerId: purchaseAccountInfo.ledgerId,
-          debit: totalPurchaseAmount,
-          credit: 0,
-          currency: form.salesAccountCurrency || form.secondaryCurrency || form.baseCurrency || "PKR",
-          exchangeRate: 1,
-          paymentEntryType: "transfer",
-          description: `Purchase Auto Debit - ${partyName}`
-        },
-        {
-          enterpriseAccountId: salesAccountInfo.enterpriseAccountId,
-          ledgerId: salesAccountInfo.ledgerId,
-          debit: 0,
-          credit: totalPurchaseAmount,
-          currency: form.salesAccountCurrency || form.secondaryCurrency || form.baseCurrency || "PKR",
-          exchangeRate: 1,
-          paymentEntryType: "transfer",
-          description: `Purchase Auto Credit - ${partyName}`
-        }
-      ]
-    };
-
-    // Check if Roznamcha entry already exists for this order to prevent double posting and duplicate key errors
-    const { data: existingRoz } = await supabase
-      .from("roznamcha_entries")
-      .select("id")
-      .eq("journal_no", systemBillNumber)
-      .is("deleted_at", null)
-      .limit(1)
-      .maybeSingle();
-
-    if (existingRoz) {
-      // Reversing the old auto-transfer entry ensures ledger balances are correctly adjusted back.
-      // We inject auth config for the RPC
-      const actorId = session.userId ?? null;
-      if (actorId) {
-        try {
-          await supabase.rpc("set_config", {
-            setting: "request.jwt.claims",
-            value: JSON.stringify({ sub: actorId, role: "authenticated" }),
-            is_local: true
-          });
-        } catch (e) {}
-      }
-
-      await supabase.rpc("reverse_roznamcha_entry", {
-        p_original_entry_id: existingRoz.id,
-        p_reason: "Purchase booking edited and re-transferred",
-        p_approval_request_id: null
-      });
-
-      // Optionally, we can hard-delete both the original and reversal if we want a clean slate without clutter,
-      // but keeping them provides an audit trail of the edits. Let's keep them.
-    }
-
-    const { postRoznamchaWithErpSession } = await import("@/app/api/erp/roznamcha/route");
-    const { roznamchaPostingSchema } = await import("@/lib/api/erp-validation");
-
-    const payloadToParse = {
-      ...roznamchaPayload,
-      voucherNo: `${manualBillNumber || systemBillNumber}-TRF-${Date.now()}`
-    };
-
-    try {
-      const parsedBody = roznamchaPostingSchema.parse(payloadToParse);
-      await postRoznamchaWithErpSession({
-        sessionUserId: session.userId,
-        body: parsedBody
-      });
-    } catch (err: any) {
-      console.error("Roznamcha auto-post error:", err);
-      throw new Error(`Failed to post to Roznamcha automatically: ${err.message || err}`);
-    }
-
-    // --- END ROZNAMCHA POSTING LOGIC ---
 
     const existingAdvance = Number(orderRow.advance_paid) || 0;
     const newRemainingDue = totalPurchaseAmount - existingAdvance;
@@ -315,3 +209,5 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return handleApiError(error);
   }
 }
+
+

@@ -27,7 +27,8 @@ import {
   CheckCircle,
   Share2,
   Plus,
-  Paperclip
+  Paperclip,
+  Trash2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,29 @@ import { cn } from "@/lib/utils";
 import { BankPicker } from "@/features/banks/components/bank-picker";
 import { getBankById } from "@/features/banks/bank-api";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
+
+function getRoznamchaCategoryLabel(row: any) {
+  const sm = (row.source_module || "").toLowerCase();
+  const stt = (row.source_transaction_type || "").toLowerCase();
+  const t = (row.type || "").toLowerCase();
+  const pet = (row.roznamcha_lines?.[0]?.payment_entry_type || "").toLowerCase();
+
+  if (sm === "purchase" || sm === "purchase_bill" || t === "purchase_bill" || pet.includes("purchase") || stt.includes("purchase")) return "Business Roznamcha";
+  if (sm === "advance_payment" || t === "advance_payment") {
+    if (t.includes("bank") || pet.includes("bank")) return "Advance (Bank)";
+    if (t.includes("cash") || pet.includes("cash")) return "Advance (Cash)";
+    return "Advance";
+  }
+  if (t === "bank_payment" || t === "bank_receipt" || t.includes("bank") || pet.includes("bank")) return "Bank";
+  if (t === "cash_payment" || t === "cash_receipt" || t.includes("cash") || pet.includes("cash")) return "Cash";
+  if (t === "journal_voucher" || t === "contra_voucher" || t.includes("journal") || pet.includes("journal") || t === "business") return "Business Roznamcha";
+  
+  if (t === "invoice" || t.includes("invoice") || sm.includes("invoice")) return "Purchase Booking";
+  
+  let label = t ? t.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : "-";
+  if (label.includes("Invoice")) label = label.replace("Invoice", "Purchase Booking");
+  return label;
+}
 
 function getCountryFlag(name?: string) {
   if (!name) return "🏳️";
@@ -324,13 +348,11 @@ export function CashEntryForm({
 
     recentEntries.forEach(row => {
       const firstLine = row.roznamcha_lines?.[0];
-      const amountVal = Number(firstLine?.debit || firstLine?.credit || 0);
-      const type = firstLine?.payment_entry_type || "";
-      const isDebit = ["cash_receipt", "bank_deposit", "debit"].includes(type);
-      const isCredit = ["cash_payment", "bank_cheque", "credit"].includes(type);
+      const debitVal = Number(firstLine?.debit || 0);
+      const creditVal = Number(firstLine?.credit || 0);
 
-      if (isDebit) totalDebit += amountVal;
-      else if (isCredit) totalCredit += amountVal;
+      if (debitVal > 0) totalDebit += debitVal;
+      else if (creditVal > 0) totalCredit += creditVal;
     });
 
     const balance = Math.abs(totalCredit - totalDebit);
@@ -363,7 +385,7 @@ export function CashEntryForm({
   const fetchRecentEntries = async () => {
     try {
       setLoadingEntries(true);
-      const params = new URLSearchParams({ limit: "50" });
+      const params = new URLSearchParams({ limit: "100" });
       if (countryId) params.set("countryId", countryId);
       if (countryBranchId) params.set("countryBranchId", countryBranchId);
       if (cityBranchId) params.set("cityBranchId", cityBranchId);
@@ -1472,6 +1494,26 @@ export function CashEntryForm({
     }
   };
 
+  const handleDeleteEntry = async (entryId: string) => {
+    if (!entryId || !canEditOrDelete) return;
+    const confirmed = window.confirm("Delete this entry by creating a reversal record?");
+    if (!confirmed) return;
+
+    try {
+      setMessage(null);
+      const res = await fetch(`/api/erp/roznamcha/${entryId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const errText = await res.text();
+        setMessage(`Failed to delete entry: ${errText}`);
+        return;
+      }
+      setMessage("Entry deleted successfully.");
+      setActiveRowMenuId(null);
+      fetchRecentEntries();
+    } catch (error: any) {
+      setMessage(`Failed to delete entry: ${error?.message || "Unknown error"}`);
+    }
+  };
   async function save() {
     if (savingRef.current) return null;
     savingRef.current = true;
@@ -2687,7 +2729,9 @@ export function CashEntryForm({
                   <tr className="text-left">
                     <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Date & History</th>
                     <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Serials & Vouchers</th>
+                    <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Roznamcha Category</th>
                     <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Account Details</th>
+                    <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Numbers</th>
                     <th className="p-3 font-bold border border-slate-200 dark:border-slate-800">Details</th>
                     <th className="p-3 font-bold text-center border border-slate-200 dark:border-slate-800">Credit/Debit</th>
                     <th className="p-3 font-bold text-right border border-slate-200 dark:border-slate-800">Payment</th>
@@ -2697,87 +2741,134 @@ export function CashEntryForm({
                 <tbody>
                   {loadingEntries ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
+                      <td colSpan={9} className="p-8 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
                         Loading entries...
                       </td>
                     </tr>
                   ) : recentEntries.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
+                      <td colSpan={9} className="p-8 text-center text-slate-400 font-medium italic border border-slate-200 dark:border-slate-800">
                         No entries recorded yet.
                       </td>
                     </tr>
                   ) : (
-                    recentEntries.map((row) => {
-                      const firstLine = row.roznamcha_lines?.[0];
-                      const secondLine = row.roznamcha_lines?.[1];
-                      const amountVal = Number(firstLine?.debit || firstLine?.credit || 0);
-                      
-                      const type = firstLine?.payment_entry_type || "";
-                      const isDebit = ["cash_receipt", "bank_deposit", "debit"].includes(type);
-                      const isCredit = ["cash_payment", "bank_cheque", "credit"].includes(type);
-                      
-                      const sign = isDebit ? "+" : isCredit ? "-" : "";
-                      const amountStr = firstLine
-                        ? `${sign}${fmtAmount(amountVal)} ${firstLine.currency || ""}`
-                        : "-";
-                      
-                      const typeBadge = isDebit ? (
-                        <span className="rounded bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                          Debit (Receive)
-                        </span>
-                      ) : isCredit ? (
-                        <span className="rounded bg-rose-50 px-2.5 py-0.5 font-bold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
-                          Credit (Pay)
-                        </span>
-                      ) : (
-                        <span className="rounded bg-slate-50 px-2.5 py-0.5 font-bold text-slate-600 dark:bg-slate-900/40 dark:text-slate-400">
-                          {type || "-"}
-                        </span>
-                      );
+                    recentEntries.flatMap((row) => {
+                      return (row.roznamcha_lines || []).map((line: any, idx: number) => {
+                        const isDebit = Number(line.debit || 0) > 0;
+                        const isCredit = Number(line.credit || 0) > 0;
+                        const amountVal = isDebit ? Number(line.debit) : Number(line.credit);
+                        
+                        const type = line.payment_entry_type || row.type || "";
+                        const sign = isDebit ? "+" : isCredit ? "-" : "";
+                        const amountStr = `${sign}${fmtAmount(amountVal)} ${line.currency || ""}`;
+                        
+                        const typeBadge = isDebit ? (
+                          <span className="rounded bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            Debit
+                          </span>
+                        ) : isCredit ? (
+                          <span className="rounded bg-rose-50 px-2.5 py-0.5 font-bold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                            Credit
+                          </span>
+                        ) : (
+                          <span className="rounded bg-slate-50 px-2.5 py-0.5 font-bold text-slate-600 dark:bg-slate-900/40 dark:text-slate-400">
+                            {type || "-"}
+                          </span>
+                        );
 
-                      return (
-                        <tr key={row.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
-                          <td className="p-3 border border-slate-200 dark:border-slate-800 align-top">
-                            <div className="font-semibold text-slate-900 dark:text-slate-100">{new Date(row.created_at).toLocaleString()}</div>
-                            <div className="text-[10px] text-muted-foreground mt-1">Creator: {row.profiles?.full_name || row.created_by || "System"}</div>
-                            <div className="text-[10px] text-muted-foreground">Location: {row.countries?.name || "-"} | {row.city_branches?.name || row.country_branches?.name || "-"}</div>
-                          </td>
-                          <td className="p-3 font-mono text-[10.5px] border border-slate-200 dark:border-slate-800 align-top">
-                            <div className="flex flex-col gap-1.5">
-                              {row.journal_no && (
+                        return (
+                          <tr key={`${row.id}-${line.id || idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
+                            <td className="p-3 border border-slate-200 dark:border-slate-800 align-top">
+                              <div className="font-semibold text-slate-900 dark:text-slate-100">{new Date(row.created_at).toLocaleString()}</div>
+                              <div className="text-[10px] text-muted-foreground mt-1">Creator: {row.profiles?.full_name || row.created_by || "System"}</div>
+                              <div className="text-[10px] text-muted-foreground">Location: {row.countries?.name || "-"} | {row.city_branches?.name || row.country_branches?.name || "-"}</div>
+                            </td>
+                            <td className="p-3 font-mono text-[10.5px] border border-slate-200 dark:border-slate-800 align-top">
+                              <div className="flex flex-col gap-1.5">
                                 <div className="flex items-center justify-between rounded bg-blue-50/50 px-1.5 py-0.5 dark:bg-blue-900/20">
-                                  <span className="font-bold text-blue-600/70 dark:text-blue-400/70">JRN:</span>
-                                  <span className="font-semibold text-slate-800 dark:text-slate-200">{row.journal_no}</span>
+                                  <span className="font-bold text-blue-600/70 dark:text-blue-400/70" title="Journal / Country Serial">JRN/CTRY:</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate ml-2 max-w-[120px]">{row.country_transaction_serial_number || row.super_admin_serial_number || row.journal_no || "-"}</span>
                                 </div>
-                              )}
-                              {row.voucher_no && (
                                 <div className="flex items-center justify-between rounded bg-slate-50 px-1.5 py-0.5 dark:bg-slate-800/50">
-                                  <span className="font-bold text-slate-500">VCH:</span>
-                                  <span className="font-semibold text-slate-800 dark:text-slate-200">{row.voucher_no}</span>
+                                  <span className="font-bold text-slate-500" title="Branch / Main Serial">BRN/MAIN:</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate ml-2 max-w-[120px]">{row.branch_transaction_serial_number || row.voucher_no || "-"}</span>
                                 </div>
-                              )}
-                              <div className="flex items-center justify-between rounded bg-slate-50 px-1.5 py-0.5 dark:bg-slate-800/50">
-                                <span className="font-bold text-slate-500">SYS:</span>
-                                <span className="font-semibold text-slate-800 dark:text-slate-200 truncate ml-2 max-w-[80px]" title={row.id}>{row.id.split('-')[0]}</span>
+                                <div className="flex items-center justify-between rounded bg-slate-50 px-1.5 py-0.5 dark:bg-slate-800/50">
+                                  <span className="font-bold text-slate-500" title="Account Country Serial">ACC-CTY:</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate ml-2 max-w-[120px]">{line.country_serial_number || "-"}</span>
+                                </div>
+                                <div className="flex items-center justify-between rounded bg-slate-50 px-1.5 py-0.5 dark:bg-slate-800/50">
+                                  <span className="font-bold text-slate-500" title="Account Branch Serial">ACC-BRN:</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate ml-2 max-w-[120px]">{line.branch_serial_number || "-"}</span>
+                                </div>
                               </div>
-                            </div>
+                            </td>
+                          <td className="p-3 border border-slate-200 dark:border-slate-800 align-top">
+                            <span className="inline-flex items-center rounded-md bg-purple-50 px-2 py-1 text-[11px] font-bold text-purple-700 ring-1 ring-inset ring-purple-700/10 dark:bg-purple-400/10 dark:text-purple-400 dark:ring-purple-400/30">
+                              {getRoznamchaCategoryLabel(row)}
+                            </span>
                           </td>
+                          <td className="p-3 border border-slate-200 dark:border-slate-800 align-top">
+                              <div className="flex flex-col gap-2">
+                                <div>
+                                  <span className={cn(
+                                    "text-[9px] font-bold uppercase tracking-wider mr-1",
+                                    isDebit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                                  )}>
+                                    {isDebit ? "DR" : "CR"}
+                                  </span>
+                                  <span className={cn(
+                                    "inline-flex max-w-fit items-center rounded-md border px-1.5 py-0.5 font-mono text-[9px] font-bold shadow-sm",
+                                    isDebit ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/30 dark:bg-emerald-950/20 dark:text-emerald-300" :
+                                    "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/30 dark:bg-rose-950/20 dark:text-rose-300"
+                                  )}>
+                                    {line.account_number || "—"}
+                                  </span>
+                                  <span className={cn(
+                                    "text-[10px] font-bold mt-0.5 line-clamp-2 block",
+                                    isDebit ? "text-emerald-900 dark:text-emerald-100" : "text-rose-900 dark:text-rose-100"
+                                  )}>
+                                    {line.ledgers?.name || "—"}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
                           <td className="p-3 border border-slate-200 dark:border-slate-800 align-top">
                             <div className="flex flex-col gap-1">
-                              <span className="inline-flex max-w-fit items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] font-bold text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                                {firstLine?.account_number || "—"}
-                              </span>
-                              <span className="text-xs font-bold text-blue-900 dark:text-blue-100 mt-0.5 line-clamp-2">
-                                {firstLine?.ledgers?.name || "—"}
-                              </span>
+                              {row.source_reference_no ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] font-bold uppercase text-slate-400">Order:</span>
+                                  <span className="font-mono text-[10.5px] font-bold text-blue-700 dark:text-blue-400" title="Source Booking/Order">
+                                    {row.source_reference_no}
+                                  </span>
+                                </div>
+                              ) : null}
+                              {line.manual_reference_number ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] font-bold uppercase text-slate-400">Manual:</span>
+                                  <span className="font-mono text-[10.5px] font-bold text-slate-700 dark:text-slate-300" title="Manual Number">
+                                    {line.manual_reference_number}
+                                  </span>
+                                </div>
+                              ) : null}
+                              {line.customer_number ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] font-bold uppercase text-slate-400">Cust:</span>
+                                  <span className="font-mono text-[10.5px] font-bold text-slate-500 dark:text-slate-400" title="Customer Number">
+                                    {line.customer_number}
+                                  </span>
+                                </div>
+                              ) : null}
+                              {!row.source_reference_no && !line.manual_reference_number && !line.customer_number ? (
+                                <span className="text-[10px] text-slate-400 italic">—</span>
+                              ) : null}
                             </div>
                           </td>
-                          <td className="p-3 text-[11px] font-medium leading-relaxed text-slate-600 dark:text-slate-400 max-w-[200px] border border-slate-200 dark:border-slate-800" title={row.narration || ""}>
-                            <div className="line-clamp-3">
-                              {row.narration || "-"}
-                            </div>
-                          </td>
+                            <td className="p-3 text-[11px] font-medium leading-relaxed text-slate-600 dark:text-slate-400 max-w-[200px] border border-slate-200 dark:border-slate-800" title={line.description || row.narration || ""}>
+                              <div className="line-clamp-3">
+                                {line.description || row.narration || "-"}
+                              </div>
+                            </td>
                           <td className="p-3 text-center whitespace-nowrap border border-slate-200 dark:border-slate-800">
                             {typeBadge}
                           </td>
@@ -2788,75 +2879,67 @@ export function CashEntryForm({
                             {amountStr}
                           </td>
                           <td className="p-3 text-center border border-slate-200 dark:border-slate-800">
-                            <div className="flex items-center justify-center gap-1.5">
-                              {canEditOrDelete && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2 text-[10px] font-bold border-slate-200 text-blue-600 hover:bg-slate-50 dark:border-slate-800"
-                                  onClick={() => handleEditEntry(row)}
-                                >
-                                  Edit
-                                </Button>
-                              )}
-                              
-                              <div className="relative">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 border-none hover:bg-slate-100 dark:hover:bg-slate-900"
-                                  onClick={() => setActiveRowMenuId(activeRowMenuId === row.id ? null : row.id)}
-                                >
-                                  <MoreVertical className="h-3.5 w-3.5" />
-                                </Button>
-                                {activeRowMenuId === row.id && (
-                                  <div className="absolute right-0 z-50 mt-1 min-w-[120px] rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-800 dark:bg-slate-950">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveRowMenuId(null);
-                                        handleViewA4ById(row.id);
-                                      }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-900"
-                                    >
-                                      View
-                                    </button>
-                                    {canEditOrDelete && (
+                            {idx === 0 ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                {canEditOrDelete && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-[10px] font-bold border-slate-200 text-blue-600 hover:bg-slate-50 dark:border-slate-800"
+                                    onClick={() => handleEditEntry(row)}
+                                  >
+                                    Edit
+                                  </Button>
+                                )}
+                                
+                                <div className="relative">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 border-none hover:bg-slate-100 dark:hover:bg-slate-900"
+                                    onClick={() => setActiveRowMenuId(activeRowMenuId === row.id ? null : row.id)}
+                                  >
+                                    <MoreVertical className="h-4 w-4 text-slate-400" />
+                                  </Button>
+                                  
+                                  {activeRowMenuId === row.id && (
+                                    <div className="absolute right-0 top-full z-50 mt-1 w-32 rounded-md border border-slate-200 bg-white shadow-lg outline-none dark:border-slate-700 dark:bg-slate-900">
                                       <button
                                         type="button"
-                                        onClick={async () => {
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-blue-600 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                        onClick={() => {
                                           setActiveRowMenuId(null);
-                                          if (confirm("Are you sure you want to delete/reverse this entry?")) {
-                                            try {
-                                              const delRes = await fetch(`/api/erp/roznamcha/${row.id}`, { method: "DELETE" });
-                                              if (delRes.ok) {
-                                                setMessage("Entry deleted/reversed successfully.");
-                                                fetchRecentEntries();
-                                                setLedgerRefreshCount((c) => c + 1);
-                                              } else {
-                                                const errText = await delRes.text();
-                                                setMessage(`Delete failed: ${errText}`);
-                                              }
-                                            } catch (err: any) {
-                                              setMessage(`Delete failed: ${err.message}`);
-                                            }
-                                          }
+                                          openA4ReportWindow(row.id);
                                         }}
-                                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-bold text-red-605 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20"
                                       >
-                                        Delete
+                                        <Printer className="h-3.5 w-3.5" />
+                                        Print A4
                                       </button>
-                                    )}
-                                  </div>
-                                )}
+                                      {canEditOrDelete && (
+                                        <button
+                                          type="button"
+                                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-rose-600 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                          onClick={() => {
+                                            setActiveRowMenuId(null);
+                                            handleDeleteEntry(row.id);
+                                          }}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                          Delete
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            ) : null}
                           </td>
                         </tr>
                       );
-                    })
+                    });
+                  })
                   )}
                 </tbody>
               </table>
@@ -3097,3 +3180,5 @@ function ReportBox({ title, rows }: { title?: string; rows: Array<[string, strin
     </div>
   );
 }
+
+

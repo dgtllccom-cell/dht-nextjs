@@ -284,7 +284,7 @@ export function CountryDashboardOverview({ data }: CountryDashboardOverviewProps
               </ResponsiveContainer>
             </div>
             {/* Legend */}
-            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 w-full text-[10px] text-slate-650 dark:text-slate-400">
+            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 w-full text-[10px] text-slate-600 dark:text-slate-400">
               {branchesPieData.slice(0, 4).map((entry: { name: string; value: number }, index: number) => (
                 <div key={entry.name} className="flex items-center gap-1.5 truncate">
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
@@ -314,20 +314,20 @@ export function CountryDashboardOverview({ data }: CountryDashboardOverviewProps
               </thead>
               <tbody>
                 {branchPerformanceList.map((branch: any) => (
-                  <tr key={branch.name} className="border-t border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                  <tr key={branch.name} className="border-t border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/30">
                     <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-slate-100">{branch.name}</td>
                     <td className="px-4 py-3.5 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">{branch.code}</td>
                     <td className="px-4 py-3.5 font-mono font-bold text-slate-700 dark:text-slate-300">{branch.branchCurrency}</td>
                     <td className="px-4 py-3.5 font-mono font-bold text-cyan-600 dark:text-cyan-400">{moneyFormat(branch.sales, branch.branchCurrency)}</td>
-                    <td className="px-4 py-3.5 font-mono text-slate-650 dark:text-slate-350">{moneyFormat(branch.purchases, branch.branchCurrency)}</td>
+                    <td className="px-4 py-3.5 font-mono text-slate-600 dark:text-slate-300">{moneyFormat(branch.purchases, branch.branchCurrency)}</td>
                     <td className="px-4 py-3.5 font-mono text-rose-600 dark:text-rose-300">{moneyFormat(branch.debit, branch.branchCurrency)}</td>
                     <td className="px-4 py-3.5 font-mono text-emerald-600 dark:text-emerald-300">{moneyFormat(branch.credit, branch.branchCurrency)}</td>
                     <td className="px-4 py-3.5 font-mono font-bold text-slate-900 dark:text-slate-100">{moneyFormat(branch.balance, branch.branchCurrency)}</td>
                     <td className="px-4 py-3.5">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
                         branch.status === "Active"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-350 dark:border-emerald-900/30"
-                          : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-350 dark:border-amber-900/30"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300 dark:border-emerald-900/30"
+                          : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-300 dark:border-amber-900/30"
                       }`}>
                         {branch.status}
                       </span>
@@ -342,3 +342,4 @@ export function CountryDashboardOverview({ data }: CountryDashboardOverviewProps
     </div>
   );
 }
+

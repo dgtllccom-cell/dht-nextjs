@@ -185,6 +185,179 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
   const [savingNewLoading, setSavingNewLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
 
+  // DB ports and countries list states
+  const [dbLoadingPorts, setDbLoadingPorts] = useState<any[]>([]);
+  const [dbReceivedPorts, setDbReceivedPorts] = useState<any[]>([]);
+  const [allCountries, setAllCountries] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLocationsAndPorts() {
+      try {
+        const [loadRes, recRes, countryRes] = await Promise.all([
+          fetch("/api/erp/ports/loading?all=true&limit=500"),
+          fetch("/api/erp/ports/received?all=true&limit=500"),
+          fetch("/api/erp/locations/countries?all=true&limit=500")
+        ]);
+        const loadJson = await loadRes.json().catch(() => ({}));
+        const recJson = await recRes.json().catch(() => ({}));
+        const countryJson = await countryRes.json().catch(() => ({}));
+
+        const loadPorts = loadJson?.data?.ports || loadJson?.ports || [];
+        const recPorts = recJson?.data?.ports || recJson?.ports || [];
+        const countriesList = countryJson?.data?.countries || countryJson?.countries || (Array.isArray(countryJson) ? countryJson : []);
+
+        if (!cancelled) {
+          setDbLoadingPorts(loadPorts);
+          setDbReceivedPorts(recPorts);
+          setAllCountries(countriesList);
+        }
+      } catch (err) {
+        console.error("Failed to load ports/countries in loading records view", err);
+      }
+    }
+    void loadLocationsAndPorts();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const currentLoadingPorts = useMemo(() => {
+    let ports = dbLoadingPorts;
+    if (loadingCountryState) {
+      const targetCountry = (loadingCountryState || "").trim().toLowerCase();
+      ports = ports.filter(p => (p.country?.name || "").trim().toLowerCase() === targetCountry || (p.country_name || "").trim().toLowerCase() === targetCountry);
+    }
+    const mode = form.shippingMode || "By Sea";
+    if (mode === "By Road") {
+      return ports.filter(p => p.transport_type === "road");
+    } else if (mode === "By Air") {
+      return ports.filter(p => p.transport_type === "air");
+    } else if (mode === "By Sea") {
+      return ports.filter(p => p.transport_type === "sea");
+    }
+    return ports;
+  }, [dbLoadingPorts, loadingCountryState, form.shippingMode]);
+
+  const currentReceivedPorts = useMemo(() => {
+    let ports = dbReceivedPorts;
+    if (receivingCountryState) {
+      const targetCountry = (receivingCountryState || "").trim().toLowerCase();
+      ports = ports.filter(p => (p.country?.name || "").trim().toLowerCase() === targetCountry || (p.country_name || "").trim().toLowerCase() === targetCountry);
+    }
+    const mode = form.shippingMode || "By Sea";
+    if (mode === "By Road") {
+      return ports.filter(p => p.transport_type === "road");
+    } else if (mode === "By Air") {
+      return ports.filter(p => p.transport_type === "air");
+    } else if (mode === "By Sea") {
+      return ports.filter(p => p.transport_type === "sea");
+    }
+    return ports;
+  }, [dbReceivedPorts, receivingCountryState, form.shippingMode]);
+
+  const handleAddNewLocationItem = async (type: "country" | "port", targetField: string) => {
+    const value = window.prompt(`Enter New ${type === 'country' ? 'Country' : 'Port'} Name:`);
+    if (!value || !value.trim()) return;
+    const trimmed = value.trim();
+
+    setSavingNewLoading(true);
+    setLoadingMessage(`Saving new ${type}...`);
+
+    try {
+      if (type === "country") {
+        const iso2 = trimmed.slice(0, 2).toUpperCase();
+        const iso3 = trimmed.slice(0, 3).toUpperCase();
+        const code = iso2.toLowerCase();
+        
+        const response = await fetch("/api/erp/locations/countries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: trimmed,
+            iso2,
+            iso3,
+            currencyCode: "USD",
+            officialEmail: `official.${code}@dgtllc.com`,
+            adminEmail: `admin.${code}@dgtllc.com`,
+            whatsappNumber: null
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || payload?.error || "Failed to create country.");
+        
+        const reloadRes = await fetch("/api/erp/locations/countries?all=true&limit=500").then(r => r.json()).catch(() => ({}));
+        const countriesData = reloadRes?.data?.countries || reloadRes?.countries;
+        if (countriesData) setAllCountries(countriesData);
+        
+        if (targetField === "loadingCountry") {
+          setLoadingCountryState(trimmed);
+          setLoadingPortState("");
+        } else if (targetField === "receivingCountry") {
+          setReceivingCountryState(trimmed);
+          setReceivingPortState("");
+        }
+      } else if (type === "port") {
+        let countryName = "";
+        let isReceiving = false;
+        if (targetField === "loadingPort") {
+           countryName = loadingCountryState;
+        } else if (targetField === "receivingPort") {
+           countryName = receivingCountryState;
+           isReceiving = true;
+        }
+        
+        const countryObj = allCountries.find(c => c.name === countryName);
+        const countryId = countryObj ? countryObj.id : null;
+        
+        const transportTypeMapping: Record<string, string> = {
+          "By Sea": "sea",
+          "By Road": "road",
+          "By Air": "air"
+        };
+        const mode = form.shippingMode || "By Sea";
+        const transportType = transportTypeMapping[mode] || "sea";
+
+        const endpoint = isReceiving ? "/api/erp/ports/received" : "/api/erp/ports/loading";
+        
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            portName: trimmed,
+            countryId: countryId,
+            portCode: trimmed.slice(0, 3).toUpperCase(),
+            transportType: transportType,
+            isActive: true
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || payload?.error || "Failed to create port.");
+
+        const [loadRes, recRes] = await Promise.all([
+          fetch("/api/erp/ports/loading?all=true&limit=500"),
+          fetch("/api/erp/ports/received?all=true&limit=500")
+        ]);
+        const loadPorts = await loadRes.json().then(r => r?.data?.ports || r?.ports).catch(() => null);
+        const recPorts = await recRes.json().then(r => r?.data?.ports || r?.ports).catch(() => null);
+        
+        if (loadPorts) setDbLoadingPorts(loadPorts);
+        if (recPorts) setDbReceivedPorts(recPorts);
+
+        if (targetField === "loadingPort") {
+          setLoadingPortState(trimmed);
+        } else if (targetField === "receivingPort") {
+          setReceivingPortState(trimmed);
+        }
+      }
+    } catch (error: any) {
+      alert(error?.message || "Failed to save location item");
+    } finally {
+      setSavingNewLoading(false);
+      setLoadingMessage("");
+    }
+  };
+
   // Fetch approved daily rate when country is set
   useEffect(() => {
     const countryId = poRow.country_id || record.countries?.id;
@@ -552,39 +725,71 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
 
                     <label className="space-y-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                       Loading Country
-                      <input
+                      <SearchableSelect
                         value={loadingCountryState}
-                        onChange={(e) => setLoadingCountryState(e.target.value)}
-                        placeholder="e.g. Pakistan"
-                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case tracking-normal outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-800 dark:bg-slate-950"
+                        onChange={(val) => {
+                          if (val === "__ADD_NEW__") {
+                            void handleAddNewLocationItem("country", "loadingCountry");
+                          } else {
+                            setLoadingCountryState(val);
+                            setLoadingPortState("");
+                          }
+                        }}
+                        options={allCountries.map((c) => ({ label: `${c.name} ${c.iso2 ? `(${c.iso2})` : ""}`, value: c.name }))}
+                        placeholder="Select Country"
+                        addOptionLabel="Add New Country"
                       />
                     </label>
                     <label className="space-y-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
-                      Loading Port
-                      <input
+                      Loading Port / Border
+                      <SearchableSelect
                         value={loadingPortState}
-                        onChange={(e) => setLoadingPortState(e.target.value)}
-                        placeholder="e.g. Karachi"
-                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case tracking-normal outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-800 dark:bg-slate-950"
+                        onChange={(val) => {
+                          if (val === "__ADD_NEW__") {
+                            void handleAddNewLocationItem("port", "loadingPort");
+                          } else {
+                            setLoadingPortState(val);
+                          }
+                        }}
+                        options={currentLoadingPorts.map((p) => ({ label: `${p.port_name} ${p.port_code ? `[${p.port_code}]` : ""}`, value: p.port_name }))}
+                        placeholder={form.shippingMode === "By Road" ? "Select Border" : "Select Port"}
+                        addOptionLabel={form.shippingMode === "By Road" ? "Add New Border" : "Add New Port"}
+                        disabled={!loadingCountryState && currentLoadingPorts.length === 0}
                       />
                     </label>
 
                     <label className="space-y-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                       Receiving Country
-                      <input
+                      <SearchableSelect
                         value={receivingCountryState}
-                        onChange={(e) => setReceivingCountryState(e.target.value)}
-                        placeholder="e.g. UAE"
-                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case tracking-normal outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-800 dark:bg-slate-950"
+                        onChange={(val) => {
+                          if (val === "__ADD_NEW__") {
+                            void handleAddNewLocationItem("country", "receivingCountry");
+                          } else {
+                            setReceivingCountryState(val);
+                            setReceivingPortState("");
+                          }
+                        }}
+                        options={allCountries.map((c) => ({ label: `${c.name} ${c.iso2 ? `(${c.iso2})` : ""}`, value: c.name }))}
+                        placeholder="Select Country"
+                        addOptionLabel="Add New Country"
                       />
                     </label>
                     <label className="space-y-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
-                      Receiving Port
-                      <input
+                      Receiving Port / Border
+                      <SearchableSelect
                         value={receivingPortState}
-                        onChange={(e) => setReceivingPortState(e.target.value)}
-                        placeholder="e.g. Jebel Ali"
-                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case tracking-normal outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-800 dark:bg-slate-950"
+                        onChange={(val) => {
+                          if (val === "__ADD_NEW__") {
+                            void handleAddNewLocationItem("port", "receivingPort");
+                          } else {
+                            setReceivingPortState(val);
+                          }
+                        }}
+                        options={currentReceivedPorts.map((p) => ({ label: `${p.port_name} ${p.port_code ? `[${p.port_code}]` : ""}`, value: p.port_name }))}
+                        placeholder={form.shippingMode === "By Road" ? "Select Border" : "Select Port"}
+                        addOptionLabel={form.shippingMode === "By Road" ? "Add New Border" : "Add New Port"}
+                        disabled={!receivingCountryState && currentReceivedPorts.length === 0}
                       />
                     </label>
                     

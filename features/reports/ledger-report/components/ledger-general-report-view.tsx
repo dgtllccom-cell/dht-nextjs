@@ -909,16 +909,69 @@ export function LedgerReportView({
               { key: "accountCode", header: "Account No", render: (r) => r.accountCode || r.ledgerCode },
               { key: "accountName", header: "Account Name", render: (r) => r.accountName || r.ledgerName },
               { key: "entries", header: "Entries", align: "right" },
-              { key: "openingBalance", header: "Opening Bal", align: "right", render: (r) => fmtNumber(r.openingBalance ?? 0) },
-              { key: "credit", header: "Credit", align: "right", render: (r) => fmtNumber(r.credit) },
-              { key: "debit", header: "Debit", align: "right", render: (r) => fmtNumber(r.debit) },
-              { key: "createdAt", header: "Created Date", render: (r) => formatDateString(r.createdAt) },
-              { key: "lastEntryDate", header: "Last Entry", render: (r) => formatDateString(r.lastEntryDate) },
-              { key: "balance", header: "Balance", align: "right", render: (r) => fmtNumber(r.balance) },
+              { 
+                key: "credit", 
+                header: "Credit", 
+                align: "right", 
+                render: (r) => (
+                  <span className={cn("font-medium whitespace-nowrap", r.credit > 0 ? "text-emerald-600 dark:text-emerald-400" : "")}>
+                    {r.ledgerCurrency} {fmtNumber(r.credit)}
+                  </span>
+                ) 
+              },
+              { 
+                key: "debit", 
+                header: "Debit", 
+                align: "right", 
+                render: (r) => (
+                  <span className={cn("font-medium whitespace-nowrap", r.debit > 0 ? "text-rose-500" : "")}>
+                    {r.ledgerCurrency} {fmtNumber(r.debit)}
+                  </span>
+                ) 
+              },
+              { 
+                key: "balance", 
+                header: "Balance", 
+                align: "right", 
+                render: (r) => (
+                  <span className={cn("font-bold whitespace-nowrap", r.balance !== 0 ? "text-blue-600 dark:text-blue-400" : "")}>
+                    {r.ledgerCurrency} {fmtNumber(r.balance)}
+                  </span>
+                ) 
+              },
+              { key: "startDate", header: "Starting Date", align: "center", render: () => formatDateString(fromDate) },
+              { key: "lastDate", header: "Last Date", align: "center", render: () => formatDateString(toDate) },
               ...(reportScope === "super_admin" ? [
-                { key: "usdCredit", header: "Credit ($)", align: "right", render: (r: GeneralReportRow) => fmtNumber(r.usdCredit ?? 0) },
-                { key: "usdDebit", header: "Debit ($)", align: "right", render: (r: GeneralReportRow) => fmtNumber(r.usdDebit ?? 0) },
-                { key: "usdBalance", header: "Balance ($)", align: "right", render: (r: GeneralReportRow) => fmtNumber(r.usdBalance ?? 0) }
+                { 
+                  key: "usdCredit", 
+                  header: "Credit (USD)", 
+                  align: "right", 
+                  render: (r: GeneralReportRow) => (
+                    <span className={cn("font-medium whitespace-nowrap", r.usdCredit && r.usdCredit > 0 ? "text-emerald-600 dark:text-emerald-400" : "")}>
+                      USD {fmtNumber(r.usdCredit ?? 0)}
+                    </span>
+                  ) 
+                },
+                { 
+                  key: "usdDebit", 
+                  header: "Debit (USD)", 
+                  align: "right", 
+                  render: (r: GeneralReportRow) => (
+                    <span className={cn("font-medium whitespace-nowrap", r.usdDebit && r.usdDebit > 0 ? "text-rose-500" : "")}>
+                      USD {fmtNumber(r.usdDebit ?? 0)}
+                    </span>
+                  ) 
+                },
+                { 
+                  key: "usdBalance", 
+                  header: "Balance (USD)", 
+                  align: "right", 
+                  render: (r: GeneralReportRow) => (
+                    <span className={cn("font-bold whitespace-nowrap", r.usdBalance !== 0 ? "text-blue-600 dark:text-blue-400" : "")}>
+                      USD {fmtNumber(r.usdBalance ?? 0)}
+                    </span>
+                  ) 
+                }
               ] : []),
               { 
                 key: "action", 
