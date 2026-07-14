@@ -1,10 +1,10 @@
 alter table companies
   add column if not exists owner_name text,
   add column if not exists business_type text,
-  add column if not exists country_id uuid references countries(id),
-  add column if not exists state_province_id uuid references states_provinces(id),
-  add column if not exists district_id uuid references districts(id),
-  add column if not exists city_id uuid references cities(id),
+  add column if not exists country_id uuid,
+  add column if not exists state_province_id uuid,
+  add column if not exists district_id uuid,
+  add column if not exists city_id uuid,
   add column if not exists area_location_id uuid,
   add column if not exists country_name text,
   add column if not exists state_name text,
@@ -20,3 +20,4 @@ alter table companies
 create index if not exists companies_country_id_idx on companies(country_id) where deleted_at is null;
 create index if not exists companies_city_id_idx on companies(city_id) where deleted_at is null;
 create index if not exists companies_owner_name_idx on companies(owner_name) where deleted_at is null;
+

@@ -718,6 +718,8 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
                 onClick={() => {
                   setEditUserId(null);
                   setFullName("");
+                  setSelectedCompanyId("");
+                  setSelectedCompany(null);
                   setUserCode("");
                   setCountryId("");
                   setBranchType("");
@@ -755,6 +757,8 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
                       setStep(1);
                       setGender("");
                       setFullName("");
+                      setSelectedCompanyId("");
+                      setSelectedCompany(null);
                       setAccountRegNo(makeAutoRegNo());
                       setCountryId("");
                       setBranchType("");
@@ -1080,6 +1084,7 @@ export function UserRegistrationWizard({ userIdProp }: { userIdProp?: string } =
     </div>
   );
 }
+
 
 
 
