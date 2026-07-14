@@ -214,6 +214,30 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   // Step state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
 
+  // Branch / Account form state (Step 1)
+  const [countries, setCountries] = useState<LocationCountry[]>([]);
+  const [mainBranches, setMainBranches] = useState<CountryBranchRow[]>([]);
+  const [cityBranches, setCityBranches] = useState<CityBranchRow[]>([]);
+  const [country, setCountry] = useState("");
+  const [branchType, setBranchType] = useState<BranchType | "">("");
+  const [branch, setBranch] = useState("");
+  const [accountTitle, setAccountTitle] = useState<AccountTitle | "">("");
+  const [subType, setSubType] = useState("");
+  const [category, setCategory] = useState("");
+  const [accountCode, setAccountCode] = useState("");
+  const [manualReferenceNumber, setManualReferenceNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [contacts, setContacts] = useState<Array<{ type: string; value: string }>>([{ type: "Mobile", value: "" }]);
+  const [journalCounter, setJournalCounter] = useState(0);
+  const [lastBranchCode, setLastBranchCode] = useState("");
+  const [simulateCityAdmin, setSimulateCityAdmin] = useState(false);
+  const [savedEntries, setSavedEntries] = useState<SavedEntry[]>([]);
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [lastCreated, setLastCreated] = useState<AccountCreateResponse | null>(null);
+  const [loadingAccount, setLoadingAccount] = useState(false);
+  const [actionsPortal, setActionsPortal] = useState<HTMLElement | null>(null);
+
   // Dynamic active steps list based on accountTitle and category
   const activeSteps = useMemo(() => {
     const steps: number[] = [1];
@@ -252,30 +276,6 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
       setCurrentStep(1);
     }
   }, [activeSteps, currentStep]);
-
-  // Branch / Account form state (Step 1)
-  const [countries, setCountries] = useState<LocationCountry[]>([]);
-  const [mainBranches, setMainBranches] = useState<CountryBranchRow[]>([]);
-  const [cityBranches, setCityBranches] = useState<CityBranchRow[]>([]);
-  const [country, setCountry] = useState("");
-  const [branchType, setBranchType] = useState<BranchType | "">("");
-  const [branch, setBranch] = useState("");
-  const [accountTitle, setAccountTitle] = useState<AccountTitle | "">("");
-  const [subType, setSubType] = useState("");
-  const [category, setCategory] = useState("");
-  const [accountCode, setAccountCode] = useState("");
-  const [manualReferenceNumber, setManualReferenceNumber] = useState("");
-  const [accountName, setAccountName] = useState("");
-  const [contacts, setContacts] = useState<Array<{ type: string; value: string }>>([{ type: "Mobile", value: "" }]);
-  const [journalCounter, setJournalCounter] = useState(0);
-  const [lastBranchCode, setLastBranchCode] = useState("");
-  const [simulateCityAdmin, setSimulateCityAdmin] = useState(false);
-  const [savedEntries, setSavedEntries] = useState<SavedEntry[]>([]);
-  const [message, setMessage] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [lastCreated, setLastCreated] = useState<AccountCreateResponse | null>(null);
-  const [loadingAccount, setLoadingAccount] = useState(false);
-  const [actionsPortal, setActionsPortal] = useState<HTMLElement | null>(null);
 
 
   useEffect(() => {
