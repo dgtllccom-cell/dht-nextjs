@@ -4,10 +4,11 @@ import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Download, Expand, Eye, FileSpreadsheet, FileText, MoreVertical, PencilLine, Printer, Search, Trash2, CalendarDays, RefreshCw, SlidersHorizontal, Landmark, CheckCircle2, ChevronDown, PackageCheck, FileCheck2, Building2, MapPin, Phone, MessageCircle, Mail } from "lucide-react";
+import { Download, Expand, Eye, FileSpreadsheet, FileText, MoreVertical, PencilLine, Printer, Search, Trash2, CalendarDays, RefreshCw, SlidersHorizontal, Landmark, CheckCircle2, ChevronDown, PackageCheck, FileCheck2, Building2, MapPin, Phone, MessageCircle, Mail, Plus } from "lucide-react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { apiDelete, apiGet } from "@/lib/api/client";
+import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -824,6 +825,31 @@ export function AccountGeneralReportView({
     setToDate(draftToDate);
   }
 
+  function openPrint(autoPrint: boolean) {
+    const selectedRow = rows.find((r) => r.accountId === selectedAccountId) ?? null;
+    const activeBranchName = branchCode !== "all" ? branchCode : (session?.scopes?.isSuperAdmin ? "GLOBAL ADMIN" : session?.roles?.[0] ?? "MAIN BRANCH");
+    openA4ReportWindow({
+      title: "Account Register Report",
+      subtitle: `Account Master Registry & Search Report - Generated ${new Date().toLocaleString()}`,
+      rows: [
+        { label: "Report Scope", value: dashboardScope === "super_admin" ? "SUPER ADMIN" : dashboardScope === "country" ? "COUNTRY SCOPE" : "BRANCH SCOPE" },
+        { label: "Branch Name Details", value: activeBranchName },
+        { label: "Total Accounts", value: `${visibleSummary.totalAccounts.toLocaleString()} (${visibleSummary.activeAccounts} Active)` },
+        { label: "Total Debit (DR)", value: fmtNumber(visibleSummary.debitTotal) },
+        { label: "Total Credit (CR)", value: fmtNumber(visibleSummary.creditTotal) },
+        { label: "Net Balance", value: fmtNumber(visibleSummary.totalBalance) },
+        { label: "Selected Account", value: selectedRow ? `${selectedRow.accountName} (${selectedRow.accountCode})` : "None" },
+        { label: "Company Name", value: selectedRow?.companyName || "-" },
+        { label: "Bank Name", value: selectedRow?.bankName || "-" },
+        { label: "Warehouse Name", value: selectedRow?.warehouseName || "-" },
+        { label: "Owner Name", value: selectedRow?.ownerName || "-" },
+        { label: "Country", value: selectedRow?.countryName || "-" }
+      ],
+      autoPrint,
+      lang
+    });
+  }
+
   function exportCsv(scope: "filtered" | "selected" = "filtered") {
     const exportRows = scope === "selected" && selectedRow ? [selectedRow] : filteredRows;
     const csvRows: string[][] = [
@@ -971,6 +997,35 @@ export function AccountGeneralReportView({
         <CalendarDays className="h-4 w-4 text-slate-400" />
         <span>{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
+
+      <Button
+        type="button"
+        size="sm"
+        onClick={() => router.push("/dashboard/accounts/setup")}
+        className="h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm px-4 gap-1.5 shrink-0"
+      >
+        <Plus className="h-3.5 w-3.5" /> New Account
+      </Button>
+
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => openPrint(true)}
+        className="h-9 rounded-xl border-slate-200 font-bold text-xs shadow-sm gap-1.5"
+      >
+        <Printer className="h-3.5 w-3.5" /> Print
+      </Button>
+
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => openPrint(false)}
+        className="h-9 rounded-xl border-slate-200 font-bold text-xs shadow-sm gap-1.5"
+      >
+        <Download className="h-3.5 w-3.5" /> Export PDF
+      </Button>
     </div>
   );
 

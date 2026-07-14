@@ -1084,7 +1084,7 @@ export function BranchGeneralReportView({
               "px-1 py-0.2 rounded font-mono text-[8px] font-extrabold leading-none",
               expandedUserScope === "all-users" ? "bg-indigo-500/40 text-white" : "bg-slate-100 text-slate-600"
             )}>
-              {data?.summary.totalActiveUsers ?? "95+"}
+              {data?.summary?.totalActiveUsers ?? "95+"}
             </span>
           </button>
 
@@ -1240,13 +1240,13 @@ export function BranchGeneralReportView({
         <BranchUsersPanel
           title="All ERP Users"
           hierarchy={["Super Admin", "All Countries", "All Branches", "All Users"]}
-          users={data?.summary.users ?? []}
+          users={data?.summary?.users ?? []}
           onClose={() => setExpandedUserScope(null)}
         />
       ) : null}
 
       {expandedUserScope === "login-list" ? (
-        <LoginListPanel users={data?.summary.users ?? []} onClose={() => setExpandedUserScope(null)} />
+        <LoginListPanel users={data?.summary?.users ?? []} onClose={() => setExpandedUserScope(null)} />
       ) : null}
 
       {/* Main Report Table Container */}
@@ -1287,7 +1287,7 @@ export function BranchGeneralReportView({
                     const emailContact = findContactValue(branch.contacts, "email") || branch.email;
 
                     const scopeId = `super-admin-users-${branch.id}`;
-                    const users = data?.summary.users ?? [];
+                    const users = data?.summary?.users ?? [];
 
                     return (
                       <Fragment key={branch.id}>
@@ -1296,14 +1296,14 @@ export function BranchGeneralReportView({
                         <td className="p-2.5 border-r border-slate-200 font-semibold text-slate-800">{branch.name}</td>
                         <td className="p-2.5 border-r border-slate-200">{branch.companyName}</td>
                         <td className="p-2.5 border-r border-slate-200 font-medium">{branch.ownerName || "-"}</td>
-                        <td className="p-2.5 border-r border-slate-200">{data?.summary.totalCountries || 0} Country</td>
+                        <td className="p-2.5 border-r border-slate-200">{data?.summary?.totalCountries || 0} Country</td>
                         <td className="p-2.5 border-r border-slate-200 font-semibold">{branch.currency}</td>
                         <td className="p-2.5 border-r border-slate-200 font-semibold text-slate-500">SA-1000</td>
-                        <td className="p-2.5 border-r border-slate-200 tabular-nums">{data?.summary.totalCountries || 0}</td>
-                        <td className="p-2.5 border-r border-slate-200 tabular-nums">{data?.summary.totalCityBranches || 0}</td>
+                        <td className="p-2.5 border-r border-slate-200 tabular-nums">{data?.summary?.totalCountries || 0}</td>
+                        <td className="p-2.5 border-r border-slate-200 tabular-nums">{data?.summary?.totalCityBranches || 0}</td>
                         <td className="p-2.5 border-r border-slate-200 tabular-nums">
                           <UserCountButton
-                            count={users.length || data?.summary.totalActiveUsers || 0}
+                            count={users.length || data?.summary?.totalActiveUsers || 0}
                             expanded={expandedUserScope === scopeId}
                             onClick={() => toggleUserScope(scopeId)}
                             title="Show all ERP users under Super Admin"
@@ -1464,8 +1464,8 @@ export function BranchGeneralReportView({
                   filteredCountries.map((country) => {
                     // Find main branch details
                     const mainBranch = country.mainBranches[0] || null;
-                    const phoneContact = mainBranch ? (findContactValue(mainBranch.contacts, "phone") || mainBranch.contacts) : "";
-                    const emailContact = mainBranch ? (findContactValue(mainBranch.contacts, "email") || mainBranch.contacts) : "";
+                    const phoneContact = mainBranch ? (findContactValue(mainBranch.contacts, "phone") || findContactValue(mainBranch.contacts, "mobile") || "") : "";
+                    const emailContact = mainBranch ? (findContactValue(mainBranch.contacts, "email") || "") : "";
                     const isExpanded = expandedCountries[country.id] || false;
                     const countryUserScopeId = `country-users-${country.id}`;
                     const countryUsers = country.users ?? [];

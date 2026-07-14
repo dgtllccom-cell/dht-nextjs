@@ -36,6 +36,7 @@ type WarehouseFormState = {
   stateProvinceId: string;
   districtId: string;
   cityId: string;
+  areaId: string;
   fullAddress: string;
   contracts: Array<{ type: string; value: string }>;
   status: string;
@@ -49,6 +50,7 @@ const emptyForm: WarehouseFormState = {
   stateProvinceId: "",
   districtId: "",
   cityId: "",
+  areaId: "",
   fullAddress: "",
   contracts: [{ type: "Contract Number", value: "" }],
   status: "Active",
@@ -70,7 +72,8 @@ export function WarehouseForm({
     countryId: "",
     stateProvinceId: "",
     districtId: "",
-    cityId: ""
+    cityId: "",
+    areaId: ""
   });
   
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -98,8 +101,9 @@ export function WarehouseForm({
         ...prev,
         countryId: next.countryId,
         stateProvinceId: next.stateProvinceId,
-        districtId: next.districtId,
+        districtId: next.districtId || "",
         cityId: next.cityId,
+        areaId: next.areaId || "",
         contracts: newContracts
       };
     });
@@ -123,6 +127,7 @@ export function WarehouseForm({
         state_province_id: form.stateProvinceId || null,
         district_id: form.districtId || null,
         city_id: form.cityId || null,
+        area_id: form.areaId || null,
         full_address: form.fullAddress || null,
         contact_number: JSON.stringify(form.contracts),
         status: form.status,
@@ -137,6 +142,7 @@ export function WarehouseForm({
         state_province_id: form.stateProvinceId || null,
         district_id: form.districtId || null,
         city_id: form.cityId || null,
+        area_id: form.areaId || null,
         full_address: form.fullAddress || null,
         contact_number: JSON.stringify(form.contracts),
         status: form.status,
@@ -155,7 +161,7 @@ export function WarehouseForm({
 
   function handleReset() {
     setForm(emptyForm);
-    setLocation({ countryId: "", stateProvinceId: "", districtId: "", cityId: "" });
+    setLocation({ countryId: "", stateProvinceId: "", districtId: "", cityId: "", areaId: "" });
     setSavedWarehouse(null);
     setMessage(null);
     setCurrentStep(1);
@@ -297,7 +303,8 @@ export function WarehouseForm({
               <LocationHierarchySelect
                 value={location}
                 onChange={handleLocationChange}
-                showArea={false}
+                showDistrict={false}
+                showArea={true}
               />
 
               <div className="space-y-1.5">

@@ -7,6 +7,7 @@ export type WarehouseRecord = {
   state_province_id: string | null;
   district_id: string | null;
   city_id: string | null;
+  area_id?: string | null;
   full_address: string | null;
   contact_number: string | null;
   status: string;

@@ -22,27 +22,25 @@ import {
 import { createBank, type BankRecord } from "@/features/banks/bank-api";
 
 const DEFAULT_BANK_TYPES = [
+  "Customer Account",
+  "Business Account",
+  "Personal Account",
+  "Credit Card",
+  "Debit Card",
   "Commercial Bank",
   "Islamic Bank",
   "Central Bank",
-  "Investment Bank",
-  "Microfinance Bank",
-  "Development Bank",
-  "Cooperative Bank",
-  "Foreign Bank Branch",
-  "Exchange Company",
-  "Mobile Money Operator"
+  "Exchange Company"
 ];
 
 const DEFAULT_ACCOUNT_TYPES = [
+  "Business Account",
+  "Company Account",
+  "Personal Account",
   "Current Account",
   "Savings Account",
   "Fixed Deposit",
-  "Loan Account",
-  "Trade Finance Account",
-  "USD Account",
-  "Multi-Currency Account",
-  "Payroll Account"
+  "Joint Account"
 ];
 
 const DEFAULT_BRANCH_CODE_TYPES = [
@@ -185,7 +183,6 @@ export function BankForm({
     form.bankType &&
     form.accountType &&
     form.bankName &&
-    form.branchName &&
     form.branchCode &&
     form.shortName &&
     form.accountTitle &&
@@ -200,11 +197,12 @@ export function BankForm({
     setSaving(true);
     setMessage(null);
     try {
+      const computedBranchName = `${form.branchCodeType} - ${form.branchCode}`;
       const bankId = await createBank({
         bankType: form.bankType,
         accountType: form.accountType,
         bankName: form.bankName,
-        branchName: form.branchName,
+        branchName: computedBranchName,
         branchCode: form.branchCode,
         branchCodeType: form.branchCodeType,
         shortName: form.shortName,
@@ -230,7 +228,7 @@ export function BankForm({
         bank_type: form.bankType,
         account_type: form.accountType,
         bank_name: form.bankName,
-        branch_name: form.branchName,
+        branch_name: computedBranchName,
         branch_code: form.branchCode,
         branch_code_type: form.branchCodeType,
         short_name: form.shortName,
@@ -398,19 +396,10 @@ export function BankForm({
               </div>
             </div>
 
-            {/* Branch Name + Branch Code */}
+            {/* Branch Code & Short Name */}
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Branch Name / SWIFT Name *</Label>
-                <Input
-                  value={form.branchName}
-                  onChange={(e) => set("branchName", e.target.value)}
-                  placeholder="Enter branch name / SWIFT name"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Branch Code / Branch Number *</Label>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="text-xs font-semibold">{form.branchCodeType || "Branch Code"} *</Label>
                 <div className="flex gap-1.5">
                   <select
                     value={form.branchCodeType}
@@ -426,7 +415,7 @@ export function BankForm({
                   <Input
                     value={form.branchCode}
                     onChange={(e) => set("branchCode", e.target.value)}
-                    placeholder="Enter code / number"
+                    placeholder={`Enter ${form.branchCodeType.toLowerCase()}`}
                     className="flex-1"
                   />
                 </div>
@@ -715,7 +704,9 @@ export function BankForm({
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Branch</span>
-              <span className="font-semibold text-slate-800">{savedBank ? savedBank.branch_name : form.branchName || "-"}</span>
+              <span className="font-semibold text-slate-800">
+                {savedBank ? savedBank.branch_name : (form.branchCode ? `${form.branchCodeType} - ${form.branchCode}` : "-")}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Status</span>

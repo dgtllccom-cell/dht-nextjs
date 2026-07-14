@@ -300,6 +300,24 @@ export function AccountLiveReportPanel({
     { label: t("branch", "Branch"), value: selectedBranchName || "-" },
   ];
 
+  const isExpense = category === "EX";
+  const isBank = accountTitle === "Bank";
+  const isCompany = accountTitle === "Company";
+  const isPersonal = accountTitle === "Personal" || accountTitle === "Customer" || accountTitle === "Employee";
+
+  const allowedSectionIds = [1, 6];
+  if (isExpense) {
+    // Only Account Info and Audit
+  } else if (isBank) {
+    allowedSectionIds.push(4);
+  } else if (isCompany) {
+    allowedSectionIds.push(2, 3, 4, 5);
+  } else if (isPersonal) {
+    allowedSectionIds.push(2);
+  } else {
+    allowedSectionIds.push(2, 3, 4, 5);
+  }
+
   const sections = [
     { id: 1, title: t("accountInformation", "ACCOUNT INFORMATION"), icon: FileText, fields: accountFields },
     { id: 2, title: t("customerInformation", "CUSTOMER INFORMATION"), icon: UserRound, fields: customerFields },
@@ -307,7 +325,7 @@ export function AccountLiveReportPanel({
     { id: 4, title: t("bankDetails", "BANK DETAILS"), icon: Landmark, fields: bankFields },
     { id: 5, title: t("warehouseDetails", "WAREHOUSE DETAILS"), icon: Warehouse, fields: warehouseFields },
     { id: 6, title: t("auditInformation", "AUDIT INFORMATION"), icon: ShieldAlert, fields: auditFields }
-  ];
+  ].filter(s => allowedSectionIds.includes(s.id));
 
   return (
     <Card className="border-slate-200 shadow-md bg-white overflow-hidden w-full">

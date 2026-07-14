@@ -214,6 +214,45 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
   // Step state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
 
+  // Dynamic active steps list based on accountTitle and category
+  const activeSteps = useMemo(() => {
+    const steps: number[] = [1];
+    const isExpense = category === "EX";
+    const isBank = accountTitle === "Bank";
+    const isCompany = accountTitle === "Company";
+    const isPersonal = accountTitle === "Personal" || accountTitle === "Customer" || accountTitle === "Employee";
+
+    if (isExpense) {
+      steps.push(6);
+    } else if (isBank) {
+      steps.push(4, 6);
+    } else if (isCompany) {
+      steps.push(2, 3, 4, 5, 6);
+    } else if (isPersonal) {
+      steps.push(2, 6);
+    } else {
+      steps.push(2, 3, 4, 5, 6);
+    }
+    return steps;
+  }, [category, accountTitle]);
+
+  const prevStep = useMemo(() => {
+    const idx = activeSteps.indexOf(currentStep);
+    return idx > 0 ? (activeSteps[idx - 1] as 1 | 2 | 3 | 4 | 5 | 6) : 1;
+  }, [activeSteps, currentStep]);
+
+  const nextStep = useMemo(() => {
+    const idx = activeSteps.indexOf(currentStep);
+    return idx !== -1 && idx < activeSteps.length - 1 ? (activeSteps[idx + 1] as 1 | 2 | 3 | 4 | 5 | 6) : 6;
+  }, [activeSteps, currentStep]);
+
+  // If currentStep becomes inactive because of dropdown change, reset to 1
+  useEffect(() => {
+    if (!activeSteps.includes(currentStep)) {
+      setCurrentStep(1);
+    }
+  }, [activeSteps, currentStep]);
+
   // Branch / Account form state (Step 1)
   const [countries, setCountries] = useState<LocationCountry[]>([]);
   const [mainBranches, setMainBranches] = useState<CountryBranchRow[]>([]);
@@ -714,8 +753,8 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
         )}
       </div>
 
-      {/* â”€â”€ Steps Indicator Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs font-semibold text-slate-500">
+      {/* ── Steps Indicator Bar ────────────────────────────────────────────── */}
+      <div className={`grid grid-cols-2 gap-2 text-xs font-semibold text-slate-500 md:grid-cols-${activeSteps.length}`}>
         {[
           { id: 1, label: getLabel("step1Label", lang) },
           { id: 2, label: getLabel("step2Label", lang) },
@@ -723,7 +762,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
           { id: 4, label: getLabel("step4Label", lang) },
           { id: 5, label: getLabel("step5Label", lang) },
           { id: 6, label: getLabel("step6Label", lang) }
-        ].map((s) => {
+        ].filter((s) => activeSteps.includes(s.id)).map((s, idx) => {
           const active = currentStep === s.id;
           const completed = currentStep > s.id;
           return (
@@ -749,10 +788,10 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
                   ? "bg-emerald-600 text-white"
                   : "bg-slate-200 text-slate-600"
               }`}>
-                {s.id}
+                {idx + 1}
               </span>
               <div className="flex flex-col min-w-0">
-                <span className="text-[10px] text-slate-400 font-normal uppercase tracking-wider">{getLabel("step", lang)} {s.id}</span>
+                <span className="text-[10px] text-slate-400 font-normal uppercase tracking-wider">{getLabel("step", lang)} {idx + 1}</span>
                 <span className="truncate">{s.label}</span>
               </div>
             </button>
@@ -950,7 +989,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button type="button" onClick={() => { if (country && branchType && branch && accountTitle && subType && category && accountName) { setCurrentStep(2); } else { setMessage(getLabel("completeRequiredFields", lang)); } }} className="bg-primary text-white">
+                <Button type="button" onClick={() => { if (country && branchType && branch && accountTitle && subType && category && accountName) { setCurrentStep(nextStep); } else { setMessage(getLabel("completeRequiredFields", lang)); } }} className="bg-primary text-white">
                   {getLabel("saveNext", lang)}
                 </Button>
               </div>
@@ -1004,8 +1043,8 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               )}
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(1)}>{getLabel("back", lang)}</Button>
-                <Button type="button" onClick={() => setCurrentStep(3)} className="bg-primary text-white">
+                <Button variant="outline" onClick={() => setCurrentStep(prevStep)}>{getLabel("back", lang)}</Button>
+                <Button type="button" onClick={() => setCurrentStep(nextStep)} className="bg-primary text-white">
                   {linkedCustomerId ? getLabel("saveNext", lang) : getLabel("skipNext", lang)}
                 </Button>
               </div>
@@ -1059,8 +1098,8 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               )}
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(2)}>{getLabel("back", lang)}</Button>
-                <Button type="button" onClick={() => setCurrentStep(4)} className="bg-primary text-white">
+                <Button variant="outline" onClick={() => setCurrentStep(prevStep)}>{getLabel("back", lang)}</Button>
+                <Button type="button" onClick={() => setCurrentStep(nextStep)} className="bg-primary text-white">
                   {linkedCompanyId ? getLabel("saveNext", lang) : getLabel("skipNext", lang)}
                 </Button>
               </div>
@@ -1113,8 +1152,8 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               )}
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(3)}>{getLabel("back", lang)}</Button>
-                <Button type="button" onClick={() => setCurrentStep(5)} className="bg-primary text-white">
+                <Button variant="outline" onClick={() => setCurrentStep(prevStep)}>{getLabel("back", lang)}</Button>
+                <Button type="button" onClick={() => setCurrentStep(nextStep)} className="bg-primary text-white">
                   {linkedBankId ? getLabel("saveNext", lang) : getLabel("skipNext", lang)}
                 </Button>
               </div>
@@ -1146,8 +1185,8 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               </div>
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(4)}>{getLabel("back", lang)}</Button>
-                <Button type="button" onClick={() => setCurrentStep(6)} className="bg-primary text-white">
+                <Button variant="outline" onClick={() => setCurrentStep(prevStep)}>{getLabel("back", lang)}</Button>
+                <Button type="button" onClick={() => setCurrentStep(nextStep)} className="bg-primary text-white">
                   {linkedWarehouseId ? getLabel("saveNext", lang) : getLabel("skipNext", lang)}
                 </Button>
               </div>
@@ -1204,7 +1243,7 @@ export function NewAccountSetup({ lang: propLang, initialAccountId }: { lang?: S
               )}
 
               <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setCurrentStep(5)}>{getLabel("back", lang)}</Button>
+                <Button variant="outline" onClick={() => setCurrentStep(prevStep)}>{getLabel("back", lang)}</Button>
                 {/* Save button has been moved to the bottom of the Live Report Panel */}
                 <div className="text-xs text-slate-400 italic">{getLabel("reviewDetailsHint", lang)}</div>
               </div>
