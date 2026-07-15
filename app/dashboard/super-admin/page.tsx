@@ -4,6 +4,11 @@ import { ArrowRight, Building, Database, GitBranch, Globe, ReceiptText, Shopping
 import { Button } from "@/components/ui/button";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { SuperAdminOverviewCharts } from "@/features/dashboard/components/super-admin-overview-charts";
+import {
+  DashboardWidget,
+  SuperAdminDashboardSettingsPanel,
+  SuperAdminDashboardSettingsProvider
+} from "@/features/dashboard/components/super-admin-dashboard-settings";
 
 
 type CountMap = {
@@ -315,7 +320,8 @@ export default async function SuperAdminDashboardPage() {
   ];
 
   return (
-    <div className="space-y-6 rounded-[2rem] bg-gradient-to-br from-slate-50 via-white to-sky-50/60 p-3 text-slate-950 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 sm:p-5">
+    <SuperAdminDashboardSettingsProvider>
+      <div className="space-y-6 rounded-[2rem] bg-gradient-to-br from-slate-50 via-white to-sky-50/60 p-3 text-slate-950 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 sm:p-5">
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 text-white shadow-xl dark:border-slate-800">
         <div className="grid gap-6 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.25),transparent_32%),linear-gradient(135deg,#020617,#111827_55%,#0f172a)] p-6 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
@@ -328,7 +334,8 @@ export default async function SuperAdminDashboardPage() {
               Global management view for countries, branches, users, accounts, purchases, sales, ledgers, cash flow, and operational activity.
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:w-80">
+          <div className="grid gap-2 sm:grid-cols-2 lg:w-[28rem]">
+            <SuperAdminDashboardSettingsPanel />
             <Button asChild className="bg-white text-slate-950 hover:bg-slate-100">
               <Link href="/dashboard/new-entry/branches/super-admin">
                 <Building className="mr-2 h-4 w-4" /> Setup Country
@@ -349,25 +356,32 @@ export default async function SuperAdminDashboardPage() {
         </div>
       )}
 
+      <DashboardWidget id="kpis">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
         {statCards.map((card) => (
           <ColorStatCard key={card.label} {...card} />
         ))}
       </section>
+      </DashboardWidget>
 
+      <DashboardWidget id="analytics">
       {data.databaseReady && data.countrySummaries.length > 0 && (
         <section className="pt-1">
           <SuperAdminOverviewCharts countrySummaries={data.countrySummaries} />
         </section>
       )}
+      </DashboardWidget>
 
+      <DashboardWidget id="system">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {systemStatus.map((item) => (
           <SystemStatusCard key={item.label} {...item} />
         ))}
       </section>
+      </DashboardWidget>
 
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <DashboardWidget id="quick">
+        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
 
 
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
@@ -390,48 +404,9 @@ export default async function SuperAdminDashboardPage() {
           </div>
         </div>
       </section>
+      </DashboardWidget>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/40">
-          <div>
-            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Country Currency Dashboard</h2>
-            <p className="text-xs text-slate-500">Each country is reported in its own local currency. Values are not mixed across countries.</p>
-          </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
-            {data.countrySummaries.length} countries
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900 text-[10px] uppercase tracking-wide text-slate-100">
-              <tr>
-                {["Country", "Currency", "Purchases", "Sales", "Debit", "Credit", "Ledger Balance", "Branches"].map((head) => (
-                  <th key={head} className="px-4 py-3 font-semibold">{head}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.countrySummaries.map((country: CountryFinancialSummary) => (
-                <tr key={country.id} className="border-t border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900/30">
-                  <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">{country.name}</td>
-                  <td className="px-4 py-3 font-mono font-bold text-slate-600 dark:text-slate-300">{country.currency}</td>
-                  <td className="px-4 py-3 font-mono text-slate-700 dark:text-slate-300">{money(country.totalPurchases, country.currency)}</td>
-                  <td className="px-4 py-3 font-mono text-slate-700 dark:text-slate-300">{money(country.totalSales, country.currency)}</td>
-                  <td className="px-4 py-3 font-mono text-rose-600 dark:text-rose-300">{money(country.totalDebit, country.currency)}</td>
-                  <td className="px-4 py-3 font-mono text-emerald-600 dark:text-emerald-300">{money(country.totalCredit, country.currency)}</td>
-                  <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-slate-100">{money(country.totalLedgerBalance, country.currency)}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">{country.totalBranches}</td>
-                </tr>
-              ))}
-              {!data.countrySummaries.length && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">No country financial data available.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <DashboardWidget id="activity">
 
       <section>
         <div className="mb-4 flex items-center justify-between">
@@ -498,7 +473,13 @@ export default async function SuperAdminDashboardPage() {
           </div>
         )}
       </section>
+      </DashboardWidget>
     </div>
+    </SuperAdminDashboardSettingsProvider>
   );
 }
+
+
+
+
 
