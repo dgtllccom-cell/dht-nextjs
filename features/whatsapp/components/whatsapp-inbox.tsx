@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { MessageSquare, RefreshCw, Settings } from "lucide-react";
+import { MessageSquare, RefreshCw, Settings, Plus } from "lucide-react";
 import Link from "next/link";
 import { ConversationList } from "./conversation-list";
 import { ChatPanel } from "./chat-panel";
@@ -9,7 +9,7 @@ import { ContactPanel } from "./contact-panel";
 import { useConversations } from "../hooks/use-conversations";
 import { useMessages } from "../hooks/use-messages";
 import { useWhatsAppRealtime } from "../hooks/use-realtime";
-import { fetchWhatsAppAccounts } from "../api";
+import { fetchWhatsAppAccounts, startNewConversation } from "../api";
 import type { WhatsAppAccount, WhatsAppConversation } from "../types";
 import type { ErpSession } from "@/lib/auth/session";
 
@@ -27,6 +27,18 @@ export function WhatsAppInbox({ session }: Props) {
       .then(setAccounts)
       .catch((err) => console.error("Error loading accounts:", err));
   }, []);
+
+  async function handleNewChat() {
+    const phone = prompt("Enter customer phone number (with country code, e.g. +971501234567):");
+    if (!phone) return;
+    try {
+      const res = await startNewConversation(phone);
+      setActiveConversationId(res.conversationId);
+      refreshConversations();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to start new conversation");
+    }
+  }
 
   const {
     conversations,
@@ -95,6 +107,13 @@ export function WhatsAppInbox({ session }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={handleNewChat}
+              title="New Chat"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
             <button
               onClick={() => refreshConversations()}
               title="Refresh"

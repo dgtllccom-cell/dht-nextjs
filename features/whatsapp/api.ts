@@ -120,3 +120,10 @@ export async function fetchContactByPhone(phone: string, countryId?: string) {
   if (countryId) params.set("countryId", countryId);
   return apiFetch(`${BASE}/contacts?${params.toString()}`);
 }
+
+export async function startNewConversation(phone: string): Promise<{ conversationId: string }> {
+  return apiFetch(`${BASE}/conversations`, {
+    method: "POST",
+    body: JSON.stringify({ phone })
+  });
+}

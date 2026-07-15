@@ -23,6 +23,7 @@ const composeSchema = z.object({
   cityBranchId: z.string().uuid().nullable().optional(),
   linkedRoute: z.string().trim().max(255).optional(),
   linkedModule: z.string().trim().max(80).optional(),
+  linkedDocumentNo: z.string().trim().max(100).nullable().optional(),
   labels: z.array(z.string().trim().min(1).max(50)).optional()
 });
 
@@ -777,10 +778,47 @@ export async function POST(request: NextRequest) {
     if (profileRes.error) throw new Error(profileRes.error.message);
     const profile = profileRes.data as ProfileRow | null;
 
+    // AI-Powered Document-Based Auto-Detection Layer
+    let detectedCountryId: string | null = body.countryId ?? null;
+    let detectedCountryBranchId: string | null = body.countryBranchId ?? null;
+    let detectedCityBranchId: string | null = body.cityBranchId ?? null;
+    let detectedCompanyId: string | null = body.companyId ?? null;
+
+    if ((!detectedCityBranchId && !detectedCountryBranchId && !detectedCountryId) && body.linkedModule) {
+      const module = body.linkedModule.toLowerCase();
+      const docNo = body.linkedDocumentNo;
+
+      if (module === "purchase_order" && docNo) {
+        const { data: po } = await admin
+          .from("purchase_orders")
+          .select("country_id, country_branch_id, city_branch_id, supplier_company_id")
+          .eq("purchase_order_no", docNo)
+          .maybeSingle();
+        if (po) {
+          detectedCountryId = po.country_id;
+          detectedCountryBranchId = po.country_branch_id;
+          detectedCityBranchId = po.city_branch_id;
+          detectedCompanyId = po.supplier_company_id;
+        }
+      } else if (docNo) {
+        // Look up standard erp_documents by id or entity_id
+        const { data: doc } = await admin
+          .from("erp_documents")
+          .select("country_id, city_branch_id, company_id")
+          .or(`id.eq.${docNo},entity_id.eq.${docNo}`)
+          .maybeSingle();
+        if (doc) {
+          detectedCountryId = doc.country_id;
+          detectedCityBranchId = doc.city_branch_id;
+          detectedCompanyId = doc.company_id;
+        }
+      }
+    }
+
     const scope = {
-      countryId: body.countryId ?? firstScope(session.countryIds),
-      countryBranchId: body.countryBranchId ?? firstScope(session.countryBranchIds),
-      cityBranchId: body.cityBranchId ?? firstScope(session.cityBranchIds)
+      countryId: detectedCountryId ?? firstScope(session.countryIds),
+      countryBranchId: detectedCountryBranchId ?? firstScope(session.countryBranchIds),
+      cityBranchId: detectedCityBranchId ?? firstScope(session.cityBranchIds)
     };
 
     if (!session.isSuperAdmin) {
@@ -930,7 +968,7 @@ export async function POST(request: NextRequest) {
         direction: body.folder === "draft" ? "internal" : "outgoing",
         linked_module: body.linkedModule ?? null,
         linked_route: body.linkedRoute ?? null,
-        linked_document_no: null,
+        linked_document_no: body.linkedDocumentNo ?? null,
         audit_payload: {
           auditLogId: inserted.data.id,
           senderOfficeName: emailConfig.officeName,

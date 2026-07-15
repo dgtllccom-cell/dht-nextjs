@@ -47,17 +47,17 @@ const DEFAULT_COUNTRY_EMAILS: Record<string, { officeName: string; email: string
   },
   ae: {
     officeName: "DGT LLC",
-    email: "Dgt.llc.com@gmail.com",
+    email: "digital.llc@gmail.com",
     domain: "gmail.com"
   },
   uae: {
     officeName: "DGT LLC",
-    email: "Dgt.llc.com@gmail.com",
+    email: "digital.llc@gmail.com",
     domain: "gmail.com"
   },
   "united arab emirates": {
     officeName: "DGT LLC",
-    email: "Dgt.llc.com@gmail.com",
+    email: "digital.llc@gmail.com",
     domain: "gmail.com"
   }
 };
@@ -99,8 +99,8 @@ export function resolveCountryEmailConfig(country: CountryEmailRecord | null | u
   const logoUrl = typeof settings.logoUrl === "string" ? settings.logoUrl : typeof settings.logo_url === "string" ? settings.logo_url : defaults?.logoUrl ?? null;
   const signatureText = [
     officeName,
-    country?.name ? `Country: ${country.name}` : null,
-    displayBranchName ? `Branch: ${displayBranchName}` : null,
+    mainBranchName,
+    subBranchName,
     officialEmail ? `Email: ${officialEmail}` : null
   ]
     .filter(Boolean)
@@ -108,8 +108,8 @@ export function resolveCountryEmailConfig(country: CountryEmailRecord | null | u
 
   const signatureHtml = [
     `<strong>${escapeHtml(officeName)}</strong>`,
-    country?.name ? `<div>Country: ${escapeHtml(country.name)}</div>` : "",
-    displayBranchName ? `<div>Branch: ${escapeHtml(displayBranchName)}</div>` : "",
+    mainBranchName ? `<div>${escapeHtml(mainBranchName)}</div>` : "",
+    subBranchName ? `<div>${escapeHtml(subBranchName)}</div>` : "",
     officialEmail ? `<div>Email: ${escapeHtml(officialEmail)}</div>` : ""
   ]
     .filter(Boolean)
