@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiCreated, apiOk, handleApiError } from "@/lib/api/response";
 import { requireErpSession } from "@/lib/auth/session";
+import { appendCountryEmailSignature, resolveCountryEmailConfig } from "@/lib/email/country-email-config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const querySchema = z.object({
@@ -102,7 +103,7 @@ type ProfileRow = {
 
 type SimpleRow = { id: string; name: string | null };
 
-type CountryRow = { id: string; name: string; iso2: string | null; official_email?: string | null; admin_email?: string | null; email_domain?: string | null };
+type CountryRow = { id: string; name: string; iso2: string | null; official_email?: string | null; admin_email?: string | null; email_domain?: string | null; email_server_settings?: Record<string, unknown> | null };
 type CountryBranchRow = { id: string; name: string; code: string; country_id: string; local_currency: string; status: string; email?: string | null };
 type CityBranchRow = { id: string; name: string; code: string; city_name: string; country_id: string; country_branch_id: string; local_currency: string; status: string; email?: string | null };
 
@@ -795,7 +796,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [countryRes, countryBranchRes, cityBranchRes] = await Promise.all([
-      scope.countryId ? admin.from("countries").select("id, name, iso2, official_email, admin_email, email_domain").eq("id", scope.countryId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      scope.countryId ? admin.from("countries").select("id, name, iso2, official_email, admin_email, email_domain, email_server_settings").eq("id", scope.countryId).maybeSingle() : Promise.resolve({ data: null, error: null }),
       scope.countryBranchId ? admin.from("country_branches").select("id, name, code, country_id, email").eq("id", scope.countryBranchId).maybeSingle() : Promise.resolve({ data: null, error: null }),
       scope.cityBranchId ? admin.from("city_branches").select("id, name, code, city_name, country_id, country_branch_id, email").eq("id", scope.cityBranchId).maybeSingle() : Promise.resolve({ data: null, error: null })
     ]);
@@ -803,25 +804,41 @@ export async function POST(request: NextRequest) {
     if ((countryBranchRes as any).error) throw new Error((countryBranchRes as any).error.message);
     if ((cityBranchRes as any).error) throw new Error((cityBranchRes as any).error.message);
 
-    const country = (countryRes as any).data as CountryRow | null;
-    const countryBranch = (countryBranchRes as any).data as (CountryBranchRow | null);
-    const cityBranch = (cityBranchRes as any).data as (CityBranchRow | null);
-    const senderBranchName = cityBranch
-      ? `${cityBranch.city_name ?? cityBranch.name} - ${cityBranch.name}`
-      : countryBranch
-        ? countryBranch.name
-        : country
-          ? country.name
-          : "Super Admin";
-    const senderName = scope.cityBranchId || scope.countryBranchId || scope.countryId
-      ? `${senderBranchName} Branch`
-      : session.fullName ?? profile?.full_name ?? session.email ?? "Super Admin";
+    let country = (countryRes as any).data as CountryRow | null;
+    let countryBranch = (countryBranchRes as any).data as CountryBranchRow | null;
+    const cityBranch = (cityBranchRes as any).data as CityBranchRow | null;
+
+    if (!countryBranch && cityBranch?.country_branch_id) {
+      const inferredCountryBranch = await admin.from("country_branches").select("id, name, code, country_id, email").eq("id", cityBranch.country_branch_id).maybeSingle();
+      if (inferredCountryBranch.error) throw new Error(inferredCountryBranch.error.message);
+      countryBranch = inferredCountryBranch.data as CountryBranchRow | null;
+      scope.countryBranchId = countryBranch?.id ?? scope.countryBranchId;
+    }
+
+    const resolvedCountryId = scope.countryId ?? cityBranch?.country_id ?? countryBranch?.country_id ?? null;
+    if (!country && resolvedCountryId) {
+      const inferredCountry = await admin.from("countries").select("id, name, iso2, official_email, admin_email, email_domain, email_server_settings").eq("id", resolvedCountryId).maybeSingle();
+      if (inferredCountry.error) throw new Error(inferredCountry.error.message);
+      country = inferredCountry.data as CountryRow | null;
+      scope.countryId = country?.id ?? resolvedCountryId;
+    }
+
+    const emailConfig = resolveCountryEmailConfig(country, {
+      mainBranchName: countryBranch?.name ?? null,
+      mainBranchCode: countryBranch?.code ?? null,
+      cityBranchName: cityBranch?.name ?? null,
+      cityBranchCode: cityBranch?.code ?? null,
+      cityName: cityBranch?.city_name ?? null
+    });
+    const senderBranchName = emailConfig.displayBranchName;
+    const senderName = emailConfig.fromName;
     const ccParts = uniqueStrings([
       body.cc ?? null,
-      country?.admin_email ?? (scope.countryId ? `${country?.name ?? "Country"} Admin` : null),
+      emailConfig.adminEmail,
       "Super Admin"
     ]);
-    const scopedSenderEmail = cityBranch?.email ?? countryBranch?.email ?? country?.official_email ?? session.email ?? null;
+    const scopedSenderEmail = emailConfig.fromEmail ?? session.email ?? null;
+    const signedBody = appendCountryEmailSignature(body.body, emailConfig);
 
     const payload = {
       channel: body.channel,
@@ -830,7 +847,7 @@ export async function POST(request: NextRequest) {
       to: body.to ?? "",
       cc: ccParts.join(", "),
       subject: body.subject,
-      body: body.body,
+      body: signedBody,
       companyId: body.companyId ?? profile?.default_company_id ?? null,
       countryId: scope.countryId,
       countryBranchId: scope.countryBranchId,
@@ -841,9 +858,13 @@ export async function POST(request: NextRequest) {
       senderUserId: session.userId,
       senderName,
       senderEmail: scopedSenderEmail,
+      senderOfficeName: emailConfig.officeName,
       senderBranchName,
+      senderMainBranchName: emailConfig.mainBranchName,
+      senderSubBranchName: emailConfig.subBranchName,
       senderBranchCode: cityBranch?.code ?? countryBranch?.code ?? null,
-      senderCountryName: country?.name ?? null,
+      senderCountryName: emailConfig.countryName,
+      emailSignature: emailConfig.signatureText,
       createdAt: new Date().toISOString()
     };
 
@@ -869,7 +890,7 @@ export async function POST(request: NextRequest) {
       const provider = await admin
         .from("erp_email_providers")
         .select("id")
-        .eq("domain", country?.email_domain ?? "dgt.llc")
+        .eq("domain", emailConfig.emailDomain ?? "dgt.llc")
         .is("deleted_at", null)
         .maybeSingle();
       const fallbackProvider =
@@ -901,7 +922,7 @@ export async function POST(request: NextRequest) {
         recipient_to: body.to ?? "",
         recipient_cc: ccParts.join(", "),
         subject: body.subject,
-        body: body.body,
+        body: signedBody,
         labels: body.labels ?? [],
         attachment_count: 0,
         attachments: [],
@@ -912,10 +933,17 @@ export async function POST(request: NextRequest) {
         linked_document_no: null,
         audit_payload: {
           auditLogId: inserted.data.id,
+          senderOfficeName: emailConfig.officeName,
           senderBranchName,
+          senderMainBranchName: emailConfig.mainBranchName,
+          senderSubBranchName: emailConfig.subBranchName,
           senderBranchCode: cityBranch?.code ?? countryBranch?.code ?? null,
-          senderCountryName: country?.name ?? null,
-          ccPolicy: { ccCountryAdmin: Boolean(country?.admin_email), ccSuperAdmin: true }
+          senderCountryName: emailConfig.countryName,
+          fromEmail: scopedSenderEmail,
+          replyTo: emailConfig.replyTo,
+          emailSignature: emailConfig.signatureText,
+          ccPolicy: { ccCountryAdmin: Boolean(emailConfig.adminEmail), ccSuperAdmin: true },
+          countryEmailConfig: emailConfig
         },
         sent_at: body.folder === "sent" ? payload.createdAt : null
       });
@@ -942,3 +970,5 @@ function uniqueOptions(options: Array<{ value: string; label: string; keywords: 
   }
   return [...map.values()].filter((option) => option.value !== "all");
 }
+
+
