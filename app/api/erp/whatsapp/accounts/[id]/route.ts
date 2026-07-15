@@ -4,6 +4,7 @@ import { apiOk, handleApiError } from "@/lib/api/response";
 import { requireErpSession } from "@/lib/auth/session";
 import { authorizeApiScope } from "@/lib/api/scope-middleware";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const accountUpdateSchema = z.object({
   displayName: z.string().min(2).max(100).optional(),
@@ -21,7 +22,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const { id } = await params;
     const body = accountUpdateSchema.parse(await request.json());
 
-    const supabase = await createServerSupabaseClient();
+    const supabase = createSupabaseAdminClient();
 
     // Load account to check scope ownership
     const { data: account, error: fetchError } = await (supabase as any)
@@ -66,7 +67,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     const session = await requireErpSession();
     const { id } = await params;
 
-    const supabase = await createServerSupabaseClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: account } = await (supabase as any)
       .from("whatsapp_accounts")

@@ -105,9 +105,9 @@ create table whatsapp_accounts (
   -- Scope integrity: scope must match the nullable FK pattern
   constraint whatsapp_accounts_scope_chk check (
     (scope = 'super_admin'    and country_id is null  and country_branch_id is null and city_branch_id is null)
-    or (scope = 'country'       and country_id is not null and city_branch_id is null)
+    or (scope = 'country'       and country_id is not null and country_branch_id is null and city_branch_id is null)
     or (scope = 'country_branch' and country_id is not null and country_branch_id is not null and city_branch_id is null)
-    or (scope = 'city_branch'   and country_id is not null and city_branch_id is not null)
+    or (scope = 'city_branch'   and country_id is not null and country_branch_id is not null and city_branch_id is not null)
   )
 );
 
@@ -421,6 +421,11 @@ create policy wa_messages_read on whatsapp_messages
     is_super_admin()
     or (country_id is not null and can_access_country(country_id))
     or (city_branch_id is not null and can_access_city_branch(city_branch_id))
+    or exists (
+      select 1 from whatsapp_conversations wc
+      where wc.id = conversation_id
+        and wc.assigned_user_id = auth.uid()
+    )
   );
 
 create policy wa_messages_write on whatsapp_messages
@@ -428,11 +433,21 @@ create policy wa_messages_write on whatsapp_messages
     is_super_admin()
     or (country_id is not null and can_access_country(country_id))
     or (city_branch_id is not null and can_access_city_branch(city_branch_id))
+    or exists (
+      select 1 from whatsapp_conversations wc
+      where wc.id = conversation_id
+        and wc.assigned_user_id = auth.uid()
+    )
   )
   with check (
     is_super_admin()
     or (country_id is not null and can_access_country(country_id))
     or (city_branch_id is not null and can_access_city_branch(city_branch_id))
+    or exists (
+      select 1 from whatsapp_conversations wc
+      where wc.id = conversation_id
+        and wc.assigned_user_id = auth.uid()
+    )
   );
 
 -- whatsapp_message_media: access via parent message
@@ -445,6 +460,11 @@ create policy wa_media_read on whatsapp_message_media
           is_super_admin()
           or (wm.country_id is not null and can_access_country(wm.country_id))
           or (wm.city_branch_id is not null and can_access_city_branch(wm.city_branch_id))
+          or exists (
+            select 1 from whatsapp_conversations wc
+            where wc.id = wm.conversation_id
+              and wc.assigned_user_id = auth.uid()
+          )
         )
     )
   );
@@ -458,6 +478,11 @@ create policy wa_media_write on whatsapp_message_media
           is_super_admin()
           or (wm.country_id is not null and can_access_country(wm.country_id))
           or (wm.city_branch_id is not null and can_access_city_branch(wm.city_branch_id))
+          or exists (
+            select 1 from whatsapp_conversations wc
+            where wc.id = wm.conversation_id
+              and wc.assigned_user_id = auth.uid()
+          )
         )
     )
   )
@@ -469,6 +494,11 @@ create policy wa_media_write on whatsapp_message_media
           is_super_admin()
           or (wm.country_id is not null and can_access_country(wm.country_id))
           or (wm.city_branch_id is not null and can_access_city_branch(wm.city_branch_id))
+          or exists (
+            select 1 from whatsapp_conversations wc
+            where wc.id = wm.conversation_id
+              and wc.assigned_user_id = auth.uid()
+          )
         )
     )
   );

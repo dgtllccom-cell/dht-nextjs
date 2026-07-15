@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Search, Filter, ChevronDown } from "lucide-react";
-import type { WhatsAppConversation, ConversationFilters, ConversationStatus } from "../types";
+import type { WhatsAppConversation, ConversationFilters, ConversationStatus, WhatsAppAccount } from "../types";
 import { ConversationItem } from "./conversation-item";
 import { FiltersBar } from "./filters-bar";
 import type { ErpSession } from "@/lib/auth/session";
@@ -15,6 +15,7 @@ type Props = {
   onSelect: (id: string) => void;
   onFilterChange: (filters: Partial<ConversationFilters>) => void;
   session: ErpSession;
+  accounts: WhatsAppAccount[];
 };
 
 const STATUS_TABS: { label: string; value: ConversationStatus | "all" }[] = [
@@ -31,7 +32,8 @@ export function ConversationList({
   isLoading,
   onSelect,
   onFilterChange,
-  session
+  session,
+  accounts
 }: Props) {
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -105,7 +107,7 @@ export function ConversationList({
 
       {/* Advanced filters */}
       {showFilters && (
-        <FiltersBar filters={filters} onFilterChange={onFilterChange} session={session} />
+        <FiltersBar filters={filters} onFilterChange={onFilterChange} session={session} accounts={accounts} />
       )}
 
       {/* Conversation list */}

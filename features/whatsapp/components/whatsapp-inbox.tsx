@@ -9,7 +9,8 @@ import { ContactPanel } from "./contact-panel";
 import { useConversations } from "../hooks/use-conversations";
 import { useMessages } from "../hooks/use-messages";
 import { useWhatsAppRealtime } from "../hooks/use-realtime";
-import type { WhatsAppConversation } from "../types";
+import { fetchWhatsAppAccounts } from "../api";
+import type { WhatsAppAccount, WhatsAppConversation } from "../types";
 import type { ErpSession } from "@/lib/auth/session";
 
 type Props = {
@@ -19,6 +20,13 @@ type Props = {
 export function WhatsAppInbox({ session }: Props) {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [showContact, setShowContact] = useState(true);
+  const [accounts, setAccounts] = useState<WhatsAppAccount[]>([]);
+
+  useEffect(() => {
+    fetchWhatsAppAccounts()
+      .then(setAccounts)
+      .catch((err) => console.error("Error loading accounts:", err));
+  }, []);
 
   const {
     conversations,
@@ -112,6 +120,7 @@ export function WhatsAppInbox({ session }: Props) {
           onSelect={(id) => setActiveConversationId(id)}
           onFilterChange={applyFilters}
           session={session}
+          accounts={accounts}
         />
       </div>
 
