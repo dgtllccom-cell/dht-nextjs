@@ -71,6 +71,17 @@ function formatDate(value: string | null | undefined) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function getCurrencySymbol(c: string) {
+  if (!c) return "";
+  const upper = c.toUpperCase();
+  if (upper === "USD") return "$";
+  if (upper === "AED") return "د.إ";
+  if (upper === "PKR") return "₨";
+  if (upper === "AFN") return "؋";
+  if (upper === "INR") return "₹";
+  return upper;
+}
+
 export function openPurchaseA4ReportWindow(input: {
   title: string;
   subtitle?: string;
@@ -509,7 +520,7 @@ export function openPurchaseA4ReportWindow(input: {
                 <tr><td class="lbl">Br. S/N:</td><td class="val font-mono text-amber-700">${escapeHtml((b as any).branch_transaction_serial_number || (b as any).branchSerialNo || (b as any).form_data?.form?.branchSerialNo || "-")}</td></tr>
                 <tr><td class="lbl">Purchase Date:</td><td class="val">${formatDate(b.purchaseDate)}</td></tr>
                 <tr><td class="lbl">Booking Date:</td><td class="val">${formatDate(b.bookingDate)}</td></tr>
-                <tr><td class="lbl">Exchange Rate:</td><td class="val font-mono">${exRateVal} Rs</td></tr>
+                <tr><td class="lbl">Exchange Rate:</td><td class="val font-mono">${exRateVal} ${escapeHtml(items[0]?.finalCurr || "PKR")}</td></tr>
               </tbody>
             </table>
           </div>
@@ -636,11 +647,11 @@ export function openPurchaseA4ReportWindow(input: {
           </div>
           <div class="aggregate-box">
             <div class="aggregate-lbl">Average Rate/KG</div>
-            <div class="aggregate-val">$${avgRateKg.toFixed(2)}</div>
+            <div class="aggregate-val">${getCurrencySymbol(items[0]?.purchCurr || "USD")}${avgRateKg.toFixed(2)}</div>
           </div>
           <div class="aggregate-box">
             <div class="aggregate-lbl">Average Rate/Ton</div>
-            <div class="aggregate-val">$${avgRateTon.toFixed(2)}</div>
+            <div class="aggregate-val">${getCurrencySymbol(items[0]?.purchCurr || "USD")}${avgRateTon.toFixed(2)}</div>
           </div>
           <div class="aggregate-box">
             <div class="aggregate-lbl" style="color: #2563eb;">Total Purchase (${escapeHtml(items[0]?.purchCurr || "USD")})</div>

@@ -1,7 +1,11 @@
-import type { Route } from "next";
-import { redirect } from "next/navigation";
+"use client";
 
-export default function SalesConfirmRedirect() {
-  redirect("/dashboard/sales" as Route);
+import { SalesOrderManagementDashboard } from "@/features/sales/components/sales-order-management-dashboard";
+
+export default function ConfirmedSalesPage() {
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <SalesOrderManagementDashboard initialStage="confirm" />
+    </div>
+  );
 }
-

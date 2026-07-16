@@ -389,14 +389,24 @@ export const sidebarTree: SidebarNode[] = [
     iconKey: "gantt",
     children: [
       {
+        key: "sales-new-booking",
+        labelKey: "New Sales Booking" as any,
+        href: "/dashboard/sales/new-sales-booking-order" as Route
+      },
+      {
         key: "sales-order",
-        labelKey: "nav.sales_order",
+        labelKey: "Sales Orders Console" as any,
         href: "/dashboard/sales/sales-order" as Route
       },
       {
         key: "sales-confirm",
-        labelKey: "nav.sales_confirm",
+        labelKey: "Confirmed Sales" as any,
         href: "/dashboard/sales/sales-confirm" as Route
+      },
+      {
+        key: "sales-booking-register",
+        labelKey: "Sales Booking Register" as any,
+        href: "/dashboard/sales/sales-booking-journal-report" as Route
       },
       {
         key: "sales-local",
@@ -785,11 +795,6 @@ export const sidebarTree: SidebarNode[] = [
             key: "mgmt-port-master",
             labelKey: "nav.port_master",
             href: "/dashboard/settings/ports" as Route
-          },
-          {
-            key: "mgmt-chs-products",
-            labelKey: "nav.chs_products",
-            href: "/dashboard/settings/management/chs-products" as Route
           }
         ]
       },

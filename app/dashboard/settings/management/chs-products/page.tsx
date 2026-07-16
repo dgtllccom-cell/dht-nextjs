@@ -1,7 +1,5 @@
-import { requireErpSession } from "@/lib/auth/session";
-import ProductMasterClient from "./ui-client";
+import { redirect } from "next/navigation";
 
-export default async function ChsProductsPage() {
-  const session = await requireErpSession();
-  return <ProductMasterClient session={session} />;
+export default function ChsProductsPage() {
+  redirect("/dashboard/settings");
 }

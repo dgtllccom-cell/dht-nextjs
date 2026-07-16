@@ -426,6 +426,74 @@ function requiredAdvanceAmount(row: PurchaseOrderRow) {
   return pct > 0 ? (orderTotal(row) * pct) / 100 : Number(row.advance_paid || 0);
 }
 
+function resolvePurchaseCalculations(row: PurchaseOrderRow, liveRates: any[] = []) {
+  const form = rowForm(row);
+  const purchCurr = rowCurrency(row) || "USD";
+  const finalCurr = rowOfficeCurrency(row) || "PKR";
+  
+  // Resolve exchange rate
+  const exRate = Number(row.exchange_rate || form.exchangeRate || 1) || 1;
+
+  // Resolve base purchase amount in purchase currency
+  const goods = row.form_data?.goodsEntries || [];
+  let totalPurchaseFC = 0;
+  if (Array.isArray(goods) && goods.length > 0) {
+    totalPurchaseFC = goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || g.amount || 0), 0);
+  } else {
+    totalPurchaseFC = Number(row.form_data?.totals?.grandPrimaryFinal || form.subTotal || form.totalAmount || 0);
+  }
+
+  if (totalPurchaseFC <= 0) {
+    const rawTotal = orderTotal(row);
+    if (exRate > 1 && rawTotal > 1000000) {
+      totalPurchaseFC = rawTotal / exRate;
+    } else {
+      totalPurchaseFC = rawTotal;
+    }
+  }
+
+  // Advance Percentage
+  const advancePercent = Number(form.advancePercent || 0);
+
+  // Advance Amount in purchase currency
+  let advanceAmountFC = 0;
+  if (advancePercent > 0) {
+    advanceAmountFC = (totalPurchaseFC * advancePercent) / 100;
+  } else {
+    const rawAdv = Number(row.advance_paid || form.advanceAmount || 0);
+    if (exRate > 1 && rawAdv > totalPurchaseFC * 1.05) {
+      advanceAmountFC = rawAdv / exRate;
+    } else {
+      advanceAmountFC = rawAdv;
+    }
+  }
+
+  // Remaining Purchase in purchase currency
+  const remainingPurchaseFC = Math.max(0, totalPurchaseFC - advanceAmountFC);
+
+  // Converted Local Currency Amount
+  const totalPurchaseLC = totalPurchaseFC * exRate;
+
+  // Local Currency Advance
+  const advanceAmountLC = advanceAmountFC * exRate;
+
+  // Remaining Local Currency Balance
+  const remainingPurchaseLC = remainingPurchaseFC * exRate;
+
+  return {
+    purchCurr,
+    finalCurr,
+    exRate,
+    totalPurchaseFC,
+    advancePercent,
+    advanceAmountFC,
+    remainingPurchaseFC,
+    totalPurchaseLC,
+    advanceAmountLC,
+    remainingPurchaseLC
+  };
+}
+
 export type PurchaseCurrencySummaryFC = {
   currency: string;
   totalPurchase: number;
@@ -568,124 +636,72 @@ function weekDue(value: string | null | undefined) {
   return d >= now && d <= sevenDays;
 }
 
-function kpis(rows: PurchaseOrderRow[], mode: PaymentMode, baseCurrency: string): KpiCard[] {
-  const count = rows.length;
+function kpis(rows: PurchaseOrderRow[], baseCurrency: string): KpiCard[] {
+  let totalPurchaseUSD = 0;
+  let totalInvoiceValueLC = 0;
+  let totalAdvancePaidLC = 0;
+  let totalOutstandingBalanceLC = 0;
+  let totalExchangeRate = 0;
+  let exchangeRateCount = 0;
 
-  if (mode === "remaining") {
-    const totalRemaining = rows.reduce((sum, row) => sum + numeric(row.remaining_due), 0);
-    const totalRemainingPaid = rows.reduce((sum, row) => sum + numeric(row.remaining_paid), 0);
-    const totalOutstanding = Math.max(0, totalRemaining - totalRemainingPaid);
+  rows.forEach((row) => {
+    const calcs = resolvePurchaseCalculations(row);
+    totalPurchaseUSD += calcs.totalPurchaseFC; // base currency (e.g. USD)
+    totalInvoiceValueLC += calcs.totalPurchaseLC; // local currency (e.g. PKR/AED)
+    
+    const conversionRate = calcs.exRate;
+    const paidAdvanceLC = Number(row.advance_paid || 0) * conversionRate;
+    totalAdvancePaidLC += paidAdvanceLC;
 
-    return [
-      {
-        label: "Total POs",
-        value: String(count),
-        sublabel: "All Purchase Orders",
-        icon: <FileText className="h-5 w-5" />,
-        tone: "blue"
-      },
-      {
-        label: "Total Remaining",
-        value: money(totalRemaining),
-        sublabel: baseCurrency,
-        icon: <Banknote className="h-5 w-5" />,
-        tone: "green"
-      },
-      {
-        label: "Cleared Amount",
-        value: money(totalRemainingPaid),
-        sublabel: baseCurrency,
-        icon: <CheckCircle className="h-5 w-5" />,
-        tone: "amber"
-      },
-      {
-        label: "Outstanding Due",
-        value: money(totalOutstanding),
-        sublabel: baseCurrency,
-        icon: <XCircle className="h-5 w-5" />,
-        tone: "red"
-      }
-    ];
-  }
+    // Remaining local currency balance (outstanding)
+    totalOutstandingBalanceLC += calcs.remainingPurchaseLC;
 
-  if (mode === "credit" || mode === "charges") {
-    const totalCredit = rows.reduce((sum, row) => sum + numeric(row.credit_amount), 0);
-    const usedCredit = rows.filter((row) => numeric(row.credit_amount) > 0).reduce((sum, row) => sum + numeric(row.credit_amount), 0);
-    const availableCredit = Math.max(0, totalCredit - usedCredit);
+    if (calcs.exRate > 0) {
+      totalExchangeRate += calcs.exRate;
+      exchangeRateCount++;
+    }
+  });
 
-    return [
-      {
-        label: "Total POs",
-        value: String(count),
-        sublabel: "All Purchase Orders",
-        icon: <FileText className="h-5 w-5" />,
-        tone: "blue"
-      },
-      {
-        label: "Total Credit",
-        value: money(totalCredit),
-        sublabel: baseCurrency,
-        icon: <Banknote className="h-5 w-5" />,
-        tone: "green"
-      },
-      {
-        label: "Used Credit",
-        value: money(usedCredit),
-        sublabel: baseCurrency,
-        icon: <CheckCircle className="h-5 w-5" />,
-        tone: "amber"
-      },
-      {
-        label: "Available Credit",
-        value: money(availableCredit),
-        sublabel: baseCurrency,
-        icon: <XCircle className="h-5 w-5" />,
-        tone: "red"
-      }
-    ];
-  }
+  const avgExchangeRate = exchangeRateCount > 0 ? totalExchangeRate / exchangeRateCount : 1.0;
 
-  // advance mode (mockup style)
-  const totalAdvanceRequired = rows.reduce((sum, row) => {
-    const form = row.form_data?.form || {};
-    const totalPrice = row.form_data?.goodsEntries?.length
-      ? row.form_data.goodsEntries.reduce((s: number, g: any) => s + Number(g.totalAmount || 0), 0)
-      : Number(form.totalAmount || 0);
-    const advancePercent = Number(form.advancePercent || 0);
-    const rate = row.exchange_rate || form.exchangeRate || 1;
-    return sum + ((totalPrice * advancePercent) / 100) * rate;
-  }, 0);
-  const totalPaidAdvance = rows.reduce((sum, row) => sum + numeric(row.advance_paid), 0);
-  const pendingAdvance = Math.max(0, totalAdvanceRequired - totalPaidAdvance);
+  const localCur = rows.length > 0 ? rowOfficeCurrency(rows[0]) : baseCurrency;
+  const purchCur = rows.length > 0 ? rowCurrency(rows[0]) : "USD";
 
   return [
     {
-      label: "Total POs",
-      value: String(count),
-      sublabel: "All Purchase Orders",
+      label: "Total Purchase",
+      value: money(totalPurchaseUSD, purchCur),
+      sublabel: "Original Currency Total",
       icon: <FileText className="h-5 w-5" />,
       tone: "blue"
     },
     {
-      label: "Total Advance",
-      value: money(totalAdvanceRequired),
-      sublabel: baseCurrency,
+      label: "Total Invoice Value",
+      value: money(totalInvoiceValueLC, localCur),
+      sublabel: "Local Currency Total",
       icon: <Banknote className="h-5 w-5" />,
       tone: "green"
     },
     {
-      label: "Paid Advance",
-      value: money(totalPaidAdvance),
-      sublabel: baseCurrency,
+      label: "Total Advance Paid",
+      value: money(totalAdvancePaidLC, localCur),
+      sublabel: "Advance Paid to Date",
       icon: <CheckCircle className="h-5 w-5" />,
       tone: "amber"
     },
     {
-      label: "Pending Advance",
-      value: money(pendingAdvance),
-      sublabel: baseCurrency,
+      label: "Total Outstanding Balance",
+      value: money(totalOutstandingBalanceLC, localCur),
+      sublabel: "Remaining Due to Clear",
       icon: <XCircle className="h-5 w-5" />,
       tone: "red"
+    },
+    {
+      label: "Average Exchange Rate",
+      value: avgExchangeRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
+      sublabel: `1 ${purchCur} to ${localCur}`,
+      icon: <RefreshCw className="h-5 w-5" />,
+      tone: "slate"
     }
   ];
 }
@@ -956,9 +972,74 @@ function NestedPaymentHistory({
 
   // Display newest first in UI table view (reversed chronological)
   const historyWithBalance = [...computedHistory].reverse();
+  const calcs = resolvePurchaseCalculations(row);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40 space-y-5">
+      {/* Visual Calculation Flow sequence */}
+      <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-200/60 dark:border-slate-800/80 shadow-inner">
+        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-1.5">
+          📊 Purchase Order Financial Conversion Flow
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+          {/* Column 1: Original Currency Breakdown */}
+          <div className="flex flex-col justify-between border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-xl p-4 shadow-sm">
+            <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 border-b border-slate-100 dark:border-slate-800 pb-1.5 mb-2.5">
+              Original Currency Flow ({calcs.purchCurr})
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-semibold">Total Purchase Amount:</span>
+                <span className="font-mono font-black text-slate-800 dark:text-slate-200">{money(calcs.totalPurchaseFC, calcs.purchCurr)}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-semibold">Invoice / Advance %:</span>
+                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-mono font-black dark:bg-blue-950/40 dark:text-blue-400">{calcs.advancePercent}%</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-semibold">Invoice / Advance Amount:</span>
+                <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">{money(calcs.advanceAmountFC, calcs.purchCurr)}</span>
+              </div>
+              <div className="border-t border-dashed border-slate-100 dark:border-slate-800/60 my-1"></div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-800 dark:text-slate-200 font-bold">Remaining Purchase Balance:</span>
+                <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(calcs.remainingPurchaseFC, calcs.purchCurr)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Column 2: Conversion Rate Bridge */}
+          <div className="flex flex-col justify-center items-center p-4 bg-white dark:bg-slate-950 rounded-xl border border-slate-200/60 dark:border-slate-800/80 shadow-sm relative overflow-hidden text-center min-h-[120px]">
+            <div className="absolute top-0 right-0 px-2 py-0.5 text-[8px] font-black bg-indigo-50 text-indigo-700 rounded-bl dark:bg-indigo-950/40 dark:text-indigo-400 uppercase tracking-widest">BRIDGE</div>
+            <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Exchange Rate Applied</div>
+            <div className="text-2xl font-mono font-black text-indigo-600 dark:text-indigo-400">{calcs.exRate.toFixed(4)}</div>
+            <div className="text-[10px] text-slate-500 font-bold mt-1.5">1 {calcs.purchCurr} = {calcs.exRate.toFixed(2)} {calcs.finalCurr}</div>
+          </div>
+
+          {/* Column 3: Converted Local Currency Breakdown */}
+          <div className="flex flex-col justify-between border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-xl p-4 shadow-sm">
+            <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 border-b border-slate-100 dark:border-slate-800 pb-1.5 mb-2.5">
+              Converted Currency Flow ({calcs.finalCurr})
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-semibold">Converted Local Amount:</span>
+                <span className="font-mono font-black text-slate-800 dark:text-slate-200">{money(calcs.totalPurchaseLC, calcs.finalCurr)}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-semibold">Local Currency Advance ({calcs.advancePercent}%):</span>
+                <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">{money(calcs.advanceAmountLC, calcs.finalCurr)}</span>
+              </div>
+              <div className="border-t border-dashed border-slate-100 dark:border-slate-800/60 my-1"></div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-800 dark:text-slate-200 font-bold">Remaining Local Balance:</span>
+                <span className="font-mono font-black text-rose-600 dark:text-rose-455">{money(calcs.remainingPurchaseLC, calcs.finalCurr)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="mb-3 flex items-center justify-between">
         <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
           Traceable Payment History (Nested Journal Entries)
@@ -2057,6 +2138,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [countryFilter, setCountryFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [currencyFilter, setCurrencyFilter] = useState("");
+  const [startDateFilter, setStartDateFilter] = useState("");
+  const [endDateFilter, setEndDateFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -2402,8 +2485,21 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       if (branchFilter && rowBranchName(row) !== branchFilter) return false;
       if (currencyFilter && rowCurrency(row) !== currencyFilter) return false;
 
-      // Extract form values for clearance calculation
       const form = row.form_data?.form || {};
+      if (startDateFilter) {
+        const rowDate = new Date(row.created_at || form.purchaseDate || form.bookingDate || "");
+        const start = new Date(startDateFilter);
+        start.setHours(0, 0, 0, 0);
+        if (Number.isNaN(rowDate.getTime()) || rowDate < start) return false;
+      }
+      if (endDateFilter) {
+        const rowDate = new Date(row.created_at || form.purchaseDate || form.bookingDate || "");
+        const end = new Date(endDateFilter);
+        end.setHours(23, 59, 59, 999);
+        if (Number.isNaN(rowDate.getTime()) || rowDate > end) return false;
+      }
+
+      // Extract form values for clearance calculation
       const finalAmount = orderTotal(row);
       const advancePercent = Number(form.advancePercent || 0);
       const requiredAdvance = (finalAmount * advancePercent) / 100;
@@ -2487,7 +2583,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle));
     });
-  }, [activeMode, branchFilter, countryFilter, currencyFilter, draftFilter, orders, query]);
+  }, [activeMode, branchFilter, countryFilter, currencyFilter, draftFilter, orders, query, startDateFilter, endDateFilter]);
 
   const selected = selectedId ? (filtered.find((row) => row.id === selectedId) ?? null) : null;
 
@@ -2733,6 +2829,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     setCountryFilter("");
     setBranchFilter("");
     setCurrencyFilter("");
+    setStartDateFilter("");
+    setEndDateFilter("");
     setPageIndex(0);
   }
 
@@ -2878,7 +2976,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     }
   }, [selectedId, selected, baseCurrency, currency, getEffectiveRate, isSuperAdmin]);
 
-  const cards = useMemo(() => kpis(filtered, activeMode, baseCurrency), [activeMode, filtered, baseCurrency]);
+  const cards = useMemo(() => kpis(filtered, baseCurrency), [filtered, baseCurrency]);
   const countryOptions = useMemo(() => Array.from(new Set(orders.map(rowCountryName))).filter(Boolean).sort(), [orders]);
   const branchOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowBranchName))).filter(Boolean).sort(), [orders, countryFilter]);
   const currencyOptions = useMemo(() => Array.from(new Set(orders.filter((row) => !countryFilter || rowCountryName(row) === countryFilter).map(rowCurrency))).filter(Boolean).sort(), [orders, countryFilter]);
@@ -3158,50 +3256,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }
 
   const renderRow = (row: PurchaseOrderRow, index: number) => {
+    const calcs = resolvePurchaseCalculations(row);
     const form = row.form_data?.form || {};
     const goods = row.form_data?.goodsEntries || [];
-    const totalPrice = orderTotal(row);
-    const bookCur = rowCurrency(row);
-    const officeCur = rowOfficeCurrency(row);
-    const conversionRate = getConversionRate(row, bookCur, officeCur, liveRates);
     
-    // Correctly resolve Book Currency (USD/FC) and Local Currency (PKR/LC)
-    const totalAmountBC = (conversionRate > 1 && totalPrice > 1000000) ? (totalPrice / conversionRate) : totalPrice;
-    const totalAmountLocal = totalAmountBC * conversionRate;
-
-    const advancePercent = Number(form.advancePercent || 0);
-    const requiredAdvanceBC = (totalAmountBC * advancePercent) / 100;
-    const paidAdvanceBC = Number(row.advance_paid || 0);
-    const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
-    
-    const requiredAdvance = (totalAmountLocal * advancePercent) / 100;
-    const paidAdvance = paidAdvanceBC * conversionRate;
-    const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
-    
-    const remainingDueBC = Number(row.remaining_due || 0);
-    const rowLocalCurrency = officeCur;
-    let paidAmountBC = 0;
-    let paidAmountLocal = 0;
-    let balanceAmountBC = 0;
-    let balanceAmountLocal = 0;
-    if (activeMode === "advance") {
-      paidAmountBC = paidAdvanceBC;
-      paidAmountLocal = paidAdvance;
-      balanceAmountBC = remainingAdvanceBC;
-      balanceAmountLocal = remainingAdvance;
-    } else if (activeMode === "remaining") {
-      const remPaidBC = Number(row.remaining_paid || 0);
-      paidAmountBC = remPaidBC;
-      paidAmountLocal = remPaidBC * conversionRate;
-      balanceAmountBC = remainingDueBC;
-      balanceAmountLocal = remainingDueBC * conversionRate;
-    } else {
-      const credPaidBC = Number(row.credit_amount || 0);
-      paidAmountBC = credPaidBC;
-      paidAmountLocal = credPaidBC * conversionRate;
-      balanceAmountBC = Math.max(0, totalAmountBC - paidAmountBC);
-      balanceAmountLocal = balanceAmountBC * conversionRate;
-    }
     const statusText = row.payment_status || "Pending";
     const isSelected = selected?.id === row.id;
     const isExpanded = Boolean(expandedIds[row.id]);
@@ -3210,26 +3268,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       || row.ledger_posting_status === "posted"
       || row.ledger_posting_status === "Transferred"
       || row.ledger_posting_status === "transferred";
-    const isPaymentCompleted = (activeMode === "remaining" || activeMode === "credit")
-      ? balanceAmountBC <= 0.01
-      : isPosted;
-    const getRowColor = () => isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
-
+    
     // Per-row derived display values
-    const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "â€”";
-    const grossWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
-    const netWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
-    const billNo = form.billNo || form.invoiceNo || row.purchase_contract_no || "â€”";
-    const dateStr = form.purchaseDate ? new Date(form.purchaseDate).toLocaleDateString("en-GB") : row.created_at ? new Date(row.created_at).toLocaleDateString("en-GB") : "â€”";
-    const branchName = rowBranchName(row) || "â€”";
-    const countryName = rowCountryName(row) || "â€”";
+    const billNo = form.billNo || form.invoiceNo || row.purchase_contract_no || "—";
+    const dateStr = form.purchaseDate ? new Date(form.purchaseDate).toLocaleDateString("en-GB") : row.created_at ? new Date(row.created_at).toLocaleDateString("en-GB") : "—";
+    const branchName = rowBranchName(row) || "—";
+    const countryName = rowCountryName(row) || "—";
 
-    // Serial numbers
-    const superSerialNo = index + 1 + pageIndex * pageSize;
-    const countryRows = filtered.filter((r) => rowCountryName(r) === countryName);
-    const countrySerialNo = countryRows.findIndex((r) => r.id === row.id) + 1;
-    const branchRows = filtered.filter((r) => rowBranchName(r) === branchName);
-    const branchSerialNo = branchRows.findIndex((r) => r.id === row.id) + 1;
+    const getRowColor = () => isPosted ? "text-slate-900 dark:text-slate-100" : "text-red-650 dark:text-red-400 font-medium";
 
     return (
       <React.Fragment key={row.id}>
@@ -3239,117 +3285,74 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "#f0f9ff"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = rowBg; }}
         >
-          {/* Order ID */}
+          {/* 1. PO Number */}
           <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
             <div className="font-mono text-[11px] font-black text-blue-600 dark:text-blue-400 whitespace-nowrap">
               {row.purchase_order_no}
             </div>
           </td>
-          {/* Bill & Date */}
+          {/* 2. Bill & Date */}
           <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
             <div className="flex flex-col">
               <span className="font-mono font-black text-[11px] text-slate-850 dark:text-slate-200">{billNo}</span>
               <span className="text-[10px] text-slate-500 mt-1 font-semibold">{dateStr}</span>
             </div>
           </td>
-          {/* Branch & Country */}
+          {/* 3. Branch & Country */}
           <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
             <div className="flex flex-col">
               <span className="font-black text-[11px] text-slate-850 dark:text-slate-200 uppercase tracking-wide">{tData(branchName, currentLanguage)}</span>
               <span className="text-[10px] text-slate-500 mt-1 font-semibold">{tData(countryName, currentLanguage)}</span>
             </div>
           </td>
-          {/* Purchase Account */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-            <div className="flex flex-col">
-              <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200 truncate max-w-[130px]" title={tData(form.purchaseAccountName, currentLanguage) || "N/A"}>
-                {tData(form.purchaseAccountName, currentLanguage) || "N/A"}
-              </span>
-              <span className="font-mono text-[10px] text-slate-500 mt-1 font-bold">
-                {form.purchaseAccountNumber || "-"}
-              </span>
-            </div>
+          {/* 4. Purchase Amount (FC) */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px]", getRowColor())}>
+            {money(calcs.totalPurchaseFC, calcs.purchCurr)}
           </td>
-          {/* Sales Account */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-            <div className="flex flex-col">
-              <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200 truncate max-w-[130px]" title={tData(form.salesAccountName || form.supplierName, currentLanguage) || "N/A"}>
-                {tData(form.salesAccountName || form.supplierName, currentLanguage) || "N/A"}
-              </span>
-              <span className="font-mono text-[10px] text-slate-500 mt-1 font-bold">
-                {form.salesAccountNumber || "-"}
-              </span>
-            </div>
+          {/* 5. Invoice % */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center font-mono font-bold text-[11px]", getRowColor())}>
+            {calcs.advancePercent}%
           </td>
-          {/* Goods & Brand */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-            <div className="flex flex-col gap-0.5 text-[10px]">
-              <span className="font-extrabold text-[11px] text-slate-850 dark:text-slate-200 truncate max-w-[145px]" title={tData(goodsName, currentLanguage)}>{tData(goodsName, currentLanguage)}</span>
-              <span className="text-slate-500 font-semibold">
-                Sz: <span className="font-extrabold text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.size || "").filter(Boolean).join(", ") || "-"}</span> | Br: <span className="font-extrabold text-slate-700 dark:text-slate-300">{goods.map((g: any) => g.brand || "").filter(Boolean).join(", ") || "-"}</span>
-              </span>
-            </div>
+          {/* 6. Invoice Amount (FC) */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px] text-emerald-600 dark:text-emerald-400", getRowColor())}>
+            {money(calcs.advanceAmountFC, calcs.purchCurr)}
           </td>
-          {/* Weight & Qty */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-            <div className="flex flex-col text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-              <span>Qty: <span className="font-extrabold text-slate-750 dark:text-slate-200">{form.quantity || 0} {form.quantityUnit || "BAGS"}</span></span>
-              <span>GW: <span className="font-extrabold text-slate-750 dark:text-slate-200">{grossWeight.toLocaleString()} KG</span></span>
-              <span>NW: <span className="font-extrabold text-slate-750 dark:text-slate-200">{netWeight.toLocaleString()} KG</span></span>
-            </div>
+          {/* 7. Remaining Purchase (FC) */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px] text-rose-600 dark:text-rose-455", getRowColor())}>
+            {money(calcs.remainingPurchaseFC, calcs.purchCurr)}
           </td>
-          {/* Total / Rate */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
-            <div className="flex flex-col gap-0.5 font-mono">
-              <span className="font-black text-[11px] text-rose-600 dark:text-rose-400">{money(totalAmountBC, bookCur)}</span>
-              <span className="text-[9px] text-slate-500 font-bold">
-                {money(totalAmountLocal, officeCur)} (Rate: {conversionRate.toFixed(4)})
-              </span>
-            </div>
+          {/* 8. Exchange Rate */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center font-mono font-bold text-[11px] text-indigo-650 dark:text-indigo-400", getRowColor())}>
+            {calcs.exRate.toFixed(4)}
           </td>
-          {/* Adv Details */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
-            <div className="flex flex-col gap-1 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-              <span className="flex items-center justify-between gap-2">
-                <span>Req:</span>
-                <span className="font-black text-slate-800 dark:text-slate-200">
-                  {money(requiredAdvanceBC, bookCur)} / {money(requiredAdvance, officeCur)}
-                </span>
-              </span>
-              <span className="flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/40 pt-0.5">
-                <span>Paid:</span>
-                <span className="font-black text-emerald-600 dark:text-emerald-400">
-                  {money(paidAdvanceBC, bookCur)} / {money(paidAdvance, officeCur)}
-                </span>
-              </span>
-              <span className="flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/40 pt-0.5">
-                <span>Rem:</span>
-                <span className="font-black text-rose-600 dark:text-rose-400">
-                  {money(remainingAdvanceBC, bookCur)} / {money(remainingAdvance, officeCur)}
-                </span>
-              </span>
-            </div>
+          {/* 9. Local Currency Amount (LC) */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px]", getRowColor())}>
+            {money(calcs.totalPurchaseLC, calcs.finalCurr)}
           </td>
-          {/* Balance */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right", getRowColor())}>
-            <div className="flex flex-col gap-0.5 font-mono">
-              <span className="font-black text-[11px] text-indigo-600 dark:text-indigo-400">{money(balanceAmountBC, bookCur)}</span>
-              <span className="text-[9px] text-slate-500 font-bold">{money(balanceAmountLocal, officeCur)}</span>
-            </div>
+          {/* 10. Local Currency Advance (LC) */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px] text-emerald-600 dark:text-emerald-400", getRowColor())}>
+            {money(calcs.advanceAmountLC, calcs.finalCurr)}
           </td>
-          {/* Status / Action */}
+          {/* 11. Remaining Local Currency (LC) */}
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px] text-rose-600 dark:text-rose-455", getRowColor())}>
+            {money(calcs.remainingPurchaseLC, calcs.finalCurr)}
+          </td>
+          {/* 12. Payment Status */}
+          <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-center">
+            <span className={cn(
+              "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-xs",
+              statusText.toLowerCase() === "paid" || statusText.toLowerCase() === "completed" || statusText.toLowerCase() === "transferred"
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200"
+                : statusText.toLowerCase() === "partial" || statusText.toLowerCase() === "partially_paid"
+                ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200"
+                : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200"
+            )}>
+              {statusText}
+            </span>
+          </td>
+          {/* 13. Action */}
           <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-1.5 justify-end">
-              <span className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-xs",
-                statusText.toLowerCase() === "paid" || statusText.toLowerCase() === "completed" || statusText.toLowerCase() === "transferred"
-                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200"
-                  : statusText.toLowerCase() === "partial" || statusText.toLowerCase() === "partially_paid"
-                  ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200"
-                  : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200"
-              )}>
-                {statusText}
-              </span>
               <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <ViewportActionMenu
                   ariaLabel="Row actions"
@@ -3420,7 +3423,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         </tr>
         {isExpanded && (
           <tr onClick={(e) => e.stopPropagation()} style={{ background: "#f8fafc" }}>
-            <td colSpan={11} className="p-4 border-b border-slate-100 dark:border-slate-800">
+            <td colSpan={13} className="p-4 border-b border-slate-100 dark:border-slate-800">
               <NestedPaymentHistory 
                 row={row} 
                 ledgers={ledgers} 
@@ -3456,6 +3459,24 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
   const getTableHeader = (h: string) => {
     const headersMap: Record<string, Record<LanguageCode, string>> = {
+      "PO Number": { en: "PO Number", ur: "آرڈر نمبر", ar: "رقم طلب الشراء", fa: "شماره سفارش", ps: "د امر شمیره" },
+      "Bill / Date": { en: "Bill & Date", ur: "بل اور تاریخ", ar: "الفاتورة والتاريخ", fa: "صورتحساب و تاریخ", ps: "بل او نیټه" },
+      "Branch / Country": { en: "Branch & Country", ur: "برانچ اور ملک", ar: "الفرع والبلد", fa: "شعبه و کشور", ps: "څانګه او هیواد" },
+      "Purchase Amount": { en: "Purchase Amount", ur: "کل خریداری", ar: "قيمة المشتريات", fa: "مبلغ خرید", ps: "د پیرودلو قیمت" },
+      "Invoice %": { en: "Invoice %", ur: "ایڈوانس فیصد", ar: "نسبة الدفعة المقدمة", fa: "درصد پیش پرداخت", ps: "د پرمختګ سلنه" },
+      "Invoice Amount": { en: "Invoice Amount", ur: "ایڈوانس رقم", ar: "مبلغ الدفعة المقدمة", fa: "مبلغ پیش پرداخت", ps: "د پرمختګ رقم" },
+      "Remaining Purchase": { en: "Remaining Purchase", ur: "بقایا رقم", ar: "المبلغ المتبقي", fa: "مبلغ باقیمانده", ps: "پاتې رقم" },
+      "Exchange Rate": { en: "Exchange Rate", ur: "شرح تبادلہ", ar: "سعر الصرف", fa: "نرخ ارز", ps: "د تبادلې نرخ" },
+      "Local Currency Amount": { en: "Local Currency Amount", ur: "مقامی کرنسی رقم", ar: "المبلغ بالعملة المحلية", fa: "مبلغ ارز محلی", ps: "د ځایی اسعارو مقدار" },
+      "Local Currency Advance": { en: "Local Currency Advance", ur: "مقامی کرنسی ایڈوانس", ar: "الدفعة المقدمة بالعملة المحلية", fa: "پیش پرداخت ارز محلی", ps: "د ځایی اسعارو پرمختګ" },
+      "Remaining Local Currency": { en: "Remaining Local Currency", ur: "بقایا مقامی کرنسی", ar: "المتبقي بالعملة المحلية", fa: "باقیمانده ارز محلی", ps: "پاتې ځایی اسعار" },
+      "Payment Status": { en: "Payment Status", ur: "ادائیگی کی صورتحال", ar: "حالة الدفع", fa: "وضعیت پرداخت", ps: "د تادیې حالت" },
+      "Action": { en: "Action", ur: "عمل", ar: "إجراء", fa: "عمل", ps: "عمل" }
+    };
+    return headersMap[h]?.[currentLanguage] || h;
+  };
+  const _unused_getTableHeader = (h: string) => {
+    const headersMap: Record<string, Record<LanguageCode, string>> = {
       "PO No.": { en: "PO Number", ur: "Ø¢Ø±ÚˆØ± Ù†Ù…Ø¨Ø±", ar: "Ø±Ù‚Ù… Ø·Ù„Ø¨ Ø§Ù„Ø´Ø±Ø§Ø¡", fa: "Ø´Ù…Ø§Ø±Ù‡ Ø³ÙØ§Ø±Ø´", ps: "Ø¯ Ø§Ù…Ø± Ø´Ù…ÛŒØ±Ù‡" },
       "Bill / Date": { en: "Bill & Date", ur: "Ø¨Ù„ Ø§ÙˆØ± ØªØ§Ø±ÛŒØ®", ar: "Ø§Ù„ÙØ§ØªÙˆØ±Ø© ÙˆØ§Ù„ØªØ§Ø±ÙŠØ®", fa: "ØµÙˆØ±ØªØ­Ø³Ø§Ø¨ Ùˆ ØªØ§Ø±ÛŒØ®", ps: "Ø¨Ù„ Ø§Ùˆ Ù†ÛŒÙ¼Ù‡" },
       "Branch / Country": { en: "Branch & Country", ur: "Ø¨Ø±Ø§Ù†Ú† Ø§ÙˆØ± Ù…Ù„Ú©", ar: "Ø§Ù„ÙØ±Ø¹ ÙˆØ§Ù„Ø¨Ù„Ø¯", fa: "Ø´Ø¹Ø¨Ù‡ Ùˆ Ú©Ø´ÙˆØ±", ps: "Ú…Ø§Ù†Ú«Ù‡ Ø§Ùˆ Ù‡ÛŒÙˆØ§Ø¯" },
@@ -3469,36 +3490,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     };
     const result = headersMap[h]?.[currentLanguage] || h;
 
-    if (currentLanguage === "en") {
-      if (h === "Total Purchase") return "Cargo / Brand";
-      if (h === "Req. Advance") return "Cargo Details";
-      if (h === "Paid Advance") return "Purchase Amount";
-      if (h === "Final Amount") return "Advance Details";
-      if (h === "Rem. Advance") return "Outstanding Due";
-    } else if (currentLanguage === "ur") {
-      if (h === "Total Purchase") return "کارگو / برانڈ";
-      if (h === "Req. Advance") return "وزن اور تعداد";
-      if (h === "Paid Advance") return "کل قیمت";
-      if (h === "Final Amount") return "ایڈوانس تفصیلات";
-      if (h === "Rem. Advance") return "بقایا رقم";
-    } else if (currentLanguage === "ar") {
-      if (h === "Total Purchase") return "البضائع / العلامة التجارية";
-      if (h === "Req. Advance") return "تفاصيل البضائع";
-      if (h === "Paid Advance") return "قيمة المشتريات";
-      if (h === "Final Amount") return "تفاصيل الدفعة المقدمة";
-      if (h === "Rem. Advance") return "المبلغ المتبقي";
-    } else if (currentLanguage === "fa") {
-      if (h === "Total Purchase") return "کالا / برند";
-      if (h === "Req. Advance") return "جزئیات کالا";
-      if (h === "Paid Advance") return "مبلغ خرید";
-      if (h === "Final Amount") return "جزئیات پیش پرداخت";
-      if (h === "Rem. Advance") return "مبلغ باقیمانده";
-    } else if (currentLanguage === "ps") {
-      if (h === "Total Purchase") return "کارګو / برانډ";
-      if (h === "Req. Advance") return "د کارګو جزیات";
-      if (h === "Paid Advance") return "د پیرودلو قیمت";
-      if (h === "Final Amount") return "د پرمختګ جزیات";
-      if (h === "Rem. Advance") return "پاتې رقم";
+    // Fallbacks for original headers if translation is missing
+    const fallbacks: Record<string, string> = {
+      "Total Purchase": "Cargo / Brand",
+      "Req. Advance": "Cargo Details",
+      "Paid Advance": "Purchase Amount",
+      "Final Amount": "Advance Details",
+      "Rem. Advance": "Outstanding Due"
+    };
+    if (currentLanguage === "en" && fallbacks[h]) {
+      return fallbacks[h];
     }
 
     return result;
@@ -3653,7 +3654,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 p-6 pb-0 md:grid-cols-4 max-w-5xl">
+      <div className="grid grid-cols-2 gap-4 p-6 pb-0 md:grid-cols-5 max-w-6xl">
         {cards.map((card) => (
           <Metric key={card.label} {...card} />
         ))}
@@ -3665,11 +3666,31 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         {/* Toolbar controls have been moved to erp-page-actions-slot header portal */}
 
         {filtersOpen && (
-          <div className="grid grid-cols-2 gap-4 border-b border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 border-b border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50 sm:grid-cols-6">
             <MiniFilter label="Status" value={draftFilter} options={["pending", "posted", "partial"]} onChange={(v) => { setDraftFilter(v); setPageIndex(0); }} />
-            <MiniFilter label="Country" value={countryFilter} options={countryOptions as string[]} onChange={(v) => { setCountryFilter(v); setPageIndex(0); }} />
+            <MiniFilter label="Country" value={countryFilter} options={countryOptions as string[]} onChange={(v) => { setCountryFilter(v); setPageIndex(0); setBranchFilter(""); }} />
             <MiniFilter label="Branch" value={branchFilter} options={branchOptions as string[]} onChange={(v) => { setBranchFilter(v); setPageIndex(0); }} />
             <MiniFilter label="Currency" value={currencyFilter} options={currencyOptions as string[]} onChange={(v) => { setCurrencyFilter(v); setPageIndex(0); }} />
+            
+            <div className="flex flex-col gap-1">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Start Date</span>
+              <input
+                type="date"
+                value={startDateFilter}
+                onChange={(e) => { setStartDateFilter(e.target.value); setPageIndex(0); }}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-primary"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-1">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">End Date</span>
+              <input
+                type="date"
+                value={endDateFilter}
+                onChange={(e) => { setEndDateFilter(e.target.value); setPageIndex(0); }}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-primary"
+              />
+            </div>
           </div>
         )}
 
@@ -3684,7 +3705,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-150 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/80">
-                {["PO No.", "Bill / Date", "Branch / Country", "Purchase A/C", "Sales A/C", "Total Purchase", "Req. Advance", "Paid Advance", "Final Amount", "Rem. Advance", "Action"].map((h) => (
+                {[
+                  "PO Number", "Bill / Date", "Branch / Country", "Purchase Amount", "Invoice %", 
+                  "Invoice Amount", "Remaining Purchase", "Exchange Rate", "Local Currency Amount", 
+                  "Local Currency Advance", "Remaining Local Currency", "Payment Status", "Action"
+                ].map((h) => (
                   <th key={h} className={cn("px-3 py-4 text-[10px] font-black uppercase tracking-widest text-slate-605 dark:text-slate-350 whitespace-nowrap", isRtl ? "text-right" : "text-left")}>{getTableHeader(h)}</th>
                 ))}
               </tr>
@@ -3702,51 +3727,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   let sumRemAdvanceLocal = 0;
                   
                   group.rows.forEach(row => {
-                    const totalPrice = orderTotal(row);
-                    const bookCur = rowCurrency(row);
-                    const rowLocalCurrency = rowOfficeCurrency(row);
-                    const conversionRate = getConversionRate(row, bookCur, rowLocalCurrency, liveRates);
-                    
-                    const totalAmountBC = totalPrice;
-                    const totalAmountLocal = totalAmountBC * conversionRate;
-                    const advancePercent = Number(row.form_data?.form?.advancePercent || 0);
-                    const requiredAdvanceBC = (totalAmountBC * advancePercent) / 100;
-                    const paidAdvanceBC = Number(row.advance_paid || 0);
-                    const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
-                    
-                    const requiredAdvance = (totalAmountLocal * advancePercent) / 100;
-                    const paidAdvance = paidAdvanceBC * conversionRate;
-                    const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
-                    
-                    const remainingDueBC = Number(row.remaining_due || 0);
-                    let paidAmountBC = 0;
-                    let paidAmountLocal = 0;
-                    let balanceAmountBC = 0;
-                    let balanceAmountLocal = 0;
-                    if (activeMode === "advance") {
-                      paidAmountBC = paidAdvanceBC;
-                      paidAmountLocal = paidAdvance;
-                      balanceAmountBC = remainingAdvanceBC;
-                      balanceAmountLocal = remainingAdvance;
-                    } else if (activeMode === "remaining") {
-                      const remPaidBC = Number(row.remaining_paid || 0);
-                      paidAmountBC = remPaidBC;
-                      paidAmountLocal = remPaidBC * conversionRate;
-                      balanceAmountBC = remainingDueBC;
-                      balanceAmountLocal = remainingDueBC * conversionRate;
-                    } else {
-                      const credPaidBC = Number(row.credit_amount || 0);
-                      paidAmountBC = credPaidBC;
-                      paidAmountLocal = credPaidBC * conversionRate;
-                      balanceAmountBC = Math.max(0, totalAmountBC - paidAmountBC);
-                      balanceAmountLocal = balanceAmountBC * conversionRate;
-                    }
-                    
-                    sumPurchaseLocal += totalAmountLocal;
-                    sumReqAdvanceLocal += requiredAdvance;
-                    sumPaidLocal += paidAmountLocal;
-                    sumFinalLocal += balanceAmountLocal;
-                    sumRemAdvanceLocal += remainingAdvance;
+                    const calcs = resolvePurchaseCalculations(row);
+                    sumPurchaseLocal += calcs.totalPurchaseLC;
+                    sumReqAdvanceLocal += calcs.advanceAmountLC;
+                    sumPaidLocal += Number(row.advance_paid || 0) * calcs.exRate;
+                    sumFinalLocal += calcs.remainingPurchaseLC;
+                    sumRemAdvanceLocal += calcs.remainingPurchaseLC;
                   });
 
                   return (
@@ -3769,7 +3755,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         <td className="px-3 py-3 font-extrabold text-slate-900 dark:text-slate-100 text-[10px] tracking-wide text-center">
                           {`PURCH: ${group.rows.length}`}
                         </td>
-                        <td className="px-3 py-3 font-black text-slate-950 dark:text-white text-[11px] uppercase tracking-wider text-left">
+                        <td className="px-3 py-3 font-black text-slate-955 dark:text-white text-[11px] uppercase tracking-wider text-left">
                           {group.country}
                         </td>
                         <td className="px-3 py-3 font-bold text-slate-800 dark:text-slate-200 text-[10px] text-center">
@@ -3779,11 +3765,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           {group.rows.length > 0 ? rowOfficeCurrency(group.rows[0]) : "USD"}
                         </td>
                         <td className="px-3 py-3"></td>
-                        <td className="px-3 py-3 font-bold text-rose-600 font-mono text-[11px]">{sumPurchaseLocal > 0 ? sumPurchaseLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
-                        <td className="px-3 py-3 font-bold text-amber-600 font-mono text-[11px]">{sumReqAdvanceLocal > 0 ? sumReqAdvanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
-                        <td className="px-3 py-3 font-bold text-emerald-600 font-mono text-[11px]">{sumPaidLocal > 0 ? sumPaidLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
-                        <td className="px-3 py-3 font-bold text-indigo-600 font-mono text-[11px]">{sumFinalLocal > 0 ? sumFinalLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
-                        <td className="px-3 py-3 font-bold text-slate-800 dark:text-slate-200 font-mono text-[11px]">{sumRemAdvanceLocal > 0 ? sumRemAdvanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                        <td className="px-3 py-3"></td>
+                        <td className="px-3 py-3"></td>
+                        <td className="px-3 py-3"></td>
+                        <td className="px-3 py-3 font-bold text-rose-600 font-mono text-[11px] text-right">{sumPurchaseLocal > 0 ? sumPurchaseLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                        <td className="px-3 py-3 font-bold text-emerald-600 font-mono text-[11px] text-right">{sumPaidLocal > 0 ? sumPaidLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                        <td className="px-3 py-3 font-bold text-slate-850 dark:text-slate-200 font-mono text-[11px] text-right">{sumRemAdvanceLocal > 0 ? sumRemAdvanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                        <td className="px-3 py-3"></td>
                         <td className="px-3 py-3 text-right">
                           <div className="flex justify-end">
                             <button
@@ -3801,7 +3789,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       </tr>
                       {isExpandedCountry && (
                         <tr>
-                          <td colSpan={11} className="p-0 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                          <td colSpan={13} className="p-0 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
                             <div className="w-full overflow-x-auto p-4 border-l-[3px] border-l-blue-500 shadow-inner">
                               <table className="w-max min-w-full text-xs text-left border-collapse bg-white dark:bg-slate-950 rounded shadow-sm border border-slate-200 dark:border-slate-800">
                                 <thead>
