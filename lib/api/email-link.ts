@@ -9,6 +9,7 @@ export async function linkEmailAccount(options: {
   emailAddress: string;
   adminEmail?: string | null;
   isActive?: boolean;
+  settings?: any;
 }) {
   const supabase = createSupabaseAdminClient() as any;
   const emailLower = options.emailAddress.trim().toLowerCase();
@@ -54,6 +55,7 @@ export async function linkEmailAccount(options: {
     cc_super_admin: true,
     cc_country_admin: true,
     is_active: options.isActive !== false,
+    settings: options.settings || {},
     updated_at: new Date().toISOString()
   };
 

@@ -87,7 +87,27 @@ export const createCityBranchSchema = z.object({
   contacts: z.array(contactRowSchema).max(50).optional(),
   documents: z.array(documentRowSchema).max(50).optional(),
   permissionTemplate: permissionTemplateSchema,
-  permissionGrants: z.array(permissionKeySchema).min(1, "At least one permission is required").max(100)
+  permissionGrants: z.array(permissionKeySchema).min(1, "At least one permission is required").max(100),
+  emailPrefix: z.string().trim().max(100).optional(),
+  emailServerSettings: z.object({
+    mailServerName: z.string().trim().max(100).optional(),
+    localIp: z.string().trim().max(50).optional(),
+    publicIp: z.string().trim().max(50).optional(),
+    smtpHost: z.string().trim().max(255).optional(),
+    smtpPort: z.preprocess((val) => (val === "" || val === undefined ? null : Number(val)), z.number().nullable().optional()),
+    imapHost: z.string().trim().max(255).optional(),
+    imapPort: z.preprocess((val) => (val === "" || val === undefined ? null : Number(val)), z.number().nullable().optional()),
+    sslSecure: z.boolean().optional(),
+    smtpUser: z.string().trim().max(255).optional(),
+    smtpPass: z.string().trim().max(255).optional()
+  }).optional(),
+  whatsappConfig: z.object({
+    whatsappNumber: z.string().trim().max(50).optional(),
+    wabaId: z.string().trim().max(100).optional(),
+    phoneNumberId: z.string().trim().max(100).optional(),
+    accessToken: z.string().trim().max(1000).optional(),
+    isActive: z.boolean().optional()
+  }).optional()
 }).refine((value) => Boolean(value.cityId || value.cityName), {
   message: "City is required",
   path: ["cityId"]

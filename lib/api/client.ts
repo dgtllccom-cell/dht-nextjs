@@ -63,6 +63,14 @@ export async function apiPatch<T>(url: string, payload: unknown) {
   });
 }
 
+export async function apiPut<T>(url: string, payload: unknown) {
+  return apiFetch<T>(url, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function apiDelete<T>(url: string) {
   return apiFetch<T>(url, {
     method: "DELETE"

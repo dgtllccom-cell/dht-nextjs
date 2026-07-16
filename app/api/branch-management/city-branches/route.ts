@@ -5,6 +5,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { auditApiAction } from "@/lib/api/audit";
 import { allPermissionGroupKeys, constrainChildPermissions } from "@/lib/permissions/catalog";
 import { linkEmailAccount } from "@/lib/api/email-link";
+import { linkWhatsAppAccount } from "@/lib/api/whatsapp-link";
+import { encrypt } from "@/lib/crypto";
 import { translateToUrdu } from "@/lib/api/response";
 
 function formatError(message: string, isSuperAdmin: boolean) {
@@ -222,14 +224,43 @@ export async function POST(request: Request) {
     }
 
     // Link/Upsert central email account
+    const encryptedSmtpPass = parsed.data.emailServerSettings?.smtpPass
+      ? encrypt(parsed.data.emailServerSettings.smtpPass)
+      : undefined;
+
+    const emailSettings = parsed.data.emailServerSettings ? {
+      ...parsed.data.emailServerSettings,
+      smtpPass: encryptedSmtpPass
+    } : {};
+
     await linkEmailAccount({
       countryId: parsed.data.countryId,
       countryBranchId: parsed.data.countryBranchId,
       cityBranchId: data.id,
       scope: "city_branch",
       displayName: parsed.data.name.trim(),
-      emailAddress: parsed.data.email
+      emailAddress: parsed.data.email,
+      settings: emailSettings
     });
+
+    if (parsed.data.whatsappConfig?.whatsappNumber && parsed.data.whatsappConfig?.phoneNumberId) {
+      const encryptedAccessToken = parsed.data.whatsappConfig.accessToken
+        ? encrypt(parsed.data.whatsappConfig.accessToken)
+        : "";
+
+      await linkWhatsAppAccount({
+        countryId: parsed.data.countryId,
+        countryBranchId: parsed.data.countryBranchId,
+        cityBranchId: data.id,
+        scope: "city_branch",
+        displayName: parsed.data.name.trim(),
+        phoneNumber: parsed.data.whatsappConfig.whatsappNumber,
+        phoneNumberId: parsed.data.whatsappConfig.phoneNumberId,
+        wabaId: parsed.data.whatsappConfig.wabaId || "",
+        accessToken: encryptedAccessToken,
+        isActive: parsed.data.whatsappConfig.isActive !== false
+      });
+    }
 
     await auditApiAction(request as any, {
       action: "city_branches.create.api",
@@ -353,14 +384,43 @@ export async function PUT(request: Request) {
     }
 
     // Link/Upsert central email account
+    const encryptedSmtpPass = parsed.data.emailServerSettings?.smtpPass
+      ? encrypt(parsed.data.emailServerSettings.smtpPass)
+      : undefined;
+
+    const emailSettings = parsed.data.emailServerSettings ? {
+      ...parsed.data.emailServerSettings,
+      smtpPass: encryptedSmtpPass
+    } : {};
+
     await linkEmailAccount({
       countryId: parsed.data.countryId,
       countryBranchId: parsed.data.countryBranchId,
       cityBranchId: id,
       scope: "city_branch",
       displayName: parsed.data.name.trim(),
-      emailAddress: parsed.data.email
+      emailAddress: parsed.data.email,
+      settings: emailSettings
     });
+
+    if (parsed.data.whatsappConfig?.whatsappNumber && parsed.data.whatsappConfig?.phoneNumberId) {
+      const encryptedAccessToken = parsed.data.whatsappConfig.accessToken
+        ? encrypt(parsed.data.whatsappConfig.accessToken)
+        : "";
+
+      await linkWhatsAppAccount({
+        countryId: parsed.data.countryId,
+        countryBranchId: parsed.data.countryBranchId,
+        cityBranchId: id,
+        scope: "city_branch",
+        displayName: parsed.data.name.trim(),
+        phoneNumber: parsed.data.whatsappConfig.whatsappNumber,
+        phoneNumberId: parsed.data.whatsappConfig.phoneNumberId,
+        wabaId: parsed.data.whatsappConfig.wabaId || "",
+        accessToken: encryptedAccessToken,
+        isActive: parsed.data.whatsappConfig.isActive !== false
+      });
+    }
 
     await auditApiAction(request as any, {
       action: "city_branches.update.api",

@@ -43,7 +43,8 @@ export function translateToUrdu(message: string): string {
     return "اس city کے لیے منتخب Main Branch کے تحت City Branch پہلے سے موجود ہے۔";
   }
   if (msg.includes("request validation failed")) {
-    return "درخواست کی validation ناکام ہو گئی۔ required fields اور data format چیک کریں۔";
+    const detailsPart = message.split("request validation failed:")[1] || "";
+    return "درخواست کی validation ناکام ہو گئی۔ required fields اور data format چیک کریں۔" + detailsPart;
   }
   if (msg.includes("authentication is required")) {
     return "لاگ اِن ضروری ہے۔ براہِ کرم دوبارہ لاگ اِن کریں۔";

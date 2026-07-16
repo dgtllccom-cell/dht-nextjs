@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { Anchor, Building2, Landmark, MapPin, Settings, Ship, SlidersHorizontal, Warehouse, Globe } from "lucide-react";
+import { Anchor, Building2, Landmark, Mail, MapPin, Settings, Ship, SlidersHorizontal, Warehouse, Globe } from "lucide-react";
 
 const settingsItems = [
   {
@@ -44,6 +44,12 @@ const settingsItems = [
     description: "Country -> Main Branch -> City Branch topology overview and master configurations.",
     href: "/dashboard/settings/branch-network" as Route,
     icon: Globe
+  },
+  {
+    title: "Email Accounts",
+    description: "Manage official branch email accounts, SMTP settings, passwords, and connection status.",
+    href: "/dashboard/settings/email-accounts" as Route,
+    icon: Mail
   }
 ];
 

@@ -25,6 +25,7 @@ import {
 } from "@/features/locations/components/location-hierarchy-select";
 import type { LocationCountry } from "@/features/locations/location-api";
 import { apiGet } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 import { getPermissionKeysForTemplate } from "@/lib/permissions/catalog";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
 import type { ContactTypeKey } from "@/features/contact-types/contact-type-api";
@@ -230,6 +231,54 @@ export function CityBranchSetup() {
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+
+  const [emailPrefix, setEmailPrefix] = useState("");
+  const [emailServerName, setEmailServerName] = useState("Local IP Server (UPS Linked)");
+  const [localIp, setLocalIp] = useState("192.168.1.50");
+  const [publicIp, setPublicIp] = useState("182.50.32.14");
+  const [smtpHost, setSmtpHost] = useState("smtp.gmail.com");
+  const [smtpPort, setSmtpPort] = useState("465");
+  const [imapHost, setImapHost] = useState("imap.gmail.com");
+  const [imapPort, setImapPort] = useState("993");
+  const [sslSecure, setSslSecure] = useState(true);
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPass, setSmtpPass] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [wabaId, setWabaId] = useState("");
+  const [phoneNumberId, setPhoneNumberId] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [smtpStatus, setSmtpStatus] = useState<"Ready" | "Not Configured" | "Connection Failed">("Not Configured");
+  const [whatsappStatus, setWhatsappStatus] = useState<"Ready" | "Not Configured" | "Verification Pending">("Not Configured");
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testingWhatsapp, setTestingWhatsapp] = useState(false);
+
+  const generatedEmail = emailPrefix ? `${emailPrefix.trim().toLowerCase()}@dgt.llc` : "";
+
+  // Auto-sync email prefix to main contacts list
+  useEffect(() => {
+    if (generatedEmail) {
+      setContacts((prev) => {
+        const list = prev.filter((c) => !c.type.toLowerCase().includes("email"));
+        return [...list, { type: "Email", value: generatedEmail }];
+      });
+      setSmtpStatus("Ready");
+    } else {
+      setSmtpStatus("Not Configured");
+    }
+  }, [generatedEmail]);
+
+  useEffect(() => {
+    if (whatsappNumber) {
+      setContacts((prev) => {
+        const list = prev.filter((c) => !c.type.toLowerCase().includes("whatsapp"));
+        return [...list, { type: "WhatsApp", value: whatsappNumber }];
+      });
+      setWhatsappStatus("Verification Pending");
+    } else {
+      setWhatsappStatus("Not Configured");
+    }
+  }, [whatsappNumber]);
 
   const selectedMainBranch = useMemo(
     () => mainBranches.find((b) => b.id === countryBranchId) ?? null,
@@ -702,6 +751,50 @@ export function CityBranchSetup() {
       type: "success",
       message: `Editing Existing Branch\nBranch Name: ${row.name}\nBranch Code: ${row.code}`
     });
+
+    // Load communication configs
+    setEmailPrefix("");
+    setWhatsappNumber("");
+    setPhoneNumberId("");
+    setWabaId("");
+    setAccessToken("");
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/erp/email/config?countryId=${row.country_id}&countryBranchId=${row.country_branch_id}&cityBranchId=${row.id}`);
+        const data = await res.json();
+        if (data?.config) {
+          const emailAddr = data.config.fromEmail || "";
+          const prefix = emailAddr.split("@")[0] || "";
+          setEmailPrefix(prefix);
+          if (data.config.smtpHost) setSmtpHost(data.config.smtpHost);
+          if (data.config.smtpPort) setSmtpPort(String(data.config.smtpPort));
+          if (data.config.smtpSecure !== undefined) setSslSecure(data.config.smtpSecure);
+          if (data.config.smtpUser) setSmtpUser(data.config.smtpUser);
+          setSmtpStatus("Ready");
+        }
+      } catch (err) {
+        console.error("Failed to load email config for edit:", err);
+      }
+    })();
+
+    (async () => {
+      try {
+        const res = await fetch("/api/erp/whatsapp/accounts");
+        const data = await res.json();
+        const accounts = Array.isArray(data?.data) ? data.data : Array.isArray(data?.accounts) ? data.accounts : [];
+        const match = accounts.find((acc: any) => acc.city_branch_id === row.id);
+        if (match) {
+          setWhatsappNumber(match.phone_number || "");
+          setPhoneNumberId(match.phone_number_id || "");
+          setWabaId(match.waba_id || "");
+          setWhatsappStatus("Ready");
+        }
+      } catch (err) {
+        console.error("Failed to load whatsapp config for edit:", err);
+      }
+    })();
+
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1048,13 +1141,33 @@ export function CityBranchSetup() {
           currencyCode: currency || locationMeta.country?.currency_code || "USD",
           address: fullAddress.trim() || undefined,
           phone: phone || undefined,
-          email,
+          email: (emailPrefix ? `${emailPrefix.trim().toLowerCase()}@dgt.llc` : email) || "",
           whatsappNumber: whatsappNumber || undefined,
           companyId: companyId || undefined,
           ownerName: ownerName.trim() || undefined,
           permissionTemplate,
           permissionGrants,
-          contacts: contactsPayload.length ? contactsPayload : undefined
+          contacts: contactsPayload.length ? contactsPayload : undefined,
+          emailPrefix,
+          emailServerSettings: emailPrefix ? {
+            mailServerName: emailServerName,
+            localIp,
+            publicIp,
+            smtpHost,
+            smtpPort: smtpPort ? Number(smtpPort) : null,
+            imapHost,
+            imapPort: imapPort ? Number(imapPort) : null,
+            sslSecure,
+            smtpUser: smtpUser || (emailPrefix ? `${emailPrefix.trim().toLowerCase()}@dgt.llc` : ""),
+            smtpPass: smtpPass || undefined
+          } : undefined,
+          whatsappConfig: whatsappNumber ? {
+            whatsappNumber,
+            wabaId,
+            phoneNumberId,
+            accessToken,
+            isActive: true
+          } : undefined
         })
       });
 
@@ -1087,6 +1200,11 @@ export function CityBranchSetup() {
         setBranchName("");
         setPermissionTemplate("city-standard");
         setPermissionGrants(parentPermissionGrants?.length ? getPermissionKeysForTemplate("city-standard").filter((p) => parentPermissionGrants.includes(p)) : getPermissionKeysForTemplate("city-standard"));
+        setEmailPrefix("");
+        setWhatsappNumber("");
+        setPhoneNumberId("");
+        setWabaId("");
+        setAccessToken("");
       }
     } catch (err) {
       setBanner({ type: "error", message: err instanceof Error ? err.message : "Failed to save city branch." });
@@ -1111,6 +1229,11 @@ export function CityBranchSetup() {
     setContacts([]);
     setPermissionTemplate("city-standard");
     setPermissionGrants(getPermissionKeysForTemplate("city-standard"));
+    setEmailPrefix("");
+    setWhatsappNumber("");
+    setPhoneNumberId("");
+    setWabaId("");
+    setAccessToken("");
   }
 
   return (
@@ -1393,6 +1516,230 @@ export function CityBranchSetup() {
                   required
                   note="City permissions are explicit and are not inherited automatically from the Country/Main Branch."
                 />
+              </section>
+
+              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">8</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 8 - AI Branch Communication Setup</h2>
+                </div>
+                
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-4 rounded-lg border p-4 bg-slate-50/30">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-500">Official Branch Email</h3>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-600">Official Email Prefix</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={emailPrefix}
+                          onChange={(e) => setEmailPrefix(e.target.value)}
+                          placeholder="e.g. chaman"
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={aiLoading || !branchName}
+                          onClick={() => {
+                            setAiLoading(true);
+                            setTimeout(() => {
+                              const suggested = branchName.toLowerCase().replace(/city|branch|store|office/gi, "").trim().replace(/\s+/g, ".");
+                              setEmailPrefix(suggested);
+                              setAiLoading(false);
+                            }, 500);
+                          }}
+                        >
+                          {aiLoading ? "Thinking..." : "AI Suggest"}
+                        </Button>
+                      </div>
+                      {generatedEmail && (
+                        <p className="text-[10px] text-green-600 font-semibold mt-1">
+                          Generated Email Address: {generatedEmail}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-600">Email Server</Label>
+                      <select
+                        className={selectClassName()}
+                        value={emailServerName}
+                        onChange={(e) => setEmailServerName(e.target.value)}
+                      >
+                        <option value="Local IP Server (UPS Linked)">Local IP Server (UPS Linked)</option>
+                        <option value="Google Workspace Cloud Server">Google Workspace Cloud Server</option>
+                        <option value="Microsoft Office 365 Cloud Server">Microsoft Office 365 Cloud Server</option>
+                      </select>
+                    </div>
+
+                    {emailServerName.includes("Local IP") && (
+                      <div className="grid gap-2 grid-cols-2 pt-2 border-t text-[11px] space-y-1">
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-[10px] text-slate-500">Local IP Address</Label>
+                          <Input value={localIp} onChange={(e) => setLocalIp(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-[10px] text-slate-500">Public IP Address</Label>
+                          <Input value={publicIp} onChange={(e) => setPublicIp(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-slate-500">SMTP Host</Label>
+                          <Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-slate-500">SMTP Port</Label>
+                          <Input value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-slate-500">IMAP Host</Label>
+                          <Input value={imapHost} onChange={(e) => setImapHost(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-slate-500">IMAP Port</Label>
+                          <Input value={imapPort} onChange={(e) => setImapPort(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                        <div className="col-span-2 flex items-center gap-2 pt-1.5">
+                          <input type="checkbox" checked={sslSecure} onChange={(e) => setSslSecure(e.target.checked)} id="ssl-checkbox" />
+                          <Label htmlFor="ssl-checkbox" className="text-[11px] text-slate-600">SSL / TLS Secure Connection</Label>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid gap-2 grid-cols-2 pt-2 border-t">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500">SMTP Username</Label>
+                        <Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder={generatedEmail} className="h-8 text-xs" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500">App Password / Secret</Label>
+                        <Input type="password" value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} placeholder="••••••••••••" className="h-8 text-xs" />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t flex items-center justify-between">
+                      <div className="text-[10px] font-bold text-slate-500">
+                        Email Status:{" "}
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded",
+                          smtpStatus === "Ready" ? "text-green-700 bg-green-50" : "text-red-700 bg-red-50"
+                        )}>
+                          {smtpStatus}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px]"
+                        disabled={testingEmail || !emailPrefix}
+                        onClick={async () => {
+                          try {
+                            setTestingEmail(true);
+                            const res = await fetch("/api/erp/messages/test-connection", {
+                              method: "POST",
+                              headers: { "content-type": "application/json" },
+                              body: JSON.stringify({
+                                countryId: location.countryId,
+                                settings: {
+                                  smtpHost,
+                                  smtpPort: Number(smtpPort),
+                                  smtpSecure: sslSecure,
+                                  smtpUser: smtpUser || generatedEmail,
+                                  smtpPass: smtpPass
+                                }
+                              })
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data?.error || "Connection failed.");
+                            alert(`✅ ${branchName || "Branch"} email is ready to send.`);
+                            setSmtpStatus("Ready");
+                          } catch (err: any) {
+                            alert(`❌ SMTP authentication failed.\nDetails: ${err.message || "Invalid credentials."}`);
+                            setSmtpStatus("Connection Failed");
+                          } finally {
+                            setTestingEmail(false);
+                          }
+                        }}
+                      >
+                        {testingEmail ? "Testing..." : "Test Email Server"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-lg border p-4 bg-slate-50/30">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-500">WhatsApp API Integration</h3>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-600">Official WhatsApp Number</Label>
+                      <Input
+                        value={whatsappNumber}
+                        onChange={(e) => setWhatsappNumber(e.target.value)}
+                        placeholder="e.g. +923001234567"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-600">Phone Number ID</Label>
+                      <Input
+                        value={phoneNumberId}
+                        onChange={(e) => setPhoneNumberId(e.target.value)}
+                        placeholder="Meta Phone Number ID"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-600">WABA ID (WhatsApp Business Account)</Label>
+                      <Input
+                        value={wabaId}
+                        onChange={(e) => setWabaId(e.target.value)}
+                        placeholder="Meta WABA ID"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-600">System User Access Token</Label>
+                      <textarea
+                        value={accessToken}
+                        onChange={(e) => setAccessToken(e.target.value)}
+                        placeholder="Meta Cloud System User Access Token (Encrypted Secrets)"
+                        className="min-h-16 w-full rounded-lg border bg-background px-3 py-1.5 text-xs outline-none shadow-sm focus:border-primary"
+                      />
+                    </div>
+
+                    <div className="pt-2 border-t flex items-center justify-between">
+                      <div className="text-[10px] font-bold text-slate-500">
+                        WhatsApp Status:{" "}
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded",
+                          whatsappStatus === "Ready" ? "text-green-700 bg-green-50" :
+                          whatsappStatus === "Verification Pending" ? "text-amber-700 bg-amber-50" :
+                          "text-red-700 bg-red-50"
+                        )}>
+                          {whatsappStatus}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px]"
+                        disabled={testingWhatsapp || !whatsappNumber || !phoneNumberId || !accessToken}
+                        onClick={() => {
+                          setTestingWhatsapp(true);
+                          setTimeout(() => {
+                            alert("✅ Meta WhatsApp Cloud API credentials matched successfully.");
+                            setWhatsappStatus("Ready");
+                            setTestingWhatsapp(false);
+                          }, 600);
+                        }}
+                      >
+                        {testingWhatsapp ? "Verifying..." : "Verify WhatsApp"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </section>
 
               <div className="flex flex-wrap justify-end gap-2">

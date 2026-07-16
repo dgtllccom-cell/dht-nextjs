@@ -4,6 +4,8 @@ import { apiCreated, apiOk, handleApiError } from "@/lib/api/response";
 import { requireErpSession } from "@/lib/auth/session";
 import { appendCountryEmailSignature, resolveCountryEmailConfig } from "@/lib/email/country-email-config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { sendEmailDirect } from "@/lib/email/smtp-client";
+import { decrypt } from "@/lib/crypto";
 
 const querySchema = z.object({
   channel: z.enum(["email", "whatsapp", "internal", "notifications"]).default("email")
@@ -15,16 +17,24 @@ const composeSchema = z.object({
   provider: z.string().trim().min(1).max(80).optional(),
   to: z.string().trim().max(500).optional(),
   cc: z.string().trim().max(500).optional(),
+  bcc: z.string().trim().max(500).optional(),
   subject: z.string().trim().min(1).max(300),
   body: z.string().trim().min(1).max(20000),
-  companyId: z.string().uuid().nullable().optional(),
-  countryId: z.string().uuid().nullable().optional(),
-  countryBranchId: z.string().uuid().nullable().optional(),
-  cityBranchId: z.string().uuid().nullable().optional(),
+  companyId: z.string().uuid().or(z.literal("")).transform(v => v || null).nullable().optional(),
+  countryId: z.string().uuid().or(z.literal("")).transform(v => v || null).nullable().optional(),
+  countryBranchId: z.string().uuid().or(z.literal("")).transform(v => v || null).nullable().optional(),
+  cityBranchId: z.string().uuid().or(z.literal("")).transform(v => v || null).nullable().optional(),
   linkedRoute: z.string().trim().max(255).optional(),
   linkedModule: z.string().trim().max(80).optional(),
   linkedDocumentNo: z.string().trim().max(100).nullable().optional(),
-  labels: z.array(z.string().trim().min(1).max(50)).optional()
+  labels: z.array(z.string().trim().min(1).max(50)).optional(),
+  attachments: z.array(
+    z.object({
+      filename: z.string(),
+      content: z.string(), // base64
+      contentType: z.string().optional()
+    })
+  ).optional()
 });
 
 type AuditRow = {
@@ -755,12 +765,76 @@ export async function GET(request: NextRequest) {
       filtered.flatMap((row) => row.labels.map((label) => ({ value: label, label, keywords: label })))
     ).sort((a, b) => a.label.localeCompare(b.label));
 
+    const { data: accountsData } = await admin
+      .from("erp_email_accounts")
+      .select("id, email_address, is_active, scope, settings, country_id, country_branch_id, city_branch_id, provider:erp_email_providers(provider_name)")
+      .is("deleted_at", null);
+
+    const emailAccounts = accountsData || [];
+    const branchEmailsDashboardList: any[] = [];
+    const activeCityBranches = cityBranchesRes.data || [];
+    
+    for (const city of activeCityBranches) {
+      const country = countryLookup.get(city.country_id);
+      
+      let matchedAccount = emailAccounts.find((a: any) => a.city_branch_id === city.id);
+      
+      if (!matchedAccount && city.country_branch_id) {
+        matchedAccount = emailAccounts.find((a: any) => a.country_branch_id === city.country_branch_id);
+      }
+      if (!matchedAccount && city.country_id) {
+        matchedAccount = emailAccounts.find((a: any) => a.country_id === city.country_id && a.scope === "country");
+      }
+      if (!matchedAccount) {
+        matchedAccount = emailAccounts.find((a: any) => a.scope === "super_admin");
+      }
+
+      let smtpStatus = "🔴 SMTP Failed";
+      let emailStatus = "❌ Not Ready";
+      let officialEmail = "—";
+
+      if (matchedAccount) {
+        officialEmail = matchedAccount.email_address;
+        const settings = matchedAccount.settings || {};
+        const hasPassword = Boolean(settings.smtpPass || settings.password || settings.appPassword);
+        const hasHost = Boolean(settings.smtpHost || settings.host);
+        
+        if (hasPassword && hasHost) {
+          smtpStatus = matchedAccount.is_active ? "Connected" : "🔴 SMTP Failed";
+          emailStatus = matchedAccount.is_active ? "✅ Ready" : "❌ Not Ready";
+        } else {
+          smtpStatus = "🟡 Configuration Incomplete";
+          emailStatus = "❌ Not Ready";
+        }
+      } else if (country?.official_email) {
+        officialEmail = country.official_email;
+        smtpStatus = "🟡 Configuration Incomplete";
+        emailStatus = "❌ Not Ready";
+      } else {
+        smtpStatus = "⚪ No Email Configured";
+        emailStatus = "❌ Not Ready";
+      }
+
+      branchEmailsDashboardList.push({
+        country: country?.name || "Pakistan",
+        branch: city.name || "Chaman Branch",
+        officialEmail,
+        smtpStatus,
+        emailStatus,
+        branchId: city.id,
+        countryId: city.country_id
+      });
+    }
+
     return apiOk({
       channel: query.channel,
       summary,
       folders,
       filters: { companies, branches, providers, labels },
       rows: filtered,
+      branchEmailsDashboardList,
+      countries: countriesRes.data || [],
+      cityBranches: cityBranchesRes.data || [],
       generatedAt: new Date().toISOString()
     });
   } catch (error) {
@@ -772,6 +846,29 @@ export async function POST(request: NextRequest) {
   try {
     const session = await requireErpSession();
     const body = composeSchema.parse(await request.json());
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const validateEmails = (emailStr: string | undefined) => {
+      if (!emailStr) return true;
+      const parts = emailStr.split(",").map((e) => {
+        const match = e.match(/<([^>]+)>/);
+        return match ? match[1].trim() : e.trim();
+      }).filter(Boolean);
+      return parts.length > 0 && parts.every((email) => emailRegex.test(email));
+    };
+
+    if (body.channel === "email" && body.folder === "sent") {
+      if (!body.to || !validateEmails(body.to)) {
+        return Response.json({ success: false, error: "Recipient 'To' email address is invalid (e.g. name@domain.com)." }, { status: 400 });
+      }
+      if (body.cc && !validateEmails(body.cc)) {
+        return Response.json({ success: false, error: "Recipient 'CC' email address is invalid." }, { status: 400 });
+      }
+      if (body.bcc && !validateEmails(body.bcc)) {
+        return Response.json({ success: false, error: "Recipient 'BCC' email address is invalid." }, { status: 400 });
+      }
+    }
+
     const admin = createSupabaseAdminClient() as any;
 
     const profileRes = await admin.from("profiles").select("id, full_name, user_code, default_company_id").eq("id", session.userId).maybeSingle();
@@ -788,17 +885,35 @@ export async function POST(request: NextRequest) {
       const module = body.linkedModule.toLowerCase();
       const docNo = body.linkedDocumentNo;
 
-      if (module === "purchase_order" && docNo) {
-        const { data: po } = await admin
-          .from("purchase_orders")
-          .select("country_id, country_branch_id, city_branch_id, supplier_company_id")
-          .eq("purchase_order_no", docNo)
-          .maybeSingle();
+      if ((module === "purchase_order" || module === "purchase order" || module === "purchase") && docNo) {
+        const queryBuilder = admin.from("purchase_orders").select("country_id, country_branch_id, city_branch_id, supplier_company_id");
+        const poQuery = docNo.match(/^[0-9a-fA-F-]{36}$/)
+          ? queryBuilder.eq("id", docNo)
+          : queryBuilder.eq("purchase_order_no", docNo);
+        const { data: po } = await poQuery.maybeSingle();
         if (po) {
           detectedCountryId = po.country_id;
           detectedCountryBranchId = po.country_branch_id;
           detectedCityBranchId = po.city_branch_id;
           detectedCompanyId = po.supplier_company_id;
+        }
+      } else if (module.includes("customer") && docNo) {
+        const queryBuilder = admin.from("customers").select("country_id");
+        const custQuery = docNo.match(/^[0-9a-fA-F-]{36}$/)
+          ? queryBuilder.eq("id", docNo)
+          : queryBuilder.eq("customer_name", docNo);
+        const { data: cust } = await custQuery.maybeSingle();
+        if (cust) {
+          detectedCountryId = cust.country_id;
+        }
+      } else if (module.includes("supplier") && docNo) {
+        const queryBuilder = admin.from("companies").select("country_id");
+        const suppQuery = docNo.match(/^[0-9a-fA-F-]{36}$/)
+          ? queryBuilder.eq("id", docNo)
+          : queryBuilder.eq("name", docNo);
+        const { data: comp } = await suppQuery.maybeSingle();
+        if (comp) {
+          detectedCountryId = comp.country_id;
         }
       } else if (docNo) {
         // Look up standard erp_documents by id or entity_id
@@ -922,9 +1037,7 @@ export async function POST(request: NextRequest) {
       .select("id")
       .single();
 
-    if (inserted.error) throw new Error(inserted.error.message);
-
-    try {
+    if (inserted.error) throw new Error(inserted.error.message);    try {
       const provider = await admin
         .from("erp_email_providers")
         .select("id")
@@ -939,11 +1052,68 @@ export async function POST(request: NextRequest) {
       const accountRes = scopedSenderEmail
         ? await admin
             .from("erp_email_accounts")
-            .select("id")
+            .select("id, settings")
             .eq("email_address", scopedSenderEmail)
             .is("deleted_at", null)
             .maybeSingle()
         : { data: null, error: null };
+
+      const accountSettings = (accountRes.data?.settings ?? {}) as Record<string, any>;
+      const countrySettings = (country?.email_server_settings ?? {}) as Record<string, any>;
+
+      const smtpConfig = {
+        host: accountSettings.smtpHost ?? countrySettings.smtpHost ?? process.env.SMTP_HOST ?? "smtp.gmail.com",
+        port: Number(accountSettings.smtpPort ?? countrySettings.smtpPort ?? process.env.SMTP_PORT ?? 465),
+        secure: Boolean(accountSettings.smtpSecure !== undefined ? accountSettings.smtpSecure : (countrySettings.smtpSecure !== undefined ? countrySettings.smtpSecure : true)),
+        auth: {
+          user: accountSettings.smtpUser ?? countrySettings.smtpUser ?? process.env.SMTP_USER ?? scopedSenderEmail ?? "",
+          pass: decrypt(accountSettings.smtpPass ?? countrySettings.smtpPass ?? process.env.SMTP_PASS ?? "")
+        }
+      };
+
+      let deliveryStatus = "logged";
+      let errorMessage = null;
+      let errorCode = null;
+
+      if (body.folder === "sent") {
+        const missingFields: string[] = [];
+        if (!scope.countryId) missingFields.push("Country ID");
+        if (!body.companyId && !profile?.default_company_id) missingFields.push("Company ID");
+        if (!scope.cityBranchId && !scope.countryBranchId && !scope.countryId) missingFields.push("Branch ID");
+        if (!accountRes.data?.id) missingFields.push("Email Account ID");
+        if (!scopedSenderEmail) missingFields.push("From Email");
+        if (!smtpConfig.host) missingFields.push("SMTP Host");
+        if (!smtpConfig.port) missingFields.push("SMTP Port");
+        if (!smtpConfig.auth.user) missingFields.push("SMTP Username");
+        if (!smtpConfig.auth.pass) missingFields.push("SMTP Password/App Password");
+
+        if (missingFields.length > 0) {
+          throw new Error(`Email sending aborted. Missing required configurations: ${missingFields.join(", ")}`);
+        }
+
+        try {
+          await sendEmailDirect(smtpConfig, {
+            from: `"${senderName}" <${scopedSenderEmail}>`,
+            to: body.to ?? "",
+            cc: ccParts.filter(Boolean),
+            bcc: body.bcc ?? "",
+            subject: body.subject,
+            html: signedBody,
+            attachments: body.attachments?.map((att: any) => ({
+              filename: att.filename,
+              content: att.content,
+              contentType: att.contentType
+            }))
+          });
+          deliveryStatus = "sent";
+        } catch (err: any) {
+          deliveryStatus = "failed";
+          errorMessage = err.message || "Failed to send email via SMTP";
+          errorCode = err.code || "SMTP_SEND_FAILED";
+        }
+      } else {
+        deliveryStatus = "draft";
+      }
 
       const emailInsert = await admin.from("erp_email_messages").insert({
         channel: body.channel,
@@ -959,12 +1129,13 @@ export async function POST(request: NextRequest) {
         sender_email: scopedSenderEmail,
         recipient_to: body.to ?? "",
         recipient_cc: ccParts.join(", "),
+        recipient_bcc: body.bcc ?? "",
         subject: body.subject,
         body: signedBody,
         labels: body.labels ?? [],
-        attachment_count: 0,
-        attachments: [],
-        delivery_status: body.folder === "draft" ? "draft" : "logged",
+        attachment_count: body.attachments?.length ?? 0,
+        attachments: body.attachments ?? [],
+        delivery_status: deliveryStatus,
         direction: body.folder === "draft" ? "internal" : "outgoing",
         linked_module: body.linkedModule ?? null,
         linked_route: body.linkedRoute ?? null,
@@ -981,14 +1152,20 @@ export async function POST(request: NextRequest) {
           replyTo: emailConfig.replyTo,
           emailSignature: emailConfig.signatureText,
           ccPolicy: { ccCountryAdmin: Boolean(emailConfig.adminEmail), ccSuperAdmin: true },
-          countryEmailConfig: emailConfig
+          countryEmailConfig: emailConfig,
+          errorMessage: errorMessage,
+          errorCode: errorCode,
+          failedTime: deliveryStatus === "failed" ? new Date().toISOString() : null
         },
-        sent_at: body.folder === "sent" ? payload.createdAt : null
+        sent_at: deliveryStatus === "sent" ? new Date().toISOString() : null
       });
       if (emailInsert.error) throw new Error(emailInsert.error.message);
-    } catch {
-      // The email infrastructure migration may not be applied in every local
-      // workspace yet. The audit log remains the backward-compatible source.
+
+      if (deliveryStatus === "failed") {
+        throw new Error(`SMTP Error [${errorCode}]: ${errorMessage}`);
+      }
+    } catch (err: any) {
+      throw err;
     }
 
     return apiCreated({ id: inserted.data.id as string });
