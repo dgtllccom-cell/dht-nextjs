@@ -362,12 +362,10 @@ export async function GET(request: NextRequest) {
       countryIds.length
         ? withTimeout<{ id: string; name: string; iso2: string | null }>(admin.from("countries").select("id, name, iso2").in("id", countryIds), "countries")
         : Promise.resolve({ data: [], error: null }),
-      countryBranchIds.length
-        ? withTimeout<{ id: string; name: string; code: string; country_id: string }>(
-            admin.from("country_branches").select("id, name, code, country_id").in("id", countryBranchIds),
-            "country branches"
-          )
-        : Promise.resolve({ data: [], error: null }),
+      withTimeout<{ id: string; name: string; code: string; country_id: string }>(
+        admin.from("country_branches").select("id, name, code, country_id").is("deleted_at", null),
+        "country branches"
+      ),
       cityBranchIds.length
         ? withTimeout<{ id: string; name: string; code: string; city_name: string; country_id: string; country_branch_id: string }>(
             admin.from("city_branches").select("id, name, code, city_name, country_id, country_branch_id").in("id", cityBranchIds),
@@ -426,7 +424,19 @@ export async function GET(request: NextRequest) {
       const country = latestAssignment?.country_id ? countryLookup.get(latestAssignment.country_id) ?? null : null;
       const mainBranch = latestAssignment?.country_branch_id ? mainBranchLookup.get(latestAssignment.country_branch_id) ?? null : null;
       const cityBranch = latestAssignment?.city_branch_id ? cityBranchLookup.get(latestAssignment.city_branch_id) ?? null : null;
-      const branchType = branchTypeFromRole(role);
+      const branchType =
+        latestAssignment?.city_branch_id
+          ? "City Branch"
+          : latestAssignment?.country_branch_id
+            ? "Main Branch"
+            : latestAssignment?.country_id
+              ? "Country"
+              : "Global";
+
+      const countryMainBranch = country
+        ? countryBranches.find((b) => b.country_id === country.id) ?? null
+        : null;
+
       const branchName =
         branchType === "City Branch"
           ? `${cityBranch?.city_name ?? "-"} - ${cityBranch?.name ?? "-"}`
@@ -435,6 +445,15 @@ export async function GET(request: NextRequest) {
             : branchType === "Country"
               ? country?.name ?? "-"
               : "Global";
+
+      const branchCode =
+        branchType === "City Branch"
+          ? cityBranch?.code ?? mainBranch?.code ?? countryMainBranch?.code ?? "-"
+          : branchType === "Main Branch"
+            ? mainBranch?.code ?? "-"
+            : branchType === "Country"
+              ? countryMainBranch?.code ?? mainBranch?.code ?? "-"
+              : "-";
 
       const permissions = permissionsByUser.get(profile.id) ?? [...new Set(enterpriseRolePermissions[role] ?? [])];
       const userAudits = (auditsByUser.get(profile.id) ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -466,7 +485,7 @@ export async function GET(request: NextRequest) {
         countryName: country?.name ?? "-",
         branchId: cityBranch?.id ?? mainBranch?.id ?? null,
         branchName,
-        branchCode: mainBranch?.code ?? cityBranch?.code ?? "-",
+        branchCode,
         branchType,
         role,
         registrationDate: profile.created_at,

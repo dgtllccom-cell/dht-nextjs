@@ -158,6 +158,7 @@ export type UiKey =
   | "nav.location_form"
   | "nav.company_form"
   | "nav.customers_form"
+  | "nav.employee_management"
   | "nav.contract_type"
   | "nav.company_registration_type"
   | "nav.bank_form"
@@ -502,6 +503,7 @@ const en: Dict = {
   "nav.location_tehsil": "Tehsil Master",
   "nav.company_form": "Company Form",
   "nav.customers_form": "Customers Form",
+  "nav.employee_management": "Employee Management",
   "nav.contract_type": "Contract Type",
   "nav.company_registration_type": "Company Registration No Type",
   "nav.bank_form": "Bank Form",
@@ -837,6 +839,7 @@ const ur: Dict = {
   "nav.location_tehsil": "تحصیل ماسٹر",
   "nav.company_form": "کمپنی فارم",
   "nav.customers_form": "کسٹمر فارم",
+  "nav.employee_management": "ملازمین کی رجسٹریشن",
   "nav.contract_type": "کانٹریکٹ ٹائپ",
   "nav.company_registration_type": "کمپنی رجسٹریشن نمبر ٹائپ",
   "nav.bank_form": "بینک فارم",
@@ -1135,6 +1138,7 @@ const ar: Dict = {
   "nav.location_tehsil": "رئيسي المقاطعة (التحصيل)",
   "nav.company_form": "نموذج الشركة",
   "nav.customers_form": "نموذج العملاء",
+  "nav.employee_management": "إدارة الموظفين",
   "nav.contract_type": "نوع العقد",
   "nav.company_registration_type": "نوع رقم تسجيل الشركة",
   "nav.bank_form": "نموذج البنك",

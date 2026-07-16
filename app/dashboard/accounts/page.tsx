@@ -12,7 +12,7 @@ export default async function AccountsPage({
   return (
     <AccountGeneralReportView
       lang={lang}
-      pageTitle="Account Register"
+      pageTitle="Account Master Registry & Search Report"
       subtitle="All Account Master records with country, city branch, company ownership, balances, and creation details."
       initialAccountId={params?.accountId ?? null}
       highlightCreated={params?.created === "1"}

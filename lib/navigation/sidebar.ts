@@ -384,20 +384,6 @@ export const sidebarTree: SidebarNode[] = [
     ]
   },
   {
-    key: "purchase-booking-register-main",
-    labelKey: "nav.purchase_booking_register",
-    iconKey: "clipboard-list",
-    href: "/dashboard/purchase/purchase-booking-journal-report" as Route,
-    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
-  },
-  {
-    key: "journal-booking-stock",
-    labelKey: "nav.journal_booking_stock",
-    iconKey: "clipboard-list",
-    href: "/dashboard/purchase/journal-booking-stock" as Route,
-    roles: ["super_admin", "country_admin", "country_user", "main_branch_admin", "city_branch_admin", "accountant", "auditor_viewer"]
-  },
-  {
     key: "sales",
     labelKey: "nav.sales",
     iconKey: "gantt",
@@ -753,6 +739,12 @@ export const sidebarTree: SidebarNode[] = [
             key: "mgmt-customers",
             labelKey: "nav.customers_form",
             href: "/dashboard/settings/customers" as Route
+          },
+          {
+            key: "mgmt-employees",
+            labelKey: "nav.employee_management" as any,
+            href: "/dashboard/settings/employees" as Route,
+            roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant"]
           },
           {
             key: "mgmt-contract-type",

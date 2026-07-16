@@ -356,3 +356,95 @@ export async function POST(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await requireErpSession();
+    const body = await request.json();
+    const {
+      id,
+      shippingLineName,
+      blNumber,
+      containerNumber,
+      vesselName,
+      voyageNumber,
+      loadingPort,
+      dischargePort,
+      eta,
+      etd,
+      shipmentStatus,
+      remarks
+    } = body;
+
+    if (!id) {
+      return NextResponse.json({ ok: false, error: { message: "Record ID is required" } }, { status: 400 });
+    }
+
+    const supabase = createSupabaseAdminClient() as any;
+
+    // Fetch old record for audit
+    const { data: before, error: fetchError } = await supabase
+      .from("shipping_bl_records")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !before) {
+      return NextResponse.json({ ok: false, error: { message: "Record not found" } }, { status: 404 });
+    }
+
+    authorizeApiScope(session, {
+      resource: "shipping_records",
+      action: "update",
+      countryId: before.country_id,
+      countryBranchId: before.country_branch_id,
+      cityBranchId: before.city_branch_id
+    });
+
+    const reportPayload = before.report_payload || {};
+    const updatedReportPayload = {
+      ...reportPayload,
+      carrierRemarks: remarks || reportPayload.carrierRemarks || null
+    };
+
+    const payload = {
+      shipping_line_name: shippingLineName !== undefined ? shippingLineName : before.shipping_line_name,
+      bl_number: blNumber !== undefined ? blNumber : before.bl_number,
+      container_number: containerNumber !== undefined ? containerNumber : before.container_number,
+      vessel_name: vesselName !== undefined ? vesselName : before.vessel_name,
+      voyage_number: voyageNumber !== undefined ? voyageNumber : before.voyage_number,
+      loading_port: loadingPort !== undefined ? loadingPort : before.loading_port,
+      discharge_port: dischargePort !== undefined ? dischargePort : before.discharge_port,
+      eta: eta !== undefined ? eta : before.eta,
+      etd: etd !== undefined ? etd : before.etd,
+      shipment_status: shipmentStatus !== undefined ? shipmentStatus : before.shipment_status,
+      report_payload: updatedReportPayload,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updated, error: updateError } = await supabase
+      .from("shipping_bl_records")
+      .update(payload)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateError) {
+      return NextResponse.json({ ok: false, error: { message: updateError.message } }, { status: 400 });
+    }
+
+    await writeAuditLog({
+      action: "shipping_bl_records.update",
+      entityTable: "shipping_bl_records",
+      entityId: id,
+      before,
+      after: updated,
+      ipAddress: request.headers.get("x-forwarded-for") ?? null
+    });
+
+    return apiOk({ record: updated });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+

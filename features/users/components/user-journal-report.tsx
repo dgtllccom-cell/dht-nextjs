@@ -461,21 +461,24 @@ export function UserJournalReport() {
 
   function exportExcel() {
     const rows: string[][] = [
-      ["User ID", "Full Name", "Email", "Country", "Branch", "Branch Type", "Role", "Password", "Registration Date", "Status", "Permissions", "Last Activity"]
+      ["SR.", "Country", "Branch", "Branch Code", "User Name", "User ID", "Login User ID", "Email", "Role", "Password", "Purpose / Work", "Status", "Registration Date", "Last Activity"]
     ];
-    for (const row of filteredRows) {
+    for (let i = 0; i < filteredRows.length; i++) {
+      const row = filteredRows[i];
       rows.push([
-        row.userCode,
+        String(i + 1),
+        row.countryName || "Global",
+        row.branchName || "-",
+        row.branchCode || "-",
         row.fullName,
+        row.userId.slice(0, 8).toUpperCase(),
+        row.userCode,
         row.email || "-",
-        row.countryName,
-        row.branchName,
-        row.branchType,
-        row.role,
+        formatRoleName(row.role),
         row.rawPassword || "••••••••",
-        row.registrationDate,
+        row.purpose || row.lastActivityAction || "-",
         row.status,
-        row.permissions.join("; "),
+        row.registrationDate,
         row.lastActivity
       ]);
     }
@@ -659,9 +662,9 @@ export function UserJournalReport() {
           <div className="overflow-x-auto">
             <table className="min-w-[1300px] w-full border-collapse text-left text-[11px]">
               <thead>
-                <tr className="bg-[var(--ujr-table-head)] text-[11px] font-black uppercase tracking-wide text-[var(--ujr-title)]">
+                <tr className="bg-[var(--ujr-table-head)] text-[11px] font-black uppercase tracking-wide text-[var(--ujr-title)] text-center">
                   {["#", "Country", "Branch", "Branch Code", "User Name", "User ID", "Login User ID", "Email", "Role", "Password", "Purpose / Work", "Status", "Actions"].map((head) => (
-                    <th key={head} className="border-b border-r border-[var(--ujr-line)] px-3 py-2.5 last:border-r-0">{head}</th>
+                    <th key={head} className="border-b border-r border-[var(--ujr-line)] px-3 py-2.5 last:border-r-0 whitespace-nowrap">{head}</th>
                   ))}
                 </tr>
               </thead>
@@ -670,18 +673,18 @@ export function UserJournalReport() {
                   <tr><td colSpan={13} className="px-4 py-8 text-center text-[var(--ujr-muted)]">Loading user journal report...</td></tr>
                 ) : paginatedRows.length ? (
                   paginatedRows.map((row, index) => (
-                    <tr key={row.userId} className="bg-[var(--ujr-card)] text-[var(--ujr-title)] transition hover:bg-[var(--ujr-row-hover)]">
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-bold">{pageStart + index + 1}</td>
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-black">{row.countryName || "Global"}</td>
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2">
-                        <div className="font-bold">{row.branchName || "-"}</div>
-                        <div className="text-[10px] font-semibold text-[var(--ujr-muted)]">{row.branchType}</div>
+                    <tr key={row.userId} className="bg-[var(--ujr-card)] text-[var(--ujr-title)] transition hover:bg-[var(--ujr-row-hover)] text-center">
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-bold whitespace-nowrap">{pageStart + index + 1}</td>
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-black whitespace-nowrap">{row.countryName || "Global"}</td>
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 whitespace-nowrap">
+                        <div className="font-bold text-left">{row.branchName || "-"}</div>
+                        <div className="text-[10px] font-semibold text-[var(--ujr-muted)] text-left">{row.branchType}</div>
                       </td>
                       {/* Branch Code */}
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-mono font-bold text-[10px] text-[#1455ff]">
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-mono font-bold text-[10px] text-[#1455ff] whitespace-nowrap">
                         {row.branchCode || "-"}
                       </td>
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-black">
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-black whitespace-nowrap text-left">
                         <div className="flex items-center gap-2">
                           <div className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-[8px] font-black text-white shrink-0 shadow-sm">
                             {initials(row.fullName)}
@@ -690,15 +693,15 @@ export function UserJournalReport() {
                         </div>
                       </td>
                       {/* User ID (System) */}
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-mono font-bold text-[10px] text-[var(--ujr-muted)]">
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-mono font-bold text-[10px] text-[var(--ujr-muted)] whitespace-nowrap">
                         {row.userId.slice(0, 8).toUpperCase()}
                       </td>
                       {/* Login User ID */}
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-black text-[#1455ff]">{row.userCode}</td>
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-black text-[#1455ff] whitespace-nowrap">{row.userCode}</td>
                       {/* Email */}
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-medium text-[var(--ujr-muted)]">{row.email || "—"}</td>
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 font-medium text-[var(--ujr-muted)] whitespace-nowrap">{row.email || "—"}</td>
                       {/* Role */}
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 text-[11px]">
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 text-[11px] whitespace-nowrap">
                         <span className="font-semibold text-slate-800 dark:text-slate-200">{formatRoleName(row.role)}</span>
                       </td>
                       {/* Password */}
@@ -724,11 +727,11 @@ export function UserJournalReport() {
                         </div>
                       </td>
                       {/* Purpose / Work */}
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 text-[11px] font-semibold text-[var(--ujr-muted)]">
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 text-[11px] font-semibold text-[var(--ujr-muted)] whitespace-nowrap">
                         {row.purpose || row.lastActivityAction || "—"}
                       </td>
                       {/* Status Toggle */}
-                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2">
+                      <td className="border-b border-r border-[var(--ujr-line)] px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"

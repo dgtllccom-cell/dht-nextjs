@@ -4,9 +4,25 @@ import { DownloadActionIcon } from "@/components/ui/download-action-icon";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Download, Expand, Eye, FileSpreadsheet, FileText, MoreVertical, PencilLine, Printer, Search, Trash2, CalendarDays, RefreshCw, SlidersHorizontal, Landmark, CheckCircle2, ChevronDown, PackageCheck, FileCheck2, Building2, MapPin, Phone, MessageCircle, Mail, Plus } from "lucide-react";
+import { Download, Expand, Eye, FileSpreadsheet, FileText, MoreVertical, PencilLine, Printer, Search, Trash2, CalendarDays, RefreshCw, SlidersHorizontal, Landmark, CheckCircle2, ChevronDown, ChevronRight, PackageCheck, FileCheck2, Building2, MapPin, Phone, MessageCircle, Mail, Plus } from "lucide-react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
+
+const getFlag = (countryName: string) => {
+  if (!countryName) return "🌍";
+  const c = countryName.toUpperCase();
+  if (c.includes("PAKISTAN") || c === "PK") return "🇵🇰";
+  if (c.includes("UNITED ARAB") || c === "UAE" || c.includes("EMIRATES") || c.includes("DUBAI")) return "🇦🇪";
+  if (c.includes("AFGHANISTAN") || c === "AF") return "🇦🇫";
+  if (c.includes("SAUDI") || c === "SA") return "🇸🇦";
+  if (c.includes("UNITED STATES") || c === "USA" || c === "US") return "🇺🇸";
+  if (c.includes("CHINA") || c === "CN") return "🇨🇳";
+  if (c.includes("INDIA") || c === "IN") return "🇮🇳";
+  if (c.includes("IRAN") || c === "IR") return "🇮🇷";
+  if (c.includes("OMAN") || c === "OM") return "🇴🇲";
+  if (c.includes("UNITED KINGDOM") || c === "UK" || c === "GB") return "🇬🇧";
+  return "🌍";
+};
 import { apiDelete, apiGet } from "@/lib/api/client";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
 import { Button } from "@/components/ui/button";
@@ -498,6 +514,9 @@ export function AccountGeneralReportView({
   const [expandedView, setExpandedView] = useState(false);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [data, setData] = useState<AccountGeneralReportResponse | null>(null);
+  const [selectedCountryForSummary, setSelectedCountryForSummary] = useState<string | null>(null);
+  const [selectedUserBranchOnly, setSelectedUserBranchOnly] = useState<boolean>(false);
+  const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [draftQuery, setDraftQuery] = useState("");
   const [draftAccountId, setDraftAccountId] = useState("all");
@@ -651,7 +670,7 @@ export function AccountGeneralReportView({
       });
   }, [countryName, dashboardScope, rows]);
 
-  const filteredRows = useMemo(() => {
+  const allFilteredRows = useMemo(() => {
     const q = normalizeSearch(query);
     return scopedRows
       .filter((row) => (accountId !== "all" ? row.accountId === accountId : true))
@@ -665,25 +684,137 @@ export function AccountGeneralReportView({
       });
   }, [accountId, branchCode, fromDate, query, scopedRows, status, toDate]);
 
-  useEffect(() => {
-    if (!selectedAccountId && filteredRows.length) {
-      setSelectedAccountId(filteredRows[0]!.accountId);
+  const userBranchRows = useMemo(() => {
+    if (!session) return [];
+    
+    // Try to match by session assignments or cityBranchIds
+    const cityBranchIds = session.scopes?.cityBranchIds || [];
+    const countryBranchIds = session.scopes?.countryBranchIds || [];
+    
+    let matched = allFilteredRows.filter(row => {
+      if (row.cityId && cityBranchIds.includes(row.cityId)) return true;
+      if (row.cityBranchId && cityBranchIds.includes(row.cityBranchId)) return true;
+      if (row.countryBranchId && countryBranchIds.includes(row.countryBranchId)) return true;
+      return false;
+    });
+
+    // Fallback: if super admin or no matches, use the first row's branch or default branch
+    if (matched.length === 0 && allFilteredRows.length > 0) {
+      const firstBranchCode = allFilteredRows[0].branchCode;
+      matched = allFilteredRows.filter(row => row.branchCode === firstBranchCode);
     }
-  }, [filteredRows, selectedAccountId]);
+    
+    return matched;
+  }, [allFilteredRows, session]);
+
+  const filteredRows = useMemo(() => {
+    if (selectedUserBranchOnly) return userBranchRows;
+    if (!selectedCountryForSummary) return allFilteredRows;
+    return allFilteredRows.filter((row) => row.countryName === selectedCountryForSummary);
+  }, [allFilteredRows, selectedUserBranchOnly, selectedCountryForSummary, userBranchRows]);
+
+  const sortedRows = useMemo(() => {
+    return [...filteredRows].sort((a, b) => {
+      const aNonZero = a.currentBalance !== 0;
+      const bNonZero = b.currentBalance !== 0;
+      
+      if (aNonZero && !bNonZero) return -1;
+      if (!aNonZero && bNonZero) return 1;
+      
+      // If both are non-zero or both are zero, sort by absolute currentBalance descending
+      return Math.abs(b.currentBalance) - Math.abs(a.currentBalance);
+    });
+  }, [filteredRows]);
+
+  const countrySummaries = useMemo(() => {
+    const groups: Record<string, {
+      countryName: string;
+      countryCode: string;
+      totalAccounts: number;
+      activeAccounts: number;
+      debitTotal: number;
+      creditTotal: number;
+      netBalance: number;
+      currency: string;
+      branches: Record<string, {
+        branchName: string;
+        branchCode: string;
+        totalAccounts: number;
+        debitTotal: number;
+        creditTotal: number;
+        netBalance: number;
+      }>;
+    }> = {};
+
+    allFilteredRows.forEach(row => {
+      const country = row.countryName || "Unknown Country";
+      const branch = row.branchName || "Main Branch";
+      const branchCode = row.branchCode || "all";
+      
+      if (!groups[country]) {
+        groups[country] = {
+          countryName: country,
+          countryCode: row.countryCode || "",
+          totalAccounts: 0,
+          activeAccounts: 0,
+          debitTotal: 0,
+          creditTotal: 0,
+          netBalance: 0,
+          currency: row.currency || "USD",
+          branches: {}
+        };
+      }
+
+      const g = groups[country];
+      g.totalAccounts += 1;
+      if (row.status === "active") g.activeAccounts += 1;
+      g.debitTotal += row.debitTotal;
+      g.creditTotal += row.creditTotal;
+      g.netBalance += row.currentBalance;
+
+      if (!g.branches[branchCode]) {
+        g.branches[branchCode] = {
+          branchName: branch,
+          branchCode,
+          totalAccounts: 0,
+          debitTotal: 0,
+          creditTotal: 0,
+          netBalance: 0
+        };
+      }
+
+      const b = g.branches[branchCode];
+      b.totalAccounts += 1;
+      b.debitTotal += row.debitTotal;
+      b.creditTotal += row.creditTotal;
+      b.netBalance += row.currentBalance;
+    });
+
+    return Object.values(groups).map(g => ({
+      ...g,
+      branches: Object.values(g.branches).sort((a, b) => a.branchName.localeCompare(b.branchName))
+    })).sort((a, b) => a.countryName.localeCompare(b.countryName));
+  }, [allFilteredRows]);
+
+  useEffect(() => {
+    if (!selectedAccountId && sortedRows.length) {
+      setSelectedAccountId(sortedRows[0]!.accountId);
+    }
+  }, [sortedRows, selectedAccountId]);
 
   useEffect(() => {
     if (!selectedAccountId) return;
-    if (filteredRows.some((row) => row.accountId === selectedAccountId)) return;
-    if (filteredRows.length) {
-      setSelectedAccountId(filteredRows[0]!.accountId);
+    if (sortedRows.some((row) => row.accountId === selectedAccountId)) return;
+    if (sortedRows.length) {
+      setSelectedAccountId(sortedRows[0]!.accountId);
     } else {
       setSelectedAccountId(null);
     }
-  }, [filteredRows, selectedAccountId]);
+  }, [sortedRows, selectedAccountId]);
 
   const selectedRow = useMemo(
-    () => filteredRows.find((row) => row.accountId === selectedAccountId) ?? filteredRows[0] ?? null,
-    [filteredRows, selectedAccountId]
+    () => sortedRows.find((row) => row.accountId === selectedAccountId) ?? sortedRows[0] ?? null,
+    [sortedRows, selectedAccountId]
   );
   const highlightedAccountId = highlightCreated ? initialAccountId ?? null : null;
 
@@ -813,6 +944,9 @@ export function AccountGeneralReportView({
     setStatus("all");
     setFromDate("");
     setToDate("");
+    setSelectedCountryForSummary(null);
+    setSelectedUserBranchOnly(false);
+    setExpandedCountries({});
   }
 
   function applyFilters() {
@@ -823,6 +957,9 @@ export function AccountGeneralReportView({
     setStatus(draftStatus);
     setFromDate(draftFromDate);
     setToDate(draftToDate);
+    setSelectedCountryForSummary(null);
+    setSelectedUserBranchOnly(false);
+    setExpandedCountries({});
   }
 
   function openPrint(autoPrint: boolean) {
@@ -1062,84 +1199,316 @@ export function AccountGeneralReportView({
           </div>
         </div>
 
-        {/* Row 2: Account Financial Summary Cards */}
-        <div className="grid gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Accounts</div>
-                <div className="text-xs font-black text-blue-700 dark:text-blue-300">SYSTEM WIDE</div>
-              </div>
-              <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{visibleSummary.activeAccounts} Active</span>
+        {/* Row 1.5: Super Admin Country Breakdown Grid */}
+        {isSuperAdmin && countrySummaries.length > 0 && (
+          <div className="border-b border-slate-100 dark:border-slate-850 pb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Country-wise Financial Breakdown</div>
+              {selectedCountryForSummary && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCountryForSummary(null)}
+                  className="text-[9px] font-black text-rose-500 hover:text-rose-655 underline uppercase cursor-pointer"
+                >
+                  Clear Selection (Show All Countries)
+                </button>
+              )}
             </div>
-            <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
-              <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
-                <div className="font-bold uppercase text-slate-400">Count</div>
-                <div className="font-mono text-sm font-black text-slate-900 dark:text-slate-100">{visibleSummary.totalAccounts.toLocaleString()}</div>
-              </div>
-            </div>
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full normal-case">
+              {/* General Report (System-wide summary) Card */}
+              <div 
+                className={cn(
+                  "rounded-xl border shadow-sm transition-all bg-white dark:bg-slate-900 overflow-hidden flex flex-col cursor-pointer",
+                  selectedCountryForSummary === null && !selectedUserBranchOnly
+                    ? "border-blue-500 ring-1 ring-blue-500 dark:border-blue-400 dark:ring-blue-400" 
+                    : "border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-600"
+                )}
+                onClick={() => {
+                  setSelectedCountryForSummary(null);
+                  setSelectedUserBranchOnly(false);
+                }}
+              >
+                {/* Header */}
+                <div 
+                  className={cn(
+                    "px-4 py-3 flex items-center justify-between border-b",
+                    selectedCountryForSummary === null && !selectedUserBranchOnly ? "bg-blue-50/50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/30" : "bg-slate-50/50 dark:bg-slate-800/20 border-slate-100 dark:border-slate-800"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="text-lg">📊</div>
+                    <div>
+                      <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-[11px] uppercase tracking-wider">General Report</h3>
+                      <div className="text-[9px] font-bold text-slate-500">{allFilteredRows.length} Total Accounts ({allFilteredRows.filter(row => row.status === "active").length} Active)</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">System</span>
+                  </div>
+                </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Debit</div>
-                <div className="text-xs font-black text-rose-700 dark:text-rose-300">RECEIVABLES / DR</div>
+                {/* Content */}
+                <div className="p-4 flex flex-col gap-3 flex-1">
+                  <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-2.5 space-y-2 border border-slate-100 dark:border-slate-800">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">Debit (Receivables)</span>
+                      <span className="font-mono font-extrabold text-rose-600 dark:text-rose-450">{fmtNumber(allFilteredRows.reduce((sum, r) => sum + r.debitTotal, 0))}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">Credit (Payables)</span>
+                      <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-450">{fmtNumber(allFilteredRows.reduce((sum, r) => sum + r.creditTotal, 0))}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-750">
+                      <span className="font-bold text-slate-650 dark:text-slate-300 uppercase text-[9px] tracking-wider">Net Balance</span>
+                      {(() => {
+                        const bal = allFilteredRows.reduce((sum, r) => sum + r.currentBalance, 0);
+                        return (
+                          <span className={cn("font-mono font-black", bal < 0 ? "text-rose-600 dark:text-rose-405" : "text-emerald-600 dark:text-emerald-455")}>
+                            {fmtNumber(bal)}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">Aggregated</span>
-            </div>
-            <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
-              <div className="rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
-                <div className="font-bold uppercase text-rose-600">Debit Total</div>
-                <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{fmtNumber(visibleSummary.debitTotal)}</div>
-              </div>
-            </div>
-          </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Credit</div>
-                <div className="text-xs font-black text-emerald-700 dark:text-emerald-300">PAYABLES / CR</div>
-              </div>
-              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">Aggregated</span>
-            </div>
-            <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
-              <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/20">
-                <div className="font-bold uppercase text-emerald-600">Credit Total</div>
-                <div className="font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">{fmtNumber(visibleSummary.creditTotal)}</div>
-              </div>
-            </div>
-          </div>
+              {/* User & Branch Summary Card */}
+              <div 
+                className={cn(
+                  "rounded-xl border shadow-sm transition-all bg-white dark:bg-slate-900 overflow-hidden flex flex-col cursor-pointer",
+                  selectedUserBranchOnly 
+                    ? "border-blue-500 ring-1 ring-blue-500 dark:border-blue-400 dark:ring-blue-400" 
+                    : "border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-600"
+                )}
+                onClick={() => {
+                  setSelectedUserBranchOnly(true);
+                  setSelectedCountryForSummary(null);
+                }}
+              >
+                {/* Header */}
+                <div 
+                  className={cn(
+                    "px-4 py-3 flex items-center justify-between border-b",
+                    selectedUserBranchOnly ? "bg-blue-50/50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/30" : "bg-slate-50/50 dark:bg-slate-800/20 border-slate-100 dark:border-slate-800"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="text-lg">🏢</div>
+                    <div>
+                      <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-[11px] uppercase tracking-wider">User & Branch</h3>
+                      <div className="text-[9px] font-bold text-slate-500">
+                        {userBranchRows.length} Accounts ({userBranchRows.filter(row => row.status === "active").length} Active)
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                      {userBranchRows[0]?.currency || "USD"}
+                    </span>
+                  </div>
+                </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Net Balance</div>
-                <div className="text-xs font-black text-blue-700 dark:text-blue-300">OVERALL POSITION</div>
+                {/* Content */}
+                <div className="p-4 flex flex-col gap-3 flex-1">
+                  <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-2.5 space-y-2 border border-slate-100 dark:border-slate-800">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">Debit (Receivables)</span>
+                      <span className="font-mono font-extrabold text-rose-600 dark:text-rose-450">
+                        {fmtNumber(userBranchRows.reduce((sum, r) => sum + r.debitTotal, 0))} {userBranchRows[0]?.currency || "USD"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">Credit (Payables)</span>
+                      <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-450">
+                        {fmtNumber(userBranchRows.reduce((sum, r) => sum + r.creditTotal, 0))} {userBranchRows[0]?.currency || "USD"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-750">
+                      <span className="font-bold text-slate-650 dark:text-slate-300 uppercase text-[9px] tracking-wider">Net Balance</span>
+                      {(() => {
+                        const bal = userBranchRows.reduce((sum, r) => sum + r.currentBalance, 0);
+                        return (
+                          <span className={cn("font-mono font-black", bal < 0 ? "text-rose-600 dark:text-rose-405" : "text-emerald-600 dark:text-emerald-455")}>
+                            {fmtNumber(bal)} {userBranchRows[0]?.currency || "USD"}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  {/* Assigned Info */}
+                  <div className="text-[9px] text-slate-450 font-bold mt-auto pt-1 truncate max-w-[250px]">
+                    Assigned: {session?.user?.fullName || "Super Admin"} — {userBranchRows[0]?.branchName || "Main Branch"}
+                  </div>
+                </div>
               </div>
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-300">Consolidated</span>
+
+              {countrySummaries.map((r, idx) => {
+                const isSelected = selectedCountryForSummary === r.countryName;
+                const isExpanded = !!expandedCountries[r.countryName];
+
+                return (
+                  <div 
+                    key={idx}
+                    className={cn(
+                      "rounded-xl border shadow-sm transition-all bg-white dark:bg-slate-900 overflow-hidden flex flex-col",
+                      isSelected 
+                        ? "border-blue-500 ring-1 ring-blue-500 dark:border-blue-400 dark:ring-blue-400" 
+                        : "border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-600"
+                    )}
+                  >
+                    {/* Header */}
+                    <div 
+                      className={cn(
+                        "px-4 py-3 flex items-center justify-between cursor-pointer border-b",
+                        isSelected ? "bg-blue-50/50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/30" : "bg-slate-50/50 dark:bg-slate-800/20 border-slate-100 dark:border-slate-800"
+                      )}
+                      onClick={() => {
+                        setSelectedCountryForSummary(isSelected ? null : r.countryName);
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="text-lg">{getFlag(r.countryName)}</div>
+                        <div>
+                          <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-[11px] uppercase tracking-wider">{r.countryName}</h3>
+                          <div className="text-[9px] font-bold text-slate-500">{r.totalAccounts} Accounts ({r.activeAccounts} Active)</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end" onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedCountries(prev => ({
+                          ...prev,
+                          [r.countryName]: !prev[r.countryName]
+                        }));
+                      }}>
+                        <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">{r.currency}</span>
+                        <span className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-0.5 hover:text-blue-500 transition-colors">
+                          {isExpanded ? "Hide Branches" : "View Branches"} {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-4 flex flex-col gap-3 flex-1" onClick={() => setSelectedCountryForSummary(isSelected ? null : r.countryName)}>
+                      <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-2.5 space-y-2 border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">Debit (Receivables)</span>
+                          <span className="font-mono font-extrabold text-rose-600 dark:text-rose-450">{fmtNumber(r.debitTotal)} {r.currency}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">Credit (Payables)</span>
+                          <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-450">{fmtNumber(r.creditTotal)} {r.currency}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[11px] pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-750">
+                          <span className="font-bold text-slate-650 dark:text-slate-300 uppercase text-[9px] tracking-wider">Net Balance</span>
+                          <span className={cn("font-mono font-black", r.netBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-450")}>
+                            {fmtNumber(r.netBalance)} {r.currency}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Branch Breakdown */}
+                    {isExpanded && r.branches.length > 0 && (
+                      <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-3 space-y-2">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                          <span>{r.countryName} Branches</span>
+                          <span className="bg-slate-250 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-600 dark:text-slate-350">{r.branches.length}</span>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {r.branches.map((b, bIdx) => (
+                            <div key={bIdx} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-2">
+                              <div className="font-extrabold uppercase text-[9px] text-slate-700 dark:text-slate-200 mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-800">{b.branchName}</div>
+                              <div className="flex justify-between items-center text-[9px]">
+                                <span className="text-slate-500">Dr: <span className="font-mono font-bold text-rose-600">{fmtNumber(b.debitTotal)}</span></span>
+                                <span className="text-slate-500">Cr: <span className="font-mono font-bold text-emerald-600">{fmtNumber(b.creditTotal)}</span></span>
+                                <span className="text-slate-500">Bal: <span className={cn("font-mono font-bold", b.netBalance < 0 ? "text-rose-600" : "text-emerald-600")}>{fmtNumber(b.netBalance)}</span></span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
-              <div className={cn("rounded-lg p-2", visibleSummary.totalBalance < 0 ? "bg-rose-50 dark:bg-rose-950/20" : "bg-emerald-50 dark:bg-emerald-950/20")}>
-                <div className={cn("font-bold uppercase", visibleSummary.totalBalance < 0 ? "text-rose-600" : "text-emerald-600")}>Balance</div>
-                <div className={cn("font-mono text-sm font-black", visibleSummary.totalBalance < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300")}>{fmtNumber(visibleSummary.totalBalance)}</div>
+          </div>
+        )}
+
+        {/* Row 2: Account Financial Summary Cards (Hidden for Super Admin to avoid duplicate dashboard panels) */}
+        {!isSuperAdmin && (
+          <div className="grid gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Accounts</div>
+                  <div className="text-xs font-black text-blue-700 dark:text-blue-300">SYSTEM WIDE</div>
+                </div>
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{visibleSummary.activeAccounts} Active</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
+                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-950/50">
+                  <div className="font-bold uppercase text-slate-400">Count</div>
+                  <div className="font-mono text-sm font-black text-slate-900 dark:text-slate-100">{visibleSummary.totalAccounts.toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Debit</div>
+                  <div className="text-xs font-black text-rose-700 dark:text-rose-300">RECEIVABLES / DR</div>
+                </div>
+                <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">Aggregated</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
+                <div className="rounded-lg bg-rose-50 p-2 dark:bg-rose-950/20">
+                  <div className="font-bold uppercase text-rose-600">Debit Total</div>
+                  <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{fmtNumber(visibleSummary.debitTotal)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Credit</div>
+                  <div className="text-xs font-black text-emerald-700 dark:text-emerald-300">PAYABLES / CR</div>
+                </div>
+                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">Aggregated</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
+                <div className="rounded-lg bg-emerald-50 p-2 dark:bg-rose-950/20">
+                  <div className="font-bold uppercase text-emerald-600">Credit Total</div>
+                  <div className="font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">{fmtNumber(visibleSummary.creditTotal)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Net Balance</div>
+                  <div className="text-xs font-black text-blue-700 dark:text-blue-300">OVERALL POSITION</div>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-300">Consolidated</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 text-[10px] normal-case">
+                <div className={cn("rounded-lg p-2", visibleSummary.totalBalance < 0 ? "bg-rose-50 dark:bg-rose-950/20" : "bg-emerald-50 dark:bg-emerald-950/20")}>
+                  <div className={cn("font-bold uppercase", visibleSummary.totalBalance < 0 ? "text-rose-600" : "text-emerald-600")}>Balance</div>
+                  <div className={cn("font-mono text-sm font-black", visibleSummary.totalBalance < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300")}>{fmtNumber(visibleSummary.totalBalance)}</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* REPORT-3: SEARCH & TRANSACTION REPORT */}
       <section className="bg-white border border-slate-200 dark:border-slate-800 dark:bg-slate-950 p-6 rounded-2xl shadow-sm space-y-6">
-        <div className="flex flex-col items-center justify-center text-center w-full py-3 border-b border-slate-100 dark:border-slate-800/60">
-          <h2 className="text-sm font-black tracking-widest text-slate-800 dark:text-slate-100 uppercase flex items-center gap-2 justify-center">
-            <SlidersHorizontal className="h-4 w-4 text-blue-600 dark:text-blue-500" />
-            Account Master Registry & Search Report
-          </h2>
-          <p className="text-[10px] text-slate-400 mt-1.5 font-medium tracking-wide">Financial Accounts & Sub-Ledgers Detail View</p>
-        </div>
-
         {actionsOpen ? (
           <div className="rounded border border-slate-200 bg-slate-50/30 p-4 dark:border-slate-800 dark:bg-slate-955 animate-in fade-in duration-200">
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -1238,8 +1607,8 @@ export function AccountGeneralReportView({
                         Loading accounts registry...
                       </td>
                     </tr>
-                  ) : filteredRows.length ? (
-                    filteredRows.map((row) => {
+                  ) : sortedRows.length ? (
+                    sortedRows.map((row) => {
                       const active = row.accountId === selectedRow?.accountId;
                       const highlighted = row.accountId === highlightedAccountId;
                       
