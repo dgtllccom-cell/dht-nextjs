@@ -60,6 +60,8 @@ type PurchaseOrderRow = {
   country_branch_id?: string | null;
   city_branch_id?: string | null;
   currency_code: string | null;
+  payment_currency?: string | null;
+  currency?: string | null;
   exchange_rate: number | null;
   order_total: number | null;
   advance_paid: number | null;
@@ -74,7 +76,14 @@ type PurchaseOrderRow = {
   branchSerialNo?: string | null;
   branchName?: string | null;
   countryName?: string | null;
-  audit?: { branchCode?: string | null } | null;
+  sales_account_no?: string | null;
+  sales_account_name?: string | null;
+  purchase_account_no?: string | null;
+  purchase_account_name?: string | null;
+  status?: string | null;
+  quantity?: number | string | null;
+  createdByName?: string | null;
+  audit?: { branchCode?: string | null; userName?: string | null; userId?: string | null } | null;
   payment_status: string | null;
   ledger_posting_status: string | null;
   created_at: string | null;
@@ -636,6 +645,27 @@ function weekDue(value: string | null | undefined) {
   return d >= now && d <= sevenDays;
 }
 
+function calcLoadingFinance(loadingRecord: any, poRow: any, form: any) {
+  const payload = loadingRecord?.report_payload || {};
+  const goods = poRow?.form_data?.goodsEntries || [];
+  const firstGood = goods[0] || {};
+  const totalPurchase = Number(
+    payload.totalPurchase ||
+    payload.purchaseAmount ||
+    loadingRecord?.purchase_amount ||
+    firstGood.totalAmount ||
+    form.totalAmount ||
+    poRow?.order_total ||
+    0
+  );
+  const exchangeRate = Number(payload.exchangeRate || loadingRecord?.exchange_rate || poRow?.exchange_rate || form.exchangeRate || 1) || 1;
+  return {
+    amountUSD: totalPurchase,
+    exRate: exchangeRate,
+    netWeight: Number(payload.netWeight || payload.netWt || loadingRecord?.net_weight || firstGood.netWeight || firstGood.netWt || 0),
+    grossWeight: Number(payload.grossWeight || payload.grossWt || loadingRecord?.gross_weight || firstGood.grossWeight || firstGood.grossWt || 0)
+  };
+}
 function kpis(rows: PurchaseOrderRow[], baseCurrency: string): KpiCard[] {
   let totalPurchaseUSD = 0;
   let totalInvoiceValueLC = 0;
@@ -858,7 +888,8 @@ function NestedPaymentHistory({
   selectOrder,
   expandedIds,
   setExpandedIds,
-  logClientError
+  logClientError,
+  onOpenFullBill
 }: { 
   row: any, 
   ledgers: any[], 
@@ -867,7 +898,8 @@ function NestedPaymentHistory({
   selectOrder: (id: string) => void,
   expandedIds: Record<string, boolean>,
   setExpandedIds: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
-  logClientError: (msg: string) => void
+  logClientError: (msg: string) => void,
+  onOpenFullBill?: () => void
 }) {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -984,7 +1016,54 @@ function NestedPaymentHistory({
   const calcs = resolvePurchaseCalculations(row);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950/40 space-y-3">
+    <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
+      <div className="overflow-hidden rounded-2xl border border-slate-900 bg-slate-950 shadow-lg dark:border-slate-700">
+        <div className="flex flex-col gap-4 bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 p-4 text-white lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-200">Endorsement Audit Console</div>
+            <div className="mt-2 flex flex-wrap items-end gap-3">
+              <h3 className="text-2xl font-black tracking-tight">{row.purchase_order_no || "Purchase Order"}</h3>
+              <span className="mb-1 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-100">{historyWithBalance.length} Posted Entries</span>
+              <span className="mb-1 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-100">{purchaseCurrency} to {calcs.finalCurr}</span>
+            </div>
+            <p className="mt-2 max-w-4xl text-xs font-semibold leading-5 text-slate-300">Complete endorsement payment audit: purchase order, supplier, goods, debit ledger, credit ledger, exchange rate, local currency amount, running balance, and journal reference in one place.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {onOpenFullBill && (
+              <button
+                type="button"
+                onClick={onOpenFullBill}
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-[11px] font-black uppercase tracking-wider text-slate-950 shadow-sm transition hover:bg-blue-50"
+              >
+                <Eye className="h-4 w-4" />
+                Open Full Bill
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="grid gap-px bg-slate-800 p-px md:grid-cols-2 xl:grid-cols-4">
+          <div className="bg-white p-4 dark:bg-slate-950">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Purchase Required</div>
+            <div className="mt-1 font-mono text-lg font-black text-slate-950 dark:text-white">{money(statementAdvanceRequiredForeign, purchaseCurrency)}</div>
+            <div className="mt-1 text-[10px] font-bold text-slate-500">Local: {money(statementAdvanceRequiredLocal, calcs.finalCurr)}</div>
+          </div>
+          <div className="bg-white p-4 dark:bg-slate-950">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Received / Paid</div>
+            <div className="mt-1 font-mono text-lg font-black text-emerald-600">{money(statementReceivedForeign, purchaseCurrency)}</div>
+            <div className="mt-1 text-[10px] font-bold text-slate-500">Local: {money(statementReceivedLocal, calcs.finalCurr)}</div>
+          </div>
+          <div className="bg-white p-4 dark:bg-slate-950">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Remaining Balance</div>
+            <div className="mt-1 font-mono text-lg font-black text-rose-600">{statementBalanceForeign <= 0.01 ? "Cleared" : money(statementBalanceForeign, purchaseCurrency)}</div>
+            <div className="mt-1 text-[10px] font-bold text-slate-500">Local: {statementBalanceLocal <= 0.01 ? "Cleared" : money(statementBalanceLocal, calcs.finalCurr)}</div>
+          </div>
+          <div className="bg-white p-4 dark:bg-slate-950">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ledger Route</div>
+            <div className="mt-1 truncate text-sm font-black text-blue-700 dark:text-blue-300" title={form.purchaseAccountName || "Debit Account"}>DR: {form.purchaseAccountName || "Debit Account"}</div>
+            <div className="mt-1 truncate text-sm font-black text-rose-700 dark:text-rose-300" title={form.salesAccountName || "Credit Account"}>CR: {form.salesAccountName || "Credit Account"}</div>
+          </div>
+        </div>
+      </div>
       {/* Visual Calculation Flow sequence */}
       <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 border border-slate-200/60 dark:border-slate-800/80 shadow-inner">
         <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-1.5">
@@ -2369,6 +2448,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [paymentError, setPaymentError] = useState("");
   const [selectedOrderPayments, setSelectedOrderPayments] = useState<any[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
+  const [viewingRowPayments, setViewingRowPayments] = useState<any[]>([]);
+  const [loadingViewingRowPayments, setLoadingViewingRowPayments] = useState(false);
   const [showModalHistory, setShowModalHistory] = useState(false);
 
   useEffect(() => {
@@ -2395,6 +2476,31 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     void fetchPayments();
     return () => { cancelled = true; };
   }, [selectedId]);
+  useEffect(() => {
+    if (!viewingRow?.id) {
+      setViewingRowPayments([]);
+      return;
+    }
+    const viewingRowId = viewingRow.id;
+    let cancelled = false;
+    async function fetchViewingPayments() {
+      setLoadingViewingRowPayments(true);
+      try {
+        const response = await fetch(`/api/erp/purchases/orders/${viewingRowId}/payments`, { credentials: "include" });
+        const body = await response.json();
+        if (body?.ok && body.data?.payments && !cancelled) {
+          setViewingRowPayments(body.data.payments.filter((p: any) => !p.narration?.toLowerCase().includes("initial booking transfer")));
+        }
+      } catch (err) {
+        console.error("Failed to load full bill payment history:", err);
+      } finally {
+        if (!cancelled) setLoadingViewingRowPayments(false);
+      }
+    }
+    void fetchViewingPayments();
+    return () => { cancelled = true; };
+  }, [viewingRow?.id]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -3168,7 +3274,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     // For payments (advance, remaining, credit), the debit account is the supplier's party account (salesAccountNo / salesAccountName)
     // and the credit account is the user-selected payment source account (bank/cash).
     // If it's a booking entry, we debit the purchase account and credit the supplier's account.
-    const isBooking = activeMode === "booking";
+    const isBooking = (activeMode as string) === "booking";
 
     const debitCode = isBooking 
       ? (selectedForm.purchaseAccountNo || "-") 
@@ -3423,6 +3529,18 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           {/* 13. Action */}
           <td className="px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-1.5 justify-end">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setViewingRow(row);
+                }}
+                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-[10px] font-black uppercase tracking-wide text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+                title="Open full bill audit report"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Open Full Bill
+              </button>
               <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <ViewportActionMenu
                   ariaLabel="Row actions"
@@ -3454,7 +3572,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         </button>
                       )}
                       <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setViewingRow(row); close(); }}>
-                        <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> View Detailed Bill
+                        <Eye className="mr-2.5 h-4 w-4 text-blue-600" /> Open Full Bill
                       </button>
                       <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, true); close(); }}>
                         <Printer className="mr-2.5 h-4 w-4 text-slate-500" /> Print Statement
@@ -3503,6 +3621,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 expandedIds={expandedIds}
                 setExpandedIds={setExpandedIds}
                 logClientError={logClientError}
+                onOpenFullBill={() => setViewingRow(row)}
               />
             </td>
           </tr>
@@ -4003,13 +4122,25 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                                 <>
                                                   {isPaymentCompleted ? (
                                                     <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
-                                                      Transferred ?
+                                                      Transferred
                                                     </span>
                                                   ) : (
                                                     <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
                                                       Pending
                                                     </span>
                                                   )}
+                                                <button
+                                                  type="button"
+                                                  onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setViewingRow(row);
+                                                  }}
+                                                  className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-[10px] font-black uppercase tracking-wide text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+                                                  title="Open full bill audit report"
+                                                >
+                                                  <Eye className="h-3.5 w-3.5" />
+                                                  Open Full Bill
+                                                </button>
                                                 </>
                                               )}
                           <div className={cn("relative inline-block text-left", activeMode !== "advance_completed" && "mt-1")} onClick={(e) => e.stopPropagation()}>
@@ -4033,7 +4164,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Current Status</span>
                                       {isPosted ? (
                                         <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
-                                          Transferred ?
+                                          Transferred
                                         </span>
                                       ) : (
                                         <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
@@ -4065,7 +4196,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       </button>
                                     )}
                                     <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { setViewingRow(row); close(); }}>
-                                      <Eye className="mr-2.5 h-4 w-4 text-slate-500" /> View Detailed Bill
+                                      <Eye className="mr-2.5 h-4 w-4 text-blue-600" /> Open Full Bill
                                     </button>
                                     <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => { handleOpenA4PDF(row, true); close(); }}>
                                       <Printer className="mr-2.5 h-4 w-4 text-slate-500" /> Print Statement
@@ -4115,6 +4246,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 expandedIds={expandedIds}
                 setExpandedIds={setExpandedIds}
                 logClientError={logClientError}
+                onOpenFullBill={() => setViewingRow(row)}
               />
                                             </td>
                                           </tr>
@@ -5006,8 +5138,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       </div>
 
                       {/* Running Ledger Table */}
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
+                      <div className="max-h-[420px] overflow-auto">
+                        <table className="w-full min-w-[1320px] text-left text-xs border-collapse">
                           <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-900 text-[9px] uppercase font-black tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                             <tr>
                               <th className="px-3 py-2 text-center w-10">#</th>
@@ -5103,6 +5235,94 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                             </tr>
                           </tfoot>
                         </table>
+                      </div>
+                      <div className="grid gap-3 border-t border-slate-100 bg-slate-50/60 p-3 dark:border-slate-800 dark:bg-slate-900/20 lg:grid-cols-2">
+                        <div className="rounded-xl border border-blue-200 bg-white shadow-sm dark:border-blue-900/60 dark:bg-slate-950">
+                          <div className="flex items-center justify-between border-b border-blue-100 px-3 py-2 dark:border-blue-900/60">
+                            <div>
+                              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-blue-700 dark:text-blue-300">Debit Entries</div>
+                              <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Purchase side ledger postings</div>
+                            </div>
+                            <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-black text-white">DR</span>
+                          </div>
+                          <div className="max-h-[220px] overflow-auto">
+                            <table className="w-full min-w-[620px] text-[10px]">
+                              <thead className="sticky top-0 bg-blue-50 text-left uppercase tracking-[0.08em] text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                                <tr>
+                                  <th className="px-3 py-2">Serial / Date</th>
+                                  <th className="px-3 py-2">Debit Account</th>
+                                  <th className="px-3 py-2 text-right">Amount ({poCurrency})</th>
+                                  <th className="px-3 py-2 text-right">Amount ({baseCurrency})</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {historyWithBalance.map((payment: any) => {
+                                  const drLedger = ledgers.find((l) => ledgerId(l) === payment.debit_ledger_id);
+                                  const entry = payment.roznamcha_entries || {};
+                                  const rawSerial = String(entry.debit_serial_number || payment.debit_serial_number || entry.super_admin_serial_number || payment.super_admin_serial_number || "Pending");
+                                  const serial = rawSerial.endsWith("-DR") ? rawSerial : `${rawSerial}-DR`;
+                                  return (
+                                    <tr key={`debit-entry-${payment.id}`} className="hover:bg-blue-50/60 dark:hover:bg-blue-950/20">
+                                      <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-300">
+                                        <div className="font-black text-blue-700 dark:text-blue-300">{serial}</div>
+                                        <div className="text-[9px]">{date(payment.payment_date || payment.created_at)}</div>
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <div className="font-black text-slate-800 dark:text-slate-100">{ledgerName(drLedger)}</div>
+                                        <div className="font-mono text-[9px] text-slate-500">{ledgerCode(drLedger) || payment.debit_ledger_id || "-"}</div>
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-mono font-black text-blue-700 dark:text-blue-300">{money(payment.amtUSD, poCurrency)}</td>
+                                      <td className="px-3 py-2 text-right font-mono font-black text-blue-700 dark:text-blue-300">{money(payment.amtAED, baseCurrency)}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-rose-200 bg-white shadow-sm dark:border-rose-900/60 dark:bg-slate-950">
+                          <div className="flex items-center justify-between border-b border-rose-100 px-3 py-2 dark:border-rose-900/60">
+                            <div>
+                              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-rose-700 dark:text-rose-300">Credit Entries</div>
+                              <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Payment source ledger postings</div>
+                            </div>
+                            <span className="rounded-full bg-rose-600 px-2 py-1 text-[10px] font-black text-white">CR</span>
+                          </div>
+                          <div className="max-h-[220px] overflow-auto">
+                            <table className="w-full min-w-[620px] text-[10px]">
+                              <thead className="sticky top-0 bg-rose-50 text-left uppercase tracking-[0.08em] text-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+                                <tr>
+                                  <th className="px-3 py-2">Serial / Date</th>
+                                  <th className="px-3 py-2">Credit Account</th>
+                                  <th className="px-3 py-2 text-right">Amount ({poCurrency})</th>
+                                  <th className="px-3 py-2 text-right">Amount ({baseCurrency})</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {historyWithBalance.map((payment: any) => {
+                                  const crLedger = ledgers.find((l) => ledgerId(l) === payment.credit_ledger_id);
+                                  const entry = payment.roznamcha_entries || {};
+                                  const rawSerial = String(entry.credit_serial_number || payment.credit_serial_number || entry.super_admin_serial_number || payment.super_admin_serial_number || "Pending");
+                                  const serial = rawSerial.endsWith("-CR") ? rawSerial : `${rawSerial}-CR`;
+                                  return (
+                                    <tr key={`credit-entry-${payment.id}`} className="hover:bg-rose-50/60 dark:hover:bg-rose-950/20">
+                                      <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-300">
+                                        <div className="font-black text-rose-700 dark:text-rose-300">{serial}</div>
+                                        <div className="text-[9px]">{date(payment.payment_date || payment.created_at)}</div>
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <div className="font-black text-slate-800 dark:text-slate-100">{ledgerName(crLedger)}</div>
+                                        <div className="font-mono text-[9px] text-slate-500">{ledgerCode(crLedger) || payment.credit_ledger_id || "-"}</div>
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-mono font-black text-rose-700 dark:text-rose-300">{money(payment.amtUSD, poCurrency)}</td>
+                                      <td className="px-3 py-2 text-right font-mono font-black text-rose-700 dark:text-rose-300">{money(payment.amtAED, baseCurrency)}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -5906,9 +6126,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       {/* Detailed PO Modal */}
       {viewingRow && (
         <SimpleModal
-          title={`Purchase Order Details - ${viewingRow.purchase_order_no}`}
+          title={`Open Full Bill - ${viewingRow.purchase_order_no}`}
           onClose={() => setViewingRow(null)}
-          className="h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[1500px] rounded-2xl shadow-2xl"
+          className="h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[1700px] rounded-2xl shadow-2xl"
         >
           {(() => {
             const form = viewingRow.form_data?.form || {};
@@ -5929,6 +6149,40 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             const paidAdvanceBC = Number(viewingRow.advance_paid || 0);
             const paidAdvanceLocal = paidAdvanceBC * exchangeRateVal;
             const remAdvanceBC = Math.max(0, reqAdvanceBC - paidAdvanceBC);
+            const paymentEntries = [...viewingRowPayments]
+              .sort((a: any, b: any) => new Date(a.created_at || a.payment_date || 0).getTime() - new Date(b.created_at || b.payment_date || 0).getTime())
+              .map((p: any, idx: number) => {
+                const rate = Number(p.exchange_rate || exchangeRateVal || 1) || 1;
+                const rawAmount = Math.abs(Number(p.amount || p.payment_amount || p.local_amount || 0));
+                const payCurrency = String(p.currency_code || viewingRow.currency_code || "").toUpperCase();
+                const baseCur = viewingLocalCurrency;
+                const purchCur = String(viewingRow.currency_code || form.currencyType || "USD").toUpperCase();
+                const amountPurchase = payCurrency === baseCur.toUpperCase() ? rawAmount / rate : rawAmount;
+                const amountLocal = payCurrency === baseCur.toUpperCase() ? rawAmount : rawAmount * rate;
+                const paidBeforePurchase = viewingRowPayments.slice(0, idx).reduce((sum: number, prev: any) => {
+                  const prevRate = Number(prev.exchange_rate || exchangeRateVal || 1) || 1;
+                  const prevRaw = Math.abs(Number(prev.amount || prev.payment_amount || prev.local_amount || 0));
+                  const prevCur = String(prev.currency_code || purchCur).toUpperCase();
+                  return sum + (prevCur === baseCur.toUpperCase() ? prevRaw / prevRate : prevRaw);
+                }, 0);
+                const totalPaidPurchase = paidBeforePurchase + amountPurchase;
+                const totalPaidLocal = totalPaidPurchase * rate;
+                const remainingPurchase = Math.max(0, reqAdvanceBC - totalPaidPurchase);
+                const remainingLocal = Math.max(0, reqAdvanceBC * rate - totalPaidLocal);
+                const journalSerial = p.serial_number || p.global_serial || p.journal_serial || `ENTRY-${String(idx + 1).padStart(3, "0")}`;
+                return { p, idx, rate, purchCur, baseCur, amountPurchase, amountLocal, totalPaidPurchase, totalPaidLocal, remainingPurchase, remainingLocal, journalSerial };
+              });
+            const totalPaidPurchase = paymentEntries.reduce((sum: number, entry: any) => sum + entry.amountPurchase, 0);
+            const totalPaidLocal = paymentEntries.reduce((sum: number, entry: any) => sum + entry.amountLocal, 0);
+            const remainingPurchaseBalance = Math.max(0, reqAdvanceBC - totalPaidPurchase);
+            const remainingLocalBalance = Math.max(0, reqAdvanceBC * Number(exchangeRateVal || 1) - totalPaidLocal);
+            const paymentStatusLabel = remainingPurchaseBalance <= 0.01 ? "Paid" : totalPaidPurchase > 0 ? "Partial" : "Pending";
+            const viewingRowAny = viewingRow as any;
+            const viewingPurchaseAccountName = form.purchaseAccountName || viewingRowAny.purchase_account_name || viewingRowAny.purchaseAccountName || "-";
+            const viewingPurchaseAccountNo = form.purchaseAccountNo || viewingRowAny.purchase_account_no || viewingRowAny.purchaseAccountNo || viewingRow.purchase_contract_no || "-";
+            const viewingSalesAccountName = form.salesAccountName || viewingRowAny.sales_account_name || viewingRowAny.salesAccountName || "-";
+            const viewingSalesAccountNo = form.salesAccountNo || viewingRowAny.sales_account_no || viewingRowAny.salesAccountNo || "-";
+
 
             return (
               <div className="space-y-6 text-sm text-slate-700 dark:text-slate-300">
@@ -5952,6 +6206,67 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </div>
                 </div>
 
+                {/* ERP full bill summary */}
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <div className="bg-slate-950 px-5 py-4 text-white dark:bg-slate-900">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-200">Purchase Order Endorsement Audit</div>
+                        <div className="mt-1 text-xl font-black tracking-tight">{viewingRow.purchase_order_no}</div>
+                        <div className="mt-1 text-xs text-slate-300">{rowCountryName(viewingRow) || "Country"} / {rowBranchName(viewingRow) || "Branch"} / {viewingRow.currency_code || "Currency"}</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-right text-xs sm:grid-cols-4">
+                        <div className="rounded-xl bg-white/10 px-3 py-2">
+                          <div className="text-[9px] uppercase text-slate-300">Entries</div>
+                          <div className="font-mono text-lg font-black">{paymentEntries.length}</div>
+                        </div>
+                        <div className="rounded-xl bg-white/10 px-3 py-2">
+                          <div className="text-[9px] uppercase text-slate-300">Status</div>
+                          <div className="font-black text-emerald-300">{paymentStatusLabel}</div>
+                        </div>
+                        <div className="rounded-xl bg-white/10 px-3 py-2">
+                          <div className="text-[9px] uppercase text-slate-300">Rate</div>
+                          <div className="font-mono font-black">{Number(exchangeRateVal || 1).toFixed(4)}</div>
+                        </div>
+                        <div className="rounded-xl bg-white/10 px-3 py-2">
+                          <div className="text-[9px] uppercase text-slate-300">Local</div>
+                          <div className="font-black">{viewingLocalCurrency}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 p-4 md:grid-cols-3">
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+                      <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-300">Debit Account</div>
+                      <div className="text-sm font-black text-slate-900 dark:text-white">{viewingPurchaseAccountName}</div>
+                      <div className="mt-1 font-mono text-xs text-blue-700 dark:text-blue-300">{viewingPurchaseAccountNo}</div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                        <span>Company</span><b className="text-right">{form.purchaseAccountCompany || form.companyName || "-"}</b>
+                        <span>Branch</span><b className="text-right">{form.purchaseAccountBranch || rowBranchName(viewingRow) || "-"}</b>
+                        <span>Currency</span><b className="text-right">{viewingRow.currency_code || "-"}</b>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4 dark:border-rose-900/40 dark:bg-rose-950/20">
+                      <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-300">Credit Account</div>
+                      <div className="text-sm font-black text-slate-900 dark:text-white">{viewingSalesAccountName}</div>
+                      <div className="mt-1 font-mono text-xs text-rose-700 dark:text-rose-300">{viewingSalesAccountNo}</div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                        <span>Company</span><b className="text-right">{form.salesAccountCompany || "-"}</b>
+                        <span>Branch</span><b className="text-right">{form.salesAccountBranch || rowBranchName(viewingRow) || "-"}</b>
+                        <span>Currency</span><b className="text-right">{viewingLocalCurrency}</b>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                      <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Running Balance</div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between"><span>Total Required</span><b className="font-mono">{money(reqAdvanceBC, viewingRow.currency_code ?? "")}</b></div>
+                        <div className="flex justify-between text-emerald-700"><span>Total Paid</span><b className="font-mono">{money(totalPaidPurchase, viewingRow.currency_code ?? "")}</b></div>
+                        <div className="flex justify-between text-rose-700"><span>Remaining</span><b className="font-mono">{money(remainingPurchaseBalance, viewingRow.currency_code ?? "")}</b></div>
+                        <div className="border-t pt-2 text-slate-500 dark:border-slate-800">Local Balance: <b className="float-right font-mono text-slate-900 dark:text-white">{money(remainingLocalBalance, viewingLocalCurrency)}</b></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 {/* Items & Weights */}
                 <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-950">
                   <div className="bg-slate-50 px-4 py-2.5 font-bold text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800">
@@ -6047,6 +6362,101 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </div>
                 </div>
 
+                {/* Endorsement payment journal */}
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Endorsement Payment History</div>
+                      <div className="text-[11px] text-slate-500">Complete journal-style audit trail with running balance after every payment.</div>
+                    </div>
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                      {loadingViewingRowPayments ? "Loading..." : `${paymentEntries.length} Posted ${paymentEntries.length === 1 ? "Entry" : "Entries"}`}
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-[1280px] w-full border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-950 text-white dark:bg-slate-900">
+                          <th className="px-3 py-3 text-left">Entry</th>
+                          <th className="px-3 py-3 text-left">Serial / Date</th>
+                          <th className="px-3 py-3 text-left">User</th>
+                          <th className="px-3 py-3 text-left">Debit Ledger</th>
+                          <th className="px-3 py-3 text-left">Credit Ledger</th>
+                          <th className="px-3 py-3 text-right">Payment ({viewingRow.currency_code || "FC"})</th>
+                          <th className="px-3 py-3 text-right">Rate</th>
+                          <th className="px-3 py-3 text-right">Local Amount ({viewingLocalCurrency})</th>
+                          <th className="px-3 py-3 text-right">Running Balance</th>
+                          <th className="px-3 py-3 text-left">Journal Reference</th>
+                          <th className="px-3 py-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentEntries.length ? paymentEntries.map((entry: any) => {
+                          const p = entry.p;
+                          const debitAccount = p.debit_account_name || p.debitAccountName || viewingPurchaseAccountName || "Debit Account";
+                          const creditAccount = p.credit_account_name || p.creditAccountName || viewingSalesAccountName || "Credit Account";
+                          const paymentLabel = `${entry.idx + 1}${entry.idx === 0 ? "st" : entry.idx === 1 ? "nd" : entry.idx === 2 ? "rd" : "th"} Entry`;
+                          return (
+                            <tr key={p.id || `${entry.journalSerial}-${entry.idx}`} className="border-b border-slate-100 align-top last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900/60">
+                              <td className="px-3 py-3 font-black text-blue-700 dark:text-blue-300">{paymentLabel}</td>
+                              <td className="px-3 py-3">
+                                <div className="font-mono font-black text-slate-900 dark:text-white">{entry.journalSerial}</div>
+                                <div className="text-[11px] text-slate-500">{date(p.payment_date || p.created_at)}</div>
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="font-bold">{p.created_by_name || p.user_name || session?.name || session?.username || "Admin"}</div>
+                                <div className="text-[11px] text-slate-500">{p.kind || "Endorsement Payment"}</div>
+                              </td>
+                              <td className="px-3 py-3">
+                                <span className="inline-flex rounded-lg bg-blue-50 px-2 py-1 font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">DR: {debitAccount}</span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <span className="inline-flex rounded-lg bg-rose-50 px-2 py-1 font-bold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">CR: {creditAccount}</span>
+                              </td>
+                              <td className="px-3 py-3 text-right font-mono font-black text-emerald-700">{money(entry.amountPurchase, entry.purchCur)}</td>
+                              <td className="px-3 py-3 text-right font-mono">{Number(entry.rate || 1).toFixed(4)}</td>
+                              <td className="px-3 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">{money(entry.amountLocal, entry.baseCur)}</td>
+                              <td className="px-3 py-3 text-right">
+                                <div className="font-mono font-black text-rose-700">{money(entry.remainingPurchase, entry.purchCur)}</div>
+                                <div className="text-[11px] text-slate-500">{money(entry.remainingLocal, entry.baseCur)}</div>
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="font-mono text-[11px] font-bold">{p.journal_entry_id || p.ledger_entry_id || p.reference_no || "Pending Journal Ref"}</div>
+                                <div className="line-clamp-2 text-[11px] text-slate-500">{p.narration || p.remarks || "Endorsement payment posted"}</div>
+                              </td>
+                              <td className="px-3 py-3 text-center">
+                                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Posted</span>
+                              </td>
+                            </tr>
+                          );
+                        }) : (
+                          <tr>
+                            <td colSpan={11} className="px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                              {loadingViewingRowPayments ? "Loading endorsement payment history..." : "No endorsement payments have been posted for this bill yet."}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 md:grid-cols-3">
+                    <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-slate-950">
+                      <div className="text-[10px] font-black uppercase text-slate-400">Total Required</div>
+                      <div className="mt-1 font-mono text-base font-black">{money(reqAdvanceBC, viewingRow.currency_code ?? "")}</div>
+                      <div className="text-[11px] text-slate-500">{money(reqAdvanceBC * Number(exchangeRateVal || 1), viewingLocalCurrency)}</div>
+                    </div>
+                    <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-slate-950">
+                      <div className="text-[10px] font-black uppercase text-slate-400">Total Received</div>
+                      <div className="mt-1 font-mono text-base font-black text-emerald-700">{money(totalPaidPurchase, viewingRow.currency_code ?? "")}</div>
+                      <div className="text-[11px] text-slate-500">{money(totalPaidLocal, viewingLocalCurrency)}</div>
+                    </div>
+                    <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-slate-950">
+                      <div className="text-[10px] font-black uppercase text-slate-400">Remaining Balance</div>
+                      <div className="mt-1 font-mono text-base font-black text-rose-700">{money(remainingPurchaseBalance, viewingRow.currency_code ?? "")}</div>
+                      <div className="text-[11px] text-slate-500">{money(remainingLocalBalance, viewingLocalCurrency)}</div>
+                    </div>
+                  </div>
+                </div>
                 {/* Transit Details */}
                 <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/20 space-y-2 text-xs">
                   <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">Transit & Logistics</h4>
@@ -6149,7 +6559,7 @@ function Metric({ label, value, sublabel, icon, tone }: KpiCard) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
       <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", colorClasses.iconBg, colorClasses.iconText)}>
-        {React.isValidElement(icon) ? React.cloneElement(icon as React.ReactElement, { className: "h-5 w-5" }) : icon}
+        {React.isValidElement(icon) ? React.cloneElement(icon as React.ReactElement<any>, { className: "h-5 w-5" }) : icon}
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">{label}</p>
@@ -6228,7 +6638,7 @@ function RowActions({ onSelect, rowId }: { onSelect: () => void; rowId: string }
         type="button"
         onClick={openMenu}
         style={{
-          display: "inline-flex", alignItems: "center", justifycontent: "center",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
           height: 32, width: 32, borderRadius: 8,
           border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer",
           color: "#64748b", transition: "background 0.15s"
@@ -6314,6 +6724,17 @@ function getStatusBadge(status: string | null | undefined) {
     </span>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 
