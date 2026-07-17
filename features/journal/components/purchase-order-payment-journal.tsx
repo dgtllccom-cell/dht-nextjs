@@ -5473,31 +5473,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         <th className="px-2 py-2.5 text-center">✓</th>
                       </tr>
                     </thead>
-                    <tbody>                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
-                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Balance Local</div>
-                        <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(outstandingBalance * Number(exRate || 1), baseCurrency)}</div>
-                      </div>
-                    </div>
-                    <div className="mt-2 rounded-lg border border-emerald-200/80 bg-white/70 px-2 py-1 text-[10px] font-bold text-slate-600 dark:border-emerald-900/60 dark:bg-slate-950/40 dark:text-slate-300">
-                      Exchange Rate: <span className="font-mono">1 {poCurrency} = {Number(exRate || 1).toFixed(4)} {baseCurrency}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mt-4 block">
-                  Double-Entry Journal Posting Preview
-                </div>
-                <div className="overflow-x-auto rounded-xl border border-border bg-white dark:bg-slate-950">
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-muted/60 border-b border-border text-[10px] uppercase font-black tracking-wider text-muted-foreground">
-                        <th className="px-3 py-2.5 text-left w-16">DR / CR</th>
-                        <th className="px-3 py-2.5 text-left">Account</th>
-                        <th className="px-3 py-2.5 text-right">Amount ({poCurrency})</th>
-                        <th className="px-3 py-2.5 text-right">Amount ({baseCurrency})</th>
-                        <th className="px-2 py-2.5 text-center">âœ“</th>
-                      </tr>
-                    </thead>
                     <tbody>
                       {(() => {
                         const previewUsd = showCalcPanel 
@@ -5512,14 +5487,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               <td className="px-3 py-3">
                                 <div className="font-bold text-foreground line-clamp-1">{doubleEntry.debitName}</div>
                                 <div className="text-[9px] text-muted-foreground font-mono">
-                                  {doubleEntry.debitCode} {doubleEntry.debitBranch && doubleEntry.debitBranch !== "-" && `| Branch: ${doubleEntry.debitBranch}`}
+                                  {doubleEntry.debitCode} {doubleEntry.debitBranch && doubleEntry.debitBranch !== "-" && `| ${currentLanguage === "en" ? "Branch" : "برانچ"}: ${doubleEntry.debitBranch}`}
                                 </div>
                               </td>
                               <td className="px-3 py-3 text-right font-mono font-bold text-indigo-600 whitespace-nowrap">
-                                {previewUsd > 0 ? money(previewUsd, poCurrency) : "â€”"}
+                                {previewUsd > 0 ? money(previewUsd, poCurrency) : "—"}
                               </td>
                               <td className="px-3 py-3 text-right font-mono font-bold text-indigo-600 whitespace-nowrap">
-                                {previewAed > 0 ? money(previewAed, baseCurrency) : "â€”"}
+                                {previewAed > 0 ? money(previewAed, baseCurrency) : "—"}
                               </td>
                               <td className="px-2 py-3 text-center">
                                 <input
@@ -5535,14 +5510,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               <td className="px-3 py-3">
                                 <div className="font-bold text-foreground line-clamp-1">{doubleEntry.creditName}</div>
                                 <div className="text-[9px] text-muted-foreground font-mono">
-                                  {doubleEntry.creditCode} {doubleEntry.creditBranch && doubleEntry.creditBranch !== "-" && `| Branch: ${doubleEntry.creditBranch}`}
+                                  {doubleEntry.creditCode} {doubleEntry.creditBranch && doubleEntry.creditBranch !== "-" && `| ${currentLanguage === "en" ? "Branch" : "برانچ"}: ${doubleEntry.creditBranch}`}
                                 </div>
                               </td>
                               <td className="px-3 py-3 text-right font-mono font-bold text-violet-600 whitespace-nowrap">
-                                {previewUsd > 0 ? money(previewUsd, poCurrency) : "â€”"}
+                                {previewUsd > 0 ? money(previewUsd, poCurrency) : "—"}
                               </td>
                               <td className="px-3 py-3 text-right font-mono font-bold text-violet-600 whitespace-nowrap">
-                                {previewAed > 0 ? money(previewAed, baseCurrency) : "â€”"}
+                                {previewAed > 0 ? money(previewAed, baseCurrency) : "—"}
                               </td>
                               <td className="px-2 py-3 text-center">
                                 <input
@@ -5561,19 +5536,20 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 </div>
 
                 <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-[11px] text-muted-foreground dark:border-slate-800 dark:bg-slate-900/30 leading-relaxed space-y-2">
-                  <div className="font-bold text-slate-700 dark:text-slate-300">Double-Entry Posting Guide</div>
+                  <div className="font-bold text-slate-700 dark:text-slate-300">
+                    {t("double_entry_posting_guide", currentLanguage)}
+                  </div>
                   <p>
-                    Every transaction balances dynamically. When you process a payment:
+                    {t("every_transaction_balances", currentLanguage)}
                   </p>
                   <ul className="list-disc pl-4 space-y-1">
-                    <li>The Debit (Dr) records are updated to settle liabilities with the seller/supplier.</li>
-                    <li>The Credit (Cr) records deduct funds from your payment source ledger.</li>
-                    <li>Exchange conversion calculates local currency value ({baseCurrency}) automatically.</li>
+                    <li>{t("debit_records_updated", currentLanguage)}</li>
+                    <li>{t("credit_records_deduct", currentLanguage)}</li>
+                    <li>{t("exchange_conversion_calculates", currentLanguage).replace("{baseCurrency}", baseCurrency)}</li>
                   </ul>
                 </div>
               </div>
             </div>
-            )}
           </div>
         </SimpleModal>
       )}

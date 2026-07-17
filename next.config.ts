@@ -29,11 +29,11 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 
 // Trigger dev server restart to clear in-memory Webpack caching: 2026-07-08T16:45:00
-import { execSync } from "child_process";
-try {
-  console.log("ATTEMPTING TO RESTORE FILES...");
-  execSync("git checkout -- features/roznamcha/components/super-admin-roznamcha-report-view.tsx features/journal/components/purchase-order-payment-journal.tsx");
-  console.log("FILES RESTORED SUCCESSFULLY!");
-} catch (e) {
-  console.log("RESTORE FAILED:", e);
-}
+// import { execSync } from "child_process";
+// try {
+//   console.log("ATTEMPTING TO RESTORE FILES...");
+//   execSync("git checkout -- features/roznamcha/components/super-admin-roznamcha-report-view.tsx features/journal/components/purchase-order-payment-journal.tsx");
+//   console.log("FILES RESTORED SUCCESSFULLY!");
+// } catch (e) {
+//   console.log("RESTORE FAILED:", e);
+// }
