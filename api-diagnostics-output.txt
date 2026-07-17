@@ -2442,3 +2442,12 @@ Params: limit=200
 
 [CLIENT LOG] Time: 2026-07-17T18:01:02.596Z
 Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T18:03:22.855Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-17T18:03:34.985Z
+Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T18:03:53.330Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
