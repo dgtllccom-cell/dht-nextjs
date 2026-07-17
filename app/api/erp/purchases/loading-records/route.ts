@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { apiCreated, apiOk, handleApiError } from "@/lib/api/response";
 import { optionalUuidSchema, uuidSchema } from "@/lib/api/erp-validation";
-import { authorizeApiScope } from "@/lib/api/scope-middleware";
+import { authorizeApiScope, enforceScopeFilter } from "@/lib/api/scope-middleware";
 import { requireSupabaseData, writeAuditLog } from "@/lib/api/supabase";
 import { requireErpSession } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { resolvePurchaseAmounts, resolveLoadingProportions } from "@/lib/services/purchase-calculation-service";
 
 const loadingStatusSchema = z.enum(["draft", "pending", "loaded", "received", "cancelled"]);
 
@@ -41,15 +42,6 @@ const createSchema = z.object({
 });
 
 type Session = Awaited<ReturnType<typeof requireErpSession>>;
-
-function randomCode(prefix: string) {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(now.getUTCDate()).padStart(2, "0");
-  const rand = Math.random().toString(16).slice(2, 8).toUpperCase();
-  return `${prefix}-${y}${m}${d}-${rand}`;
-}
 
 async function resolveEffectiveScope(session: Session, requested: { countryId?: string | null; countryBranchId?: string | null; cityBranchId?: string | null }) {
   const effectiveCityBranchId = requested.cityBranchId || session.cityBranchIds[0] || null;
@@ -127,14 +119,6 @@ function summarize(rows: any[]) {
 
 export async function GET(request: NextRequest) {
   try {
-    try {
-      const fs = await import("node:fs");
-      fs.appendFileSync(
-        "C:/Users/dgtll/OneDrive/Documents/ACCOUNTS.DGT.LLC/api-diagnostics-output.txt",
-        `\n[GET /api/erp/purchases/loading-records] Time: ${new Date().toISOString()}\nParams: ${request.nextUrl.searchParams.toString()}\n`,
-        "utf8"
-      );
-    } catch (_) {}
     const session = await requireErpSession();
     const query = querySchema.parse({
       countryId: request.nextUrl.searchParams.get("countryId") ?? undefined,
@@ -157,21 +141,17 @@ export async function GET(request: NextRequest) {
     let recordsQuery = supabase
       .from("purchase_loading_records")
       .select(
-        "id, loading_record_no, purchase_order_id, purchase_order_no, container_number, container_type, loading_status, loaded_at, loading_location, receiving_location, shipment_status, carrier_name, remarks, report_payload, country_id, country_branch_id, city_branch_id, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), purchase_orders(form_data, advance_paid, remaining_due, order_total, purchase_order_payments(amount, exchange_rate, reference_no, narration, source_reference_no))"
+        "id, loading_record_no, purchase_order_id, purchase_order_no, container_number, container_type, loading_status, loaded_at, loading_location, receiving_location, shipment_status, carrier_name, remarks, report_payload, country_id, country_branch_id, city_branch_id, loaded_quantity, total_quantity, loading_percentage, loaded_purchase_amount, loaded_advance_amount, purchase_currency, exchange_rate, loaded_purchase_local, loaded_advance_local, payment_made, remaining_loading_balance, local_currency, posted_to_journal, journal_entry_id, journal_posted_at, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), purchase_orders(form_data, advance_paid, remaining_due, order_total, purchase_order_payments(amount, exchange_rate, reference_no, narration, source_reference_no))"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
-    if (query.countryId) recordsQuery = recordsQuery.eq("country_id", query.countryId);
-    else if (!session.isSuperAdmin) recordsQuery = recordsQuery.in("country_id", session.countryIds.length ? session.countryIds : ["00000000-0000-0000-0000-000000000000"]);
-
-    if (query.countryBranchId) recordsQuery = recordsQuery.eq("country_branch_id", query.countryBranchId);
-    else if (!session.isSuperAdmin && session.countryBranchIds.length) recordsQuery = recordsQuery.in("country_branch_id", session.countryBranchIds);
-
-    if (query.cityBranchId) recordsQuery = recordsQuery.eq("city_branch_id", query.cityBranchId);
-    else if (!session.isSuperAdmin && session.cityBranchIds.length) {
-      recordsQuery = recordsQuery.or(`city_branch_id.in.(${session.cityBranchIds.join(",")}),city_branch_id.is.null`);
-    }
+    // Use unified scope enforcement
+    recordsQuery = enforceScopeFilter(recordsQuery, session, {
+      countryId: query.countryId,
+      countryBranchId: query.countryBranchId,
+      cityBranchId: query.cityBranchId
+    });
 
     if (query.status) recordsQuery = recordsQuery.eq("loading_status", query.status);
     if (query.q) {
@@ -213,45 +193,85 @@ export async function POST(request: NextRequest) {
       cityBranchId: effective.cityBranchId
     });
 
-    const payload = {
-      country_id: effective.countryId,
-      country_branch_id: effective.countryBranchId,
-      city_branch_id: effective.cityBranchId,
-      purchase_order_id: body.purchaseOrderId ?? null,
-      purchase_order_no: body.purchaseOrderNo?.trim() || null,
-      loading_record_no: randomCode("PLR"),
-      container_number: body.containerNumber,
-      container_type: body.containerType ?? null,
-      loading_status: body.loadingStatus,
-      loaded_at: body.loadedAt ?? null,
-      loading_location: body.loadingLocation ?? null,
-      receiving_location: body.receivingLocation ?? null,
-      shipment_status: body.shipmentStatus ?? null,
-      carrier_name: body.carrierName ?? null,
-      remarks: body.remarks ?? null,
-      report_payload: body.reportPayload ?? {},
-      created_by: session.userId
-    };
-
     const supabase = createSupabaseAdminClient() as any;
-    const inserted = await requireSupabaseData(
-      supabase
-        .from("purchase_loading_records")
-        .insert(payload)
-        .select("id, loading_record_no")
-        .single()
-    );
+
+    // ── Generate deterministic serial number via atomic RPC ──
+    let loadingRecordNo = "PLR-" + Date.now();
+    try {
+      const scopeKey = effective.cityBranchId || effective.countryBranchId || effective.countryId || "global";
+      const scopeType = effective.cityBranchId ? "city_branch" : effective.countryBranchId ? "main_branch" : effective.countryId ? "country" : "global";
+      
+      // Get prefix from branch/country code
+      let prefix = "PLR";
+      if (effective.cityBranchId) {
+        const { data: cityRow } = await supabase.from("city_branches").select("code").eq("id", effective.cityBranchId).maybeSingle();
+        if (cityRow?.code) {
+          const parts = cityRow.code.split("-");
+          prefix = parts.length > 1 ? parts[parts.length - 1].toUpperCase() : cityRow.code.toUpperCase();
+          prefix = "PLR-" + prefix;
+        }
+      } else if (effective.countryId) {
+        const { data: countryRow } = await supabase.from("countries").select("iso2").eq("id", effective.countryId).maybeSingle();
+        if (countryRow?.iso2) prefix = "PLR-" + countryRow.iso2.toUpperCase();
+      }
+
+      const { data: serialResult, error: serialError } = await supabase.rpc("next_entity_serial", {
+        p_scope_type: scopeType,
+        p_scope_key: scopeKey,
+        p_entity_type: "loading",
+        p_prefix: prefix
+      });
+      if (!serialError && serialResult) {
+        loadingRecordNo = serialResult;
+      }
+    } catch (_) {
+      // Fallback to timestamp-based code if serial RPC not yet available
+    }
+
+    // ── Compute proportional financial amounts if linked to a PO ──
+    let loadedQuantity = body.loadedQuantity;
+    let totalQuantity = 0;
+    let loadingPercentage = 0;
+    let loadedPurchaseAmount = 0;
+    let loadedAdvanceAmount = 0;
+    let purchaseCurrency = "USD";
+    let orderExchangeRate = 1;
+    let loadedPurchaseLocal = 0;
+    let loadedAdvanceLocal = 0;
+    let remainingLoadingBalance = 0;
+    let localCurrency = "AED";
 
     if (body.purchaseOrderId) {
-      const { data: po } = await supabase.from("purchase_orders").select("form_data, payment_status, remaining_due").eq("id", body.purchaseOrderId).single();
+      const { data: po } = await supabase
+        .from("purchase_orders")
+        .select("id, order_total, advance_paid, remaining_due, remaining_paid, credit_amount, currency_code, exchange_rate, form_data, payment_status")
+        .eq("id", body.purchaseOrderId)
+        .single();
+
       if (po) {
+        // Use unified calculation service
+        const amounts = resolvePurchaseAmounts(po as any);
+        const proportions = resolveLoadingProportions(amounts, loadedQuantity, amounts.totalQuantity);
+
+        totalQuantity = proportions.totalQuantity;
+        loadingPercentage = proportions.loadingPercentage;
+        loadedPurchaseAmount = proportions.loadedPurchaseFC;
+        loadedAdvanceAmount = proportions.loadedAdvanceFC;
+        purchaseCurrency = amounts.purchaseCurrency;
+        orderExchangeRate = amounts.exchangeRate;
+        loadedPurchaseLocal = proportions.loadedPurchaseLC;
+        loadedAdvanceLocal = proportions.loadedAdvanceLC;
+        remainingLoadingBalance = proportions.remainingLoadingFC;
+        localCurrency = amounts.localCurrency;
+
+        // Update workflow on the purchase order
         const formData = po.form_data || {};
         const workflow = formData.workflow || {};
-        
+
         const goodsEntries = Array.isArray(formData.goodsEntries) ? formData.goodsEntries : [];
         const goodsQuantity = goodsEntries.reduce((sum: number, item: any) => sum + Number(item.qtyNo || item.quantity || 0), 0);
         const totalContainers = Number(workflow.totalContainers || formData.form?.containerCount || formData.totals?.totalContainers || 0);
-        const totalQuantity = Number(workflow.totalQuantity || formData.totals?.totalQuantity || goodsQuantity || formData.form?.quantity || 0);
+        const totalQty = Number(workflow.totalQuantity || formData.totals?.totalQuantity || goodsQuantity || formData.form?.quantity || 0);
 
         const currentLoadedContainers = Number(workflow.loadedContainers || 0);
         const currentLoadedQuantity = Number(workflow.loadedQuantity || 0);
@@ -260,13 +280,13 @@ export async function POST(request: NextRequest) {
         const newLoadedQuantity = currentLoadedQuantity + body.loadedQuantity;
 
         const remainingContainers = Math.max(0, totalContainers - newLoadedContainers);
-        const remainingQuantity = Math.max(0, totalQuantity - newLoadedQuantity);
+        const remainingQuantity = Math.max(0, totalQty - newLoadedQuantity);
 
         workflow.totalContainers = totalContainers;
         workflow.loadedContainers = newLoadedContainers;
         workflow.remainingContainers = remainingContainers;
 
-        workflow.totalQuantity = totalQuantity;
+        workflow.totalQuantity = totalQty;
         workflow.loadedQuantity = newLoadedQuantity;
         workflow.remainingQuantity = remainingQuantity;
 
@@ -280,7 +300,7 @@ export async function POST(request: NextRequest) {
         
         const isPaid = po.payment_status === "completed" || po.remaining_due === 0;
         
-        // Step 6: Move to Finalized Purchase Orders automatically if paid and fully loaded
+        // Move to Finalized Purchase Orders automatically if paid and fully loaded
         if (isPaid && remainingContainers === 0) {
            workflow.lifecycleStatus = "Finalized Purchase Orders";
         }
@@ -290,6 +310,46 @@ export async function POST(request: NextRequest) {
         }).eq("id", body.purchaseOrderId);
       }
     }
+
+    const payload = {
+      country_id: effective.countryId,
+      country_branch_id: effective.countryBranchId,
+      city_branch_id: effective.cityBranchId,
+      purchase_order_id: body.purchaseOrderId ?? null,
+      purchase_order_no: body.purchaseOrderNo?.trim() || null,
+      loading_record_no: loadingRecordNo,
+      container_number: body.containerNumber,
+      container_type: body.containerType ?? null,
+      loading_status: body.loadingStatus,
+      loaded_at: body.loadedAt ?? null,
+      loading_location: body.loadingLocation ?? null,
+      receiving_location: body.receivingLocation ?? null,
+      shipment_status: body.shipmentStatus ?? null,
+      carrier_name: body.carrierName ?? null,
+      remarks: body.remarks ?? null,
+      report_payload: body.reportPayload ?? {},
+      // Proportional financial columns
+      loaded_quantity: loadedQuantity,
+      total_quantity: totalQuantity,
+      loading_percentage: loadingPercentage,
+      loaded_purchase_amount: loadedPurchaseAmount,
+      loaded_advance_amount: loadedAdvanceAmount,
+      purchase_currency: purchaseCurrency,
+      exchange_rate: orderExchangeRate,
+      loaded_purchase_local: loadedPurchaseLocal,
+      loaded_advance_local: loadedAdvanceLocal,
+      remaining_loading_balance: remainingLoadingBalance,
+      local_currency: localCurrency,
+      created_by: session.userId
+    };
+
+    const inserted = await requireSupabaseData(
+      supabase
+        .from("purchase_loading_records")
+        .insert(payload)
+        .select("id, loading_record_no")
+        .single()
+    );
 
     await writeAuditLog({
       action: "create",

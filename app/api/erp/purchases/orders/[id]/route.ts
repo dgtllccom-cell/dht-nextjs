@@ -717,7 +717,7 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     const row = await requireSupabaseData(
       supabase
         .from("purchase_orders")
-        .select("id, country_id, country_branch_id, city_branch_id, ledger_posting_status, payment_status")
+        .select("id, purchase_order_no, country_id, country_branch_id, city_branch_id, ledger_posting_status, payment_status")
         .eq("id", params.id)
         .is("deleted_at", null)
         .maybeSingle()
@@ -736,11 +736,72 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
       cityBranchId: (row as any)?.city_branch_id ?? null
     });
 
-    // If there are any posted payments or ledger entries, we must revert ALL of them before deleting
-    if ((row as any).ledger_posting_status === "posted" || (row as any).payment_status !== "pending") {
-      const adminSupabase = createSupabaseAdminClient() as any;
-      await revertAllOrderPayments(params.id, supabase, adminSupabase);
+    const adminSupabase = createSupabaseAdminClient() as any;
+
+    // 1. Revert the booking transfer Roznamcha entry if it exists
+    const poNo = (row as any).purchase_order_no;
+    if (poNo) {
+      const { data: existingRoz } = await supabase
+        .from("roznamcha_entries")
+        .select("id")
+        .eq("journal_no", poNo)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (existingRoz) {
+        const { data: lines } = await supabase
+          .from("roznamcha_lines")
+          .select("ledger_id, enterprise_account_id, debit, credit")
+          .eq("roznamcha_entry_id", existingRoz.id);
+
+        if (lines && lines.length > 0) {
+          for (const line of lines) {
+            const { data: ledger } = await adminSupabase
+              .from("ledgers")
+              .select("debit_total, credit_total, current_balance")
+              .eq("id", line.ledger_id)
+              .maybeSingle();
+            if (ledger) {
+              await adminSupabase
+                .from("ledgers")
+                .update({
+                  debit_total: Number(ledger.debit_total || 0) - Number(line.debit || 0),
+                  credit_total: Number(ledger.credit_total || 0) - Number(line.credit || 0),
+                  current_balance: Number(ledger.current_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", line.ledger_id);
+            }
+
+            if (line.enterprise_account_id) {
+              const { data: entAcc } = await adminSupabase
+                .from("enterprise_accounts")
+                .select("current_balance")
+                .eq("id", line.enterprise_account_id)
+                .maybeSingle();
+              if (entAcc) {
+                await adminSupabase
+                  .from("enterprise_accounts")
+                  .update({
+                    current_balance: Number(entAcc.current_balance || 0) - Number(line.debit || 0) + Number(line.credit || 0),
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq("id", line.enterprise_account_id);
+              }
+            }
+          }
+        }
+
+        // Hard delete the booking transfer Roznamcha entry so it is completely removed
+        await adminSupabase
+          .from("roznamcha_entries")
+          .delete()
+          .eq("id", existingRoz.id);
+      }
     }
+
+    // 2. Revert ALL payments and their ledger/roznamcha entries
+    await revertAllOrderPayments(params.id, supabase, adminSupabase);
 
     // Soft delete ALL remaining purchase order payments associated with this PO
     await requireSupabaseData(
