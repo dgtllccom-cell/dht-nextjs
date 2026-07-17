@@ -112,7 +112,7 @@ export function BranchLiveReportPanel({
           {actions ? <div>{actions}</div> : null}
         </div>
 
-        <div className="p-6 md:p-8 space-y-6">
+        <div className="p-4 md:p-6 space-y-5">
           {/* Header Branding */}
           <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1.5fr] gap-4 border-b border-slate-200 pb-4 dark:border-slate-800">
             {/* Logo details */}
@@ -235,49 +235,49 @@ export function BranchLiveReportPanel({
           </div>
 
           {/* Grid Layout (2 columns for details) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
             {/* Column Left */}
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Section 1: Branch Information */}
               <div>
-                <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-t-md flex items-center gap-2">
+                <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-2 rounded-t-lg flex items-center gap-2">
                   <span className="h-4 w-4 bg-white/20 rounded-full flex items-center justify-center text-[8px]">1</span>
                   <span>Branch Information</span>
                 </div>
-                <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-md p-3 bg-slate-50/30 dark:bg-slate-900/10 space-y-2">
-                  <table className="w-full text-xs">
+                <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-lg p-3.5 bg-white dark:bg-slate-950/40 space-y-2">
+                  <table className="w-full table-fixed text-[12px]">
                     <tbody>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Serial Number</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.serialNumber || "0001")}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Serial Number</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.serialNumber || "0001")}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Branch Code</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.branchCode)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Branch Code</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.branchCode)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Branch Name</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.branchName)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Branch Name</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.branchName)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Branch Type</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.branchType)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Branch Type</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.branchType)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Country</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.country)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Country</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.country)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Currency</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.currency)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Currency</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.currency)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Created Date</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.createdDate || stampDate)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Created Date</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.createdDate || stampDate)}</td>
                       </tr>
                       <tr>
-                        <td className="py-1.5 text-slate-400 font-medium">Updated Date</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.updatedDate || stampDate)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Updated Date</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.updatedDate || stampDate)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -286,48 +286,48 @@ export function BranchLiveReportPanel({
 
               {/* Section 2: Branch Details */}
               <div>
-                <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-t-md flex items-center gap-2">
+                <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-2 rounded-t-lg flex items-center gap-2">
                   <span className="h-4 w-4 bg-white/20 rounded-full flex items-center justify-center text-[8px]">2</span>
                   <span>Branch Details & Address</span>
                 </div>
-                <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-md p-3 bg-slate-50/30 dark:bg-slate-900/10 space-y-2">
-                  <table className="w-full text-xs">
+                <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-lg p-3.5 bg-white dark:bg-slate-950/40 space-y-2">
+                  <table className="w-full table-fixed text-[12px]">
                     <tbody>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Branch Code</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.branchCode)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Branch Code</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.branchCode)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">City / Region</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.city)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">City / Region</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.city)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">City Code</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.cityCode)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">City Code</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.cityCode)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">State / Province</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.stateProvince)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">State / Province</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.stateProvince)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Area / District</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.areaRegion)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Area / District</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.areaRegion)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Postal / Zip Code</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.zipCode)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Postal / Zip Code</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.zipCode)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Mobile Number</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.phone, "📞 ")}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Mobile Number</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.phone, "Tel: ")}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Email Address</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.email, "✉ ")}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Email Address</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.email, "Email: ")}</td>
                       </tr>
                       <tr>
-                        <td className="py-1.5 text-slate-400 font-medium">Full Address</td>
-                        <td className="py-1.5 text-right font-bold max-w-[200px] truncate">{renderValue(b.fullAddress)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Full Address</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.fullAddress)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -336,14 +336,14 @@ export function BranchLiveReportPanel({
             </div>
 
             {/* Column Right */}
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Section 3: Owner Details */}
               <div>
-                <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-t-md flex items-center gap-2">
+                <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-2 rounded-t-lg flex items-center gap-2">
                   <span className="h-4 w-4 bg-white/20 rounded-full flex items-center justify-center text-[8px]">3</span>
                   <span>Owner Details</span>
                 </div>
-                <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-md p-3 bg-slate-50/30 dark:bg-slate-900/10 space-y-3">
+                <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-lg p-3.5 bg-white dark:bg-slate-950/40 space-y-3">
                   {/* Owner avatar card */}
                   <div className="flex items-center gap-3 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-900 p-2.5 rounded-lg">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 border border-slate-200 text-slate-600 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400">
@@ -356,47 +356,47 @@ export function BranchLiveReportPanel({
                     </div>
                   </div>
 
-                  <table className="w-full text-xs">
+                  <table className="w-full table-fixed text-[12px]">
                     <tbody>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Father / Husband Name</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.fatherHusbandName)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Father / Husband Name</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.fatherHusbandName)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">CNIC / ID Number</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.cnicId)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">CNIC / ID Number</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.cnicId)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Nationality</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.nationality)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Nationality</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.nationality)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Ownership Type</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.ownershipType)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Ownership Type</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.ownershipType)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Ownership Percentage</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.ownershipPercent)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Ownership Percentage</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.ownershipPercent)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Mobile / Phone</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.ownerPhone, "📞 ")}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Mobile / Phone</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.ownerPhone, "Tel: ")}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">WhatsApp</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.ownerWhatsApp, "💬 ")}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">WhatsApp</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.ownerWhatsApp, "WhatsApp: ")}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Email</td>
-                        <td className="py-1.5 text-right font-bold max-w-[150px] truncate">{renderValue(b.ownerEmail, "✉ ")}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Email</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.ownerEmail, "Email: ")}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Country</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.ownerCountry)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Country</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.ownerCountry)}</td>
                       </tr>
                       <tr>
-                        <td className="py-1.5 text-slate-400 font-medium">Address / Website</td>
-                        <td className="py-1.5 text-right font-bold max-w-[150px] truncate">{renderValue(b.ownerWebsite)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Address / Website</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.ownerWebsite)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -405,40 +405,40 @@ export function BranchLiveReportPanel({
 
               {/* Section 4: Company Details */}
               <div>
-                <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-t-md flex items-center gap-2">
+                <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-2 rounded-t-lg flex items-center gap-2">
                   <span className="h-4 w-4 bg-white/20 rounded-full flex items-center justify-center text-[8px]">4</span>
                   <span>Company Details</span>
                 </div>
-                <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-md p-3 bg-slate-50/30 dark:bg-slate-900/10 space-y-2">
-                  <table className="w-full text-xs">
+                <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-lg p-3.5 bg-white dark:bg-slate-950/40 space-y-2">
+                  <table className="w-full table-fixed text-[12px]">
                     <tbody>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Company Name</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.companyName)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Company Name</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.companyName)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Company Code</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.companyCode)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Company Code</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.companyCode)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Company Type</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.companyType)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Company Type</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.companyType)}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Office Phone</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.companyPhone, "📞 ")}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Office Phone</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.companyPhone, "Tel: ")}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Office Email</td>
-                        <td className="py-1.5 text-right font-bold max-w-[150px] truncate">{renderValue(b.companyEmail, "✉ ")}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Office Email</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.companyEmail, "Email: ")}</td>
                       </tr>
                       <tr className="border-b border-slate-100 dark:border-slate-900/50">
-                        <td className="py-1.5 text-slate-400 font-medium">Office Address</td>
-                        <td className="py-1.5 text-right font-bold max-w-[150px] truncate">{renderValue(b.companyOfficeAddress)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Office Address</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.companyOfficeAddress)}</td>
                       </tr>
                       <tr>
-                        <td className="py-1.5 text-slate-400 font-medium">Company Status</td>
-                        <td className="py-1.5 text-right font-bold">{renderValue(b.companyStatus)}</td>
+                        <td className="w-[42%] py-2 pr-3 align-top text-[11px] font-semibold uppercase tracking-[0.02em] text-slate-500 dark:text-slate-400">Company Status</td>
+                        <td className="py-2 align-top text-left text-[12px] font-semibold text-slate-900 dark:text-slate-100 sm:text-right">{renderValue(b.companyStatus)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -449,11 +449,11 @@ export function BranchLiveReportPanel({
 
           {/* Section 5: Permissions Grid */}
           <div>
-            <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-t-md flex items-center gap-2">
+            <div className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-2 rounded-t-lg flex items-center gap-2">
               <span className="h-4 w-4 bg-white/20 rounded-full flex items-center justify-center text-[8px]">5</span>
               <span>Branch Permissions & Access Rights</span>
             </div>
-            <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-md p-4 bg-slate-50/30 dark:bg-slate-900/10">
+            <div className="border border-t-0 border-slate-100 dark:border-slate-800 rounded-b-md p-4 bg-slate-50/30 dark:bg-slate-950/40">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {PERMISSIONS_MAP.map((item) => {
                   const isAllowed = allowedSet.has(item.key) || allowedSet.has("settings.access") || allowedSet.has("branch.super_admin");
@@ -581,4 +581,5 @@ export function BranchLiveReportPanel({
     </Card>
   );
 }
+
 
