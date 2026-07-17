@@ -30,11 +30,16 @@ BEGIN
   WHERE id = p_purchase_order_id
     AND deleted_at IS NULL;
 
-  -- Sum actual payments by kind (excluding 'booking' which is just a transfer, not payment)
   SELECT
-    COALESCE(SUM(CASE WHEN kind = 'advance' THEN amount ELSE 0 END), 0),
-    COALESCE(SUM(CASE WHEN kind = 'remaining' THEN amount ELSE 0 END), 0),
-    COALESCE(SUM(CASE WHEN kind = 'credit' THEN amount ELSE 0 END), 0)
+    COALESCE(SUM(CASE WHEN kind = 'advance' THEN 
+      CASE WHEN COALESCE(exchange_rate, 0) <= 0 THEN amount ELSE amount / exchange_rate END 
+    ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN kind = 'remaining' THEN 
+      CASE WHEN COALESCE(exchange_rate, 0) <= 0 THEN amount ELSE amount / exchange_rate END 
+    ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN kind = 'credit' THEN 
+      CASE WHEN COALESCE(exchange_rate, 0) <= 0 THEN amount ELSE amount / exchange_rate END 
+    ELSE 0 END), 0)
   INTO v_adv, v_rem, v_cr
   FROM purchase_order_payments
   WHERE purchase_order_id = p_purchase_order_id
@@ -102,7 +107,7 @@ BEGIN
       ELSE 0
     END,
     payment_made = COALESCE((
-      SELECT SUM(pop.amount)
+      SELECT SUM(CASE WHEN COALESCE(pop.exchange_rate, 0) <= 0 THEN pop.amount ELSE pop.amount / pop.exchange_rate END)
       FROM purchase_order_payments pop
       WHERE pop.loading_record_id = plr.id
         AND pop.deleted_at IS NULL
@@ -112,7 +117,7 @@ BEGIN
       WHEN plr.total_quantity > 0 THEN
         ROUND(v_total * (plr.loaded_quantity / plr.total_quantity), 4)
         - COALESCE((
-            SELECT SUM(pop.amount)
+            SELECT SUM(CASE WHEN COALESCE(pop.exchange_rate, 0) <= 0 THEN pop.amount ELSE pop.amount / pop.exchange_rate END)
             FROM purchase_order_payments pop
             WHERE pop.loading_record_id = plr.id
               AND pop.deleted_at IS NULL

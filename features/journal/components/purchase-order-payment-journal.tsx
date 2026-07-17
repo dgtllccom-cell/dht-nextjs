@@ -841,9 +841,9 @@ function NestedRowActions({ payment, row, ledgers, localCurrency }: any) {
       <summary className="flex h-7 w-8 cursor-pointer list-none items-center justify-center rounded border border-indigo-200 bg-indigo-50 text-indigo-600 transition hover:bg-indigo-100 [&::-webkit-details-marker]:hidden mx-auto" aria-label="Payment actions" title="Actions">
         <MoreVertical className="h-4 w-4" />
       </summary>
-      <div className="absolute right-0 z-30 mt-1 w-36 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
+      <div className="absolute right-0 z-30 mt-1 w-40 rounded-xl border border-border bg-popover p-1 text-sm text-popover-foreground shadow-xl">
         <MenuAction icon={<Eye />} label="View Details" onClick={() => handleAction(() => handlePrintReceipt(payment, row, ledgers, localCurrency, false))} />
-        <MenuAction icon={<Edit3 />} label="Edit" onClick={() => handleAction(() => window.dispatchEvent(new CustomEvent("open-edit-payment", { detail: { payment, row } })))} />
+        <MenuAction icon={<Edit3 />} label="Edit Line" onClick={() => handleAction(() => window.dispatchEvent(new CustomEvent("open-edit-payment", { detail: { payment, row } })))} />
         <MenuAction icon={<Printer />} label="Print Receipt" onClick={() => handleAction(() => handlePrintReceipt(payment, row, ledgers, localCurrency, true))} />
       </div>
     </details>
@@ -970,20 +970,29 @@ function NestedPaymentHistory({
     };
   });
 
+  const latestPaymentState = computedHistory[computedHistory.length - 1];
+  const statementAdvanceRequiredForeign = totalRequiredAdvanceFC > 0 ? totalRequiredAdvanceFC : totalPrice;
+  const statementRate = Number(latestPaymentState?.exchangeRateUsed || orderExchangeRate || 1) || 1;
+  const statementAdvanceRequiredLocal = statementAdvanceRequiredForeign * statementRate;
+  const statementReceivedForeign = Number(latestPaymentState?.runningPaidForeign || 0);
+  const statementReceivedLocal = Number(latestPaymentState?.runningPaidLocal || 0);
+  const statementBalanceForeign = Math.max(0, statementAdvanceRequiredForeign - statementReceivedForeign);
+  const statementBalanceLocal = Math.max(0, statementAdvanceRequiredLocal - statementReceivedLocal);
+
   // Display newest first in UI table view (reversed chronological)
   const historyWithBalance = [...computedHistory].reverse();
   const calcs = resolvePurchaseCalculations(row);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40 space-y-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950/40 space-y-3">
       {/* Visual Calculation Flow sequence */}
-      <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-200/60 dark:border-slate-800/80 shadow-inner">
-        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-1.5">
+      <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 border border-slate-200/60 dark:border-slate-800/80 shadow-inner">
+        <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-1.5">
           Purchase Order Financial Conversion Flow
         </h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
           {/* Column 1: Original Currency Breakdown */}
-          <div className="flex flex-col justify-between border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-xl p-4 shadow-sm">
+          <div className="flex flex-col justify-between border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-lg p-3 shadow-sm">
             <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 border-b border-slate-100 dark:border-slate-800 pb-1.5 mb-2.5">
               Original Currency Flow ({calcs.purchCurr})
             </div>
@@ -1009,15 +1018,15 @@ function NestedPaymentHistory({
           </div>
 
           {/* Column 2: Conversion Rate Bridge */}
-          <div className="flex flex-col justify-center items-center p-4 bg-white dark:bg-slate-950 rounded-xl border border-slate-200/60 dark:border-slate-800/80 shadow-sm relative overflow-hidden text-center min-h-[120px]">
+          <div className="flex flex-col justify-center items-center p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200/60 dark:border-slate-800/80 shadow-sm relative overflow-hidden text-center min-h-[92px]">
             <div className="absolute top-0 right-0 px-2 py-0.5 text-[8px] font-black bg-indigo-50 text-indigo-700 rounded-bl dark:bg-indigo-950/40 dark:text-indigo-400 uppercase tracking-widest">BRIDGE</div>
             <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Exchange Rate Applied</div>
-            <div className="text-2xl font-mono font-black text-indigo-600 dark:text-indigo-400">{calcs.exRate.toFixed(4)}</div>
+            <div className="text-xl font-mono font-black text-indigo-600 dark:text-indigo-400">{calcs.exRate.toFixed(4)}</div>
             <div className="text-[10px] text-slate-500 font-bold mt-1.5">1 {calcs.purchCurr} = {calcs.exRate.toFixed(2)} {calcs.finalCurr}</div>
           </div>
 
           {/* Column 3: Converted Local Currency Breakdown */}
-          <div className="flex flex-col justify-between border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-xl p-4 shadow-sm">
+          <div className="flex flex-col justify-between border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-lg p-3 shadow-sm">
             <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 border-b border-slate-100 dark:border-slate-800 pb-1.5 mb-2.5">
               Converted Currency Flow ({calcs.finalCurr})
             </div>
@@ -1033,7 +1042,7 @@ function NestedPaymentHistory({
               <div className="border-t border-dashed border-slate-100 dark:border-slate-800/60 my-1"></div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-800 dark:text-slate-200 font-bold">Remaining Local Balance:</span>
-                <span className="font-mono font-black text-rose-600 dark:text-rose-455">{money(calcs.remainingPurchaseLC, calcs.finalCurr)}</span>
+                <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(calcs.remainingPurchaseLC, calcs.finalCurr)}</span>
               </div>
             </div>
           </div>
@@ -1049,21 +1058,39 @@ function NestedPaymentHistory({
         )}
       </div>
       {payments.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+        <>
+          <div className="mb-2 grid grid-cols-1 gap-2 lg:grid-cols-3">
+            <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2 dark:border-blue-900 dark:bg-blue-950/20">
+              <div className="text-[9px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-300">Advance / Endorse Required</div>
+              <div className="mt-0.5 font-mono text-sm font-black text-slate-900 dark:text-slate-100">{money(statementAdvanceRequiredForeign, purchaseCurrency)}</div>
+              <div className="text-[10px] font-bold text-slate-500">Office currency: {money(statementAdvanceRequiredLocal, calcs.finalCurr)}</div>
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/20">
+              <div className="text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Total Received / Paid</div>
+              <div className="mt-0.5 font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">{money(statementReceivedForeign, purchaseCurrency)}</div>
+              <div className="text-[10px] font-bold text-slate-500">Office currency: {money(statementReceivedLocal, calcs.finalCurr)}</div>
+            </div>
+            <div className="rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-2 dark:border-rose-900 dark:bg-rose-950/20">
+              <div className="text-[9px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-300">Final Advance Balance</div>
+              <div className="mt-0.5 font-mono text-sm font-black text-rose-700 dark:text-rose-300">{statementBalanceForeign <= 0.01 ? "Cleared" : money(statementBalanceForeign, purchaseCurrency)}</div>
+              <div className="text-[10px] font-bold text-slate-500">Office currency: {statementBalanceLocal <= 0.01 ? "Cleared" : money(statementBalanceLocal, calcs.finalCurr)}</div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[1320px] text-left border-collapse text-[11px]">
             <thead>
               <tr className="bg-slate-100 dark:bg-slate-900 border-b font-bold text-slate-600 uppercase text-[10px] tracking-wider">
-                <th className="px-4 py-3 border-r">General Serial / Date</th>
-                <th className="px-4 py-3 border-r">Reference / User</th>
-                <th className="px-4 py-3 border-r">Debit & Credit Ledger Account</th>
-                <th className="px-4 py-3 text-right border-r">Advance Required ({purchaseCurrency})</th>
-                <th className="px-4 py-3 text-right border-r">Received ({purchaseCurrency})</th>
-                <th className="px-4 py-3 text-right border-r">Balance ({purchaseCurrency})</th>
-                <th className="px-4 py-3 text-center border-r">Exchange Rate</th>
-                <th className="px-4 py-3 text-right border-r">Advance Required ({calcs.finalCurr})</th>
-                <th className="px-4 py-3 text-right border-r">Received ({calcs.finalCurr})</th>
-                <th className="px-4 py-3 text-right border-r">Balance ({calcs.finalCurr})</th>
-                <th className="px-4 py-3 text-center w-28">Actions</th>
+                <th className="px-3 py-2.5 border-r">General Serial / Date</th>
+                <th className="px-3 py-2.5 border-r">Reference / User</th>
+                <th className="px-3 py-2.5 border-r">Debit & Credit Ledger Account</th>
+                <th className="px-3 py-2.5 text-right border-r">Advance Required ({purchaseCurrency})</th>
+                <th className="px-3 py-2.5 text-right border-r">Received ({purchaseCurrency})</th>
+                <th className="px-3 py-2.5 text-right border-r">Balance ({purchaseCurrency})</th>
+                <th className="px-3 py-2.5 text-center border-r">Exchange Rate</th>
+                <th className="px-3 py-2.5 text-right border-r">Advance Required ({calcs.finalCurr})</th>
+                <th className="px-3 py-2.5 text-right border-r">Received ({calcs.finalCurr})</th>
+                <th className="px-3 py-2.5 text-right border-r">Balance ({calcs.finalCurr})</th>
+                <th className="px-3 py-2.5 text-center w-28">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1076,8 +1103,10 @@ function NestedPaymentHistory({
                 const journalSerial = re.super_admin_serial_number || p.super_admin_serial_number || "Pending";
                 const countrySerial = re.country_transaction_serial_number || p.country_transaction_serial_number || "-";
                 const branchSerial = re.branch_transaction_serial_number || p.branch_transaction_serial_number || "-";
-                const debitSerial = re.debit_serial_number || p.debit_serial_number || (journalSerial + "-DR");
-                const creditSerial = re.credit_serial_number || p.credit_serial_number || (journalSerial + "-CR");
+                const debitSerialBase = String(re.debit_serial_number || p.debit_serial_number || journalSerial || "Pending");
+                const creditSerialBase = String(re.credit_serial_number || p.credit_serial_number || journalSerial || "Pending");
+                const debitSerial = debitSerialBase.endsWith("-DR") ? debitSerialBase : debitSerialBase + "-DR";
+                const creditSerial = creditSerialBase.endsWith("-CR") ? creditSerialBase : creditSerialBase + "-CR";
                 const requiredAdvanceForeign = totalRequiredAdvanceFC > 0 ? totalRequiredAdvanceFC : p.originalPurchaseForeign;
                 const requiredAdvanceLocal = requiredAdvanceForeign * Number(p.exchangeRateUsed || 1);
                 const remainingAdvanceForeign = Math.max(0, requiredAdvanceForeign - p.runningPaidForeign);
@@ -1085,57 +1114,57 @@ function NestedPaymentHistory({
 
                 return (
                   <tr key={p.id} className="border-b border-indigo-100/50 hover:bg-indigo-50/40 transition">
-                    <td className="px-4 py-3 border-r font-mono text-slate-900 dark:text-slate-100 text-[10px] align-top space-y-1 whitespace-nowrap">
+                    <td className="px-3 py-2.5 border-r font-mono text-slate-900 dark:text-slate-100 text-[10px] align-top space-y-1 whitespace-nowrap">
                       <div><span className="text-muted-foreground font-semibold">General:</span> <span className="font-bold">{journalSerial}</span></div>
                       <div><span className="text-muted-foreground font-semibold">Country:</span> <span className="font-bold">{countrySerial}</span></div>
                       <div><span className="text-muted-foreground font-semibold">Branch:</span> <span className="font-bold">{branchSerial}</span></div>
                       <div className="pt-1 text-slate-500">{date(p.entry_date || p.created_at)}</div>
                     </td>
-                    <td className="px-4 py-3 border-r text-xs align-top space-y-1 min-w-[160px]">
+                    <td className="px-3 py-2.5 border-r text-xs align-top space-y-1 min-w-[160px]">
                       <div className="font-mono text-[10px] text-slate-500">Ref: {p.reference_no || p.roznamcha_number || p.voucher_no || "-"}</div>
                       <div className="font-bold text-slate-800 dark:text-slate-200">{p.users?.full_name || row.form_data?.form?.userName || "Admin"}</div>
                       <div className="text-muted-foreground">{p.kind === "advance" ? "Advance Payment" : p.kind || "Payment"}</div>
                     </td>
-                    <td className="px-4 py-3 border-r text-[10px] align-top min-w-[220px]">
+                    <td className="px-3 py-2.5 border-r text-[10px] align-top min-w-[220px]">
                       <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-2 py-1 dark:border-blue-900 dark:bg-blue-950/20">
-                        <div className="font-mono text-[8px] text-blue-500">DR Serial: {debitSerial}</div>
+                        <div className="inline-flex items-center rounded-full bg-blue-600 px-2 py-0.5 font-mono text-[8px] font-black text-white shadow-sm">DR Serial: {debitSerial}</div>
                         <div className="font-semibold text-indigo-600 leading-tight" title={drLabel}><span className="font-black text-indigo-800 mr-1">DR:</span>{drLabel}</div>
                       </div>
                       <div className="mt-1 rounded-lg border border-violet-100 bg-violet-50/70 px-2 py-1 dark:border-violet-900 dark:bg-violet-950/20">
-                        <div className="font-mono text-[8px] text-violet-500">CR Serial: {creditSerial}</div>
+                        <div className="inline-flex items-center rounded-full bg-violet-600 px-2 py-0.5 font-mono text-[8px] font-black text-white shadow-sm">CR Serial: {creditSerial}</div>
                         <div className="font-semibold text-violet-600 leading-tight" title={crLabel}><span className="font-black text-violet-800 mr-1">CR:</span>{crLabel}</div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono border-r align-top whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-right font-mono border-r align-top whitespace-nowrap">
                       <div className="text-sm font-bold text-slate-800 dark:text-slate-200">{money(requiredAdvanceForeign, p.purchaseCurrency)}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">PO: {money(p.originalPurchaseForeign, p.purchaseCurrency)}</div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono border-r align-top whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-right font-mono border-r align-top whitespace-nowrap">
                       <div className="text-sm font-bold text-emerald-600">{money(p.runningPaidForeign, p.purchaseCurrency)}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Current: {money(p.amtForeign, p.purchaseCurrency)}</div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono border-r align-top whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-right font-mono border-r align-top whitespace-nowrap">
                       <div className="text-sm font-bold text-rose-600">{remainingAdvanceForeign <= 0.01 ? "Advance Cleared" : money(remainingAdvanceForeign, p.purchaseCurrency)}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Purchase Bal: {money(p.remainingForeign, p.purchaseCurrency)}</div>
                     </td>
-                    <td className="px-4 py-3 text-center font-mono text-slate-600 whitespace-nowrap border-r align-top">
+                    <td className="px-3 py-2.5 text-center font-mono text-slate-600 whitespace-nowrap border-r align-top">
                       <div className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[11px] font-bold inline-block">
                         {Number(p.exchangeRateUsed || 1).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono border-r align-top whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-right font-mono border-r align-top whitespace-nowrap">
                       <div className="text-sm font-bold text-slate-800 dark:text-slate-200">{money(requiredAdvanceLocal, p.localCurrency)}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">PO: {money(p.originalPurchaseLocal, p.localCurrency)}</div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono border-r align-top whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-right font-mono border-r align-top whitespace-nowrap">
                       <div className="text-sm font-bold text-emerald-600">{money(p.runningPaidLocal, p.localCurrency)}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Current: {money(p.amtLocal, p.localCurrency)}</div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono border-r align-top whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-right font-mono border-r align-top whitespace-nowrap">
                       <div className="text-sm font-bold text-rose-600">{remainingAdvanceLocal <= 0.01 ? "Advance Cleared" : money(remainingAdvanceLocal, p.localCurrency)}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Purchase Bal: {money(p.remainingLocal, p.localCurrency)}</div>
                     </td>
-                    <td className="px-4 py-3 text-center align-top">
+                    <td className="px-3 py-2.5 text-center align-top">
                       <NestedRowActions payment={p} row={row} ledgers={ledgers} localCurrency={p.localCurrency} />
                     </td>
                   </tr>
@@ -1143,7 +1172,26 @@ function NestedPaymentHistory({
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+          <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/50">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Final Digital Balance Statement</div>
+                <div className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Purchase currency balance is calculated first, then converted into the country / office currency.</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-right md:min-w-[360px]">
+                <div className="rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-slate-950/60">
+                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Balance ({purchaseCurrency})</div>
+                  <div className="font-mono text-sm font-black text-rose-600">{statementBalanceForeign <= 0.01 ? "Cleared" : money(statementBalanceForeign, purchaseCurrency)}</div>
+                </div>
+                <div className="rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-slate-950/60">
+                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Balance ({calcs.finalCurr})</div>
+                  <div className="font-mono text-sm font-black text-rose-600">{statementBalanceLocal <= 0.01 ? "Cleared" : money(statementBalanceLocal, calcs.finalCurr)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       ) : (
         <p className="text-xs text-slate-400 italic py-2">
           {loading ? "Loading payments..." : "No payments posted for this purchase order yet."}
@@ -1823,7 +1871,7 @@ function DashboardSummaryHeader({
               <button 
                 type="button" 
                 onClick={() => setSelectedCountryForSummary(null)} 
-                className="text-[9px] font-black text-rose-500 hover:text-rose-600 dark:hover:text-rose-455 underline ml-1 cursor-pointer"
+                className="text-[9px] font-black text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 underline ml-1 cursor-pointer"
               >
                 (Reset)
               </button>
@@ -1887,14 +1935,14 @@ function DashboardSummaryHeader({
 
     const formatMoney = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const getFlag = (cName: string) => {
-      if (!cName) return 'ðŸ³ï¸';
-      if (cName.toLowerCase().includes('pakistan')) return 'ðŸ‡µðŸ‡°';
-      if (cName.toLowerCase().includes('iran')) return 'ðŸ‡®ðŸ‡·';
-      if (cName.toLowerCase().includes('arab emirates') || cName.toLowerCase().includes('uae')) return 'ðŸ‡¦ðŸ‡ª';
-      if (cName.toLowerCase().includes('afghanistan')) return 'ðŸ‡¦ðŸ‡«';
-      if (cName.toLowerCase().includes('india')) return 'ðŸ‡®ðŸ‡³';
-      if (cName.toLowerCase().includes('china')) return 'ðŸ‡¨ðŸ‡³';
-      return 'ðŸ³ï¸';
+      if (!cName) return '';
+      if (cName.toLowerCase().includes('pakistan')) return 'PK';
+      if (cName.toLowerCase().includes('iran')) return 'IR';
+      if (cName.toLowerCase().includes('arab emirates') || cName.toLowerCase().includes('uae')) return 'AE';
+      if (cName.toLowerCase().includes('afghanistan')) return 'AF';
+      if (cName.toLowerCase().includes('india')) return 'IN';
+      if (cName.toLowerCase().includes('china')) return 'CN';
+      return '';
     };
     
     const adminCountry = session?.countryName || "United Arab Emirates";
@@ -2035,8 +2083,8 @@ function DashboardSummaryHeader({
                 ))}
                 
                 <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
-                  {!showAllCountries && <span className="text-orange-600 dark:text-orange-500 font-bold uppercase text-[10px]">Show Report Details â†“</span>}
-                  {showAllCountries && <span className="text-orange-600 dark:text-orange-500 font-bold uppercase text-[10px]">Hide Report Details â†‘</span>}
+                  {!showAllCountries && <span className="text-orange-600 dark:text-orange-500 font-bold uppercase text-[10px]">Show Report Details ?</span>}
+                  {showAllCountries && <span className="text-orange-600 dark:text-orange-500 font-bold uppercase text-[10px]">Hide Report Details ?</span>}
                 </div>
               </div>
             </div>
@@ -2881,7 +2929,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   }, [ledgers, paymentSourceLedgerId, cashLedger]);
 
   const sourceBalanceText = useMemo(() => {
-    if (!selectedSourceLedger) return "â€”";
+    if (!selectedSourceLedger) return "-";
     const bal = Number(selectedSourceLedger.current_balance ?? 0);
     return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${ledgerCurrency(selectedSourceLedger) || "PKR"}`;
   }, [selectedSourceLedger]);
@@ -3301,9 +3349,17 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         >
           {/* 1. PO Number */}
           <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
-            <div className="font-mono text-[11px] font-black text-blue-600 dark:text-blue-400 whitespace-nowrap">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setViewingRow(row);
+              }}
+              title="Open full bill details"
+              className="rounded-md px-1.5 py-1 font-mono text-[11px] font-black text-blue-600 underline-offset-4 transition hover:bg-blue-50 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:bg-blue-950/30 dark:hover:text-blue-300"
+            >
               {row.purchase_order_no}
-            </div>
+            </button>
           </td>
           {/* 2. Bill & Date */}
           <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800", getRowColor())}>
@@ -3332,7 +3388,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             {money(calcs.advanceAmountFC, calcs.purchCurr)}
           </td>
           {/* 7. Remaining Purchase (FC) */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px] text-rose-600 dark:text-rose-455", getRowColor())}>
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px] text-rose-600 dark:text-rose-400", getRowColor())}>
             {money(calcs.remainingPurchaseFC, calcs.purchCurr)}
           </td>
           {/* 8. Exchange Rate */}
@@ -3348,7 +3404,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             {money(calcs.advanceAmountLC, calcs.finalCurr)}
           </td>
           {/* 11. Remaining Local Currency (LC) */}
-          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px] text-rose-600 dark:text-rose-455", getRowColor())}>
+          <td className={cn("px-3 py-4 align-middle border-b border-slate-100 dark:border-slate-800 text-right font-mono font-black text-[11px] text-rose-600 dark:text-rose-400", getRowColor())}>
             {money(calcs.remainingPurchaseLC, calcs.finalCurr)}
           </td>
           {/* 12. Payment Status */}
@@ -3876,12 +3932,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     const getRowColor = () => isPosted ? "text-black dark:text-white" : "text-red-600 dark:text-red-400";
                                     
                                     // Derived details
-                                    const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "â€”";
+                                    const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "-";
                                     const totalQty = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || 0), 0) : Number(row.quantity || 0);
                                     const grossWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
                                     const netWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || g.grossWeight || 0), 0) : Number(form.netWeight || 0);
-                                    const branchName = rowBranchName(row) || "â€”";
-                                    const countryName = rowCountryName(row) || "â€”";
+                                    const branchName = rowBranchName(row) || "-";
+                                    const countryName = rowCountryName(row) || "-";
                                     const userName = row.audit?.userName || "-";
                                     
                                     // Serials
@@ -3947,7 +4003,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                                 <>
                                                   {isPaymentCompleted ? (
                                                     <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
-                                                      Transferred âœ“
+                                                      Transferred ?
                                                     </span>
                                                   ) : (
                                                     <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
@@ -3977,7 +4033,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Current Status</span>
                                       {isPosted ? (
                                         <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider">
-                                          Transferred âœ“
+                                          Transferred ?
                                         </span>
                                       ) : (
                                         <span className="inline-flex rounded border border-amber-300 bg-amber-50 text-amber-700 px-2 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap shadow-sm tracking-wider animate-pulse">
@@ -4090,10 +4146,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       {activeMode === "remaining" ? (
                         <div style={{ maxWidth: 420, textAlign: "center" }}>
                           <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, display: "block" }}>
-                            âš ï¸ Workflow Rule: Remaining Payment requires Transfer to Loading first.
+                            Warning: Workflow Rule: Remaining Payment requires Transfer to Loading first.
                           </span>
                           <span style={{ fontSize: 10, color: "#cbd5e1", display: "block", marginTop: 4 }}>
-                            Orders only appear here after: Booking â†’ Advance Payment â†’ Transfer to Loading â†’ Loading Confirmation. Ensure the order has been transferred to loading before making a remaining payment.
+                            Orders only appear here after: Booking ? Advance Payment ? Transfer to Loading ? Loading Confirmation. Ensure the order has been transferred to loading before making a remaining payment.
                           </span>
                         </div>
                       ) : (
@@ -4148,7 +4204,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               )}
               aria-label="Previous page"
             >
-              <span className="text-xs">â€¹</span>
+              <span className="text-xs">?</span>
             </button>
             {Array.from({ length: Math.ceil(filtered.length / pageSize) }).slice(0, 5).map((_, idx) => (
               <button
@@ -4173,7 +4229,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               )}
               aria-label="Next page"
             >
-              <span className="text-xs">â€º</span>
+              <span className="text-xs">?</span>
             </button>
           </div>
         </div>
@@ -4185,9 +4241,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         <SimpleModal
           title={`Payment Entry - PO ${selected.purchase_order_no}`}
           onClose={() => setSelectedId("")}
-          className="max-w-[98vw] xl:max-w-[1600px] w-full shadow-2xl"
+          className="h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[1760px] rounded-2xl shadow-2xl"
         >
-          <div className="space-y-6">
+          <div className="space-y-4 text-[12px]">
             {/* Already Transferred / Overpaid Warning Banner */}
             {(() => {
               const form = selected.form_data?.form || {};
@@ -4222,7 +4278,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             {(() => {
               const form = selected.form_data?.form || {};
               const goods = selected.form_data?.goodsEntries || [];
-              const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "â€”";
+              const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "-";
 
               const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
               const isUrlLoading = searchParams.get("fromLoading") === "true";
@@ -4251,7 +4307,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       <div>
                         <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Seller (Supplier)</span>
                         <span className="font-extrabold text-slate-855 dark:text-slate-200">
-                          {form.salesAccountName || form.supplierName || "â€”"}
+                          {form.salesAccountName || form.supplierName || "-"}
                         </span>
                         <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
                           {form.salesAccountNumber || "-"}
@@ -4260,7 +4316,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       <div>
                         <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Purchaser (Purchase A/C)</span>
                         <span className="font-extrabold text-slate-855 dark:text-slate-200">
-                          {form.purchaseAccountName || "â€”"}
+                          {form.purchaseAccountName || "-"}
                         </span>
                         <span className="block text-[9px] font-mono text-slate-500 font-bold mt-0.5">
                           {form.purchaseAccountNumber || "-"}
@@ -4591,7 +4647,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         >
                           <div className="flex justify-between items-center w-full">
                             <span className="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                              ðŸ“¦ Cont. #{lr.loading_record_no || lr.report_payload?.containerNumber || "â€”"}
+                              Container #{lr.loading_record_no || lr.report_payload?.containerNumber || "-"}
                             </span>
                             <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 dark:bg-blue-950/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
                               {loadedQty.toLocaleString()} Bags
@@ -4755,6 +4811,36 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     };
                   });
 
+
+                  const latestHistory = historyWithBalance[historyWithBalance.length - 1];
+                  const totalReceivedPurchaseCurrency = Number(latestHistory?.runningTotalUSD || 0);
+                  const totalReceivedLocalCurrency = Number(latestHistory?.runningTotalAED || 0);
+                  const remainingPurchaseCurrency = Number(latestHistory?.showRemainUSD ?? statementPurchaseForeign);
+                  const remainingLocalCurrency = Number(latestHistory?.showRemainAED ?? statementPurchaseLocal);
+                  const goodsQuantity = goods.reduce((sum: number, item: any) => sum + Number(item.qtyNo || item.quantity || item.qty || 0), 0);
+                  const goodsGrossWeight = goods.reduce((sum: number, item: any) => sum + Number(item.grossWeight || item.gross_weight || 0), 0);
+                  const goodsNetWeight = goods.reduce((sum: number, item: any) => sum + Number(item.netWeight || item.net_weight || 0), 0);
+                  const goodsNames = goods.map((item: any) => item.goodsName || item.productName || item.name).filter(Boolean).join(", ") || firstGood.goodsName || firstGood.productName || "-";
+                  const selectedPaymentSource = selectedSourceLedger;
+                  const purchaseAccountPanel = {
+                    title: "Purchase Account (DR)",
+                    code: selectedForm.purchaseAccountNo || form.purchaseAccountNo || "-",
+                    manual: selectedForm.purchaseManualRef || selectedForm.purchaseManualReference || form.purchaseManualRef || form.purchaseManualReference || "-",
+                    name: selectedForm.purchaseAccountName || form.purchaseAccountName || "Purchase Account",
+                    company: selectedForm.purchaseCompanyName || form.purchaseCompanyName || form.purchaseAccountCompany || "-",
+                    branch: selectedForm.purchaseAccountBranch || form.purchaseAccountBranch || rowBranchName(selected) || "-",
+                    currency: selectedForm.purchaseAccountCurrency || form.purchaseAccountCurrency || poCurrency
+                  };
+                  const salesAccountPanel = {
+                    title: "Sales / Supplier Account (CR)",
+                    code: selectedForm.salesAccountNo || form.salesAccountNo || "-",
+                    manual: selectedForm.salesManualRef || selectedForm.salesManualReference || form.salesManualRef || form.salesManualReference || "-",
+                    name: selectedForm.salesAccountName || form.salesAccountName || "Sales Account",
+                    company: selectedForm.salesCompanyName || form.salesCompanyName || form.salesAccountCompany || "-",
+                    branch: selectedForm.salesAccountBranch || form.salesAccountBranch || rowBranchName(selected) || "-",
+                    currency: selectedForm.salesAccountCurrency || form.salesAccountCurrency || poCurrency
+                  };
+
                   return (
                     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm overflow-hidden">
                       {/* Header */}
@@ -4772,6 +4858,69 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           {historyWithBalance[historyWithBalance.length - 1]?.showRemainUSD <= 0.01 && (
                             <span className="text-[9px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">Fully Paid</span>
                           )}
+                        </div>
+                      </div>
+
+                      {/* Account, goods and currency audit summary */}
+                      <div className="space-y-3 border-b border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-900/20">
+                        <div className="grid gap-3 lg:grid-cols-4">
+                          {[purchaseAccountPanel, salesAccountPanel].map((panel) => (
+                            <div key={panel.title} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">{panel.title}</span>
+                                <span className="rounded-full bg-blue-50 px-2 py-0.5 font-mono text-[9px] font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{panel.currency}</span>
+                              </div>
+                              <div className="space-y-1 text-[10px]">
+                                <div className="flex justify-between gap-2"><span className="text-slate-400">Account</span><span className="text-right font-black text-slate-800 dark:text-slate-100">{panel.name}</span></div>
+                                <div className="flex justify-between gap-2"><span className="text-slate-400">Code</span><span className="font-mono font-bold text-slate-700 dark:text-slate-200">{panel.code}</span></div>
+                                <div className="flex justify-between gap-2"><span className="text-slate-400">Manual</span><span className="font-mono font-bold text-slate-700 dark:text-slate-200">{panel.manual}</span></div>
+                                <div className="flex justify-between gap-2"><span className="text-slate-400">Company</span><span className="text-right font-semibold text-slate-700 dark:text-slate-200">{panel.company}</span></div>
+                                <div className="flex justify-between gap-2"><span className="text-slate-400">Branch</span><span className="text-right font-semibold text-slate-700 dark:text-slate-200">{panel.branch}</span></div>
+                              </div>
+                            </div>
+                          ))}
+
+                          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                            <div className="mb-2 text-[9px] font-black uppercase tracking-wider text-slate-500">Goods & Loading</div>
+                            <div className="space-y-1 text-[10px]">
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Goods</span><span className="text-right font-black text-slate-800 dark:text-slate-100">{goodsNames}</span></div>
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Brand</span><span className="font-semibold text-slate-700 dark:text-slate-200">{firstGood.brand || "-"}</span></div>
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Quantity</span><span className="font-mono font-bold">{(fromLoading ? cLoadedQty : goodsQuantity).toLocaleString()}</span></div>
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Gross WT</span><span className="font-mono font-bold">{(fromLoading ? cGrossWeight : goodsGrossWeight).toLocaleString()} KG</span></div>
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Net WT</span><span className="font-mono font-bold">{(fromLoading ? cNetWeight : goodsNetWeight).toLocaleString()} KG</span></div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                            <div className="mb-2 text-[9px] font-black uppercase tracking-wider text-slate-500">Payment Source / CR</div>
+                            <div className="space-y-1 text-[10px]">
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Account</span><span className="text-right font-black text-slate-800 dark:text-slate-100">{selectedPaymentSource ? ledgerName(selectedPaymentSource) : "-"}</span></div>
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Code</span><span className="font-mono font-bold text-slate-700 dark:text-slate-200">{selectedPaymentSource ? ledgerCode(selectedPaymentSource) : "-"}</span></div>
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Currency</span><span className="font-mono font-bold text-slate-700 dark:text-slate-200">{selectedPaymentSource ? ledgerCurrency(selectedPaymentSource) : baseCurrency}</span></div>
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Balance</span><span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{sourceBalanceText}</span></div>
+                              <div className="flex justify-between gap-2"><span className="text-slate-400">Posting</span><span className="font-semibold text-slate-700 dark:text-slate-200">DR Party / CR Source</span></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-7">
+                          {[
+                            ["Purchase Total", money(statementPurchaseForeign, poCurrency), poCurrency, "text-slate-900 dark:text-slate-100"],
+                            ["Required Advance", money(loadingRequiredAdvance, poCurrency), poCurrency, "text-orange-700 dark:text-orange-300"],
+                            ["Received / Paid", money(totalReceivedPurchaseCurrency, poCurrency), poCurrency, "text-emerald-700 dark:text-emerald-300"],
+                            ["Balance", money(remainingPurchaseCurrency, poCurrency), poCurrency, "text-rose-700 dark:text-rose-300"],
+                            ["Final Local Total", money(statementPurchaseLocal, baseCurrency), baseCurrency, "text-slate-900 dark:text-slate-100"],
+                            ["Local Paid", money(totalReceivedLocalCurrency, baseCurrency), baseCurrency, "text-emerald-700 dark:text-emerald-300"],
+                            ["Local Balance", money(remainingLocalCurrency, baseCurrency), baseCurrency, "text-rose-700 dark:text-rose-300"]
+                          ].map(([label, value, cur, tone]) => (
+                            <div key={label} className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">{label}</span>
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-500 dark:bg-slate-900">{cur}</span>
+                              </div>
+                              <div className={"mt-1 font-mono text-[11px] font-black " + tone}>{value}</div>
+                            </div>
+                          ))}
                         </div>
                       </div>
 
@@ -4805,8 +4954,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               const journalSerial = re.super_admin_serial_number || payment.super_admin_serial_number || "Pending";
                               const countrySerial = re.country_transaction_serial_number || payment.country_transaction_serial_number || "-";
                               const branchSerial = re.branch_transaction_serial_number || payment.branch_transaction_serial_number || "-";
-                              const debitSerial = re.debit_serial_number || payment.debit_serial_number || (journalSerial + "-DR");
-                              const creditSerial = re.credit_serial_number || payment.credit_serial_number || (journalSerial + "-CR");
+                              const debitSerialBase = String(re.debit_serial_number || payment.debit_serial_number || journalSerial || "Pending");
+                              const creditSerialBase = String(re.credit_serial_number || payment.credit_serial_number || journalSerial || "Pending");
+                              const debitSerial = debitSerialBase.endsWith("-DR") ? debitSerialBase : debitSerialBase + "-DR";
+                              const creditSerial = creditSerialBase.endsWith("-CR") ? creditSerialBase : creditSerialBase + "-CR";
                               const drLabel = drLedger ? ledgerName(drLedger) : "-";
                               const crLabel = crLedger ? ledgerName(crLedger) : "-";
                               const isCompleted = payment.showRemainUSD <= 0.01;
@@ -4831,11 +4982,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                   </td>
                                   <td className="px-3 py-2 text-[10px] text-slate-600 dark:text-slate-300 min-w-[210px]">
                                     <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-950/20 px-2 py-1">
-                                      <div className="font-mono text-[8px] text-blue-500">DR Serial: {debitSerial}</div>
+                                      <div className="inline-flex items-center rounded-full bg-blue-600 px-2 py-0.5 font-mono text-[8px] font-black text-white shadow-sm">DR Serial: {debitSerial}</div>
                                       <div className="font-bold text-blue-700 dark:text-blue-400">DR: {drLabel}</div>
                                     </div>
                                     <div className="mt-1 rounded-lg border border-rose-100 dark:border-rose-900 bg-rose-50/70 dark:bg-rose-950/20 px-2 py-1">
-                                      <div className="font-mono text-[8px] text-rose-500">CR Serial: {creditSerial}</div>
+                                      <div className="inline-flex items-center rounded-full bg-rose-600 px-2 py-0.5 font-mono text-[8px] font-black text-white shadow-sm">CR Serial: {creditSerial}</div>
                                       <div className="font-bold text-rose-700 dark:text-rose-400">CR: {crLabel}</div>
                                     </div>
                                   </td>
@@ -5676,7 +5827,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         <SimpleModal
           title={`Purchase Order Details - ${viewingRow.purchase_order_no}`}
           onClose={() => setViewingRow(null)}
-          className="max-w-4xl w-full"
+          className="h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[1500px] rounded-2xl shadow-2xl"
         >
           {(() => {
             const form = viewingRow.form_data?.form || {};

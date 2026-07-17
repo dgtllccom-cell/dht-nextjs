@@ -2349,3 +2349,78 @@ Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37
 
 [GET /api/erp/purchases/orders] Time: 2026-07-17T13:39:06.867Z
 Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T13:43:37.921Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-17T13:43:41.852Z
+Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T13:45:16.380Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-17T13:45:33.541Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T13:55:52.431Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T13:55:59.235Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T14:02:37.765Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T14:02:37.768Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T14:02:55.100Z
+Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T14:02:55.697Z
+Message: Click Show Payment History. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
+
+[CLIENT LOG] Time: 2026-07-17T14:03:56.861Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T14:05:45.404Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T14:06:51.971Z
+Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T14:14:58.365Z
+Message: Click Payment Entry. row.id: 4180f9c5-d711-4715-a133-f1c1efdcb035
+
+[CLIENT LOG] Time: 2026-07-17T14:19:09.397Z
+Message: Click Payment Entry. row.id: 4180f9c5-d711-4715-a133-f1c1efdcb035
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T14:20:55.562Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T14:21:01.447Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-17T14:21:20.942Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T15:51:16.276Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T15:52:27.141Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-17T15:53:14.422Z
+Message: Click Show Payment History. row.id: 4180f9c5-d711-4715-a133-f1c1efdcb035
+
+[CLIENT LOG] Time: 2026-07-17T15:53:47.817Z
+Message: Click Show Payment History. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
+
+[CLIENT LOG] Time: 2026-07-17T15:54:26.446Z
+Message: Click Show Payment History. row.id: 4180f9c5-d711-4715-a133-f1c1efdcb035
+
+[CLIENT LOG] Time: 2026-07-17T15:55:14.512Z
+Message: Click Payment Entry. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
+
+[CLIENT LOG] Time: 2026-07-17T15:57:46.927Z
+Message: Click Payment Entry. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
