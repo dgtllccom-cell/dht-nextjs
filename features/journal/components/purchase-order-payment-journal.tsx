@@ -4274,6 +4274,87 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               return null;
             })()}
 
+            {/* Professional Purchase Order Details Header */}
+            {(() => {
+              const form = selected.form_data?.form || {};
+              const goods = selected.form_data?.goodsEntries || [];
+              const poCurrencyHeader = String(form.currencyType || form.currency || selected.currency_code || "USD").toUpperCase();
+              const exRateHeader = Number(selected.exchange_rate || form.exchangeRate || 1);
+              const purchaseTotalHeader = Number(selected.order_total || form.totalAmount || goods.reduce((sum: number, g: any) => sum + Number(g.totalAmount || 0), 0));
+              const advanceHeader = Number(selected.advance_paid || form.advanceAmount || ((purchaseTotalHeader * Number(form.advancePercent || 0)) / 100));
+              const remainingHeader = Math.max(0, Number(selected.remaining_due ?? (purchaseTotalHeader - advanceHeader)));
+              const supplierHeader = form.salesAccountName || form.supplierName || form.salesCompanyName || "-";
+              const companyHeader = form.purchaseCompanyName || form.salesCompanyName || form.companyName || "-";
+              const branchHeader = rowBranchName(selected) || form.branchName || "-";
+              const statusHeader = selected.payment_status || selected.status || "Pending";
+              const goodsHeader = goods.map((g: any) => g.goodsName || g.productName || g.name).filter(Boolean).join(", ") || form.goodsName || "-";
+              const grossWeightHeader = goods.reduce((sum: number, g: any) => sum + Number(g.grossWeight || g.gross_weight || 0), 0);
+              const netWeightHeader = goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || g.net_weight || 0), 0);
+
+              const detailCells = [
+                ["PO Number", selected.purchase_order_no || "-"],
+                ["Contract", selected.purchase_contract_no || form.contractNo || "-"],
+                ["Supplier", supplierHeader],
+                ["Company", companyHeader],
+                ["Branch", branchHeader],
+                ["Currency", `${poCurrencyHeader} / ${baseCurrency}`],
+                ["Exchange Rate", `1 ${poCurrencyHeader} = ${Number(exRateHeader || 1).toFixed(4)} ${baseCurrency}`],
+                ["Status", statusHeader]
+              ];
+
+              const summaryCells = [
+                ["Invoice Amount", money(purchaseTotalHeader, poCurrencyHeader), money(purchaseTotalHeader * exRateHeader, baseCurrency), "text-slate-900 dark:text-slate-100"],
+                ["Advance / Paid", money(advanceHeader, poCurrencyHeader), money(advanceHeader * exRateHeader, baseCurrency), "text-emerald-700 dark:text-emerald-300"],
+                ["Remaining Balance", money(remainingHeader, poCurrencyHeader), money(remainingHeader * exRateHeader, baseCurrency), "text-rose-700 dark:text-rose-300"],
+                ["Final Balance", money(remainingHeader * exRateHeader, baseCurrency), `${poCurrencyHeader} converted to ${baseCurrency}`, "text-blue-700 dark:text-blue-300"]
+              ];
+
+              return (
+                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-300">Purchase Order Details</div>
+                      <div className="mt-1 text-lg font-black text-slate-900 dark:text-slate-50">{selected.purchase_order_no}</div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
+                      <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">{poCurrencyHeader} / {baseCurrency}</span>
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">{statusHeader}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 p-4 xl:grid-cols-4">
+                    {summaryCells.map(([label, value, sub, tone]) => (
+                      <div key={label} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</div>
+                        <div className={`mt-1 font-mono text-[13px] font-black ${tone}`}>{value}</div>
+                        <div className="mt-1 font-mono text-[10px] font-semibold text-slate-500">{sub}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-3 border-t border-slate-100 p-4 text-xs dark:border-slate-800 lg:grid-cols-4">
+                    {detailCells.map(([label, value]) => (
+                      <div key={label} className="min-w-0">
+                        <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</span>
+                        <span className="block truncate font-extrabold text-slate-850 dark:text-slate-200" title={String(value)}>{value}</span>
+                      </div>
+                    ))}
+                    <div className="lg:col-span-2">
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Goods</span>
+                      <span className="block truncate font-extrabold text-slate-850 dark:text-slate-200" title={goodsHeader}>{goodsHeader}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Weights</span>
+                      <span className="block font-mono font-extrabold text-slate-850 dark:text-slate-200">G: {grossWeightHeader.toLocaleString()} KG / N: {netWeightHeader.toLocaleString()} KG</span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Payment Status</span>
+                      <span className="block font-extrabold text-slate-850 dark:text-slate-200">Total Paid {money(advanceHeader, poCurrencyHeader)}</span>
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
             {/* Purchase & Container Loading Context Details Card */}
             {(() => {
               const form = selected.form_data?.form || {};
@@ -4927,7 +5008,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       {/* Running Ledger Table */}
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
-                          <thead className="bg-slate-50 dark:bg-slate-900 text-[9px] uppercase font-black tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                          <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-900 text-[9px] uppercase font-black tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                             <tr>
                               <th className="px-3 py-2 text-center w-10">#</th>
                               <th className="px-3 py-2">General Serial / Date</th>
@@ -6233,5 +6314,7 @@ function getStatusBadge(status: string | null | undefined) {
     </span>
   );
 }
+
+
 
 

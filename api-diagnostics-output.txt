@@ -2451,3 +2451,15 @@ Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37
 
 [CLIENT LOG] Time: 2026-07-17T18:03:53.330Z
 Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T18:25:16.132Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-17T18:25:52.758Z
+Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T18:26:27.820Z
+Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-17T18:26:34.214Z
+Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
