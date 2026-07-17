@@ -1060,9 +1060,9 @@ function NestedPaymentHistory({
                 <th className="px-4 py-3 text-right border-r">Received ({purchaseCurrency})</th>
                 <th className="px-4 py-3 text-right border-r">Balance ({purchaseCurrency})</th>
                 <th className="px-4 py-3 text-center border-r">Exchange Rate</th>
-                <th className="px-4 py-3 text-right border-r">Advance Required ({localCurrency})</th>
-                <th className="px-4 py-3 text-right border-r">Received ({localCurrency})</th>
-                <th className="px-4 py-3 text-right border-r">Balance ({localCurrency})</th>
+                <th className="px-4 py-3 text-right border-r">Advance Required ({calcs.finalCurr})</th>
+                <th className="px-4 py-3 text-right border-r">Received ({calcs.finalCurr})</th>
+                <th className="px-4 py-3 text-right border-r">Balance ({calcs.finalCurr})</th>
                 <th className="px-4 py-3 text-center w-28">Actions</th>
               </tr>
             </thead>

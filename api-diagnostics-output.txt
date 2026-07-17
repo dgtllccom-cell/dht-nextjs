@@ -2343,3 +2343,9 @@ Message: Click Show Payment History. row.id: cc1607f9-623d-4884-b174-e85c09d204c
 
 [GET /api/erp/purchases/orders] Time: 2026-07-17T13:28:50.801Z
 Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-17T13:36:46.827Z
+Message: Click Show Payment History. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T13:39:06.867Z
+Params: limit=200
