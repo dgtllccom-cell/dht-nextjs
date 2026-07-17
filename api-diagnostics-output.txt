@@ -2334,3 +2334,12 @@ Message: Click Show Payment History. row.id: cc1607f9-623d-4884-b174-e85c09d204c
 
 [CLIENT LOG] Time: 2026-07-17T07:33:19.101Z
 Message: Click Show Payment History. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T11:02:27.277Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-17T11:06:51.300Z
+Message: Click Show Payment History. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
+
+[GET /api/erp/purchases/orders] Time: 2026-07-17T13:28:50.801Z
+Params: limit=200
