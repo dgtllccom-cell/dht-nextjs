@@ -511,6 +511,272 @@ export const UI_TRANSLATIONS: Record<string, Record<LanguageCode, string>> = {
     ar: "محول",
     fa: "منتقل شده",
     ps: "لیږدول شوی"
+  },
+  "transaction_entry_preview": {
+    en: "Transaction Entry Preview",
+    ur: "ٹرانزیکشن انٹری کا پیش نظارہ",
+    ar: "معاينة إدخال المعاملة",
+    fa: "پیش‌نمایش ثبت تراکنش",
+    ps: "د معاملې ننوتلو دمخه لید"
+  },
+  "narration_remarks": {
+    en: "Narration / Remarks",
+    ur: "تفصیل / ریمارکس",
+    ar: "السرد / الملاحظات",
+    fa: "شرح / ملاحظات",
+    ps: "تفصیل / څرګندونې"
+  },
+  "double_entry_posting_preview": {
+    en: "Double-Entry Journal Posting Preview",
+    ur: "ڈبل انٹری جرنل پوسٹنگ کا پیش نظارہ",
+    ar: "معاينة ترحيل القيود المزدوجة",
+    fa: "پیش‌نمایش ثبت دفتر روزنامه دوطرفه",
+    ps: "د ډبل انټري ژورنال پوسټ کولو دمخه لید"
+  },
+  "double_entry_posting_guide": {
+    en: "Double-Entry Posting Guide",
+    ur: "ڈبل انٹری پوسٹنگ گائیڈ",
+    ar: "دليل ترحيل القيد المزدوج",
+    fa: "راهنمای ثبت دوطرفه",
+    ps: "د ډبل انټري پوسټ کولو لارښود"
+  },
+  "every_transaction_balances": {
+    en: "Every transaction balances dynamically. When you process a payment:",
+    ur: "ہر ٹرانزیکشن متحرک طور پر متوازن ہوتی ہے۔ جب آپ ادائیگی پروسیس کرتے ہیں:",
+    ar: "تتوازن كل معاملة ديناميكيًا. عند معالجة الدفع:",
+    fa: "هر تراکنش به صورت پویا متوازن می‌شود. هنگام پردازش پرداخت:",
+    ps: "هر معامله په متحرک ډول متوازن کیږي. کله چې تاسو تادیه پروسس کوئ:"
+  },
+  "debit_records_updated": {
+    en: "The Debit (Dr) records are updated to settle liabilities with the seller/supplier.",
+    ur: "ڈیبٹ (Dr) ریکارڈز بیچنے والے/سپلائر کے ساتھ واجبات کی ادائیگی کے لیے اپ ڈیٹ کیے جاتے ہیں۔",
+    ar: "يتم تحديث سجلات المدين (Dr) لتسوية الالتزامات مع البائع/المورد.",
+    fa: "سوابق بدهکار (Dr) برای تسویه بدهی‌ها با فروشنده/تأمین‌کننده به‌روزرسانی می‌شوند.",
+    ps: "د ډیبیټ (Dr) ریکارډونه د پلورونکي/چمتو کونکي سره د مکلفیتونو د تصفیې لپاره تازه کیږي."
+  },
+  "credit_records_deduct": {
+    en: "The Credit (Cr) records deduct funds from your payment source ledger.",
+    ur: "کریڈٹ (Cr) ریکارڈز آپ کے ادائیگی کے سورس لیجر سے فنڈز کاٹتے ہیں۔",
+    ar: "تخصم سجلات الدائن (Cr) الأموال من دفتر حساب مصدر الدفع الخاص بك.",
+    fa: "سوابق بستانکار (Cr) وجوه را از دفتر کل منبع پرداخت شما کسر می‌کنند.",
+    ps: "د کریډیټ (Cr) ریکارډونه ستاسو د تادیې سرچینې لیجر څخه فنډونه کموي."
+  },
+  "exchange_conversion_calculates": {
+    en: "Exchange conversion calculates local currency value ({baseCurrency}) automatically.",
+    ur: "ایکسچینج کنورژن مقامی کرنسی کی قدر ({baseCurrency}) خود کار طریقے سے حساب کرتی ہے۔",
+    ar: "يحسب تحويل العملة القيمة بالعملة المحلية ({baseCurrency}) تلقائيًا.",
+    fa: "تبدیل ارز ارزش ارز محلی ({baseCurrency}) را به طور خودکار محاسبه می‌کند.",
+    ps: "د تبادلې تبادله په اتوماتیک ډول ځایی اسعارو ارزښت ({baseCurrency}) محاسبه کوي."
+  },
+  "invalid_ledger_selection": {
+    en: "Invalid ledger account selection. Please ensure debit and credit accounts are fully mapped with valid UUIDs.",
+    ur: "غلط لیجر اکاؤنٹ کا انتخاب۔ براہ کرم یقینی بنائیں کہ ڈیبٹ اور کریڈٹ اکاؤنٹس کو درست UUIDs کے ساتھ مکمل طور پر نقشہ کیا گیا ہے۔",
+    ar: "اختيار غير صالح لحساب دفتر الأستاذ. يرجى التأكد من مطابقة حسابات المدين والدائن بالكامل بمعرفات UUID صالحة.",
+    fa: "انتخاب حساب دفتر کل نامعتبر است. لطفاً مطمئن شوید حساب‌های بدهکار و بستانکار کاملاً با UUIDهای معتبر نگاشت شده‌اند.",
+    ps: "د لیجر حساب ناسم انتخاب. مهرباني وکړئ ډاډ ترلاسه کړئ چې ډیبیټ او کریډیټ حسابونه د باوري UUIDs سره په بشپړ ډول نقشه شوي."
+  },
+  "use_suggested": {
+    en: "Use suggested",
+    ur: "تجویز کردہ استعمال کریں",
+    ar: "استخدام المقترح",
+    fa: "استفاده از پیشنهاد شده",
+    ps: "وړاندیز شوی وکاروئ"
+  },
+  "payment_source_account": {
+    en: "Payment Source Account",
+    ur: "ادائیگی کا سورس اکاؤنٹ",
+    ar: "حساب مصدر الدفع",
+    fa: "حساب منبع پرداخت",
+    ps: "د تادیې سرچینې حساب"
+  },
+  "roznamcha_type_label": {
+    en: "Roznamcha Type",
+    ur: "روزنامچہ کی قسم",
+    ar: "نوع الروزنامة",
+    fa: "نوع روزنامچه",
+    ps: "د روزنامچې ډول"
+  },
+  "roznamcha_number_label": {
+    en: "Roznamcha Number",
+    ur: "روزنامچہ نمبر",
+    ar: "رقم الروزنامة",
+    fa: "شماره روزنامچه",
+    ps: "د روزنامچې شمیره"
+  },
+  "roznamcha_category_label": {
+    en: "Roznamcha Category",
+    ur: "روزنامچہ کیٹیگری",
+    ar: "فئة الروزنامة",
+    fa: "دسته‌بندی روزنامچه",
+    ps: "د روزنامچې کټګوري"
+  },
+  "payment_date_label": {
+    en: "Payment Date",
+    ur: "ادائیگی کی تاریخ",
+    ar: "تاريخ الدفع",
+    fa: "تاریخ پرداخت",
+    ps: "د تادیې نیټه"
+  },
+  "comments_label": {
+    en: "Comments / Remarks",
+    ur: "کمنٹس / ریمارکس",
+    ar: "تعليقات",
+    fa: "نظرات",
+    ps: "تبصرو"
+  },
+  "receiver_sender_name": {
+    en: "Receiver / Sender Name",
+    ur: "وصول کنندہ / بھیجنے والے کا نام",
+    ar: "اسم المستلم / المرسل",
+    fa: "نام گیرنده / فرستنده",
+    ps: "د ترلاسه کونکي / لیږونکي نوم"
+  },
+  "mobile_number": {
+    en: "Mobile Number",
+    ur: "موبائل نمبر",
+    ar: "رقم الجوال",
+    fa: "شماره موبایل",
+    ps: "د ګرځنده شمیره"
+  },
+  "whatsapp_number": {
+    en: "WhatsApp Number",
+    ur: "واٹس ایپ نمبر",
+    ar: "رقم الواتساب",
+    fa: "شماره واتساپ",
+    ps: "د واټساپ شمیره"
+  },
+  "id_card_copy_upload": {
+    en: "ID Card Copy Upload",
+    ur: "شناختی کارڈ کاپی اپ لوڈ",
+    ar: "تحميل نسخة من بطاقة الهوية",
+    fa: "آپلود کپی کارت شناسایی",
+    ps: "د پیژندپاڼې کاپي اپلوډ"
+  },
+  "transaction_conversion_details": {
+    en: "Transaction Conversion Details",
+    ur: "ٹرانزیکشن کنورژن کی تفصیلات",
+    ar: "تفاصيل تحويل المعاملة",
+    fa: "جزئیات تبدیل تراکنش",
+    ps: "د معاملې تبادلې توضیحات"
+  },
+  "purchase_currency_amount": {
+    en: "Purchase Currency Amount",
+    ur: "پرچیز کرنسی رقم",
+    ar: "مبلغ عملة الشراء",
+    fa: "مبلغ ارز خرید",
+    ps: "د پیرود اسعارو مقدار"
+  },
+  "exchange_rate_label": {
+    en: "Exchange Rate",
+    ur: "ایکسچینج ریٹ",
+    ar: "سعر الصرف",
+    fa: "نرخ ارز",
+    ps: "د تبادلې نرخ"
+  },
+  "operation_label": {
+    en: "Operation",
+    ur: "آپریشن",
+    ar: "العملية",
+    fa: "عملیات",
+    ps: "عملیات"
+  },
+  "final_local_amount": {
+    en: "Final Local Amount",
+    ur: "حتمی مقامی رقم",
+    ar: "المبلغ المحلي النهائي",
+    fa: "مبلغ محلی نهایی",
+    ps: "وروستی ځایی مقدار"
+  },
+  "posting_success": {
+    en: "Double-entry ledger voucher successfully balanced! Journal Serial Number:",
+    ur: "ڈبل انٹری لیجر واؤچر کامیابی سے متوازن ہو گیا! جرنل سیریل نمبر:",
+    ar: "تم موازنة سند دفتر أستاذ القيد المزدوج بنجاح! رقم تسلسل اليومية:",
+    fa: "سند دفتر کل دوطرفه با موفقیت متوازن شد! شماره سریال روزنامه:",
+    ps: "د ډبل انټري لیجر واؤچر په بریالیتوب سره متوازن شو! د ژورنال سریال شمیره:"
+  },
+  "payment_entry_po": {
+    en: "Payment Entry - PO",
+    ur: "ادائیگی انٹری - پرچیز آرڈر",
+    ar: "إدخال الدفع - طلب الشراء",
+    fa: "ثبت پرداخت - سفارش خرید",
+    ps: "د تادیې ننوتل - پیرود امر"
+  },
+  "post_advance_payment": {
+    en: "Post Advance Payment",
+    ur: "ایڈوانس ادائیگی پوسٹ کریں",
+    ar: "ترحيل الدفعة المقدمة",
+    fa: "ثبت پرداخت علی‌الحساب",
+    ps: "مخکینۍ تادیه پوسټ کړئ"
+  },
+  "original_purchase_amount": {
+    en: "Original Purchase Amount",
+    ur: "اصل خریداری کی رقم",
+    ar: "مبلغ الشراء الأصلي",
+    fa: "مبلغ خرید اصلی",
+    ps: "د پیرود اصلي مقدار"
+  },
+  "purchase_currency": {
+    en: "Purchase Currency",
+    ur: "خریداری کی کرنسی",
+    ar: "عملة الشراء",
+    fa: "ارز خرید",
+    ps: "د پیرود اسعارو"
+  },
+  "final_converted_amount": {
+    en: "Final Converted Amount",
+    ur: "حتمی تبدیل شدہ رقم",
+    ar: "المبلغ المحول النهائي",
+    fa: "مبلغ تبدیل شده نهایی",
+    ps: "وروستی بدل شوی مقدار"
+  },
+  "total_advance_required": {
+    en: "Total Advance Required",
+    ur: "کل ایڈوانس درکار",
+    ar: "إجمالي الدفعة المقدمة المطلوبة",
+    fa: "کل علی‌الحساب مورد نیاز",
+    ps: "ټول اړین پرمختګ"
+  },
+  "total_paid": {
+    en: "Total Paid",
+    ur: "کل ادا شدہ",
+    ar: "إجمالي المدفوع",
+    fa: "کل پرداخت شده",
+    ps: "ټول تادیه شوي"
+  },
+  "outstanding_amount": {
+    en: "Outstanding Amount",
+    ur: "بقایا رقم",
+    ar: "المبلغ المستحق",
+    fa: "مبلغ معوقه",
+    ps: "پاتې مقدار"
+  },
+  "remaining_balance_label": {
+    en: "Remaining Balance",
+    ur: "باقی ماندہ بیلنس",
+    ar: "الرصيد المتبقي",
+    fa: "مانده باقی‌مانده",
+    ps: "پاتې بیلانس"
+  },
+  "final_debit_amount": {
+    en: "Final Debit Amount",
+    ur: "حتمی ڈیبٹ رقم",
+    ar: "مبلغ المدين النهائي",
+    fa: "مبلغ بدهکار نهایی",
+    ps: "وروستی ډیبیټ مقدار"
+  },
+  "final_credit_amount": {
+    en: "Final Credit Amount",
+    ur: "حتمی کریڈٹ رقم",
+    ar: "مبلغ الدائن النهائي",
+    fa: "مبلغ بستانکار نهایی",
+    ps: "وروستی کریډیټ مقدار"
+  },
+  "payment_status_label": {
+    en: "Payment Status",
+    ur: "ادائیگی کی صورتحال",
+    ar: "حالة الدفع",
+    fa: "وضعیت پرداخت",
+    ps: "د تادیې حالت"
   }
 };
 

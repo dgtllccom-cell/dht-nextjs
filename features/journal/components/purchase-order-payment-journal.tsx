@@ -3173,8 +3173,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         debitLedgerId = ledgerId(foundDeb) || "";
       } else {
         const rawId = doubleEntry.debitCode === debitAccountCode 
-          ? selectedForm.purchaseAccountLedgerId || selectedForm.purchaseAccountId 
-          : selectedForm.salesAccountLedgerId || selectedForm.salesAccountId;
+          ? selectedForm.purchaseAccountLedgerId || selectedForm.purchaseAccountId || selectedForm.supplierId
+          : selectedForm.salesAccountLedgerId || selectedForm.salesAccountId || selectedForm.customerId;
         debitLedgerId = String(rawId || "");
       }
 
@@ -3184,7 +3184,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       if (foundCred) {
         creditLedgerId = ledgerId(foundCred) || "";
       } else {
-        creditLedgerId = paymentSourceLedgerId;
+        if (doubleEntry.creditCode === creditAccountCode) {
+          creditLedgerId = String(selectedForm.salesAccountLedgerId || selectedForm.salesAccountId || selectedForm.customerId || "");
+        } else {
+          creditLedgerId = paymentSourceLedgerId;
+        }
       }
 
       if (!isUuid(debitLedgerId) || !isUuid(creditLedgerId)) {
@@ -4860,7 +4864,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 {/* Payment Input Form */}
                 {isSuperAdmin && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FieldBlock label="Country (Super Admin)" required={false}>
+                    <FieldBlock label={currentLanguage === "en" ? "Country (Super Admin)" : "ملک (سپر ایڈمن)"} required={false}>
                       <SearchableSelect
                         value={saCountryId}
                         onChange={(val) => {
@@ -4869,14 +4873,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           setPaymentSourceLedgerId("");
                         }}
                         options={[
-                          { label: "-- All Countries --", value: "" },
-                          ...saCountries.map(c => ({ label: c.name, value: c.id }))
+                          { label: currentLanguage === "en" ? "-- All Countries --" : "-- تمام ممالک --", value: "" },
+                          ...saCountries.map(c => ({ label: tData(c.name, currentLanguage), value: c.id }))
                         ]}
-                        placeholder="-- All Countries --"
+                        placeholder={currentLanguage === "en" ? "-- All Countries --" : "-- تمام ممالک --"}
                         className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
                       />
                     </FieldBlock>
-                    <FieldBlock label="Branch (Super Admin)" required={false}>
+                    <FieldBlock label={currentLanguage === "en" ? "Branch (Super Admin)" : "برانچ (سپر ایڈمن)"} required={false}>
                       <SearchableSelect
                         value={saBranchId}
                         onChange={(val) => {
@@ -4884,10 +4888,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           setPaymentSourceLedgerId("");
                         }}
                         options={[
-                          { label: "-- All Branches --", value: "" },
-                          ...saBranches.filter(b => b.country_id === saCountryId || b.country_id === undefined).map(b => ({ label: b.name, value: b.id }))
+                          { label: currentLanguage === "en" ? "-- All Branches --" : "-- تمام برانچز --", value: "" },
+                          ...saBranches.filter(b => b.country_id === saCountryId || b.country_id === undefined).map(b => ({ label: tData(b.name, currentLanguage), value: b.id }))
                         ]}
-                        placeholder="-- All Branches --"
+                        placeholder={currentLanguage === "en" ? "-- All Branches --" : "-- تمام برانچز --"}
                         disabled={!saCountryId}
                         className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
                       />
@@ -4895,11 +4899,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FieldBlock label="Payment Source Account" required>
+                  <FieldBlock label={t("payment_source_account", currentLanguage)} required>
                     <SearchSelect
                       label=""
                       value={paymentSourceLedgerId}
-                      placeholder="Search Payment Source Account..."
+                      placeholder={currentLanguage === "en" ? "Search Payment Source Account..." : "ادائیگی کا سورس اکاؤنٹ تلاش کریں..."}
                       options={ledgerOptions}
                       disabled={loading}
                       onValueChange={(val) => {
@@ -4921,13 +4925,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     />
                     {selectedSourceLedger && (
                       <div className="mt-1 text-[10px] font-semibold text-slate-500 flex justify-between">
-                        <span>Balance: {sourceBalanceText}</span>
-                        <span>Currency: {selectedSourceLedger.currency || baseCurrency}</span>
+                        <span>{currentLanguage === "en" ? "Balance: " : "بیلنس: "}{sourceBalanceText}</span>
+                        <span>{currentLanguage === "en" ? "Currency: " : "کرنسی: "}{selectedSourceLedger.currency || baseCurrency}</span>
                       </div>
                     )}
                   </FieldBlock>
 
-                  <FieldBlock label="Roznamcha Type" required>
+                  <FieldBlock label={t("roznamcha_type_label", currentLanguage)} required>
                     <SearchableSelect
                       value={roznamchaType}
                       onChange={(val) => {
@@ -4943,16 +4947,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         }
                       }}
                       options={[
-                        { label: "Cash Book No.", value: "Cash Book No." },
-                        { label: "Roznamcha Book No.", value: "Roznamcha Book No." },
-                        { label: "Receipt No.", value: "Receipt No." }
+                        { label: currentLanguage === "en" ? "Cash Book No." : "کیش بک نمبر", value: "Cash Book No." },
+                        { label: currentLanguage === "en" ? "Roznamcha Book No." : "روزنامچہ بک نمبر", value: "Roznamcha Book No." },
+                        { label: currentLanguage === "en" ? "Receipt No." : "رسید نمبر", value: "Receipt No." }
                       ]}
-                      placeholder="Select Type"
+                      placeholder={currentLanguage === "en" ? "Select Type" : "قسم منتخب کریں"}
                       className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
                     />
                   </FieldBlock>
 
-                  <FieldBlock label="Roznamcha Number" required>
+                  <FieldBlock label={t("roznamcha_number_label", currentLanguage)} required>
                     <Input
                       className="h-9 text-xs font-semibold w-full"
                       value={roznamchaNumber}
@@ -4961,7 +4965,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     />
                   </FieldBlock>
 
-                  <FieldBlock label="Payment Date" required>
+                  <FieldBlock label={t("payment_date_label", currentLanguage)} required>
                     <Input
                       className="h-9 text-xs font-semibold w-full"
                       type="date"
@@ -4972,7 +4976,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FieldBlock label="Roznamcha Category" required>
+                  <FieldBlock label={t("roznamcha_category_label", currentLanguage)} required>
                     <SearchableSelect
                       value={paymentType}
                       onChange={(val) => {
@@ -4994,19 +4998,19 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         }
                       }}
                       options={[
-                        { label: "Select Category", value: "" },
-                        { label: "Cash Roznamcha", value: "cash" },
-                        { label: "Bank Roznamcha", value: "bank" },
-                        { label: "Business Roznamcha", value: "business" },
-                        { label: "Invoice Journal", value: "invoice" },
-                        { label: "Transfer", value: "transfer" }
+                        { label: currentLanguage === "en" ? "Select Category" : "زمرہ منتخب کریں", value: "" },
+                        { label: currentLanguage === "en" ? "Cash Roznamcha" : "کیش روزنامچہ", value: "cash" },
+                        { label: currentLanguage === "en" ? "Bank Roznamcha" : "بینک روزنامچہ", value: "bank" },
+                        { label: currentLanguage === "en" ? "Business Roznamcha" : "بزنس روزنامچہ", value: "business" },
+                        { label: currentLanguage === "en" ? "Invoice Journal" : "انکوائس جرنل", value: "invoice" },
+                        { label: currentLanguage === "en" ? "Transfer" : "منتقلی", value: "transfer" }
                       ]}
-                      placeholder="Select Category"
+                      placeholder={currentLanguage === "en" ? "Select Category" : "زمرہ منتخب کریں"}
                       className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
                     />
                   </FieldBlock>
 
-                  <FieldBlock label="Currency" required>
+                  <FieldBlock label={t("currency_label", currentLanguage)} required>
                     <SearchableSelect
                       value={currency}
                       onChange={(val) => setCurrency(val)}
@@ -5018,7 +5022,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         { label: "AFN", value: "AFN" },
                         { label: "IRR", value: "IRR" }
                       ]}
-                      placeholder="Select Currency"
+                      placeholder={currentLanguage === "en" ? "Select Currency" : "کرنسی منتخب کریں"}
                       className="relative z-[45] text-xs font-semibold text-slate-800 dark:text-slate-100"
                     />
                   </FieldBlock>
@@ -5028,29 +5032,29 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 {paymentType && (
                   <div className="rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/20">
                     <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
-                      {paymentType === "cash" && "Cash Details"}
-                      {paymentType === "bank" && "Bank Details"}
-                      {paymentType === "business" && "Business Details"}
-                      {paymentType === "invoice" && "Invoice Details"}
-                      {paymentType === "transfer" && "Transfer Details"}
+                      {paymentType === "cash" && (currentLanguage === "en" ? "Cash Details" : "کیش کی تفصیلات")}
+                      {paymentType === "bank" && (currentLanguage === "en" ? "Bank Details" : "بینک کی تفصیلات")}
+                      {paymentType === "business" && (currentLanguage === "en" ? "Business Details" : "بزنس کی تفصیلات")}
+                      {paymentType === "invoice" && (currentLanguage === "en" ? "Invoice Details" : "انکوائس کی تفصیلات")}
+                      {paymentType === "transfer" && (currentLanguage === "en" ? "Transfer Details" : "منتقلی کی تفصیلات")}
                     </div>
                     
                     {paymentType === "cash" && (
                       <div className="grid gap-3 md:grid-cols-2">
-                        <FieldBlock label="Receiver / Sender Name">
-                          <Input className="h-9 text-xs font-semibold" value={typeDetails.receiverSenderName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, receiverSenderName: e.target.value }))} placeholder="Receiver or sender name" />
+                        <FieldBlock label={t("receiver_sender_name", currentLanguage)}>
+                          <Input className="h-9 text-xs font-semibold" value={typeDetails.receiverSenderName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, receiverSenderName: e.target.value }))} placeholder={currentLanguage === "en" ? "Receiver or sender name" : "وصول کنندہ یا بھیجنے والے کا نام"} />
                         </FieldBlock>
-                        <FieldBlock label="Mobile Number">
-                          <Input className="h-9 text-xs font-semibold" value={typeDetails.mobileNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, mobileNumber: e.target.value }))} placeholder="Mobile number" />
+                        <FieldBlock label={t("mobile_number", currentLanguage)}>
+                          <Input className="h-9 text-xs font-semibold" value={typeDetails.mobileNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, mobileNumber: e.target.value }))} placeholder="03xxxxxxxxx" />
                         </FieldBlock>
-                        <FieldBlock label="WhatsApp Number">
-                          <Input className="h-9 text-xs font-semibold" value={typeDetails.whatsappNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, whatsappNumber: e.target.value }))} placeholder="WhatsApp number" />
+                        <FieldBlock label={t("whatsapp_number", currentLanguage)}>
+                          <Input className="h-9 text-xs font-semibold" value={typeDetails.whatsappNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, whatsappNumber: e.target.value }))} placeholder="03xxxxxxxxx" />
                         </FieldBlock>
-                        <FieldBlock label="ID Card Copy Upload">
+                        <FieldBlock label={t("id_card_copy_upload", currentLanguage)}>
                           <div className="flex items-center gap-2">
                             <Label className="cursor-pointer flex w-max items-center justify-center h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 border text-slate-500 shadow-sm transition gap-1.5 text-[10px] font-semibold">
                               <Paperclip className="h-3 w-3" />
-                              <span>Attach</span>
+                              <span>{currentLanguage === "en" ? "Attach" : "منسلک کریں"}</span>
                               <Input
                                 type="file"
                                 className="hidden"
@@ -5070,7 +5074,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     {paymentType === "bank" && (
                       <div className="space-y-3">
                         <div className="space-y-1 relative z-[46]">
-                          <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Bank Name</span>
+                          <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            {currentLanguage === "en" ? "Bank Name" : "بینک کا نام"}
+                          </span>
                           <SearchableSelect
                             value={typeDetails.bankName || ""}
                             onChange={(val) => {
@@ -5081,18 +5087,20 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               }
                             }}
                             options={[
-                              { label: "Select Bank", value: "" },
+                              { label: currentLanguage === "en" ? "Select Bank" : "بینک منتخب کریں", value: "" },
                               ...["HBL", "MCB", "UBL", "Meezan", "Bank Alfalah"].map((bank) => ({ label: bank, value: bank })),
                               ...savedBanks.map((bank) => ({ label: bank.name, value: bank.name }))
                             ]}
-                            placeholder="Select Bank"
-                            addOptionLabel="New Bank"
+                            placeholder={currentLanguage === "en" ? "Select Bank" : "بینک منتخب کریں"}
+                            addOptionLabel={currentLanguage === "en" ? "New Bank" : "نیا بینک"}
                             className="text-xs font-semibold text-slate-800 dark:text-slate-100"
                           />
                         </div>
 
                         <div className="space-y-1 relative z-[46]">
-                          <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Payment Method</span>
+                          <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            {currentLanguage === "en" ? "Payment Method" : "ادائیگی کا طریقہ"}
+                          </span>
                           <SearchableSelect
                             value={typeDetails.method || ""}
                             onChange={(val) => {
@@ -5103,26 +5111,26 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               }
                             }}
                             options={[
-                              { label: "Select Method", value: "" },
+                              { label: currentLanguage === "en" ? "Select Method" : "طریقہ منتخب کریں", value: "" },
                               ...["Cheque", "Mobile Transfer", "Online Transfer", "Bank Transfer"].map((method) => ({ label: method, value: method })),
                               ...savedMethods.map((method) => ({ label: method, value: method }))
                             ]}
-                            placeholder="Select Method"
-                            addOptionLabel="New Method"
+                            placeholder={currentLanguage === "en" ? "Select Method" : "طریقہ منتخب کریں"}
+                            addOptionLabel={currentLanguage === "en" ? "New Method" : "نیا طریقہ"}
                             className="text-xs font-semibold text-slate-800 dark:text-slate-100"
                           />
                         </div>
 
                         <div className="grid gap-3 grid-cols-2">
-                          <FieldBlock label="Reference No.">
+                          <FieldBlock label={currentLanguage === "en" ? "Reference No." : "حوالہ نمبر"}>
                             <Input
                               className="h-9 text-xs font-semibold w-full"
                               value={typeDetails.refNo || ""}
                               onChange={(e) => setTypeDetails((prev) => ({ ...prev, refNo: e.target.value }))}
-                              placeholder="Cheque/Mobile transaction number"
+                              placeholder={currentLanguage === "en" ? "Cheque/Mobile transaction number" : "چیک یا ٹرانزیکشن نمبر"}
                             />
                           </FieldBlock>
-                          <FieldBlock label="Payment Date" required>
+                          <FieldBlock label={t("payment_date_label", currentLanguage)} required>
                             <Input
                               className="h-9 text-xs font-semibold w-full"
                               type="date"
@@ -5133,11 +5141,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           </FieldBlock>
                         </div>
 
-                        <FieldBlock label="Attachment Upload">
+                        <FieldBlock label={currentLanguage === "en" ? "Attachment Upload" : "فائل منسلک اپ لوڈ"}>
                           <div className="flex items-center gap-2">
                             <Label className="cursor-pointer flex w-max items-center justify-center h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 border text-slate-500 shadow-sm transition gap-1.5 text-[10px] font-semibold">
                               <Paperclip className="h-3 w-3" />
-                              <span>Attach</span>
+                              <span>{currentLanguage === "en" ? "Attach" : "منسلک کریں"}</span>
                               <Input
                                 type="file"
                                 className="hidden"
@@ -5156,10 +5164,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                     {(paymentType === "business" || paymentType === "invoice") && (
                       <div className="grid gap-3 md:grid-cols-2">
-                        <FieldBlock label="Invoice Number">
+                        <FieldBlock label={currentLanguage === "en" ? "Invoice Number" : "انوائس نمبر"}>
                           <Input className="h-9 text-xs font-semibold" value={typeDetails.invoiceNumber || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, invoiceNumber: e.target.value }))} placeholder="Invoice number" />
                         </FieldBlock>
-                        <FieldBlock label="Purchase Information">
+                        <FieldBlock label={currentLanguage === "en" ? "Purchase Information" : "خریداری کی معلومات"}>
                           <Input className="h-9 text-xs font-semibold" value={typeDetails.purchaseInfo || typeDetails.businessName || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, purchaseInfo: e.target.value, businessName: e.target.value }))} placeholder="Purchase information" />
                         </FieldBlock>
                       </div>
@@ -5167,13 +5175,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
 
                     {paymentType === "transfer" && (
                       <div className="grid gap-3 md:grid-cols-2">
-                        <FieldBlock label="From">
+                        <FieldBlock label={currentLanguage === "en" ? "From" : "سے"}>
                           <Input className="h-9 text-xs font-semibold" value={typeDetails.from || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, from: e.target.value }))} placeholder="From account" />
                         </FieldBlock>
-                        <FieldBlock label="To">
+                        <FieldBlock label={currentLanguage === "en" ? "To" : "کو"}>
                           <Input className="h-9 text-xs font-semibold" value={typeDetails.to || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, to: e.target.value }))} placeholder="To account" />
                         </FieldBlock>
-                        <FieldBlock label="Reference" className="md:col-span-2">
+                        <FieldBlock label={currentLanguage === "en" ? "Reference" : "حوالہ"} className="md:col-span-2">
                           <Input className="h-9 text-xs font-semibold" value={typeDetails.ref || ""} onChange={(e) => setTypeDetails((p) => ({ ...p, ref: e.target.value }))} placeholder="Reference" />
                         </FieldBlock>
                       </div>
@@ -5185,23 +5193,23 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 {currency && showCalcPanel && (
                   <div className="rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/20">
                     <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                      Transaction Conversion Details ({selected?.currency_code || "USD"} âž” {baseCurrency})
+                      {t("transaction_conversion_details", currentLanguage)} ({selected?.currency_code || "USD"} ➔ {baseCurrency})
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
-                      <FieldBlock label={`Purchase Currency Amount (${selected?.currency_code || "USD"})`} required>
+                      <FieldBlock label={`${t("purchase_currency_amount", currentLanguage)} (${selected?.currency_code || "USD"})`} required>
                         <Input className="h-9 text-xs font-semibold" value={calcAmount} onChange={(e) => setCalcAmount(e.target.value)} type="number" step="0.0001" min="0" placeholder="e.g. 100" />
                       </FieldBlock>
-                      <FieldBlock label="Exchange Rate" required>
+                      <FieldBlock label={t("exchange_rate_label", currentLanguage)} required>
                         <Input className="h-9 text-xs font-semibold" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} type="number" step="0.0001" min="0" disabled={selected?.currency_code === baseCurrency && currency === baseCurrency} />
                       </FieldBlock>
-                      <FieldBlock label="Operation">
+                      <FieldBlock label={t("operation_label", currentLanguage)}>
                         <select
                           className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs font-semibold outline-none"
                           value={calcOp}
                           onChange={(e) => setCalcOp(e.target.value as any)}
                         >
-                          <option value="mul">Multiply (*)</option>
-                          <option value="div">Divide (/)</option>
+                          <option value="mul">{currentLanguage === "en" ? "Multiply (*)" : "ضرب کریں (*)"}</option>
+                          <option value="div">{currentLanguage === "en" ? "Divide (/)" : "تقسیم کریں (/)"}</option>
                         </select>
                       </FieldBlock>
                     </div>
@@ -5209,7 +5217,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 )}
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <FieldBlock label={`Final Local Amount (${baseCurrency})`} required>
+                  <FieldBlock label={`${t("final_local_amount", currentLanguage)} (${baseCurrency})`} required>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
                         {baseCurrency}
@@ -5235,28 +5243,30 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                         }}
                         className="text-[10px] text-primary font-semibold hover:underline mt-1 block"
                       >
-                        Use suggested: {money(suggestedAdvance, currency)} / {money(suggestedAdvance * Number(exchangeRate || 1), baseCurrency)}
+                        {t("use_suggested", currentLanguage)}: {money(suggestedAdvance, currency)} / {money(suggestedAdvance * Number(exchangeRate || 1), baseCurrency)}
                       </button>
                     )}
                   </FieldBlock>
 
                   <div className="space-y-1">
                     <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Transaction Entry Preview
+                      {t("transaction_entry_preview", currentLanguage)}
                     </span>
                     <div className="h-9 flex items-center px-3 rounded-lg border border-indigo-400/40 bg-indigo-500/10 text-indigo-600 font-bold text-xs uppercase truncate">
-                      ðŸ”µ Balanced entry â€” Dr: {doubleEntry.debitCode} / Cr: {doubleEntry.creditCode}
+                      {currentLanguage === "en"
+                        ? `🔵 Balanced entry — Dr: ${doubleEntry.debitCode} / Cr: ${doubleEntry.creditCode}`
+                        : `🔵 متوازن انٹری — ڈیبٹ: ${doubleEntry.debitCode} / کریڈٹ: ${doubleEntry.creditCode}`}
                     </div>
                   </div>
                 </div>
 
-                <FieldBlock label="Narration / Remarks">
+                <FieldBlock label={t("comments_label", currentLanguage)}>
                   <textarea
                     rows={3}
                     className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-semibold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
-                    placeholder="Manually add additional descriptions, comments, explanations, or transaction notes..."
+                    placeholder={currentLanguage === "en" ? "Manually add additional descriptions, comments, explanations, or transaction notes..." : "تفصیلات، کمنٹس، وضاحت، یا ٹرانزیکشن نوٹس شامل کریں..."}
                   />
                 </FieldBlock>
 
@@ -5264,10 +5274,10 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2 border-t border-border">
                   <div className="text-xs space-y-0.5 text-muted-foreground">
                     <div>
-                      <span className="font-bold text-foreground">Posting: </span>
+                      <span className="font-bold text-foreground">{currentLanguage === "en" ? "Posting: " : "پوسٹنگ: "}</span>
                       <><span className="font-bold text-indigo-600">DR</span> {doubleEntry.debitName} ({doubleEntry.debitCode}) / <span className="font-bold text-violet-600">CR</span> {doubleEntry.creditName} ({doubleEntry.creditCode})</>
                     </div>
-                    <div><span className="font-bold text-foreground">Amount: </span>{amount ? money(amount, baseCurrency) : "â€”"}</div>
+                    <div><span className="font-bold text-foreground">{currentLanguage === "en" ? "Amount: " : "رقم: "}</span>{amount ? money(amount, baseCurrency) : "—"}</div>
                     {selected && (
                       <div className="mt-1">
                         {(() => {
@@ -5285,13 +5295,13 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                             return (
                               <div className="flex flex-col gap-1">
                                 <div>
-                                  <span className="font-bold text-foreground">Remaining Advance to Pay: </span>
+                                  <span className="font-bold text-foreground">{currentLanguage === "en" ? "Remaining Advance to Pay: " : "باقی ایڈوانس ادائیگی: "}</span>
                                   <span className="font-extrabold text-rose-600">
                                     {money(remainingAdvanceBC, selected.currency_code ?? "USD")} ({money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)})
                                   </span>
                                 </div>
                                 <div className="text-[10px]">
-                                  <span className="font-bold text-muted-foreground">Total Remaining Bill: </span>
+                                  <span className="font-bold text-muted-foreground">{currentLanguage === "en" ? "Total Remaining Bill: " : "کل بقایا بل: "}</span>
                                   <span className="font-bold text-slate-500">
                                     {money(remainingDue, selected.currency_code ?? "USD")} ({money(remainingDue * (selected.exchange_rate || 1), baseCurrency)})
                                   </span>
@@ -5301,7 +5311,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           } else {
                             return (
                               <div>
-                                <span className="font-bold text-foreground">Remaining Bill Balance (Baqaya): </span>
+                                <span className="font-bold text-foreground">{currentLanguage === "en" ? "Remaining Bill Balance (Baqaya): " : "باقی بل بقایا: "}</span>
                                 <span className="font-extrabold text-rose-600">
                                   {money(remainingDue, selected.currency_code ?? "USD")} ({money(remainingDue * (selected.exchange_rate || 1), baseCurrency)})
                                 </span>
@@ -5319,7 +5329,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     disabled={processingPayment || !amount || !canSave}
                     className="h-10 px-6 font-bold text-xs uppercase shadow-md transition bg-indigo-600 hover:bg-indigo-700 text-white"
                   >
-                    {processingPayment ? "Processing..." : `Post ${activeMode === "advance" ? "Advance" : activeMode === "credit" ? "Credit" : "Remaining"} Payment`}
+                    {processingPayment ? (currentLanguage === "en" ? "Processing..." : "پروسیسنگ ہو رہی ہے...") : (
+                      currentLanguage === "en" ? `Post ${activeMode === "advance" ? "Advance" : activeMode === "credit" ? "Credit" : "Remaining"} Payment` : `${activeMode === "advance" ? "ایڈوانس" : activeMode === "credit" ? "کریڈٹ" : "باقی"} ادائیگی پوسٹ کریں`
+                    )}
                   </Button>
                 </div>
 
@@ -5328,66 +5340,140 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   <div className="flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/8 p-4 text-sm text-emerald-700 animate-in fade-in duration-300">
                     <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-bold mb-0.5">Payment Posted Successfully</div>
+                      <div className="font-bold mb-0.5">{currentLanguage === "en" ? "Payment Posted Successfully" : "ادائیگی کامیابی سے پوسٹ ہو گئی"}</div>
                       <div className="text-xs">{paymentSuccess}</div>
                     </div>
                   </div>
                 )}
                 {paymentError && (
                   <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                    âŒ {paymentError}
+                    ❌ {paymentError}
                   </div>
                 )}
               </div>
 
               {/* Double-entry Preview, Ledger Posting, and supporting notes */}
               <div className="xl:col-span-5 space-y-4">
-                {/* Compact right-side payment context summaries */}
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm dark:border-blue-900/60 dark:bg-blue-950/20">
-                    <div className="mb-3 flex items-center justify-between border-b border-blue-200/70 pb-2 dark:border-blue-900/60">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">2. Purchase Summary ({poCurrency})</span>
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-blue-700 shadow-sm dark:bg-blue-950 dark:text-blue-200">{poCurrency}</span>
+                {/* Unified Professional Payment Summary Context Card */}
+                <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm dark:border-blue-900/60 dark:bg-blue-950/20">
+                  <div className="mb-3 flex items-center justify-between border-b border-blue-200/70 pb-2 dark:border-blue-900/60">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                      {currentLanguage === "en" ? "Professional Payment Summary" : "پیمنٹ کی پیشہ ورانہ تفصیلات"}
+                    </span>
+                    <span className="rounded-full bg-white px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-700 shadow-sm dark:bg-blue-950 dark:text-blue-200">
+                      {selected.payment_status ? t(selected.payment_status, currentLanguage) : t("Pending", currentLanguage)}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    {/* 1. Original Purchase Amount */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {t("original_purchase_amount", currentLanguage)}
+                      </div>
+                      <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">
+                        {money(loadingPurchaseAmount, poCurrency)}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
-                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Total Purchase</div>
-                        <div className="font-mono text-sm font-black text-slate-900 dark:text-slate-100">{money(loadingPurchaseAmount, poCurrency)}</div>
+                    {/* 2. Purchase Currency */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {t("purchase_currency", currentLanguage)}
                       </div>
-                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
-                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Required Advance</div>
-                        <div className="font-mono text-sm font-black text-blue-700 dark:text-blue-300">{money(loadingRequiredAdvance, poCurrency)}</div>
+                      <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">
+                        {poCurrency}
                       </div>
-                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
-                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Paid So Far</div>
-                        <div className="font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">{money(totalPaidSoFar, poCurrency)}</div>
+                    </div>
+                    {/* 3. Exchange Rate */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {t("exchange_rate_label", currentLanguage)}
                       </div>
-                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
-                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Outstanding</div>
-                        <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(outstandingBalance, poCurrency)}</div>
+                      <div className="font-mono text-[10px] font-black text-slate-900 dark:text-slate-100">
+                        1 {poCurrency} = {Number(exchangeRate || 1).toFixed(4)} {baseCurrency}
+                      </div>
+                    </div>
+                    {/* 4. Final Converted Amount */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {t("final_converted_amount", currentLanguage)}
+                      </div>
+                      <div className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">
+                        {money(loadingPurchaseAmount * Number(exchangeRate || 1), baseCurrency)}
+                      </div>
+                    </div>
+                    {/* 5. Total Advance Required */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {t("total_advance_required", currentLanguage)}
+                      </div>
+                      <div className="font-mono text-xs font-black text-blue-700 dark:text-blue-300">
+                        {money(loadingRequiredAdvance, poCurrency)}
+                      </div>
+                    </div>
+                    {/* 6. Total Paid */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {t("total_paid", currentLanguage)}
+                      </div>
+                      <div className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300">
+                        {money(totalPaidSoFar, poCurrency)}
+                      </div>
+                    </div>
+                    {/* 7. Outstanding Amount */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {t("outstanding_amount", currentLanguage)}
+                      </div>
+                      <div className="font-mono text-xs font-black text-rose-700 dark:text-rose-300">
+                        {money(outstandingBalance, poCurrency)}
+                      </div>
+                    </div>
+                    {/* 8. Remaining Balance */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {t("remaining_balance_label", currentLanguage)}
+                      </div>
+                      <div className="font-mono text-xs font-black text-rose-700 dark:text-rose-300">
+                        {money(outstandingBalance * Number(exchangeRate || 1), baseCurrency)}
+                      </div>
+                    </div>
+                    {/* 9. Final Debit Amount */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50 ring-1 ring-inset ring-indigo-400/20">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-indigo-600">
+                        {t("final_debit_amount", currentLanguage)}
+                      </div>
+                      <div className="font-mono text-xs font-black text-indigo-700 dark:text-indigo-300">
+                        {money(showCalcPanel && calcFinal !== null ? calcFinal : Number(finalPayment || 0), baseCurrency)}
+                      </div>
+                    </div>
+                    {/* 10. Final Credit Amount */}
+                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50 ring-1 ring-inset ring-purple-400/20">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-purple-600">
+                        {t("final_credit_amount", currentLanguage)}
+                      </div>
+                      <div className="font-mono text-xs font-black text-purple-700 dark:text-purple-300">
+                        {money(showCalcPanel && calcFinal !== null ? calcFinal : Number(finalPayment || 0), baseCurrency)}
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/20">
-                    <div className="mb-3 flex items-center justify-between border-b border-emerald-200/70 pb-2 dark:border-emerald-900/60">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">3. Final Currency Summary ({baseCurrency})</span>
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-emerald-700 shadow-sm dark:bg-emerald-950 dark:text-emerald-200">{baseCurrency}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
-                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Total Local</div>
-                        <div className="font-mono text-sm font-black text-slate-900 dark:text-slate-100">{money(loadingPurchaseAmount * Number(exRate || 1), baseCurrency)}</div>
-                      </div>
-                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
-                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Advance Local</div>
-                        <div className="font-mono text-sm font-black text-blue-700 dark:text-blue-300">{money(loadingRequiredAdvance * Number(exRate || 1), baseCurrency)}</div>
-                      </div>
-                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
-                        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Paid Local</div>
-                        <div className="font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">{money(totalPaidSoFar * Number(exRate || 1), baseCurrency)}</div>
-                      </div>
-                      <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mt-4 block">
+                  {t("double_entry_posting_preview", currentLanguage)}
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-border bg-white dark:bg-slate-950">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-muted/60 border-b border-border text-[10px] uppercase font-black tracking-wider text-muted-foreground">
+                        <th className="px-3 py-2.5 text-left w-16">DR / CR</th>
+                        <th className="px-3 py-2.5 text-left">{currentLanguage === "en" ? "Account" : "اکاؤنٹ"}</th>
+                        <th className="px-3 py-2.5 text-right">{currentLanguage === "en" ? "Amount" : "رقم"} ({poCurrency})</th>
+                        <th className="px-3 py-2.5 text-right">{currentLanguage === "en" ? "Amount" : "رقم"} ({baseCurrency})</th>
+                        <th className="px-2 py-2.5 text-center">✓</th>
+                      </tr>
+                    </thead>
+                    <tbody>                    <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-950/50">
                         <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Balance Local</div>
                         <div className="font-mono text-sm font-black text-rose-700 dark:text-rose-300">{money(outstandingBalance * Number(exRate || 1), baseCurrency)}</div>
                       </div>

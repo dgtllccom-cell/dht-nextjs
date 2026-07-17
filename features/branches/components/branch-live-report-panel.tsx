@@ -19,9 +19,9 @@ export type BranchLiveReportStep = {
 function renderValue(value: string | null | undefined, prefix: string = "", fallback: string = "[Not Configured]") {
   const isBlank = !value || value.trim() === "" || value.trim() === "-" || value.trim().toLowerCase() === "undefined";
   if (isBlank) {
-    return <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 px-2 py-0.5 rounded border border-rose-200/50 dark:border-rose-900/30 select-all">{fallback}</span>;
+    return <span className="inline-flex max-w-full items-center rounded-md border border-rose-200/60 bg-rose-50 px-2 py-0.5 text-[10px] font-bold leading-4 text-rose-600 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-400">{fallback}</span>;
   }
-  return <span className="text-slate-800 dark:text-slate-200 font-bold">{prefix}{value}</span>;
+  return <span className="block max-w-full break-words text-slate-900 dark:text-slate-100 font-semibold leading-5">{prefix}{value}</span>;
 }
 
 export function BranchLiveReportRow({ label, value }: BranchLiveReportField) {
@@ -581,3 +581,4 @@ export function BranchLiveReportPanel({
     </Card>
   );
 }
+
