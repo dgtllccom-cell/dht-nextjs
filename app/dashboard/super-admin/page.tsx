@@ -6,10 +6,9 @@ import {
   Wrench,
   Activity,
   ArrowUpRight,
-  ArrowDownRight,
-  RefreshCw
+  ArrowDownRight
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { SyncLedgersButton } from "@/features/dashboard/components/sync-ledgers-button";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { SuperAdminOverviewCharts } from "@/features/dashboard/components/super-admin-overview-charts";
 import {
@@ -296,10 +295,7 @@ export default async function SuperAdminDashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <SuperAdminDashboardSettingsPanel />
-            <Button size="sm" variant="default" className="shadow-md shadow-primary/10">
-              <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin-slow" />
-              Sync Ledgers
-            </Button>
+            <SyncLedgersButton />
           </div>
         </section>
 
