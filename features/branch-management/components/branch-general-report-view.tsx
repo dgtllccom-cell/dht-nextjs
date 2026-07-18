@@ -509,7 +509,7 @@ function LoginListPanel({ users, onClose }: { users: BranchUserDetail[]; onClose
 }
 
 /**
- * ActionDropdownMenu — portal-based floating menu anchored to a button rect.
+ * ActionDropdownMenu - portal-based floating menu anchored to a button rect.
  * Renders at document.body level (z-[9999]) so it's never clipped by
  * overflow:hidden containers such as scrollable tables.
  * Auto-flips upward when there is insufficient space below the button.
@@ -617,26 +617,26 @@ function ReportMetricCard({
   tone?: "indigo" | "emerald" | "sky" | "amber" | "rose" | "slate";
 }) {
   const toneClasses: Record<string, string> = {
-    indigo: "from-indigo-50 to-white text-indigo-700 ring-indigo-100",
-    emerald: "from-emerald-50 to-white text-emerald-700 ring-emerald-100",
-    sky: "from-sky-50 to-white text-sky-700 ring-sky-100",
-    amber: "from-amber-50 to-white text-amber-700 ring-amber-100",
-    rose: "from-rose-50 to-white text-rose-700 ring-rose-100",
-    slate: "from-slate-50 to-white text-slate-700 ring-slate-100"
+    indigo: "from-indigo-500/10 to-indigo-50 text-indigo-700 ring-indigo-100",
+    emerald: "from-emerald-500/10 to-emerald-50 text-emerald-700 ring-emerald-100",
+    sky: "from-sky-500/10 to-sky-50 text-sky-700 ring-sky-100",
+    amber: "from-amber-500/10 to-amber-50 text-amber-700 ring-amber-100",
+    rose: "from-rose-500/10 to-rose-50 text-rose-700 ring-rose-100",
+    slate: "from-slate-500/10 to-slate-50 text-slate-700 ring-slate-100"
   };
 
   return (
-    <div className="group rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
+    <div className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_24px_46px_-30px_rgba(79,70,229,0.45)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</div>
           <div className="mt-2 text-2xl font-black tracking-tight text-slate-950">{value}</div>
         </div>
-        <div className={cn("rounded-2xl bg-gradient-to-br p-2.5 shadow-sm ring-1", toneClasses[tone])}>
+        <div className={cn("rounded-2xl bg-gradient-to-br p-2.5 shadow-sm ring-1 transition-transform duration-200 group-hover:scale-105", toneClasses[tone])}>
           {icon}
         </div>
       </div>
-      <div className="mt-3 border-t border-slate-100 pt-2 text-[11px] font-semibold text-slate-500">{subtitle}</div>
+      <div className="mt-3 border-t border-slate-100 pt-2 text-[11px] font-semibold leading-snug text-slate-500">{subtitle}</div>
     </div>
   );
 }
@@ -1367,37 +1367,37 @@ export function BranchGeneralReportView({
         />
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.5)] ring-1 ring-slate-100">
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-          <span className="rounded-full bg-indigo-50 px-3 py-1 text-indigo-700 ring-1 ring-indigo-100">Country</span>
+          <span className="rounded-full bg-indigo-600 px-3 py-1 text-white shadow-sm ring-1 ring-indigo-200">Hierarchy</span>
           <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 ring-1 ring-emerald-100">Main Branch</span>
           <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
           <span className="rounded-full bg-sky-50 px-3 py-1 text-sky-700 ring-1 ring-sky-100">City Branch</span>
-          <span className="ml-auto text-[10px] font-bold normal-case tracking-normal text-slate-400">Click user counts or Actions to expand full hierarchy details.</span>
+          <span className="ml-auto rounded-full bg-slate-50 px-3 py-1 text-[10px] font-bold normal-case tracking-normal text-slate-500 ring-1 ring-slate-100">Use user count or Actions for details</span>
         </div>
       </div>
       {/* Main Report Table Container */}
-      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm ring-1 ring-slate-100">
+      <div className="rounded-3xl border border-slate-200/80 bg-white overflow-hidden shadow-[0_24px_60px_-40px_rgba(15,23,42,0.55)] ring-1 ring-slate-100">
         
         {/* Table 1: Super Admin Row */}
-        <div className="p-4 border-b bg-gradient-to-r from-slate-50 via-white to-indigo-50/40">
+        <div className="p-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-indigo-50/50">
           <h3 className="text-xs font-black text-slate-950 mb-3 uppercase tracking-[0.16em] flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-indigo-600" />
             Super Admin Branch
           </h3>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
-            <table className="w-full text-left border-collapse bg-white">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-100">
+            <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left bg-white">
               <thead>
-                <tr className="sticky top-0 z-10 bg-slate-900 border-b text-white font-black text-[10px] tracking-[0.14em] text-center uppercase">
+                <tr className="sticky top-0 z-10 bg-slate-950 text-white font-black text-[10px] tracking-[0.14em] text-center uppercase shadow-sm">
                   <th className="p-2.5 border-r border-slate-200 text-left">Super Code</th>
                   <th className="p-2.5 border-r border-slate-200">Main Branch</th>
                   <th className="p-2.5 border-r border-slate-200">Company</th>
                   <th className="p-2.5 border-r border-slate-200">Owner</th>
-                  <th className="p-2.5 border-r border-slate-200">Country</th>
+                  <th className="p-2.5 border-r border-slate-700/70">Countries</th>
                   <th className="p-2.5 border-r border-slate-200">Curr</th>
                   <th className="p-2.5 border-r border-slate-200">Main Acc</th>
-                  <th className="p-2.5 border-r border-slate-200">CTY</th>
+                  <th className="p-2.5 border-r border-slate-700/70">Code</th>
                   <th className="p-2.5 border-r border-slate-200">City</th>
                   <th className="p-2.5 border-r border-slate-200">User</th>
                   <th className="p-2.5 border-r border-slate-200">Contacts</th>
@@ -1419,7 +1419,7 @@ export function BranchGeneralReportView({
 
                     return (
                       <Fragment key={branch.id}>
-                      <tr className="border-b text-[10px] text-center text-slate-700 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/50 transition-colors">
+                      <tr className="border-b border-slate-100 text-[10px] text-center text-slate-700 odd:bg-white even:bg-slate-50/60 hover:bg-indigo-50/70 transition-colors">
                         <td className="p-2.5 border-r border-slate-200 font-bold text-slate-900 text-left">{branch.code}</td>
                         <td className="p-2.5 border-r border-slate-200 font-semibold text-slate-800">{branch.name}</td>
                         <td className="p-2.5 border-r border-slate-200">{branch.companyName}</td>
@@ -1496,7 +1496,7 @@ export function BranchGeneralReportView({
                     );
                   })
                 ) : (
-                  <tr className="border-b text-[10px] text-center text-slate-700 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/50 transition-colors">
+                  <tr className="border-b border-slate-100 text-[10px] text-center text-slate-700 odd:bg-white even:bg-slate-50/60 hover:bg-indigo-50/70 transition-colors">
                     <td className="p-2.5 border-r border-slate-200 font-bold text-slate-900 text-left">SA-001</td>
                     <td className="p-2.5 border-r border-slate-200 font-semibold text-slate-800">Super Admin</td>
                     <td className="p-2.5 border-r border-slate-200">Global Group</td>
@@ -1564,11 +1564,11 @@ export function BranchGeneralReportView({
               Export
             </button>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
-            <table className="w-full text-left border-collapse bg-white">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-100">
+            <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left bg-white">
               <thead>
-                <tr className="sticky top-0 z-10 bg-slate-900 border-b text-white font-black text-[10px] tracking-[0.14em] text-center uppercase">
-                  <th className="p-2.5 border-r border-slate-200">CTY</th>
+                <tr className="sticky top-0 z-10 bg-slate-950 text-white font-black text-[10px] tracking-[0.14em] text-center uppercase shadow-sm">
+                  <th className="p-2.5 border-r border-slate-700/70">Code</th>
                   <th className="p-2.5 border-r border-slate-200 text-left">Country</th>
                   <th className="p-2.5 border-r border-slate-200">SA Code</th>
                   <th className="p-2.5 border-r border-slate-200">Branch Code</th>
@@ -1600,10 +1600,10 @@ export function BranchGeneralReportView({
                     const tags = getCountryTags(country.name);
 
                     return (
-                      <optgroup key={country.id} label={country.name} className="contents">
+                      <Fragment key={country.id}>
                         
                         {/* Parent Row */}
-                        <tr className="border-b text-[10px] text-center text-slate-700 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/50 transition-colors">
+                        <tr className="border-b border-slate-100 text-[10px] text-center text-slate-700 odd:bg-white even:bg-slate-50/60 hover:bg-indigo-50/70 transition-colors">
                           <td className="p-2 border-r border-slate-200 font-bold text-slate-900">{country.code}</td>
                           <td className="p-2 border-r border-slate-200 text-left">
                             <div className="relative popup-trigger inline-block">
@@ -1720,7 +1720,7 @@ export function BranchGeneralReportView({
                                 <ChevronRight className={cn("h-2.5 w-2.5 transition-transform duration-150", activeActionDropdownId === country.id ? "rotate-90" : "")} />
                               </button>
                             </div>
-                            {/* Portal dropdown — rendered at body level to escape table overflow:hidden */}
+                            {/* Portal dropdown - rendered at body level to escape table overflow:hidden */}
                             {activeActionDropdownId === country.id && activeActionAnchorRect && createPortal(
                               <ActionDropdownMenu
                                 anchorRect={activeActionAnchorRect}
@@ -1804,7 +1804,7 @@ export function BranchGeneralReportView({
 
                                         return (
                                           <Fragment key={cityBranch.id}>
-                                            <tr className="border-b text-[9px] text-slate-700 odd:bg-white even:bg-slate-50/40 hover:bg-sky-50/60">
+                                            <tr className="border-b border-slate-100 text-[9px] text-slate-700 odd:bg-white even:bg-slate-50/50 hover:bg-sky-50/70">
                                               <td className="p-2 border-r border-slate-200 text-left font-semibold">{country.name}</td>
                                               <td className="p-2 border-r border-slate-200 text-left font-semibold text-slate-500">{mainBranch.name}</td>
                                               <td className="p-2 border-r border-slate-200 text-left font-bold text-slate-800">{cityBranch.cityName} ({cityBranch.name})</td>
@@ -1944,7 +1944,7 @@ export function BranchGeneralReportView({
                             </td>
                           </tr>
                         )}
-                      </optgroup>
+                      </Fragment>
                     );
                   })
                 ) : (
