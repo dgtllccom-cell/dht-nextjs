@@ -108,11 +108,13 @@ async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
       supabase.from("city_branches").select("id, country_id").is("deleted_at", null)
     ]);
 
-    const purchaseTotal = (purchaseRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.order_total || 0), 0);
-    const salesTotal = (salesRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.order_total || 0), 0);
+    const purchaseOrderTotal = (purchaseRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.order_total || 0), 0);
+    const salesOrderTotal = (salesRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.order_total || 0), 0);
     const ledgerDebit = (balanceRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.debit_total || 0), 0);
     const ledgerCredit = (balanceRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.credit_total || 0), 0);
     const ledgerBalance = (balanceRows.data ?? []).reduce((sum: number, row: any) => sum + Number(row.current_balance || 0), 0);
+    const purchaseTotal = Math.max(purchaseOrderTotal, ledgerDebit);
+    const salesTotal = Math.max(salesOrderTotal, ledgerCredit);
 
     const countrySummaryMap = new Map<string, CountryFinancialSummary>();
     for (const country of ((countriesList.data ?? []) as any[])) {
@@ -146,6 +148,11 @@ async function loadSuperAdminData(): Promise<SuperAdminDashboardData> {
         target.totalCredit += Number(row.credit_total || 0);
         target.totalLedgerBalance += Number(row.current_balance || 0);
       }
+    }
+
+    for (const target of countrySummaryMap.values()) {
+      target.totalPurchases = Math.max(target.totalPurchases, target.totalDebit);
+      target.totalSales = Math.max(target.totalSales, target.totalCredit);
     }
 
     return {
@@ -191,35 +198,35 @@ export default async function SuperAdminDashboardPage() {
   const topKpiCards = [
     {
       title: "Total Countries",
-      value: data.counts.countries || "5",
+      value: data.counts.countries.toLocaleString(),
       subtitle: "Active",
       icon: Globe,
       iconClass: "text-[#06b6d4] bg-[#06b6d4]/10 border-[#06b6d4]/20"
     },
     {
       title: "Total Branches",
-      value: data.counts.branches || "18",
+      value: data.counts.branches.toLocaleString(),
       subtitle: "Active",
       icon: Building2,
       iconClass: "text-[#10b981] bg-[#10b981]/10 border-[#10b981]/20"
     },
     {
       title: "Total Users",
-      value: data.counts.users || "125",
+      value: data.counts.users.toLocaleString(),
       subtitle: "All Users",
       icon: Users2,
       iconClass: "text-[#8b5cf6] bg-[#8b5cf6]/10 border-[#8b5cf6]/20"
     },
     {
       title: "Total Customers",
-      value: (data.counts.customers || 1254).toLocaleString(),
+      value: data.counts.customers.toLocaleString(),
       subtitle: "Customers",
       icon: User,
       iconClass: "text-[#f59e0b] bg-[#f59e0b]/10 border-[#f59e0b]/20"
     },
     {
       title: "Total Suppliers",
-      value: data.counts.suppliers || "834",
+      value: data.counts.suppliers.toLocaleString(),
       subtitle: "Suppliers",
       icon: Wrench,
       iconClass: "text-[#06b6d4] bg-[#06b6d4]/10 border-[#06b6d4]/20"
@@ -237,37 +244,37 @@ export default async function SuperAdminDashboardPage() {
   const financialOverview = [
     {
       label: "Total Sales",
-      value: formatMoney(data.salesTotal || 18670000),
+      value: formatMoney(data.salesTotal),
       change: "18.3%",
       isUp: true
     },
     {
       label: "Total Purchase",
-      value: formatMoney(data.purchaseTotal || 12850000),
+      value: formatMoney(data.purchaseTotal),
       change: "12.5%",
       isUp: true
     },
     {
       label: "Total Receivables",
-      value: formatMoney(data.ledgerDebit || 4250000),
+      value: formatMoney(data.ledgerDebit),
       change: "8.2%",
       isUp: true
     },
     {
       label: "Total Payables",
-      value: formatMoney(data.ledgerCredit || 3125000),
+      value: formatMoney(data.ledgerCredit),
       change: "5.8%",
       isUp: false
     },
     {
       label: "Cash Balance",
-      value: formatMoney(Math.max(data.ledgerDebit - data.ledgerCredit, 2800000)),
+      value: formatMoney(Math.max(data.ledgerDebit - data.ledgerCredit, 0)),
       change: "6.1%",
       isUp: true
     },
     {
       label: "Bank Balance",
-      value: formatMoney(data.ledgerBalance || 7650000),
+      value: formatMoney(data.ledgerBalance),
       change: "10.2%",
       isUp: true
     }
@@ -360,3 +367,4 @@ export default async function SuperAdminDashboardPage() {
     </SuperAdminDashboardSettingsProvider>
   );
 }
+

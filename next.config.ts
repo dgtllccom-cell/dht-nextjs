@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
     if (dev) {
       config.cache = { type: "memory" };
     }
+    
+    // Suppress Webpack PackFileCacheStrategy serializing big strings performance warnings
+    config.infrastructureLogging = {
+      ...config.infrastructureLogging,
+      level: "error",
+    };
+
     return config;
   },
 };

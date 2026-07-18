@@ -69,8 +69,8 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
 
   // Generate monthly data representing the Jan to Jul spread
   const chartData = useMemo(() => {
-    const s = salesTotal || 18670000;
-    const p = purchaseTotal || 12850000;
+    const s = Math.max(salesTotal, 0);
+    const p = Math.max(purchaseTotal, 0);
     return [
       { name: "Jan", Sales: Math.round(s * 0.08), Purchase: Math.round(p * 0.09) },
       { name: "Feb", Sales: Math.round(s * 0.15), Purchase: Math.round(p * 0.11) },
@@ -93,13 +93,7 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
   // Country Performance rows mapping
   const countryTableData = useMemo(() => {
     if (!countrySummaries.length) {
-      return [
-        { id: "pakistan-id", name: "Pakistan", branches: 6, users: 45, sales: 4250000, purchase: 2850000, profit: 1400000 },
-        { id: "uae-id", name: "UAE", branches: 5, users: 38, sales: 6200000, purchase: 4150000, profit: 2050000 },
-        { id: "afghanistan-id", name: "Afghanistan", branches: 3, users: 18, sales: 1950000, purchase: 1250000, profit: 700000 },
-        { id: "india-id", name: "India", branches: 2, users: 12, sales: 3780000, purchase: 2100000, profit: 1680000 },
-        { id: "usa-id", name: "USA", branches: 2, users: 12, sales: 2450000, purchase: 2500000, profit: -50000 }
-      ];
+      return [];
     }
 
     return countrySummaries.map((country) => {
@@ -346,5 +340,4 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
     </div>
   );
 }
-
 
