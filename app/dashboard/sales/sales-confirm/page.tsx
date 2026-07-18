@@ -1,11 +1,10 @@
-"use client";
-
-import { SalesOrderManagementDashboard } from "@/features/sales/components/sales-order-management-dashboard";
+import { SalesModuleWorkspace } from "@/features/sales/components/sales-module-workspace";
 
 export default function ConfirmedSalesPage() {
   return (
-    <div className="container mx-auto px-4 py-8">
-      <SalesOrderManagementDashboard initialStage="confirm" />
-    </div>
+    <SalesModuleWorkspace
+      title="Sales Booking Confirm"
+      description="Review booking-confirmed sales orders with invoice, account, goods, payment, and transfer status in the approved spreadsheet dashboard layout."
+    />
   );
 }

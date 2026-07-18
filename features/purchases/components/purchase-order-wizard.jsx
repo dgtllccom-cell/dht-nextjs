@@ -439,6 +439,9 @@ export function PurchaseOrderWizard({ session }) {
 
   useEffect(() => {
     setIsMounted(true);
+    if (typeof window !== "undefined" && window.location.pathname.includes("new-")) {
+      setIsFormOpen(true);
+    }
   }, []);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);

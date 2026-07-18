@@ -7,6 +7,7 @@ import { requireErpSession } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const querySchema = z.object({
+  id: uuidSchema.optional(),
   salesOrderNo: z.string().trim().max(140).optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
@@ -184,6 +185,9 @@ export async function GET(request: NextRequest) {
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
+    if (query.id) {
+      recordsQuery = recordsQuery.eq("id", query.id);
+    }
     if (query.salesOrderNo) {
       recordsQuery = recordsQuery.eq("sales_order_no", query.salesOrderNo);
     }

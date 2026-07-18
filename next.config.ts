@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
+import path from "path";
+import os from "os";
 
 const nextConfig: NextConfig = {
+  // Move build output outside OneDrive to prevent EINVAL symlink errors.
+  // OneDrive cannot sync Windows symlinks (e.g. .next/types/link.d.ts).
+  // Use os.tmpdir() so Node resolves a true absolute path (avoids Next.js treating it as relative).
+  distDir: process.env.NEXT_DIST_DIR ?? path.join(os.tmpdir(), 'dgt-nextjs', '.next'),
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -35,7 +41,7 @@ const nextConfig: NextConfig = {
 
 export default nextConfig;
 
-// Trigger dev server restart to clear in-memory Webpack caching: 2026-07-08T16:45:00
+// Trigger dev server restart to clear in-memory Webpack caching: 2026-07-18T17:15:00
 // import { execSync } from "child_process";
 // try {
 //   console.log("ATTEMPTING TO RESTORE FILES...");

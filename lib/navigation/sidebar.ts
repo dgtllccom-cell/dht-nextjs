@@ -223,6 +223,38 @@ export const sidebarTree: SidebarNode[] = [
             ]
           },
           {
+            key: "sales-order-payment",
+            labelKey: "nav.sales_order_payment",
+            iconKey: "banknote",
+            roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"],
+            children: [
+              {
+                key: "sales-order-payment-advance",
+                labelKey: "nav.sales_order_payment_advance",
+                href: "/dashboard/journal/sales-order-payment/advance" as Route,
+                roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+              },
+              {
+                key: "sales-order-payment-remaining",
+                labelKey: "nav.sales_order_payment_remaining",
+                href: "/dashboard/journal/sales-order-payment/remaining" as Route,
+                roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+              },
+              {
+                key: "sales-order-payment-charges",
+                labelKey: "nav.sales_order_payment_charges",
+                href: "/dashboard/journal/sales-order-payment/charges" as Route,
+                roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+              },
+              {
+                key: "sales-order-payment-history",
+                labelKey: "nav.sales_order_payment_history",
+                href: "/dashboard/journal/sales-order-payment/history" as Route,
+                roles: ["super_admin", "country_admin", "main_branch_admin", "city_branch_admin", "accountant", "cashier"]
+              }
+            ]
+          },
+          {
             key: "final-payments",
             labelKey: "nav.final_payments",
             iconKey: "banknote",
@@ -395,7 +427,7 @@ export const sidebarTree: SidebarNode[] = [
       },
       {
         key: "sales-order",
-        labelKey: "Sales Orders Console" as any,
+        labelKey: "Sales Transfer Payment" as any,
         href: "/dashboard/sales/sales-order" as Route
       },
       {
