@@ -14,8 +14,10 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { BarChart3, TrendingUp, TableProperties } from "lucide-react";
+import { BarChart3, Maximize2, Plus, TableProperties, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export type CountryFinancialSummary = {
   id: string;
@@ -41,6 +43,7 @@ function formatMoneyCompact(val: number) {
 
 export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOverviewChartsProps) {
   const [isDark, setIsDark] = useState(false);
+  const [performanceOpen, setPerformanceOpen] = useState(false);
 
   useEffect(() => {
     const updateTheme = () => {
@@ -113,6 +116,38 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
     });
   }, [countrySummaries]);
 
+  const countryPreviewRows = useMemo(() => countryTableData.slice(0, 5), [countryTableData]);
+  const hiddenCountryCount = Math.max(countryTableData.length - countryPreviewRows.length, 0);
+
+  const renderCountryRows = (rows: typeof countryTableData) =>
+    rows.map((row) => (
+      <tr key={row.name} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/40">
+        <td className="py-2.5 font-semibold text-slate-700 dark:text-slate-200">
+          {row.id ? (
+            <Link
+              href={`/dashboard/country?countryId=${row.id}`}
+              className="cursor-pointer text-blue-500 transition-colors hover:text-blue-600 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              {row.name}
+            </Link>
+          ) : (
+            row.name
+          )}
+        </td>
+        <td className="py-2.5 text-center text-slate-600 dark:text-slate-300">{row.branches}</td>
+        <td className="py-2.5 text-center text-slate-600 dark:text-slate-300">{row.users}</td>
+        <td className="py-2.5 text-right text-slate-600 dark:text-slate-300">${(row.sales / 1e6).toFixed(2)}M</td>
+        <td className="py-2.5 text-right text-slate-600 dark:text-slate-300">${(row.purchase / 1e6).toFixed(2)}M</td>
+        <td className={`py-2.5 text-right font-semibold ${row.profit >= 0 ? "text-emerald-500 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400"}`}>
+          ${(row.profit / 1e6).toFixed(2)}M
+        </td>
+        <td className="py-2.5 text-center">
+          <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+            Active
+          </span>
+        </td>
+      </tr>
+    ));
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       {/* 1. Sales vs Purchase Grouped Bar Chart */}
@@ -203,35 +238,41 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
 
       {/* 3. Country Performance Table */}
       <Card className="border-border bg-card text-card-foreground shadow-lg">
-        <CardHeader className="pb-2">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-bold tracking-wide text-foreground">
             <TableProperties className="h-4 w-4 text-blue-500" />
             Country Performance
           </CardTitle>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-full px-2.5"
+            onClick={() => setPerformanceOpen(true)}
+            title="Open full country performance report"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Open</span>
+          </Button>
         </CardHeader>
-        <CardContent className="p-0 px-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px] text-left">
+        <CardContent className="px-4 pb-4 pt-0">
+          <div className="overflow-x-auto rounded-xl border border-border/80">
+            <table className="w-full text-left text-[11px]">
               <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="py-2.5 font-bold">Country</th>
+                <tr className="border-b border-border bg-slate-50 text-muted-foreground dark:bg-slate-900/60">
+                  <th className="py-2.5 pl-3 font-bold">Country</th>
                   <th className="py-2.5 font-bold text-center">Branches</th>
                   <th className="py-2.5 font-bold text-center">Users</th>
                   <th className="py-2.5 font-bold text-right">Sales</th>
-                  <th className="py-2.5 font-bold text-right">Purchase</th>
-                  <th className="py-2.5 font-bold text-right">Profit</th>
-                  <th className="py-2.5 font-bold text-center">Status</th>
+                  <th className="py-2.5 pr-3 font-bold text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {countryTableData.map((row) => (
-                  <tr key={row.name} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
-                    <td className="py-2.5 font-semibold text-slate-700 dark:text-slate-200">
+                {countryPreviewRows.map((row) => (
+                  <tr key={row.name} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/40">
+                    <td className="py-2.5 pl-3 font-semibold text-slate-700 dark:text-slate-200">
                       {row.id ? (
-                        <Link
-                          href={`/dashboard/country?countryId=${row.id}`}
-                          className="hover:underline text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors cursor-pointer"
-                        >
+                        <Link href={`/dashboard/country?countryId=${row.id}`} className="text-blue-500 hover:underline dark:text-blue-400">
                           {row.name}
                         </Link>
                       ) : (
@@ -241,12 +282,8 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
                     <td className="py-2.5 text-center text-slate-600 dark:text-slate-300">{row.branches}</td>
                     <td className="py-2.5 text-center text-slate-600 dark:text-slate-300">{row.users}</td>
                     <td className="py-2.5 text-right text-slate-600 dark:text-slate-300">${(row.sales / 1e6).toFixed(2)}M</td>
-                    <td className="py-2.5 text-right text-slate-600 dark:text-slate-300">${(row.purchase / 1e6).toFixed(2)}M</td>
-                    <td className={`py-2.5 text-right font-semibold ${row.profit >= 0 ? "text-emerald-500 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400"}`}>
-                      ${(row.profit / 1e6).toFixed(2)}M
-                    </td>
-                    <td className="py-2.5 text-center">
-                      <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <td className="py-2.5 pr-3 text-center">
+                      <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
                         Active
                       </span>
                     </td>
@@ -255,8 +292,48 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
               </tbody>
             </table>
           </div>
+          <button
+            type="button"
+            onClick={() => setPerformanceOpen(true)}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/50 px-3 py-2 text-xs font-bold text-blue-600 transition hover:border-blue-300 hover:bg-blue-50 dark:border-blue-900/60 dark:bg-blue-950/20 dark:text-blue-300"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            View full country performance{hiddenCountryCount ? ` (${hiddenCountryCount} more)` : ""}
+          </button>
         </CardContent>
       </Card>
+
+      <Dialog open={performanceOpen} onOpenChange={setPerformanceOpen}>
+        <DialogContent className="max-h-[86vh] max-w-6xl overflow-hidden p-0">
+          <DialogHeader className="border-b border-border px-6 py-5">
+            <DialogTitle className="flex items-center gap-2 text-base font-black">
+              <TableProperties className="h-4 w-4 text-blue-500" />
+              Country Performance Report
+            </DialogTitle>
+            <DialogDescription>
+              Complete country-wise performance list with branches, users, sales, purchases, profit and status.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[68vh] overflow-auto px-6 py-4">
+            <table className="w-full min-w-[820px] text-left text-xs">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-border bg-slate-950 text-white dark:bg-slate-900">
+                  <th className="py-3 pl-3 font-bold">Country</th>
+                  <th className="py-3 font-bold text-center">Branches</th>
+                  <th className="py-3 font-bold text-center">Users</th>
+                  <th className="py-3 font-bold text-right">Sales</th>
+                  <th className="py-3 font-bold text-right">Purchase</th>
+                  <th className="py-3 font-bold text-right">Profit</th>
+                  <th className="py-3 pr-3 font-bold text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {renderCountryRows(countryTableData)}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
