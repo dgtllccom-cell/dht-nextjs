@@ -190,6 +190,7 @@ export function CityBranchSetup() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("editId") ?? "";
   const [drawerBranchData, setDrawerBranchData] = useState<any>(null);
+  const [activeStep, setActiveStep] = useState(1);
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
@@ -402,6 +403,24 @@ export function CityBranchSetup() {
   const autoZip = locationMeta.area?.postal_code ?? locationMeta.city?.zip_code ?? "";
   // zip: manual entry wins; if empty, fall back to auto-derived value
   const zip = manualZip || autoZip;
+  const compactInputClass = (alert = false) =>
+    cn(
+      "h-9 text-sm",
+      alert &&
+        "border-rose-300 bg-rose-50/70 text-rose-900 placeholder:text-rose-300 focus-visible:ring-rose-300 dark:border-rose-800 dark:bg-rose-950/20"
+    );
+  const compactTextareaClass = (alert = false) =>
+    cn(
+      "min-h-16 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      alert && "border-rose-300 bg-rose-50/70 text-rose-900 focus-visible:ring-rose-300 dark:border-rose-800 dark:bg-rose-950/20"
+    );
+  const compactSectionClass = (alert = false) =>
+    cn(
+      "order-1 rounded-xl border bg-white p-4 shadow-sm space-y-3 dark:bg-slate-950",
+      alert ? "border-rose-200 ring-1 ring-rose-100 dark:border-rose-900/70 dark:ring-rose-950" : "border-slate-100 dark:border-slate-800/80"
+    );
+  const changedFromSaved = (current: string, saved?: string | null) =>
+    Boolean(editingCityBranchId && saved && current.trim() && current.trim() !== saved.trim());
   const previewCountry = locationMeta.country?.name || "-";
   const previewMainBranch = selectedMainBranch?.name || "-";
   const previewLocation = [locationMeta.state?.name, locationMeta.city?.name, locationMeta.area?.name, zip].filter(Boolean).join(" / ") || "-";
@@ -1215,6 +1234,7 @@ export function CityBranchSetup() {
 
   function onReset() {
     setBanner(null);
+    setActiveStep(1);
     setLocation({ countryId: "", stateProvinceId: "", districtId: "", cityId: "", areaId: "" });
     setLocationMeta({ country: null, state: null, district: null, city: null, area: null });
     setCurrency("");
@@ -1243,15 +1263,52 @@ export function CityBranchSetup() {
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">New Entry</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">City Branch</h1>
           <p className="text-sm text-muted-foreground">
-            City branches must pick Country first, then Main Branch, then State/City from Settings / Location.
+            City branch setup keeps the existing Location Management flow while presenting a clearer wizard review experience.
           </p>
         </div>
         <span className={pillClassName()}>
           <b>Scope:</b> City branch under selected Country Main Branch
         </span>
       </div>
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-9" aria-label="City branch wizard sequence">
+          {[
+            ["1", "Branch Information", "Country, main branch, location"],
+            ["2", "Access Scope", "Review branch scope before setup"],
+            ["3", "User Account Setup", "Default branch admin login"],
+            ["4", "Contact Information", "Phone, email and official IDs"],
+            ["5", "Review & PDF Summary", "Preview before final setup"],
+            ["6", "Branch Documents", "Optional branch files"],
+            ["7", "Roles & Permissions", "Configure and confirm role access"],
+            ["8", "AI Communication Setup", "Email, WhatsApp and alerts"],
+            ["9", "Final Approval", "Accept setup or go back"]
+          ].map(([no, title, desc]) => (
+            <div key={no} className={cn("rounded-xl border px-3 py-2 transition", Number(no) === activeStep ? "border-cyan-500 bg-cyan-50 shadow-sm ring-1 ring-cyan-200 dark:border-cyan-500 dark:bg-cyan-950/40" : "border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/50")}>
+              <div className="flex items-center gap-2">
+                <span className={cn("flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold", Number(no) === activeStep ? "bg-cyan-600 text-white" : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200")}>{no}</span>
+                <span className="text-[11px] font-black uppercase tracking-wide text-slate-900 dark:text-slate-100">{title}</span>
+              </div>
+              <p className="mt-1 text-[10px] leading-snug text-slate-500">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-slate-500">Step {activeStep} of 9</span>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={saving || activeStep === 1} onClick={() => setActiveStep((step) => Math.max(1, step - 1))}>Back</Button>
+            {activeStep < 9 ? (
+              <Button type="button" size="sm" onClick={() => setActiveStep((step) => Math.min(9, step + 1))}>Next</Button>
+            ) : (
+              <Button type="submit" form="city-branch-wizard-form" size="sm" disabled={saving || !location.countryId || !countryBranchId || cityAlreadyExists}>{saving ? "Saving..." : editingCityBranchId ? "Update" : "Accept & Save"}</Button>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className={cn("grid gap-5", activeStep === 9 ? "xl:grid-cols-1" : "xl:grid-cols-[0.9fr_1.1fr]")}>
         <Card className="border-slate-200/80 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle>City Branch Setup</CardTitle>
@@ -1288,11 +1345,11 @@ export function CityBranchSetup() {
               </div>
             ) : null}
 
-            <form onSubmit={onSubmit} onReset={onReset} className="space-y-6">
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <form id="city-branch-wizard-form" onSubmit={onSubmit} onReset={onReset} className="flex flex-col gap-6">
+              <section hidden={activeStep !== 1} className={compactSectionClass(!location.countryId || !currency)}>
+                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 1 - Country & Currency</h2>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 1 - Branch Information: Country & Currency</h2>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <LocationHierarchySelect
@@ -1305,15 +1362,15 @@ export function CityBranchSetup() {
 
                   <div className="space-y-2">
                     <Label className="text-xs text-slate-600">Currency</Label>
-                    <Input value={currency} readOnly placeholder="Auto from selected Country" />
+                    <Input value={currency} readOnly placeholder="Auto from selected Country" className={compactInputClass(!currency)} />
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">2</span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 2 - Main Branch</h2>
+              <section hidden={activeStep !== 1} className={compactSectionClass(!countryBranchId)}>
+                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 1 - Branch Information: Main Branch</h2>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <SearchSelect
@@ -1327,20 +1384,20 @@ export function CityBranchSetup() {
 
                   <div className="space-y-2">
                     <Label className="text-xs text-slate-600">Main Branch Code</Label>
-                    <Input value={selectedMainBranch?.code ?? ""} readOnly />
+                    <Input value={selectedMainBranch?.code ?? ""} readOnly className={compactInputClass(!countryBranchId)} />
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">3</span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 3 - Location</h2>
+              <section hidden={activeStep !== 1} className={compactSectionClass(!location.stateProvinceId || !location.cityId || !fullAddress.trim() || changedFromSaved(fullAddress, activeExistingCityBranch?.address))}>
+                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 1 - Branch Information: Location</h2>
                 </div>
                 <div className="grid gap-3 md:grid-cols-12">
                   <div className="space-y-2 md:col-span-4">
                     <Label className="text-xs text-slate-600">Country (auto)</Label>
-                    <Input value={locationMeta.country?.name ?? ""} readOnly />
+                    <Input value={locationMeta.country?.name ?? ""} readOnly className={compactInputClass(!location.countryId)} />
                   </div>
                   <div className="space-y-2 md:col-span-8">
                     <LocationHierarchySelect
@@ -1360,6 +1417,7 @@ export function CityBranchSetup() {
                       value={zip}
                       onChange={(e) => setManualZip(e.target.value)}
                       placeholder={autoZip ? autoZip : "Enter ZIP / postal code"}
+                      className={compactInputClass(!zip)}
                     />
                     {!manualZip && autoZip && (
                       <p className="text-[10px] text-slate-400 leading-tight">
@@ -1382,33 +1440,33 @@ export function CityBranchSetup() {
                       value={fullAddress}
                       onChange={(event) => setFullAddress(event.target.value)}
                       placeholder="Area / Road, Building, Street, Landmark, etc."
-                      className="min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className={compactTextareaClass(!fullAddress.trim() || changedFromSaved(fullAddress, activeExistingCityBranch?.address))}
                     />
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">4</span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 4 - City Branch Details</h2>
+              <section hidden={activeStep !== 1} className={compactSectionClass(!branchName.trim() || !branchCode.trim() || changedFromSaved(branchName, activeExistingCityBranch?.name) || changedFromSaved(branchCode, activeExistingCityBranch?.code))}>
+                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 1 - Branch Information: City Branch Details</h2>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="text-xs text-slate-600">Branch Name</Label>
-                    <Input value={branchName} onChange={(event) => setBranchName(event.target.value)} placeholder="e.g. Chaman City Branch" />
+                    <Input value={branchName} onChange={(event) => setBranchName(event.target.value)} placeholder="e.g. Chaman City Branch" className={compactInputClass(!branchName.trim() || changedFromSaved(branchName, activeExistingCityBranch?.name))} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs text-slate-600">Branch Code</Label>
-                    <Input value={branchCode} onChange={(event) => setBranchCode(event.target.value)} placeholder="Auto suggests from Country + City code" />
+                    <Input value={branchCode} onChange={(event) => setBranchCode(event.target.value)} placeholder="Auto suggests from Country + City code" className={compactInputClass(!branchCode.trim() || changedFromSaved(branchCode, activeExistingCityBranch?.code))} />
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <section hidden={activeStep !== 3} className="order-3 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">5</span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 5 - Company & Branch Owner</h2>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">3</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 3 - User Account Setup: Company & Owner</h2>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <CompanyPicker
@@ -1432,10 +1490,10 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <section hidden={activeStep !== 4} className="order-4 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">6</span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 6 - Contacts</h2>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">4</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 4 - Contact Information</h2>
                 </div>
                 <div className="space-y-3">
                   {contacts.map((row, idx) => (
@@ -1501,7 +1559,7 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <section hidden={activeStep !== 7} className="order-7 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">7</span>
                   <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 7 - Roles & Permissions</h2>
@@ -1518,7 +1576,44 @@ export function CityBranchSetup() {
                 />
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <section hidden={activeStep !== 5} className="order-5 rounded-xl border border-cyan-200/80 bg-cyan-50/40 p-5 shadow-sm space-y-4 dark:border-cyan-900/60 dark:bg-cyan-950/20">
+                <div className="flex items-center justify-between gap-3 border-b border-cyan-100 pb-3 dark:border-cyan-900/60">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-600 text-xs font-bold text-white">5</span>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 5 - Review & PDF Summary</h2>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => openReport(true)} disabled={!hasAny}>Download PDF Summary</Button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-3 text-xs">
+                  <div className="rounded-lg border bg-white p-3 dark:bg-slate-950"><span className="text-slate-500">Country</span><p className="mt-1 font-bold text-slate-900 dark:text-slate-100">{previewCountry || "-"}</p></div>
+                  <div className="rounded-lg border bg-white p-3 dark:bg-slate-950"><span className="text-slate-500">Main Branch</span><p className="mt-1 font-bold text-slate-900 dark:text-slate-100">{previewMainBranch || "-"}</p></div>
+                  <div className="rounded-lg border bg-white p-3 dark:bg-slate-950"><span className="text-slate-500">City Branch</span><p className="mt-1 font-bold text-slate-900 dark:text-slate-100">{branchName || "Draft"}</p></div>
+                  <div className="rounded-lg border bg-white p-3 dark:bg-slate-950"><span className="text-slate-500">Branch Code</span><p className="mt-1 font-bold text-slate-900 dark:text-slate-100">{branchCode || "-"}</p></div>
+                  <div className="rounded-lg border bg-white p-3 dark:bg-slate-950"><span className="text-slate-500">Currency</span><p className="mt-1 font-bold text-slate-900 dark:text-slate-100">{currency || "USD"}</p></div>
+                  <div className="rounded-lg border bg-white p-3 dark:bg-slate-950"><span className="text-slate-500">Contacts</span><p className="mt-1 font-bold text-slate-900 dark:text-slate-100">{contactItems.length || 0}</p></div>
+                </div>
+              </section>
+
+              <section hidden={activeStep !== 6} className="order-6 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">6</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 6 - Branch Documents</h2>
+                </div>
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-4 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/30">Branch documents are optional. Existing document workflow remains unchanged and can be attached where applicable.</div>
+              </section>
+
+              <section hidden={activeStep !== 2} className="order-2 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-5 shadow-sm space-y-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                <div className="flex items-center gap-2.5 border-b border-emerald-100 pb-3 dark:border-emerald-900/60">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">2</span>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 2 - Access Scope & Role Planning</h2>
+                </div>
+                <div className="grid gap-3 md:grid-cols-3 text-xs">
+                  <div className="rounded-lg border bg-white p-3 dark:bg-slate-950"><span className="text-slate-500">Template</span><p className="mt-1 font-bold text-slate-900 dark:text-slate-100">{permissionTemplate || "-"}</p></div>
+                  <div className="rounded-lg border bg-white p-3 dark:bg-slate-950"><span className="text-slate-500">Permissions</span><p className="mt-1 font-bold text-slate-900 dark:text-slate-100">{permissionGrants.length}</p></div>
+                  <div className="rounded-lg border bg-white p-3 dark:bg-slate-950"><span className="text-slate-500">Parent Limited</span><p className="mt-1 font-bold text-slate-900 dark:text-slate-100">{parentPermissionGrants?.length ? "Yes" : "No"}</p></div>
+                </div>
+              </section>
+              <section hidden={activeStep !== 8} className="order-8 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">8</span>
                   <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 8 - AI Branch Communication Setup</h2>
@@ -1742,19 +1837,52 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <div className="flex flex-wrap justify-end gap-2">
+
+              <section hidden={activeStep !== 9} className="order-9 rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm dark:border-emerald-900/60 dark:bg-slate-950">
+                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Final Approval Report</p>
+                    <h2 className="mt-1 text-xl font-bold text-slate-950 dark:text-slate-100">Step 9 - Review, Accept or Change</h2>
+                    <p className="mt-1 text-sm text-slate-500">Review the complete city branch setup before saving. Go back to any step if something needs changing.</p>
+                  </div>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Pending Final Acceptance</span>
+                </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Country</span><p className="mt-1 text-lg font-black">{previewCountry || "-"}</p></div>
+                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Main Branch</span><p className="mt-1 text-lg font-black">{previewMainBranch || "-"}</p></div>
+                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">City Branch</span><p className="mt-1 text-lg font-black">{branchName || "Draft"}</p></div>
+                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Branch Code</span><p className="mt-1 text-lg font-black">{branchCode || "-"}</p></div>
+                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Currency</span><p className="mt-1 text-lg font-black">{currency || "USD"}</p></div>
+                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Permissions</span><p className="mt-1 text-lg font-black">{permissionGrants.length}</p></div>
+                </div>
+                <div className="mt-5 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-100">
+                  This branch setup is not permanent yet. Click Save to accept and create/update the branch, or use Back to change any previous step.
+                </div>
+              </section>
+              <div className="order-10 flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <Button type="reset" variant="outline" disabled={saving}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving || !location.countryId || !countryBranchId || cityAlreadyExists}>
-                  {saving ? "Saving..." : editingCityBranchId ? "Update" : "Save"}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" disabled={saving || activeStep === 1} onClick={() => setActiveStep((step) => Math.max(1, step - 1))}>
+                    Back
+                  </Button>
+                  {activeStep < 9 ? (
+                    <Button type="button" onClick={() => setActiveStep((step) => Math.min(9, step + 1))}>
+                      Next
+                    </Button>
+                  ) : (
+                    <Button type="submit" disabled={saving || !location.countryId || !countryBranchId || cityAlreadyExists}>
+                      {saving ? "Saving..." : editingCityBranchId ? "Update" : "Save"}
+                    </Button>
+                  )}
+                </div>
               </div>
             </form>
           </CardContent>
         </Card>
 
-        <div className="space-y-4 lg:sticky lg:top-4">
+        <div hidden={activeStep === 9} className="space-y-4 lg:sticky lg:top-4">
           <BranchLiveReportPanel
             title="Store Entry (Live Preview)"
             status={hasAny ? "Draft" : "Empty"}
@@ -1778,48 +1906,66 @@ export function CityBranchSetup() {
             }
             steps={[
               {
-                title: "Step 1 - Company & Owner",
+                title: "Step 1 - Branch Information",
+                rows: [
+                  { label: "Country", value: previewCountry || "-" },
+                  { label: "Main Branch", value: previewMainBranch || "-" },
+                  { label: "State", value: locationMeta.state?.name || "-" },
+                  { label: "City", value: locationMeta.city?.name || "-" },
+                  { label: "Branch Name", value: branchName || "-" },
+                  { label: "Branch Code", value: branchCode || "-" },
+                  { label: "Currency", value: currency || "USD" },
+                  { label: "Address", value: fullAddress || "-" }
+                ]
+              },
+              {
+                title: "Step 2 - Access Scope",
+                rows: [
+                  { label: "Permission Template", value: permissionTemplate || "-" },
+                  { label: "Permission Count", value: String(permissionGrants.length) },
+                  { label: "Parent Limited", value: parentPermissionGrants?.length ? "Yes" : "No" }
+                ]
+              },
+              {
+                title: "Step 3 - User Account Setup",
                 rows: [
                   { label: "Company Name", value: previewCompany },
                   { label: "Company Code", value: companyCode },
-                  { label: "Legal Name", value: company?.legal_name || "-" },
-                  { label: "Base Currency", value: company?.base_currency || currency || "USD" },
                   { label: "Owner", value: ownerPreview?.name || ownerName || "-" },
-                  { label: "Owner Code", value: ownerPreview?.code || "-" },
-                  { label: "Source", value: ownerPreview ? ownerPreview.source : "-" },
-                  { label: "Role / Branch", value: ownerPreview ? [ownerPreview.role, ownerPreview.branch].filter(Boolean).join(" · ") : "-" }
+                  { label: "Owner Code", value: ownerPreview?.code || "-" }
                 ]
               },
               {
-                title: "Step 2 - Location",
+                title: "Step 4 - Contact Information",
                 rows: [
-                  { label: "Country", value: previewCountry || "-" },
-                  { label: "Country Code", value: locationMeta.country?.iso2 || locationMeta.country?.iso3 || "-" },
-                  { label: "State", value: locationMeta.state?.name || "-" },
-                  { label: "State Code", value: locationMeta.state?.code || "-" },
-                  { label: "District", value: locationMeta.district?.name || "-" },
-                  { label: "City", value: locationMeta.city?.name || "-" },
-                  { label: "City Code", value: locationMeta.city?.code || "-" },
-                  { label: "Location", value: previewLocation || "-" },
-                  { label: "Branch Name", value: branchName || "-" },
-                  { label: "Branch Code", value: branchCode || "-" }
-                ]
-              },
-              {
-                title: "Step 3 - Contact & Address",
-                rows: [
-                  { label: "Currency", value: currency || "USD" },
-                  { label: "Address", value: fullAddress || "-" },
                   { label: "Contacts", value: contactItems.length ? contactItems.join(", ") : "-" }
                 ]
               },
               {
-                title: "Step 4 - Roles & Permissions",
+                title: "Step 5 - Review & PDF Summary",
                 rows: [
-                  { label: "Permission Template", value: permissionTemplate || "-" },
-                  { label: "Permission Count", value: String(permissionGrants.length) },
-                  { label: "Parent Limited", value: parentPermissionGrants?.length ? "Yes" : "No" },
+                  { label: "Review Status", value: hasAny ? "Ready for preview" : "Draft empty" },
+                  { label: "PDF Summary", value: hasAny ? "Available" : "Complete fields first" }
+                ]
+              },
+              {
+                title: "Step 6 - Branch Documents",
+                rows: [
+                  { label: "Documents", value: "Optional / if applicable" }
+                ]
+              },
+              {
+                title: "Step 7 - Roles & Permissions",
+                rows: [
                   { label: "Permissions", value: permissionGrants.length ? permissionGrants.join(", ") : "-" }
+                ]
+              },
+              {
+                title: "Step 8 - AI Branch Communication Setup",
+                rows: [
+                  { label: "Official Email", value: generatedEmail || "-" },
+                  { label: "Email Status", value: smtpStatus },
+                  { label: "WhatsApp Status", value: whatsappStatus }
                 ]
               }
             ]}
@@ -1933,4 +2079,18 @@ export function CityBranchSetup() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

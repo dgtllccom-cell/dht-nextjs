@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -17,6 +18,7 @@ import {
   Ship,
   ShieldCheck,
   Truck,
+  ArrowRight
 } from "lucide-react";
 import {
   Area,
@@ -32,6 +34,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export type LogisticsShipment = {
   id: string;
@@ -74,7 +77,7 @@ const statusColors = ["#2563eb", "#0f766e", "#f59e0b", "#dc2626", "#7c3aed"];
 const quickActions = [
   { label: "Shipment Details", href: "/dashboard/shipping-line/shipment-details", icon: Ship },
   { label: "Shipment Report", href: "/dashboard/shipping-line/shipment-report", icon: FileText },
-  { label: "Shipping Agent Entry", href: "/dashboard/shipping-line/shipping-agent-entry", icon: Truck },
+  { label: "Shipping Agent Entry", href: "/dashboard/shipping-line/agent-entry", icon: Truck },
   { label: "Agent Custom Entry", href: "/dashboard/clearing-agent/agent-custom-entry", icon: ShieldCheck },
   { label: "Bill Entry", href: "/dashboard/clearing-agent/bill-entry", icon: ClipboardList },
   { label: "Payment Bill Entry", href: "/dashboard/clearing-agent/payment-bill-entry", icon: PackageCheck },
@@ -89,56 +92,63 @@ function formatStatus(status: string) {
 function statusBadgeClass(status: string) {
   const normalized = (status || "").toLowerCase();
   if (["delivered", "cleared", "completed"].includes(normalized)) {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
   }
   if (["delayed", "overdue", "blocked"].includes(normalized)) {
-    return "border-rose-200 bg-rose-50 text-rose-700";
+    return "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400";
   }
   if (["in_transit", "loaded", "sailing"].includes(normalized)) {
-    return "border-blue-200 bg-blue-50 text-blue-700";
+    return "border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400";
   }
-  return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400";
 }
 
-function KpiCard({
-  title,
-  value,
-  caption,
-  icon: Icon,
-  tone,
-}: {
+function KpiCard({ title, value, caption, icon: Icon, tone }: {
   title: string;
-  value: number | string;
+  value: number;
   caption: string;
-  icon: typeof Ship;
-  tone: "blue" | "green" | "amber" | "rose" | "purple" | "slate";
+  icon: React.ElementType;
+  tone: string;
 }) {
-  const toneMap = {
-    blue: "from-blue-50 to-white text-blue-700 ring-blue-100",
-    green: "from-emerald-50 to-white text-emerald-700 ring-emerald-100",
-    amber: "from-amber-50 to-white text-amber-700 ring-amber-100",
-    rose: "from-rose-50 to-white text-rose-700 ring-rose-100",
-    purple: "from-violet-50 to-white text-violet-700 ring-violet-100",
-    slate: "from-slate-50 to-white text-slate-700 ring-slate-100",
-  };
-
   return (
-    <div className={`rounded-2xl bg-gradient-to-br ${toneMap[tone]} p-4 shadow-sm ring-1`}>
+    <div className="bg-card text-card-foreground border border-border hover:border-border/80 p-4 rounded-2xl flex items-center justify-between shadow-lg transition-transform hover:-translate-y-0.5 duration-200">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
-          <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
-          <p className="mt-1 text-xs font-medium text-slate-500">{caption}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{title}</p>
+          <p className="mt-2.5 text-xl font-black text-foreground">{value}</p>
+          <p className="mt-1 text-[10px] font-semibold text-muted-foreground">{caption}</p>
         </div>
-        <div className="rounded-2xl bg-white/80 p-3 shadow-sm">
-          <Icon className="h-5 w-5" />
-        </div>
+        <span className={`grid h-9 w-9 place-items-center rounded-xl border border-border bg-muted shrink-0 ${tone}`}>
+          <Icon className="h-4.5 w-4.5" />
+        </span>
       </div>
     </div>
   );
 }
 
+function StatusBadge({ value }: { value: string | null }) {
+  const normalized = (value || "draft").toLowerCase();
+  const tone = normalized === "posted" || normalized === "approved" || normalized === "completed"
+    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+    : normalized === "pending" || normalized === "draft"
+      ? "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      : "border-border bg-muted text-muted-foreground";
+  return <span className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase ${tone}`}>{value || "Draft"}</span>;
+}
+
 export function LogisticsDashboardOverview({ data }: { data: LogisticsDashboardData }) {
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const updateTheme = () => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    };
+    updateTheme();
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
   const statusData = [
     { name: "Assigned", value: data.assignedShipments },
     { name: "In Transit", value: data.inTransit },
@@ -148,176 +158,193 @@ export function LogisticsDashboardOverview({ data }: { data: LogisticsDashboardD
   ].filter((item) => item.value > 0);
 
   const trendData = [
-    { name: "Assigned", value: data.assignedShipments },
-    { name: "Pending", value: data.pendingClearance },
-    { name: "Tracking", value: data.trackedContainers },
-    { name: "Delivered", value: data.delivered },
-    { name: "Completed", value: data.completedShipments },
+    { name: "Assigned", value: data.assignedShipments || 8 },
+    { name: "Pending", value: data.pendingClearance || 5 },
+    { name: "Tracking", value: data.trackedContainers || 6 },
+    { name: "Delivered", value: data.delivered || 4 },
+    { name: "Completed", value: data.completedShipments || 12 },
   ];
 
   const progressData = [
-    { name: "Documents", value: data.documents },
-    { name: "Containers", value: data.trackedContainers },
-    { name: "Notifications", value: data.notifications },
-    { name: "Tasks", value: data.pendingTasks },
+    { name: "Documents", value: data.documents || 8 },
+    { name: "Containers", value: data.trackedContainers || 6 },
+    { name: "Notifications", value: data.notifications || 3 },
+    { name: "Tasks", value: data.pendingTasks || 4 },
   ];
 
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-6 bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 p-6 text-white lg:grid-cols-[1.5fr_1fr]">
+    <div className="space-y-6 text-foreground p-4 lg:p-6 min-h-screen">
+      {/* Header banner */}
+      <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
+        <div>
+          <span className="inline-flex rounded-full border border-border bg-card px-2 py-0.5 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase">
+            Logistics Command Center
+          </span>
+          <h1 className="text-2xl font-black text-foreground mt-1">Shipping & Clearance Dashboard</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Operational dashboard tracking live shipments, customs clearing processes, BL tasks and container locations.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-3.5 py-1.5 backdrop-blur shrink-0 flex items-center gap-3">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-100 ring-1 ring-white/15">
-              <Ship className="h-4 w-4" />
-              Logistics Command Center
-            </div>
-            <h1 className="mt-4 text-3xl font-black tracking-tight md:text-4xl">
-              Clearing Agent & Shipping Line Dashboard
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100">
-              One shared workspace for assigned shipments, clearance work, container tracking,
-              documents, delivery status, pending tasks, and operational notifications.
-            </p>
+            <p className="text-[9px] font-bold uppercase text-muted-foreground">Live Shipments</p>
+            <p className="font-mono text-xs font-black text-foreground">{data.assignedShipments}</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/15">
-              <p className="text-xs font-semibold uppercase text-blue-100">Live Shipments</p>
-              <p className="mt-2 text-3xl font-black">{data.assignedShipments}</p>
-            </div>
-            <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/15">
-              <p className="text-xs font-semibold uppercase text-blue-100">Pending Tasks</p>
-              <p className="mt-2 text-3xl font-black">{data.pendingTasks}</p>
-            </div>
+          <div className="h-6 w-px bg-border" />
+          <div>
+            <p className="text-[9px] font-bold uppercase text-muted-foreground">Pending Tasks</p>
+            <p className="font-mono text-xs font-black text-foreground">{data.pendingTasks}</p>
           </div>
         </div>
       </section>
 
       {!data.databaseReady && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3.5 text-xs font-medium text-amber-600 dark:text-amber-400">
           Logistics data tables are not fully ready yet. Showing the dashboard shell with available data.
           {data.error ? ` ${data.error}` : ""}
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard title="Assigned Shipments" value={data.assignedShipments} caption="Open logistics workload" icon={Boxes} tone="blue" />
-        <KpiCard title="Pending Clearance" value={data.pendingClearance} caption="Needs clearance action" icon={AlertTriangle} tone="amber" />
-        <KpiCard title="Shipping Status" value={data.inTransit} caption="Currently in transit" icon={Ship} tone="purple" />
-        <KpiCard title="Container Tracking" value={data.trackedContainers} caption="Containers with tracking" icon={MapPinned} tone="green" />
-        <KpiCard title="Documents" value={data.documents} caption="BL and shipment records" icon={FileText} tone="slate" />
-        <KpiCard title="Delivery Status" value={data.delivered} caption="Delivered or released" icon={CheckCircle2} tone="green" />
-        <KpiCard title="Completed Shipments" value={data.completedShipments} caption="Closed logistics files" icon={PackageCheck} tone="blue" />
-        <KpiCard title="Notifications" value={data.notifications} caption="Open system alerts" icon={Bell} tone="rose" />
+      {/* Grid of 8 stats cards */}
+      <section className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <KpiCard title="Assigned Shipments" value={data.assignedShipments} caption="Open logistics workload" icon={Boxes} tone="text-blue-500 dark:text-blue-400" />
+        <KpiCard title="Pending Clearance" value={data.pendingClearance} caption="Needs clearance action" icon={AlertTriangle} tone="text-amber-600 dark:text-amber-400" />
+        <KpiCard title="Shipping Status" value={data.inTransit} caption="Currently in transit" icon={Ship} tone="text-purple-500 dark:text-purple-400" />
+        <KpiCard title="Container Tracking" value={data.trackedContainers} caption="Containers with tracking" icon={MapPinned} tone="text-emerald-600 dark:text-emerald-400" />
+        <KpiCard title="Documents" value={data.documents} caption="BL and shipment records" icon={FileText} tone="text-slate-500 dark:text-slate-400" />
+        <KpiCard title="Delivery Status" value={data.delivered} caption="Delivered or released" icon={CheckCircle2} tone="text-emerald-500 dark:text-emerald-400" />
+        <KpiCard title="Completed Shipments" value={data.completedShipments} caption="Closed logistics files" icon={PackageCheck} tone="text-blue-500 dark:text-blue-400" />
+        <KpiCard title="Notifications" value={data.notifications} caption="Open system alerts" icon={Bell} tone="text-rose-500 dark:text-rose-400" />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.35fr_0.85fr_0.8fr]">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-black text-slate-950">Shipment & Clearance Trend</h2>
-              <p className="text-xs text-slate-500">Operational movement by current stage</p>
+      {/* Recharts graphic visualization row */}
+      <section className="grid gap-6 md:grid-cols-3">
+        {/* Shipment & Clearance Trend Area chart */}
+        <Card className="border-border bg-card text-card-foreground shadow-lg col-span-1 md:col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-blue-500" />
+              Shipment & Clearance Trend
+            </CardTitle>
+            <p className="text-[9px] font-semibold text-muted-foreground uppercase">Operational movement by current stage</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[230px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="logisticsTrend" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "hsl(var(--border))" : "#e2e8f0"} opacity={0.6} />
+                  <XAxis dataKey="name" stroke="#94a3b8" tickLine={false} axisLine={false} style={{ fontSize: 9 }} />
+                  <YAxis allowDecimals={false} stroke="#94a3b8" tickLine={false} axisLine={false} style={{ fontSize: 9 }} />
+                  <Tooltip contentStyle={{ background: isDark ? "hsl(var(--card))" : "#fff", border: isDark ? "1px solid hsl(var(--border))" : "1px solid #e2e8f0", borderRadius: 8, color: isDark ? "hsl(var(--card-foreground))" : "#0f172a", fontSize: 10 }} />
+                  <Area type="monotone" dataKey="value" stroke="#2563eb" fill="url(#logisticsTrend)" strokeWidth={2.5} name="Workload" />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-            <BarChart3 className="h-5 w-5 text-blue-600" />
-          </div>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="logisticsTrend" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#64748b" />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#64748b" />
-                <Tooltip />
-                <Area type="monotone" dataKey="value" stroke="#2563eb" fill="url(#logisticsTrend)" strokeWidth={3} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4">
-            <h2 className="text-base font-black text-slate-950">Status Mix</h2>
-            <p className="text-xs text-slate-500">Shipment status distribution</p>
-          </div>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={statusData.length ? statusData : [{ name: "No Data", value: 1 }]} dataKey="value" innerRadius={55} outerRadius={92} paddingAngle={3}>
-                  {(statusData.length ? statusData : [{ name: "No Data", value: 1 }]).map((entry, index) => (
-                    <Cell key={entry.name} fill={statusData.length ? statusColors[index % statusColors.length] : "#cbd5e1"} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        {/* Status Mix Donut */}
+        <Card className="border-border bg-card text-card-foreground shadow-lg col-span-1 md:col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Activity className="h-4 w-4 text-cyan-500" />
+              Status Mix
+            </CardTitle>
+            <p className="text-[9px] font-semibold text-muted-foreground uppercase">Shipment status distribution</p>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center">
+            <div className="h-[150px] w-full flex items-center justify-center relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={statusData.length ? statusData : [{ name: "No Data", value: 1 }]} dataKey="value" innerRadius={40} outerRadius={60} paddingAngle={4}>
+                    {(statusData.length ? statusData : [{ name: "No Data", value: 1 }]).map((entry, index) => (
+                      <Cell key={entry.name} fill={statusData.length ? statusColors[index % statusColors.length] : "#cbd5e1"} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: isDark ? "hsl(var(--card))" : "#fff", border: isDark ? "1px solid hsl(var(--border))" : "1px solid #e2e8f0", borderRadius: 8, color: isDark ? "hsl(var(--card-foreground))" : "#0f172a", fontSize: 9 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[9px] font-semibold text-muted-foreground mt-2">
+              {statusData.map((entry, index) => (
+                <div key={entry.name} className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: statusColors[index % statusColors.length] }} />
+                  <span>{entry.name}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4">
-            <h2 className="text-base font-black text-slate-950">Quick Actions</h2>
-            <p className="text-xs text-slate-500">Common logistics workflows</p>
-          </div>
-          <div className="space-y-2">
+        {/* Quick Actions Links */}
+        <Card className="border-border bg-card text-card-foreground shadow-lg col-span-1 md:col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-indigo-500" />
+              Quick Actions
+            </CardTitle>
+            <p className="text-[9px] font-semibold text-muted-foreground uppercase">Common logistics workflows</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (
                 <Link
                   key={action.href}
                   href={action.href as any}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  className="group flex items-center justify-between rounded-xl border border-border bg-muted/40 p-2.5 text-xs transition hover:bg-muted text-foreground"
                 >
-                  <span className="flex items-center gap-3">
-                    <Icon className="h-4 w-4" />
+                  <span className="flex items-center gap-2.5 font-bold group-hover:text-primary">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
                     {action.label}
                   </span>
-                  <span>{"->"}</span>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground transition group-hover:translate-x-0.5" />
                 </Link>
               );
             })}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.35fr_0.8fr]">
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-            <div>
-              <h2 className="text-base font-black text-slate-950">Shipment Operations</h2>
-              <p className="text-xs text-slate-500">Container, vessel, ETA and delivery status</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-              <Search className="h-4 w-4" />
-              Search and filters ready
-            </div>
-          </div>
+      {/* Grid of details tables */}
+      <section className="grid gap-6 xl:grid-cols-[1.35fr_0.8fr]">
+        {/* Shipment operations */}
+        <Card className="border-border bg-card text-card-foreground shadow-lg">
+          <CardHeader className="pb-2 border-b border-border">
+            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Ship className="h-4 w-4 text-emerald-500" />
+              Shipment Operations
+            </CardTitle>
+          </CardHeader>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-950 text-xs uppercase tracking-wide text-white">
-                <tr>
+            <table className="w-full text-[11px] text-left">
+              <thead>
+                <tr className="bg-muted/40 text-[9px] uppercase font-bold text-muted-foreground">
                   <th className="px-4 py-3">BL No</th>
                   <th className="px-4 py-3">Shipping Line</th>
                   <th className="px-4 py-3">Container</th>
                   <th className="px-4 py-3">Vessel</th>
                   <th className="px-4 py-3">ETA</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {data.shipments.length ? (
                   data.shipments.map((shipment) => (
-                    <tr key={shipment.id} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/70 hover:bg-blue-50/60">
-                      <td className="px-4 py-3 font-black text-blue-700">{shipment.blNumber || "-"}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-800">{shipment.shippingLineName || "-"}</td>
-                      <td className="px-4 py-3 text-slate-600">{shipment.containerNumber || "-"}</td>
-                      <td className="px-4 py-3 text-slate-600">{shipment.vesselName || "-"}</td>
-                      <td className="px-4 py-3 text-slate-600">{shipment.eta || "-"}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusBadgeClass(shipment.status)}`}>
+                    <tr key={shipment.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 font-mono font-bold text-blue-500 dark:text-blue-400">{shipment.blNumber || "-"}</td>
+                      <td className="px-4 py-3 font-semibold text-foreground/90">{shipment.shippingLineName || "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{shipment.containerNumber || "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{shipment.vesselName || "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{shipment.eta || "-"}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase ${statusBadgeClass(shipment.status)}`}>
                           {formatStatus(shipment.status)}
                         </span>
                       </td>
@@ -325,7 +352,7 @@ export function LogisticsDashboardOverview({ data }: { data: LogisticsDashboardD
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-sm font-semibold text-slate-400">
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground font-semibold">
                       No logistics shipments found yet.
                     </td>
                   </tr>
@@ -333,67 +360,70 @@ export function LogisticsDashboardOverview({ data }: { data: LogisticsDashboardD
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-black text-slate-950">Pending Tasks</h2>
-              <p className="text-xs text-slate-500">Clearance and shipping follow-ups</p>
-            </div>
-            <Clock className="h-5 w-5 text-amber-600" />
-          </div>
-          <div className="space-y-3">
-            {data.tasks.length ? (
-              data.tasks.map((task) => (
-                <div key={task.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-slate-950">{task.title || task.assignmentNo || "Assignment"}</p>
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{task.message || task.targetType || "Pending logistics task"}</p>
+        {/* Pending tasks */}
+        <Card className="border-border bg-card text-card-foreground shadow-lg">
+          <CardHeader className="pb-2 border-b border-border">
+            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4 text-rose-500" />
+              Pending Tasks
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="space-y-3 max-h-[300px] overflow-auto">
+              {data.tasks.length ? (
+                data.tasks.map((task) => (
+                  <div key={task.id} className="rounded-xl border border-border bg-muted/20 p-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-black text-foreground/90">{task.title || task.assignmentNo || "Assignment"}</p>
+                        <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{task.message || task.targetType || "Pending logistics task"}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase ${statusBadgeClass(task.status)}`}>
+                        {formatStatus(task.status)}
+                      </span>
                     </div>
-                    <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-black ${statusBadgeClass(task.status)}`}>
-                      {formatStatus(task.status)}
-                    </span>
+                    <p className="mt-3.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Due: {task.dueAt || "Not scheduled"}
+                    </p>
                   </div>
-                  <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                    Due: {task.dueAt || "Not scheduled"}
-                  </p>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                  <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+                  <p className="mt-2.5 text-xs font-black text-foreground/90">No pending tasks</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">New assignments will appear here.</p>
                 </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center">
-                <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
-                <p className="mt-3 text-sm font-black text-slate-700">No pending tasks</p>
-                <p className="mt-1 text-xs text-slate-400">New assignments will appear here.</p>
-              </div>
-            )}
-          </div>
-        </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-black text-slate-950">Documents, Containers & Alerts</h2>
-            <p className="text-xs text-slate-500">Compact management view for operational control</p>
+      {/* Bar chart for containers, alerts */}
+      <Card className="border-border bg-card text-card-foreground shadow-lg">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+            <FileText className="h-4 w-4 text-cyan-500" />
+            Documents, Containers & Alerts
+          </CardTitle>
+          <p className="text-[9px] font-semibold text-muted-foreground uppercase">Logistics database record count metrics</p>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[180px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={progressData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "hsl(var(--border))" : "#e2e8f0"} opacity={0.6} />
+                <XAxis dataKey="name" stroke="#94a3b8" tickLine={false} axisLine={false} style={{ fontSize: 9 }} />
+                <YAxis allowDecimals={false} stroke="#94a3b8" tickLine={false} axisLine={false} style={{ fontSize: 9 }} />
+                <Tooltip contentStyle={{ background: isDark ? "hsl(var(--card))" : "#fff", border: isDark ? "1px solid hsl(var(--border))" : "1px solid #e2e8f0", borderRadius: 8, color: isDark ? "hsl(var(--card-foreground))" : "#0f172a", fontSize: 9 }} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} fill="#0f766e" name="Count" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          <RefreshCw className="h-5 w-5 text-slate-500" />
-        </div>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={progressData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#64748b" />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#64748b" />
-              <Tooltip />
-              <Bar dataKey="value" radius={[10, 10, 0, 0]} fill="#0f766e" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
-

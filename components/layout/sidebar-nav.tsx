@@ -64,8 +64,8 @@ function SidebarNodeItem({
         className={cn(
           "group flex items-center justify-between rounded-lg text-[12.5px] transition-all duration-200 py-0.5",
           isActive
-            ? "bg-primary/10 text-primary font-bold shadow-sm active-nav-item dark:bg-primary/15"
-            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60"
+            ? "bg-[#0f62fe] text-white font-bold shadow-sm active-nav-item"
+            : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/40"
         )}
       >
         {href ? (
@@ -75,7 +75,7 @@ function SidebarNodeItem({
             className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pe-2 ps-3.5 transition-transform duration-200 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5"
             style={{ paddingInlineStart: depth > 0 ? `${14 + depth * 12}px` : undefined }}
           >
-            <SidebarIcon name={node.iconKey} className={cn("transition-colors", isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300")} />
+            <SidebarIcon name={node.iconKey} className={cn("transition-colors", isActive ? "text-white" : "text-slate-400 group-hover:text-slate-200")} />
             <span className="truncate text-start">{t(lang, node.labelKey)}</span>
           </Link>
         ) : (
@@ -85,7 +85,7 @@ function SidebarNodeItem({
             className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pe-2 ps-3.5 text-start transition-transform duration-200 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5"
             style={{ paddingInlineStart: depth > 0 ? `${14 + depth * 12}px` : undefined }}
           >
-            <SidebarIcon name={node.iconKey} className={cn("transition-colors", isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300")} />
+            <SidebarIcon name={node.iconKey} className={cn("transition-colors", isActive ? "text-white" : "text-slate-400 group-hover:text-slate-200")} />
             <span className="truncate">{t(lang, node.labelKey)}</span>
           </button>
         )}

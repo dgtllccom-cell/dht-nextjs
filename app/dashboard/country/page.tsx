@@ -262,12 +262,16 @@ function StatusPill({ value }: { value: string }) {
   return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}>{value}</span>;
 }
 
-export default async function CountryDashboardPage(props: { searchParams?: Promise<{ tab?: string }> }) {
+export default async function CountryDashboardPage(props: { searchParams?: Promise<{ tab?: string; countryId?: string }> }) {
   const searchParams = props.searchParams ? await props.searchParams : {};
   const currentTab = searchParams.tab || "overview";
 
   const session = await getCurrentErpSession();
-  const countryId = session?.countryIds?.[0];
+  let countryId = session?.countryIds?.[0];
+
+  if (session?.roles.includes("super_admin") && searchParams.countryId) {
+    countryId = searchParams.countryId;
+  }
 
   if (!countryId) {
     return (

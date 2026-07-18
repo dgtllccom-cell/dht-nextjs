@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +24,7 @@ import { downloadCsv } from "@/features/branches/components/branch-report-export
 import { PermissionAssignmentSection } from "@/features/users/components/permission-assignment-section";
 import { DetailDrawer } from "@/components/ui/detail-drawer";
 import { apiGet } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 import { getPermissionKeysForTemplate } from "@/lib/permissions/catalog";
 import { openA4ReportWindow } from "@/lib/reports/open-a4-report-window";
 import type { ContactTypeKey } from "@/features/contact-types/contact-type-api";
@@ -165,6 +166,7 @@ export function CountryBranchSetup() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("editId") ?? "";
   const [drawerBranchData, setDrawerBranchData] = useState<any>(null);
+  const [activeStep, setActiveStep] = useState(1);
   const [location, setLocation] = useState<LocationHierarchyValue>({
     countryId: "",
     stateProvinceId: "",
@@ -961,6 +963,7 @@ export function CountryBranchSetup() {
     setBranchCode("");
     setPermissionTemplate("country-standard");
     setPermissionGrants(getPermissionKeysForTemplate("country-standard"));
+    setActiveStep(1);
   }
 
   return (
@@ -978,7 +981,41 @@ export function CountryBranchSetup() {
         </span>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-9" aria-label="Country branch wizard sequence">
+          {[
+            ["1", "Branch Information", "Country, currency and location"],
+            ["2", "Access Scope", "Review country scope before setup"],
+            ["3", "User Account Setup", "Company and branch owner"],
+            ["4", "Contact Information", "Phone, email and official IDs"],
+            ["5", "Review & PDF Summary", "Preview before final setup"],
+            ["6", "Branch Documents", "Optional branch files"],
+            ["7", "Roles & Permissions", "Configure and confirm role access"],
+            ["8", "AI Communication Setup", "Email, WhatsApp and alerts"],
+            ["9", "Final Approval", "Accept setup or go back"]
+          ].map(([no, title, desc]) => (
+            <div key={no} className={cn("rounded-xl border px-3 py-2 transition", Number(no) === activeStep ? "border-cyan-500 bg-cyan-50 shadow-sm ring-1 ring-cyan-200 dark:border-cyan-500 dark:bg-cyan-950/40" : "border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/50")}>
+              <div className="flex items-center gap-2">
+                <span className={cn("flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold", Number(no) === activeStep ? "bg-cyan-600 text-white" : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200")}>{no}</span>
+                <span className="text-[11px] font-black uppercase tracking-wide text-slate-900 dark:text-slate-100">{title}</span>
+              </div>
+              <p className="mt-1 text-[10px] leading-snug text-slate-500">{desc}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+          <span className="text-xs font-semibold text-slate-500">Step {activeStep} of 9</span>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={saving || activeStep === 1} onClick={() => setActiveStep((step) => Math.max(1, step - 1))}>Back</Button>
+            {activeStep < 9 ? (
+              <Button type="button" size="sm" onClick={() => setActiveStep((step) => Math.min(9, step + 1))}>Next</Button>
+            ) : (
+              <Button type="submit" form="country-branch-wizard-form" size="sm" disabled={saving || Boolean(existingMainBranch && !editingCountryBranchId) || !location.countryId}>{saving ? "Saving..." : editingCountryBranchId ? "Update" : "Accept & Save"}</Button>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className={cn("grid gap-5", activeStep === 9 ? "xl:grid-cols-1" : "xl:grid-cols-[0.9fr_1.1fr]")}> 
         <Card className="border-slate-200/80 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle>Country Main Branch Setup</CardTitle>
@@ -1014,8 +1051,8 @@ export function CountryBranchSetup() {
                 ) : null}
               </div>
             ) : null}
-            <form onSubmit={onSubmit} onReset={onReset} className="space-y-6">
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+            <form id="country-branch-wizard-form" onSubmit={onSubmit} onReset={onReset} className="flex flex-col gap-6">
+              <section hidden={activeStep !== 1} className="order-1 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
                   <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 1 - Country & Currency</h2>
@@ -1038,7 +1075,7 @@ export function CountryBranchSetup() {
                 <input type="hidden" value={branchCode} readOnly />
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <section hidden={activeStep !== 1} className="order-1 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">2</span>
                   <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 2 - Location</h2>
@@ -1076,7 +1113,7 @@ export function CountryBranchSetup() {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <section hidden={activeStep !== 3} className="order-3 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">3</span>
                   <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 3 - Company & Branch Owner</h2>
@@ -1102,7 +1139,7 @@ export function CountryBranchSetup() {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <section hidden={activeStep !== 4} className="order-4 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">4</span>
                   <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 4 - Contacts</h2>
@@ -1171,10 +1208,10 @@ export function CountryBranchSetup() {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+              <section hidden={activeStep !== 7} className="order-7 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">5</span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 5 - Roles & Permissions</h2>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 7 - Roles & Permissions</h2>
                 </div>
                 <PermissionAssignmentSection
                   level="country"
@@ -1360,4 +1397,9 @@ export function CountryBranchSetup() {
     </div>
   );
 }
+
+
+
+
+
 

@@ -75,6 +75,11 @@ type SuperAdminRoznamchaRow = {
   postedAt: string;
   approvedAt: string;
   accountParty: string;
+  paymentAccountName?: string;
+  accountDetails?: string;
+  sourceModule?: string;
+  sourceTransactionType?: string;
+  sourceReferenceNo?: string;
   currency: string;
   debit: number;
   credit: number;
@@ -1141,6 +1146,7 @@ export function SuperAdminRoznamchaReportView({
     countryId: "all",
     branchId: "all",
     voucherType: "all",
+    userName: "all",
     partySearch: "",
     currency: "all"
   }));
@@ -1150,6 +1156,7 @@ export function SuperAdminRoznamchaReportView({
     countryId: "all",
     branchId: "all",
     voucherType: "all",
+    userName: "all",
     partySearch: "",
     currency: "all"
   }));
@@ -1408,6 +1415,7 @@ export function SuperAdminRoznamchaReportView({
         ? "all"
         : sessionInfo?.scopes.cityBranchIds[0] ?? sessionInfo?.scopes.countryBranchIds[0] ?? "all",
       voucherType: "all",
+      userName: "all",
       partySearch: "",
       currency: "all"
     };
@@ -1647,12 +1655,19 @@ export function SuperAdminRoznamchaReportView({
   const selectedBranchLabel = appliedFilters.branchId === "all"
     ? "All"
     : branchOptions.find((option) => option.value === appliedFilters.branchId)?.label ?? "All";
+  const reportDisplayTitle =
+    typeFilter === "branch"
+      ? "Branch Journal Report"
+      : typeFilter === "country"
+        ? "Country Roznamcha Report"
+        : "Super Admin Roznamcha Report";
+
   const entryScopeTitle =
     typeFilter === "super_admin"
       ? "Roznamcha Entries (Super Admin)"
       : typeFilter === "country"
         ? "Roznamcha Entries (Country)"
-        : "Roznamcha Entries (City)";
+        : "Branch Journal Entries";
 
   const showUsd = isSuperAdminOrCountryAdmin && ratesApplied.showUsd === "Yes";
 
@@ -1972,15 +1987,7 @@ export function SuperAdminRoznamchaReportView({
   const titleContent = (
     <div className="flex items-center gap-2">
       <h1 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">
-        {typeFilter === "super_admin"
-          ? sessionInfo?.role === "branch_admin" || sessionInfo?.role === "city_admin" || typeFilter === "branch"
-            ? "City Branch Roznamcha"
-            : sessionInfo?.role === "country_admin" || typeFilter === "country"
-              ? "Country Roznamcha Report"
-              : "Super Admin Roznamcha Report"
-          : typeFilter === "country"
-            ? "Country Roznamcha Report"
-            : "City Roznamcha Report"}
+        {reportDisplayTitle}
       </h1>
       <span className="text-[10px] text-slate-400">-</span>
       <span className="hidden lg:block text-[10px] text-slate-500 font-semibold truncate max-w-[400px]">
@@ -2009,12 +2016,26 @@ export function SuperAdminRoznamchaReportView({
         }
       `}</style>
 
-      {/* New Super Admin Roznamcha Summary Dashboard */}
-      <SuperAdminRoznamchaSummary 
-        rows={visibleRows} 
-        ratesApplied={ratesApplied} 
-        session={sessionInfo} 
-      />
+      {typeFilter === "branch" ? (
+        <BranchJournalGeneralStyleSummary
+          rows={visibleRows}
+          viewerName={sessionInfo?.user?.fullName || "Branch Admin"}
+          generatedAt={new Date().toISOString()}
+          selectedCountryLabel={selectedCountryLabel}
+          selectedBranchLabel={selectedBranchLabel}
+          totalDebit={totalDebitSum}
+          totalCredit={totalCreditSum}
+          onPrint={() => setPrintMode(true)}
+          onPdf={() => openSelectedReport(false, "journal")}
+          onRefresh={() => void loadReport()}
+        />
+      ) : (
+        <SuperAdminRoznamchaSummary 
+          rows={visibleRows} 
+          ratesApplied={ratesApplied} 
+          session={sessionInfo} 
+        />
+      )}
 
       {(() => {
         const columns: ReportColumn<SuperAdminRoznamchaRow>[] = [
@@ -2022,12 +2043,12 @@ export function SuperAdminRoznamchaReportView({
           { key: "entryDate", header: "Date", width: "80px", align: "center" },
           { key: "journalSerial", header: "Journal Serial\nCountry Serial", render: (r) => (
             <div className="flex flex-col text-[11px] text-left leading-tight gap-0.5">
-              <span className="font-bold text-slate-800 dark:text-slate-200">{r.countrySerial || "-"}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{r.countrySerialNo || "-"}</span>
             </div>
           ) },
           { key: "branchSerial", header: "Branch Serial\nMain Branch Sr", render: (r) => (
             <div className="flex flex-col text-[11px] text-left leading-tight gap-0.5">
-              <span className="font-bold text-slate-800 dark:text-slate-200">{r.branchSerial || "-"}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{r.branchSerialNo || "-"}</span>
             </div>
           ) },
           { key: "cityBranchSerial", header: "City Branch Sr\nEntry Serial", render: (r) => (
@@ -2070,15 +2091,7 @@ export function SuperAdminRoznamchaReportView({
             <div className="border-b bg-slate-50/80 px-4 py-3 dark:bg-slate-900/50 flex justify-between items-center">
               <div>
                 <h3 className="text-sm font-black text-slate-950 dark:text-slate-100">
-                  {typeFilter === "super_admin"
-                    ? sessionInfo?.role === "branch_admin" || sessionInfo?.role === "city_admin" || typeFilter === "branch"
-                      ? "City Branch Roznamcha"
-                      : sessionInfo?.role === "country_admin" || typeFilter === "country"
-                        ? "Country Roznamcha Report"
-                        : "Super Admin Roznamcha Report"
-                    : typeFilter === "country"
-                      ? "Country Roznamcha Report"
-                      : "City Roznamcha Report"}
+                  {reportDisplayTitle}
                 </h3>
                 <p className="text-[11px] font-semibold text-slate-500">Detailed roznamcha transactions matching your filters</p>
               </div>
@@ -2100,7 +2113,7 @@ export function SuperAdminRoznamchaReportView({
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1400px] border-collapse text-xs">
-                <thead className="sticky top-0 z-10 bg-slate-900 text-white">
+                <thead className="sticky top-0 z-10 bg-[#071327] text-white">
                   <tr className="whitespace-nowrap text-left">
                     {columns.map((c) => (
                       <th key={c.key} className={cn("border border-slate-200 px-3 py-2.5 font-black dark:border-slate-800", c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "")} style={{ width: c.width }}>
@@ -2152,7 +2165,7 @@ export function SuperAdminRoznamchaReportView({
         subtitle={`Roznamcha entry - Date: ${activeDrawerEntry?.entryDate || "-"}`}
         actions={
           <div className="flex items-center gap-2">
-            {(activeDrawerEntry?.typeLabel === "cash_payment" || activeDrawerEntry?.typeLabel === "cash_receipt" || activeDrawerEntry?.sourceEntry?.type === "cash_payment" || activeDrawerEntry?.sourceEntry?.type === "cash_receipt") && (
+            {(activeDrawerEntry?.typeLabel === "cash_payment" || activeDrawerEntry?.typeLabel === "cash_receipt" || (activeDrawerEntry?.sourceEntry?.type as string) === "cash_payment" || (activeDrawerEntry?.sourceEntry?.type as string) === "cash_receipt") && (
               <Button
                 type="button"
                 variant="outline"
@@ -2315,7 +2328,7 @@ export function SuperAdminRoznamchaReportView({
             date: activeDrawerEntry.entryDate,
             accountNo: activeDrawerEntry.accountCode,
             accountName: activeDrawerEntry.partyName,
-            paidBy: activeDrawerEntry.sourceEntry?.createdBy || "",
+            paidBy: (activeDrawerEntry.sourceEntry as any)?.createdBy || activeDrawerEntry.sourceEntry?.created_by || "",
             amount: activeDrawerEntry.debit > 0 ? activeDrawerEntry.debit : activeDrawerEntry.credit,
             currency: activeDrawerEntry.countryCurrency || "PKR",
             narration: activeDrawerEntry.narration,
@@ -2335,6 +2348,110 @@ export function SuperAdminRoznamchaReportView({
   );
 }
 
+function BranchJournalGeneralStyleSummary({
+  rows,
+  viewerName,
+  generatedAt,
+  selectedCountryLabel,
+  selectedBranchLabel,
+  totalDebit,
+  totalCredit,
+  onPrint,
+  onPdf,
+  onRefresh
+}: {
+  rows: SuperAdminRoznamchaRow[];
+  viewerName: string;
+  generatedAt: string;
+  selectedCountryLabel: string;
+  selectedBranchLabel: string;
+  totalDebit: number;
+  totalCredit: number;
+  onPrint: () => void;
+  onPdf: () => void;
+  onRefresh: () => void;
+}) {
+  const uniqueCountries = new Set(rows.map((row) => row.countryId || row.countryName).filter(Boolean));
+  const uniqueMainBranches = new Set(rows.map((row) => row.countryBranchId || row.countryBranchName).filter(Boolean));
+  const uniqueCityBranches = new Set(rows.map((row) => row.cityBranchId || row.cityBranchName).filter(Boolean));
+  const activeBranches = new Set(rows.map((row) => row.cityBranchId || row.countryBranchId || row.cityBranchName || row.countryBranchName).filter(Boolean));
+  const currency = rows[0]?.countryCurrency || rows[0]?.currency || "-";
+  const balance = totalDebit - totalCredit;
+  const generated = new Date(generatedAt).toLocaleString();
+
+  const statCards = [
+    { title: "Countries", value: uniqueCountries.size || (selectedCountryLabel === "All" ? 0 : 1), subtitle: "Scoped countries", icon: <Globe className="h-5 w-5" /> },
+    { title: "Main Branches", value: uniqueMainBranches.size || (selectedBranchLabel === "All" ? 0 : 1), subtitle: "Country branches", icon: <Building2 className="h-5 w-5" /> },
+    { title: "City Branches", value: uniqueCityBranches.size, subtitle: "City branch journals", icon: <ChevronDown className="h-5 w-5" /> },
+    { title: "Transactions", value: rows.length, subtitle: "Journal rows", icon: <BookOpen className="h-5 w-5" /> },
+    { title: "Active Branches", value: activeBranches.size, subtitle: "Branches with activity", icon: <FileText className="h-5 w-5" /> }
+  ];
+
+  const infoCards = [
+    { label: "Report Viewer", value: viewerName || "Branch Admin" },
+    { label: "Access Scope", value: "City Branch - journal report" },
+    { label: "Country", value: selectedCountryLabel },
+    { label: "Branch", value: selectedBranchLabel },
+    { label: "Currency", value: currency },
+    { label: "Generated", value: generated }
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" className="h-9 gap-2 rounded-lg border-slate-200 bg-white text-xs font-bold shadow-sm" onClick={onRefresh}>
+          <RefreshCcw className="h-4 w-4" /> Refresh
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="h-9 gap-2 rounded-lg border-slate-200 bg-white text-xs font-bold shadow-sm" onClick={onPrint}>
+          <Printer className="h-4 w-4" /> Print
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="h-9 gap-2 rounded-lg border-slate-200 bg-white text-xs font-bold shadow-sm" onClick={onPdf}>
+          <DownloadActionIcon className="h-4 w-4" /> PDF
+        </Button>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {statCards.map((card) => (
+          <div key={card.title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-purple-50 p-3 text-purple-600 ring-1 ring-purple-100">{card.icon}</div>
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{card.title}</div>
+                <div className="mt-1 text-2xl font-black text-slate-950">{card.value}</div>
+                <div className="text-[11px] font-semibold text-slate-500">{card.subtitle}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {infoCards.map((card) => (
+            <div key={card.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{card.label}</div>
+              <div className="mt-1 text-sm font-black text-slate-950">{card.value || "-"}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-500">Total Debit</div>
+            <div className="mt-1 text-lg font-black text-rose-700">{fmtNumber(totalDebit)}</div>
+          </div>
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-600">Total Credit</div>
+            <div className="mt-1 text-lg font-black text-emerald-700">{fmtNumber(totalCredit)}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Balance</div>
+            <div className="mt-1 text-lg font-black text-slate-950">{fmtNumber(balance)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 function SummaryCard({ title, value, tone }: { title: string; value: string; tone: "blue" | "green" | "red" | "amber" | "slate" }) {
   const toneClass = {
     blue: "from-blue-50 to-blue-100/50 text-blue-800 border-blue-200 shadow-blue-900/5",
@@ -2443,6 +2560,12 @@ function RoznamchaPrintPreview({
     document.body
   );
 }
+
+
+
+
+
+
 
 
 
