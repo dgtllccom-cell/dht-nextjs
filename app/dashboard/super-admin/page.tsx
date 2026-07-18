@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   Globe,
   Building2,
@@ -8,14 +7,16 @@ import {
   Activity,
   ArrowUpRight,
   ArrowDownRight,
-  ArrowRight,
-  Settings,
-  ShieldAlert,
   RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { SuperAdminOverviewCharts } from "@/features/dashboard/components/super-admin-overview-charts";
+import {
+  DashboardWidget,
+  SuperAdminDashboardSettingsPanel,
+  SuperAdminDashboardSettingsProvider
+} from "@/features/dashboard/components/super-admin-dashboard-settings";
 
 type CountMap = {
   countries: number;
@@ -273,90 +274,89 @@ export default async function SuperAdminDashboardPage() {
   ];
 
   return (
-    <div className="space-y-6 text-foreground p-4 lg:p-6 min-h-screen">
-      {/* Super Admin Control bar */}
-      <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <h1 className="text-xl font-extrabold text-foreground flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Super Admin Control Center
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1 font-medium">
-            Real-time multi-national operations & currency-rate alignment engine.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button asChild size="sm" variant="outline" className="border-border bg-card text-card-foreground hover:bg-muted">
-            <Link href="/dashboard/settings/profile">
-              System Settings
-            </Link>
-          </Button>
-          <Button size="sm" variant="default" className="shadow-md shadow-primary/10">
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin-slow" />
-            Sync Ledgers
-          </Button>
-        </div>
-      </section>
+    <SuperAdminDashboardSettingsProvider>
+      <div className="space-y-6 text-foreground p-4 lg:p-6 min-h-screen">
+        {/* Super Admin Control bar */}
+        <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
+          <div>
+            <h1 className="text-xl font-extrabold text-foreground flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Super Admin Control Center
+            </h1>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">
+              Real-time multi-national operations & currency-rate alignment engine.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <SuperAdminDashboardSettingsPanel />
+            <Button size="sm" variant="default" className="shadow-md shadow-primary/10">
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin-slow" />
+              Sync Ledgers
+            </Button>
+          </div>
+        </section>
 
-      {data.error && (
-        <div className="rounded-xl border border-red-200/60 bg-red-50/40 p-4 text-xs font-semibold text-red-600 dark:border-red-950/40 dark:bg-red-950/20 dark:text-red-400">
-          Live database summaries could not be loaded: {data.error}. Rendering demonstration data.
-        </div>
-      )}
+        {data.error && (
+          <div className="rounded-xl border border-red-200/60 bg-red-50/40 p-4 text-xs font-semibold text-red-600 dark:border-red-950/40 dark:bg-red-950/20 dark:text-red-400">
+            Live database summaries could not be loaded: {data.error}. Rendering demonstration data.
+          </div>
+        )}
 
-      {/* Row 1: KPI Stats Grid */}
-      <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        {topKpiCards.map((card, idx) => {
-          const IconComponent = card.icon;
-          return (
-            <div
-              key={idx}
-              className="bg-card text-card-foreground border border-border hover:border-border/80 p-4 rounded-2xl flex items-center justify-between shadow-lg transition-transform hover:-translate-y-0.5 duration-200"
-            >
-              <div>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{card.title}</p>
-                <h3 className="text-xl font-extrabold text-foreground mt-1.5 leading-none">{card.value}</h3>
-                <p className="text-[10px] text-muted-foreground/80 font-semibold mt-1">{card.subtitle}</p>
-              </div>
-              <div className={`h-9 w-9 rounded-xl flex items-center justify-center border shrink-0 ${card.iconClass}`}>
-                <IconComponent className="h-4 w-4" />
-              </div>
+        <DashboardWidget id="kpis">
+          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+            {topKpiCards.map((card, idx) => {
+              const IconComponent = card.icon;
+              return (
+                <div
+                  key={idx}
+                  className="bg-card text-card-foreground border border-border hover:border-border/80 p-4 rounded-2xl flex items-center justify-between shadow-lg transition-transform hover:-translate-y-0.5 duration-200"
+                >
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{card.title}</p>
+                    <h3 className="text-xl font-extrabold text-foreground mt-1.5 leading-none">{card.value}</h3>
+                    <p className="text-[10px] text-muted-foreground/80 font-semibold mt-1">{card.subtitle}</p>
+                  </div>
+                  <div className={`h-9 w-9 rounded-xl flex items-center justify-center border shrink-0 ${card.iconClass}`}>
+                    <IconComponent className="h-4 w-4" />
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        </DashboardWidget>
+
+        <DashboardWidget id="finance">
+          <section className="space-y-3">
+            <h2 className="text-xs font-black uppercase tracking-wider text-muted-foreground px-1">Financial Overview (All Countries)</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+              {financialOverview.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="bg-card text-card-foreground border border-border hover:border-border/80 p-4 rounded-2xl shadow-lg transition-all duration-200"
+                >
+                  <p className="text-[10px] text-muted-foreground font-bold">{item.label}</p>
+                  <h3 className="text-lg font-black text-foreground mt-2 leading-none">{item.value}</h3>
+                  <div className="mt-3 flex items-center gap-1">
+                    {item.isUp ? (
+                      <span className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 flex items-center gap-0.5">
+                        <ArrowUpRight className="h-3 w-3" /> {item.change}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-rose-500 dark:text-rose-400 flex items-center gap-0.5">
+                        <ArrowDownRight className="h-3 w-3" /> {item.change}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          );
-        })}
-      </section>
+          </section>
+        </DashboardWidget>
 
-      {/* Row 2: Financial Overview Section */}
-      <section className="space-y-3">
-        <h2 className="text-xs font-black uppercase tracking-wider text-muted-foreground px-1">Financial Overview (All Countries)</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-          {financialOverview.map((item, idx) => (
-            <div
-              key={idx}
-              className="bg-card text-card-foreground border border-border hover:border-border/80 p-4 rounded-2xl shadow-lg transition-all duration-200"
-            >
-              <p className="text-[10px] text-muted-foreground font-bold">{item.label}</p>
-              <h3 className="text-lg font-black text-foreground mt-2 leading-none">{item.value}</h3>
-              <div className="mt-3 flex items-center gap-1">
-                {item.isUp ? (
-                  <span className="text-[10px] font-bold text-emerald-500 dark:text-emerald-400 flex items-center gap-0.5">
-                    <ArrowUpRight className="h-3 w-3" /> {item.change}
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold text-rose-500 dark:text-rose-400 flex items-center gap-0.5">
-                    <ArrowDownRight className="h-3 w-3" /> {item.change}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Row 3: Graphic Visualizations & Performance Table */}
-      <section className="pt-2">
-        <SuperAdminOverviewCharts countrySummaries={data.countrySummaries} />
-      </section>
-    </div>
+        <section className="pt-2">
+          <SuperAdminOverviewCharts countrySummaries={data.countrySummaries} />
+        </section>
+      </div>
+    </SuperAdminDashboardSettingsProvider>
   );
 }

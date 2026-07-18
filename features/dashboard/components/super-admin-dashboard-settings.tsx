@@ -7,7 +7,10 @@ const STORAGE_KEY = "damaan-super-admin-dashboard-widgets";
 
 const WIDGETS = [
   { id: "kpis", label: "Executive KPI Cards" },
-  { id: "analytics", label: "Business Analytics" },
+  { id: "finance", label: "Financial Overview Cards" },
+  { id: "salesPurchase", label: "Sales vs Purchase Chart" },
+  { id: "profitTrend", label: "Profit Trend Chart" },
+  { id: "countryPerformance", label: "Country Performance" },
   { id: "system", label: "System Status" },
   { id: "quick", label: "Quick Controls" },
   { id: "activity", label: "Recent Activities" }
@@ -27,7 +30,7 @@ const DashboardSettingsContext = createContext<{
   reset: () => void;
 } | null>(null);
 
-function useDashboardSettings() {
+export function useDashboardSettings() {
   const ctx = useContext(DashboardSettingsContext);
   if (!ctx) throw new Error("Dashboard settings provider is missing.");
   return ctx;
@@ -78,7 +81,7 @@ export function SuperAdminDashboardSettingsPanel() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 text-xs font-bold text-white shadow-sm backdrop-blur transition hover:bg-white/20"
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-bold text-card-foreground shadow-sm transition hover:bg-muted"
       >
         <SlidersHorizontal className="h-4 w-4" />
         Dashboard Settings
@@ -125,3 +128,4 @@ export function SuperAdminDashboardSettingsPanel() {
     </div>
   );
 }
+

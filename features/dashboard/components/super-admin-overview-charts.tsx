@@ -18,6 +18,7 @@ import { BarChart3, Maximize2, Plus, TableProperties, TrendingUp } from "lucide-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DashboardWidget } from "@/features/dashboard/components/super-admin-dashboard-settings";
 
 export type CountryFinancialSummary = {
   id: string;
@@ -151,6 +152,7 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       {/* 1. Sales vs Purchase Grouped Bar Chart */}
+      <DashboardWidget id="salesPurchase">
       <Card className="border-border bg-card text-card-foreground shadow-lg">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-bold tracking-wide text-foreground">
@@ -189,8 +191,10 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
           </div>
         </CardContent>
       </Card>
+      </DashboardWidget>
 
       {/* 2. Profit Trend Line Chart */}
+      <DashboardWidget id="profitTrend">
       <Card className="border-border bg-card text-card-foreground shadow-lg">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-bold tracking-wide text-foreground">
@@ -235,8 +239,10 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
           </div>
         </CardContent>
       </Card>
+      </DashboardWidget>
 
       {/* 3. Country Performance Table */}
+      <DashboardWidget id="countryPerformance">
       <Card className="border-border bg-card text-card-foreground shadow-lg">
         <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-bold tracking-wide text-foreground">
@@ -264,6 +270,7 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
                   <th className="py-2.5 font-bold text-center">Branches</th>
                   <th className="py-2.5 font-bold text-center">Users</th>
                   <th className="py-2.5 font-bold text-right">Sales</th>
+                  <th className="py-2.5 font-bold text-right">Purchase</th>
                   <th className="py-2.5 pr-3 font-bold text-center">Status</th>
                 </tr>
               </thead>
@@ -282,6 +289,7 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
                     <td className="py-2.5 text-center text-slate-600 dark:text-slate-300">{row.branches}</td>
                     <td className="py-2.5 text-center text-slate-600 dark:text-slate-300">{row.users}</td>
                     <td className="py-2.5 text-right text-slate-600 dark:text-slate-300">${(row.sales / 1e6).toFixed(2)}M</td>
+                    <td className="py-2.5 text-right text-slate-600 dark:text-slate-300">${(row.purchase / 1e6).toFixed(2)}M</td>
                     <td className="py-2.5 pr-3 text-center">
                       <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
                         Active
@@ -302,6 +310,7 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
           </button>
         </CardContent>
       </Card>
+      </DashboardWidget>
 
       <Dialog open={performanceOpen} onOpenChange={setPerformanceOpen}>
         <DialogContent className="max-h-[86vh] max-w-6xl overflow-hidden p-0">
@@ -337,3 +346,5 @@ export function SuperAdminOverviewCharts({ countrySummaries }: SuperAdminOvervie
     </div>
   );
 }
+
+
