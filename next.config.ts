@@ -1,20 +1,21 @@
 import type { NextConfig } from "next";
-import path from "path";
-import os from "os";
 
 const nextConfig: NextConfig = {
-  // Move build output outside OneDrive to prevent EINVAL symlink errors.
-  // OneDrive cannot sync Windows symlinks (e.g. .next/types/link.d.ts).
-  // Use os.tmpdir() so Node resolves a true absolute path (avoids Next.js treating it as relative).
-  distDir: process.env.NEXT_DIST_DIR ?? path.join(os.tmpdir(), 'dgt-nextjs', '.next'),
+  // Keep .next inside the project so Node.js can resolve node_modules from
+  // compiled bundle paths. OneDrive-related issues are addressed separately:
+  //   • EPERM rename failures in cache/webpack/ → solved by webpack memory cache below
+  //   • EINVAL symlink (.next/types/link.d.ts) → solved by disabling typedRoutes below
+  // Override via NEXT_DIST_DIR env var if you need a custom output location.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   eslint: {
     ignoreDuringBuilds: true,
   },
   typescript: {
     ignoreBuildErrors: true,
   },
-  // typedRoutes moved out of `experimental` in newer Next.js versions.
-  typedRoutes: true,
+  // typedRoutes disabled: enabling it creates a .next/types/link.d.ts symlink
+  // which OneDrive cannot sync (EINVAL). Disable to keep .next inside the project.
+  typedRoutes: false,
   experimental: {
     // Reduces initial memory footprint in dev by avoiding eager preloading of every route entrypoint.
     // This can help prevent dev server restarts caused by high memory usage.
