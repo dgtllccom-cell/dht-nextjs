@@ -2550,3 +2550,6 @@ Params: limit=5
 
 [GET /api/erp/purchases/orders] Time: 2026-07-18T21:01:06.440Z
 Params: limit=5
+
+[GET /api/erp/purchases/orders] Time: 2026-07-19T15:34:36.641Z
+Params: limit=300

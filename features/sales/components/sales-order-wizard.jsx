@@ -84,6 +84,27 @@ const MOCK_SALE_LOTS = [
   { lotNo: "WH-LOT-7788", source: "warehouse", goodsName: "WALNUTS INSHELL", brand: "Standard", size: "Large", origin: "Afghanistan", hsCode: "0802.31", qtyName: "BAGS", availableQty: 1250, qtyKgs: 40, emptyKgs: 0.08, netWeight: 49900, location: "Main Warehouse", stockRef: "WH-007788", currencyType: "USD", exchangeRate: 278, coursePrice: 6.2, status: "Warehouse available" },
   { lotNo: "END-LOT-4500", source: "endorse", goodsName: "HAZELNUTS", brand: "Choice", size: "Standard", origin: "Turkey", hsCode: "0802.22", qtyName: "BAGS", availableQty: 750, qtyKgs: 30, emptyKgs: 0.05, netWeight: 22462.5, location: "Endorse Stock", stockRef: "END-004500", currencyType: "USD", exchangeRate: 278, coursePrice: 7.4, status: "Endorsed / sellable" }
 ];
+
+const MOCK_LOT_DEDUCTIONS = {
+  "BOOK-LOT-0001": [
+    { customer: "Kharadar Customer A/C", date: "2026-07-10", quantity: 20, weight: 1000, reference: "SO-2026-1102" },
+    { customer: "Sharjah Supply A/C", date: "2026-07-12", quantity: 10, weight: 500, reference: "SO-2026-1215" }
+  ],
+  "TRN-LOT-2401": [
+    { customer: "Dubai Customer A/C", date: "2026-07-05", quantity: 300, weight: 15000, reference: "SO-2026-0504" },
+    { customer: "Mumbai Import A/C", date: "2026-07-15", quantity: 150, weight: 7500, reference: "SO-2026-0881" }
+  ],
+  "LOC-LOT-1022": [
+    { customer: "Kharadar Customer A/C", date: "2026-07-01", quantity: 50, weight: 1250, reference: "SO-2026-0331" }
+  ],
+  "WH-LOT-7788": [
+    { customer: "Dubai Customer A/C", date: "2026-06-20", quantity: 100, weight: 4000, reference: "SO-2026-0045" },
+    { customer: "Kabul Trading A/C", date: "2026-07-18", quantity: 50, weight: 2000, reference: "SO-2026-0922" }
+  ],
+  "END-LOT-4500": [
+    { customer: "Sharjah Supply A/C", date: "2026-07-14", quantity: 80, weight: 2400, reference: "SO-2026-1044" }
+  ]
+};
 // NOTE: COUNTRY_OPTIONS and ORIGIN_OPTIONS removed Ã¢â‚¬â€ countries now come from Location Master.
 
 const MOCK_ACCOUNTS = [
@@ -486,6 +507,7 @@ export function SalesOrderWizard({ session }) {
   const [goodsEntries, setGoodsEntries] = useState([]);
   const [lotPanelOpen, setLotPanelOpen] = useState(false);
   const [lotSearch, setLotSearch] = useState("");
+  const [checkedLotNo, setCheckedLotNo] = useState(null);
 
   const selectedSaleSource = useMemo(() => {
     return SALE_SOURCE_OPTIONS.find((option) => option.value === (form.saleSource || "booking")) || SALE_SOURCE_OPTIONS[0];
@@ -516,6 +538,7 @@ export function SalesOrderWizard({ session }) {
       ...prev,
       saleSource: lot.source,
       stockLotNo: lot.lotNo,
+      allotName: lot.lotNo,
       goodsName: lot.goodsName,
       brand: lot.brand,
       size: lot.size,
@@ -689,6 +712,1577 @@ export function SalesOrderWizard({ session }) {
 
   const [sellerDetail, setSellerDetail] = useState(null);
   const [customerDetail, setCustomerDetail] = useState(null);
+
+  const setValue = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const isSubmittingRef = React.useRef(false);
+  const currentItemTotals = useMemo(() => calculateItemTotals(form), [form]);
+
+  const masterCountryOptions = useMemo(() => {
+    const list = allCountries.length > 0 ? allCountries : countries;
+    return [...list].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [allCountries, countries]);
+
+  const transitCountryOptions = masterCountryOptions;
+
+  // Fully dynamic, database-driven dependent dropdown logic for Loading Ports
+  const currentLoadingPorts = useMemo(() => {
+    let ports = dbLoadingPorts;
+    if (form.loadingCountry) {
+      const targetCountry = (form.loadingCountry || "").trim().toLowerCase();
+      ports = ports.filter(p => (p.country?.name || "").trim().toLowerCase() === targetCountry || (p.country_name || "").trim().toLowerCase() === targetCountry);
+    }
+    const mode = form.shippingMode || "By Sea";
+    if (mode === "By Road") {
+      return ports.filter(p => p.transport_type === "road");
+    } else if (mode === "By Air") {
+      return ports.filter(p => p.transport_type === "air");
+    } else if (mode === "By Sea") {
+      return ports.filter(p => p.transport_type === "sea");
+    }
+    return ports;
+  }, [dbLoadingPorts, form.loadingCountry, form.shippingMode]);
+
+  // Fully dynamic, database-driven dependent dropdown logic for Receiving Ports
+  const currentReceivedPorts = useMemo(() => {
+    let ports = dbReceivedPorts;
+    const recCountry = form.receivingCountry || form.receivedCountry || form.destinationCountry || "";
+    if (recCountry) {
+      const targetCountry = recCountry.trim().toLowerCase();
+      ports = ports.filter(p => (p.country?.name || "").trim().toLowerCase() === targetCountry || (p.country_name || "").trim().toLowerCase() === targetCountry);
+    }
+    const mode = form.shippingMode || "By Sea";
+    if (mode === "By Road") {
+      return ports.filter(p => p.transport_type === "road");
+    } else if (mode === "By Air") {
+      return ports.filter(p => p.transport_type === "air");
+    } else if (mode === "By Sea") {
+      return ports.filter(p => p.transport_type === "sea");
+    }
+    return ports;
+  }, [dbReceivedPorts, form.receivingCountry, form.receivedCountry, form.destinationCountry, form.shippingMode]);
+
+  const reportTotals = useMemo(() => {
+    const totalGross = goodsEntries.reduce((sum, item) => sum + Number(item.grossWeight || 0), 0);
+    const totalNet = goodsEntries.reduce((sum, item) => sum + Number(item.netWeight || 0), 0);
+    const grandFinal = goodsEntries.reduce((sum, item) => sum + Number(item.finalAmount || 0), 0);
+    const grandPrimaryFinal = goodsEntries.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
+    const totalQty = goodsEntries.reduce((sum, item) => sum + Number(item.qtyNo || 0), 0);
+    const totalDeductions = goodsEntries.reduce((sum, item) => sum + Number((item.qtyNo * item.emptyKgs) || 0), 0);
+    return {
+      totalGross,
+      totalNet,
+      grandFinal,
+      grandPrimaryFinal,
+      totalQty,
+      totalDeductions
+    };
+  }, [goodsEntries]);
+
+  const accountMatchesSearch = (acc, term) => {
+    const q = String(term || "").trim().toLowerCase();
+    if (!q) return true;
+    return [
+      acc.accountCode,
+      acc.accountName,
+      acc.cityBranchName,
+      acc.ledgerCurrency,
+      acc.manualReferenceNumber,
+      acc.customerNumber,
+      acc.mobile,
+      acc.whatsapp
+    ].some(v => String(v || "").toLowerCase().includes(q));
+  };
+
+  const accountMatchesScope = (acc) => {
+    if (isSuperAdmin) {
+      if (form.cityBranchId) return acc.cityBranchId === form.cityBranchId;
+      if (form.countryBranchId) return acc.countryBranchId === form.countryBranchId;
+      if (form.countryId) return acc.countryId === form.countryId;
+      return true;
+    }
+    const allowedCountries = activeSession?.countryIds || activeSession?.scopes?.countryIds || [];
+    const allowedBranches = activeSession?.countryBranchIds || activeSession?.scopes?.countryBranchIds || [];
+    const allowedCities = activeSession?.cityBranchIds || activeSession?.scopes?.cityBranchIds || [];
+
+    if (allowedCities.length > 0) return allowedCities.includes(acc.cityBranchId);
+    if (allowedBranches.length > 0) return allowedBranches.includes(acc.countryBranchId);
+    if (allowedCountries.length > 0) return allowedCountries.includes(acc.countryId);
+    return true;
+  };
+
+  const formatAccountDisplayLabel = (name, code, manualRef) => {
+    if (manualRef) return `${name} (Manual A/C: ${manualRef})`;
+    if (code) return `${name} (${code})`;
+    return name;
+  };
+
+  const applyAccountMaster = (type, account) => {
+    if (!account) return;
+    const accountNo = account.accountCode || account.rawAccountCode || account.ledgerCode || account.code || "";
+
+    const richAccount = dbAccounts.find(
+      (a) => (a.accountCode || "").trim().toLowerCase() === accountNo.trim().toLowerCase()
+    ) || account;
+
+    const accountName = richAccount.accountName || richAccount.ledgerName || richAccount.name || "";
+    const branchName = richAccount.cityBranchName || richAccount.countryBranchName || richAccount.branch_code || "";
+    const currency = (richAccount.ledgerCurrency || richAccount.currency || "").toUpperCase();
+    const companyId = richAccount.companyId || richAccount.company_id || null;
+
+    let matchedComp = null;
+    if (companyId && dbCompanies.length > 0) {
+      matchedComp = dbCompanies.find(c => c.id === companyId);
+    }
+    let cName = matchedComp?.name || richAccount.companyName || richAccount.company_name || "";
+    if (!cName && dbCompanies.length > 0) {
+      cName = dbCompanies[0]?.name || "";
+    }
+    const cCode = cName ? "COM-" + cName.slice(0, 3).toUpperCase() : "";
+    const resolvedCompId = matchedComp?.id || companyId || (dbCompanies.length > 0 ? dbCompanies[0].id : null);
+    const entityId = richAccount.customerId || richAccount.customer_id || richAccount.id || accountNo;
+
+    setForm((prev) => ({
+      ...prev,
+      ...(type === "purchase"
+        ? {
+            customerAccountNo: accountNo,
+            customerAccountName: accountName,
+            customerAccountBranch: branchName,
+            customerAccountCurrency: currency || prev.customerAccountCurrency || prev.salesCurrency || prev.secondaryCurrency || "PKR",
+            salesCurrency: currency || prev.salesCurrency || prev.secondaryCurrency || "PKR",
+            customerId: entityId,
+            customerAccountLedgerId: entityId,
+            customerName: accountName || prev.customerName,
+            salesCompanyId: resolvedCompId,
+            salesCompanyName: cName,
+            salesCompanyCode: cCode,
+            customerAccountKind: richAccount.kind || richAccount.accountKind || "",
+            customerAccountIsControl: richAccount.isControlAccount ?? richAccount.is_control_account ?? false,
+            customerAccountCurrentBalance: richAccount.currentBalance ?? richAccount.current_balance ?? 0,
+            customerAccountOpeningBalance: richAccount.openingBalance ?? richAccount.opening_balance ?? 0,
+            customerAccountStatus: richAccount.status || "active",
+            customerAccountSerialNumber: richAccount.accountSerialNumber ?? richAccount.account_serial_number ?? "",
+            customerAccountCountrySerialNumber: richAccount.countrySerialNumber ?? richAccount.country_serial_number ?? "",
+            customerAccountBranchSerialNumber: richAccount.branchSerialNumber ?? richAccount.branch_serial_number ?? "",
+            customerAccountManualReferenceNumber: richAccount.manualReferenceNumber ?? richAccount.manual_reference_number ?? "",
+            customerAccountMobile: richAccount.mobile ?? richAccount.customers?.mobile ?? "",
+            customerAccountWhatsapp: richAccount.whatsapp ?? richAccount.customers?.whatsapp ?? "",
+          }
+        : {
+            salesAccountNo: accountNo,
+            salesAccountName: accountName,
+            salesAccountBranch: branchName,
+            salesAccountCurrency: currency || prev.salesAccountCurrency || prev.salesCurrency || prev.secondaryCurrency || "PKR",
+            salesAccountLedgerId: entityId,
+            salesCompanyId: resolvedCompId,
+            salesCompanyName: cName,
+            salesCompanyCode: cCode,
+            salesAccountKind: richAccount.kind || richAccount.accountKind || "",
+            salesAccountIsControl: richAccount.isControlAccount ?? richAccount.is_control_account ?? false,
+            salesAccountCurrentBalance: richAccount.currentBalance ?? richAccount.current_balance ?? 0,
+            salesAccountOpeningBalance: richAccount.openingBalance ?? richAccount.opening_balance ?? 0,
+            salesAccountStatus: richAccount.status || "active",
+            salesAccountSerialNumber: richAccount.accountSerialNumber ?? richAccount.account_serial_number ?? "",
+            salesAccountCountrySerialNumber: richAccount.countrySerialNumber ?? richAccount.country_serial_number ?? "",
+            salesAccountBranchSerialNumber: richAccount.branchSerialNumber ?? richAccount.branch_serial_number ?? "",
+            salesAccountManualReferenceNumber: richAccount.manualReferenceNumber ?? richAccount.manual_reference_number ?? "",
+            salesAccountMobile: richAccount.mobile ?? richAccount.customers?.mobile ?? "",
+            salesAccountWhatsapp: richAccount.whatsapp ?? richAccount.customers?.whatsapp ?? "",
+          })
+    }));
+
+    if (type === "purchase") {
+      setPurchaseSearch("");
+    } else {
+      setSalesSearch("");
+    }
+  };
+
+  const lookupTimers = React.useRef({ purchase: null, sales: null });
+
+  const triggerBackgroundLookup = async (type, query) => {
+    if (!query || query.trim().length < 2) return;
+    try {
+      const account = await lookupAccountMaster(query, form.countryId, form.countryBranchId, form.cityBranchId, isSuperAdmin);
+      if (account) {
+        applyAccountMaster(type, account);
+      }
+    } catch (err) {
+      console.error("Background lookup failed:", err);
+    }
+  };
+
+  const handleTextChange = (type, val) => {
+    if (type === "purchase") {
+      setPurchaseSearch(val);
+      setPurchaseDropdownOpen(true);
+      if (!val.trim()) {
+        setForm((prev) => ({
+          ...prev,
+          customerAccountNo: "",
+          customerAccountName: "",
+          customerAccountBranch: "",
+          customerAccountCurrency: "",
+          customerAccountKind: "",
+          customerAccountIsControl: false,
+          customerAccountCurrentBalance: 0,
+          customerAccountOpeningBalance: 0,
+          customerAccountStatus: "active",
+          customerAccountSerialNumber: "",
+          customerAccountCountrySerialNumber: "",
+          customerAccountBranchSerialNumber: "",
+          customerAccountManualReferenceNumber: "",
+          customerAccountMobile: "",
+          customerAccountWhatsapp: "",
+        }));
+      }
+    } else if (type === "sales") {
+      setSalesSearch(val);
+      setSalesDropdownOpen(true);
+      if (!val.trim()) {
+        setForm((prev) => ({
+          ...prev,
+          salesAccountNo: "",
+          salesAccountName: "",
+          salesAccountBranch: "",
+          salesAccountCurrency: "",
+          salesAccountKind: "",
+          salesAccountIsControl: false,
+          salesAccountCurrentBalance: 0,
+          salesAccountOpeningBalance: 0,
+          salesAccountStatus: "active",
+          salesAccountSerialNumber: "",
+          salesAccountCountrySerialNumber: "",
+          salesAccountBranchSerialNumber: "",
+          salesAccountManualReferenceNumber: "",
+          salesAccountMobile: "",
+          salesAccountWhatsapp: "",
+        }));
+      }
+    } else {
+      setValue(type, val);
+    }
+
+    const matched = dbAccounts.find(acc =>
+      accountMatchesScope(acc) && (
+        (acc.accountCode || "").trim().toLowerCase() === val.trim().toLowerCase() ||
+        (acc.manualReferenceNumber || "").trim().toLowerCase() === val.trim().toLowerCase() ||
+        (acc.customerNumber || "").trim().toLowerCase() === val.trim().toLowerCase() ||
+        (acc.accountName || "").trim().toLowerCase() === val.trim().toLowerCase()
+      )
+    );
+
+    if (matched) {
+      applyAccountMaster(type, matched);
+    } else {
+      if (lookupTimers.current[type]) {
+        clearTimeout(lookupTimers.current[type]);
+      }
+      lookupTimers.current[type] = setTimeout(() => {
+        triggerBackgroundLookup(type, val);
+      }, 500);
+    }
+  };
+
+  const handleAccountLookup = async (type) => {
+    const query = type === "purchase"
+      ? (customerSearch || form.customerAccountNo)
+      : (salesSearch || form.salesAccountNo);
+    setAccountLookupLoading(type);
+    setAccountLookupMessage("");
+    try {
+      const account = await lookupAccountMaster(query, form.countryId, form.countryBranchId, form.cityBranchId, isSuperAdmin);
+      if (!account) {
+        setAccountLookupMessage(`Account not found: ${query}.`);
+        return;
+      }
+      applyAccountMaster(type, account);
+      setAccountLookupMessage(
+        `${type === "purchase" ? "Customer" : "Sales"} account loaded: ${account.accountName}`
+      );
+    } catch (error) {
+      setAccountLookupMessage(error instanceof Error ? error.message : "Account lookup failed.");
+    } finally {
+      setAccountLookupLoading(null);
+    }
+  };
+
+  // Fetch session & countries on load
+  useEffect(() => {
+    let cancelled = false;
+    async function initSession() {
+      if (session) return; // Use prop session if available
+      try {
+        const response = await fetch("/api/erp/auth/session");
+        const payload = await response.json();
+        const sessionRes = payload?.data || payload;
+        if (!cancelled && sessionRes) {
+          setLocalSession(sessionRes);
+          const sScopes = sessionRes.scopes || sessionRes || {};
+          const isSup = sScopes.isSuperAdmin;
+          const userCountryId = (!isSup && sScopes.countryIds?.[0]) ? sScopes.countryIds[0] : null;
+          const userCountryBranchId = (!isSup && sScopes.countryBranchIds?.[0]) ? sScopes.countryBranchIds[0] : null;
+          const userCityBranchId = (!isSup && sScopes.cityBranchIds?.[0]) ? sScopes.cityBranchIds[0] : null;
+
+          setForm((prev) => ({
+            ...prev,
+            userName: sessionRes.user?.fullName || sessionRes.fullName || prev.userName,
+            userId: sessionRes.user?.id || sessionRes.userId || prev.userId,
+            countryId: userCountryId || prev.countryId,
+            countryBranchId: userCountryBranchId || prev.countryBranchId,
+            cityBranchId: userCityBranchId || prev.cityBranchId
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to load session:", err);
+      }
+    }
+    async function initCountries() {
+      try {
+        const response = await fetch("/api/erp/locations/countries");
+        const res = await response.json();
+        const countriesData = res?.data?.countries || res?.countries;
+        if (!cancelled && countriesData) {
+          setCountries(countriesData);
+          if (countriesData.length === 1) {
+            setForm(prev => ({ ...prev, countryId: prev.countryId || countriesData[0].id }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load countries:", err);
+      }
+    }
+    async function initAllCountries() {
+      try {
+        const response = await fetch("/api/erp/locations/countries?all=true&limit=500");
+        const res = await response.json();
+        const countriesData = res?.data?.countries || res?.countries;
+        if (!cancelled && countriesData) {
+          setAllCountries(countriesData);
+        }
+      } catch (err) {
+        console.error("Failed to load all countries:", err);
+      }
+    }
+    async function initGoods() {
+      try {
+        const response = await fetch("/api/erp/goods?limit=500");
+        const res = await response.json();
+        const goodsData = res?.data?.goods || res?.goods;
+        if (!cancelled && goodsData) {
+          setDbGoods(goodsData);
+        }
+      } catch (err) {
+        console.error("Failed to load goods master:", err);
+      }
+    }
+    async function initCompanies() {
+      try {
+        const response = await fetch("/api/erp/companies?limit=100");
+        const res = await response.json();
+        const companiesData = res?.data?.companies || res?.companies;
+        if (!cancelled && companiesData) {
+          setDbCompanies(companiesData);
+        }
+      } catch (err) {
+        console.error("Failed to load companies:", err);
+      }
+    }
+    async function initAccounts() {
+      try {
+        const response = await fetch("/api/erp/accounting/accounts?limit=1000");
+        const res = await response.json();
+        if (!cancelled && res?.data?.accounts) {
+          setDbAccounts(res.data.accounts.map(mapEnterpriseAccount));
+        }
+      } catch (err) {
+        console.error("Failed to load accounts:", err);
+      }
+    }
+    async function initPorts() {
+      try {
+        const [loadRes, recRes] = await Promise.all([
+          fetch("/api/erp/ports/loading?all=true&limit=500"),
+          fetch("/api/erp/ports/received?all=true&limit=500")
+        ]);
+        const loadJson = await loadRes.json();
+        const recJson = await recRes.json();
+        const loadPorts = loadJson?.data?.ports || loadJson?.ports;
+        const recPorts = recJson?.data?.ports || recJson?.ports;
+        if (!cancelled && loadPorts) {
+          setDbLoadingPorts(loadPorts);
+        }
+        if (!cancelled && recPorts) {
+          setDbReceivedPorts(recPorts);
+        }
+      } catch (err) {
+        console.error("Failed to load ports master data:", err);
+      }
+    }
+    initSession();
+    initCountries();
+    initAllCountries();
+    initGoods();
+    initAccounts();
+    initPorts();
+    initCompanies();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadScopedAccounts() {
+      try {
+        const params = new URLSearchParams({ limit: "500" });
+        if (form.countryId) params.set("countryId", form.countryId);
+        if (form.countryBranchId) params.set("countryBranchId", form.countryBranchId);
+        if (form.cityBranchId) params.set("cityBranchId", form.cityBranchId);
+        params.set("limit", "1000");
+        const response = await fetch(`/api/erp/accounting/accounts?${params.toString()}`, { cache: "no-store" });
+        const res = await response.json();
+        if (!cancelled && res?.data?.accounts) {
+          setDbAccounts(res.data.accounts.map(mapEnterpriseAccount));
+        }
+      } catch (err) {
+        console.error("Failed to load scoped accounts:", err);
+      }
+    }
+    loadScopedAccounts();
+    return () => { cancelled = true; };
+  }, [form.countryId, form.countryBranchId, form.cityBranchId, isSuperAdmin]);
+
+  // Load Main Branches (Country Branches) when countryId changes
+  useEffect(() => {
+    let cancelled = false;
+    const countryId = form.countryId;
+    if (!countryId) {
+      setMainBranches([]);
+      return;
+    }
+    async function loadCountryBranches() {
+      try {
+        const res = await fetch(`/api/branch-management/country-branches?countryId=${encodeURIComponent(countryId)}`).then(r => r.json());
+        const list = Array.isArray(res?.countryBranches) ? res.countryBranches : [];
+        if (!cancelled) {
+          setMainBranches(list);
+          if (list.length === 1 && !form.countryBranchId) {
+            setForm(prev => ({ ...prev, countryBranchId: list[0].id }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load country branches:", err);
+      }
+    }
+    loadCountryBranches();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.countryId]);
+
+  // Load City Branches when countryId or countryBranchId changes
+  useEffect(() => {
+    let cancelled = false;
+    const countryId = form.countryId;
+    const countryBranchId = form.countryBranchId;
+    if (!countryId) {
+      setCityBranches([]);
+      return;
+    }
+    async function loadCityBranches() {
+      try {
+        const queryParams = new URLSearchParams({ countryId });
+        if (countryBranchId) queryParams.append("countryBranchId", countryBranchId);
+        const res = await fetch(`/api/branch-management/city-branches?${queryParams.toString()}`).then(r => r.json());
+        const list = Array.isArray(res?.cityBranches) ? res.cityBranches : [];
+        if (!cancelled) {
+          setCityBranches(list);
+          if (list.length === 1 && !form.cityBranchId) {
+            setForm(prev => ({ ...prev, cityBranchId: list[0].id }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load city branches:", err);
+      }
+    }
+    loadCityBranches();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.countryId, form.countryBranchId]);
+
+  // Sync Branch Code and Name for Branch Serial display and generate formatted Bill No
+  useEffect(() => {
+    let selectedBranch = null;
+    if (form.cityBranchId && cityBranches.length > 0) {
+      selectedBranch = cityBranches.find(cb => cb.id === form.cityBranchId);
+    } else if (form.countryBranchId && mainBranches.length > 0) {
+      selectedBranch = mainBranches.find(b => b.id === form.countryBranchId);
+    }
+
+    if (selectedBranch) {
+      const codeBase = selectedBranch.code || "BR";
+      const suffix = form.salesOrderNo ? form.salesOrderNo.split("-").pop() : "0000";
+
+      const parts = codeBase.split("-");
+      let serialPrefix = codeBase;
+      let cityCode = "CITY";
+      if (parts.length >= 3) {
+        serialPrefix = parts.slice(0, 2).join("-");
+        cityCode = parts[1];
+      } else if (parts.length === 2) {
+        cityCode = parts[1];
+      }
+
+      const country = transitCountryOptions.find(c => String(c.id) === String(form.countryId));
+      const countryPrefix = country ? (country.iso2 || country.name.substring(0, 2).toUpperCase()) : "CT";
+
+      setForm(prev => {
+        const newCode = `${serialPrefix}-${suffix}`;
+        const newName = selectedBranch.name || selectedBranch.city_name || prev.branchName;
+        const branchNameWord = newName ? newName.split(" ")[0].toUpperCase() : cityCode;
+        const newBillNo = `${branchNameWord}-${suffix}`;
+
+        if (prev.branchCode === newCode && prev.branchName === newName && prev.billNo === newBillNo && prev.branchCountry === (country?.name || "")) return prev;
+        return {
+          ...prev,
+          branchName: newName,
+          branchCode: newCode,
+          billNo: newBillNo,
+          branchCountry: country ? country.name : ""
+        };
+      });
+    }
+  }, [form.countryId, form.countryBranchId, form.cityBranchId, mainBranches, cityBranches, form.salesOrderNo, transitCountryOptions]);
+
+  // Set initial scope fields for scoped users
+  useEffect(() => {
+    if (!activeSession) return;
+    if (activeSession.isSuperAdmin || activeSession.scopes?.isSuperAdmin) return;
+
+    const cid = activeSession.countryIds?.[0] || activeSession.scopes?.countryIds?.[0] || "";
+    const bid = activeSession.countryBranchIds?.[0] || activeSession.scopes?.countryBranchIds?.[0] || "";
+    const cbid = activeSession.cityBranchIds?.[0] || activeSession.scopes?.cityBranchIds?.[0] || "";
+
+    setForm(prev => {
+      const next = {
+        ...prev,
+        countryId: prev.countryId || cid,
+        countryBranchId: prev.countryBranchId || bid,
+        cityBranchId: prev.cityBranchId || cbid
+      };
+      return next.countryId === prev.countryId && next.countryBranchId === prev.countryBranchId && next.cityBranchId === prev.cityBranchId ? prev : next;
+    });
+  }, [activeSession?.id, activeSession?.userId, activeSession?.countryIds?.[0], activeSession?.countryBranchIds?.[0], activeSession?.cityBranchIds?.[0], activeSession?.scopes?.countryIds?.[0], activeSession?.scopes?.countryBranchIds?.[0], activeSession?.scopes?.cityBranchIds?.[0], activeSession?.isSuperAdmin, activeSession?.scopes?.isSuperAdmin]);
+
+  // Load existing sales order if salesOrderNo or id is in URL query parameters
+  useEffect(() => {
+    if (!activeSession) return;
+    const soNo = searchParams.get("salesOrderNo");
+    const orderId = searchParams.get("id") || searchParams.get("salesOrderId");
+    if (!soNo && !orderId) return;
+    setIsFormOpen(true);
+
+    let cancelled = false;
+
+    async function loadSO() {
+      setSavingOrder(true);
+      setSaveMessage("Loading sales order details...");
+      try {
+        let soData = null;
+        if (orderId) {
+          const res = await fetch(`/api/erp/sales/orders/${encodeURIComponent(orderId)}`, {
+            credentials: "same-origin"
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (res.ok && payload.ok) {
+            soData = payload.data?.order ?? payload.order ?? null;
+          } else {
+            throw new Error(payload?.error?.message || payload?.error || "Failed to load sales order by ID.");
+          }
+        } else if (soNo) {
+          soData = await lookupSalesBookingReport(
+            soNo,
+            activeSession.countryIds?.[0] || activeSession.scopes?.countryIds?.[0] || null,
+            activeSession.countryBranchIds?.[0] || activeSession.scopes?.countryBranchIds?.[0] || null,
+            activeSession.cityBranchIds?.[0] || activeSession.scopes?.cityBranchIds?.[0] || null,
+            isSuperAdmin
+          );
+        }
+
+        if (cancelled) return;
+
+        if (soData) {
+          const rawFormData = soData.form_data || {};
+          const loadedForm = rawFormData.form || {};
+          const loadedGoods = rawFormData.goodsEntries || [];
+
+          const soNumber = soData.sales_order_no || soData.salesBookingOrderNumber || loadedForm.salesOrderNo || soNo || "";
+          const contractNumber = soData.sales_contract_no || soData.salesContractNo || loadedForm.salesContractNo || "";
+
+          setSavedOrderId(soData.id || orderId || "");
+          setSavedOrderNo(soNumber);
+
+          const mergedCountryId = loadedForm.countryId || soData.country_id || soData.countryId || "";
+          const mergedCountryBranchId = loadedForm.countryBranchId || soData.country_branch_id || soData.countryBranchId || soData.branch_id || soData.branchId || "";
+          const mergedCityBranchId = loadedForm.cityBranchId || soData.city_branch_id || soData.cityBranchId || "";
+
+          setForm((prev) => ({
+            ...prev,
+            ...loadedForm,
+            countryId: mergedCountryId,
+            countryBranchId: mergedCountryBranchId,
+            cityBranchId: mergedCityBranchId,
+            salesOrderNo: soNumber,
+            salesContractNo: contractNumber,
+          }));
+          setScopeConfirmed(true);
+
+          if (loadedForm.customerAccountName || loadedForm.customerAccountNo) {
+            setPurchaseSearch(loadedForm.customerAccountName || loadedForm.customerAccountNo || "");
+          }
+          if (loadedForm.salesAccountName || loadedForm.salesAccountNo) {
+            setSalesSearch(loadedForm.salesAccountName || loadedForm.salesAccountNo || "");
+          }
+
+          if (Array.isArray(loadedGoods) && loadedGoods.length) {
+            setGoodsEntries(loadedGoods);
+          }
+
+          setIsTransferred(false);
+          setTransferredData(null);
+          setActiveTab("booking");
+          setSaveMessage("Sales order loaded successfully.");
+        } else {
+          setSaveMessage(`Sales order not found.`);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setSaveMessage(err instanceof Error ? err.message : "Error loading sales order.");
+      } finally {
+        if (!cancelled) setSavingOrder(false);
+      }
+    }
+
+    loadSO();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    searchParams.get("salesOrderNo"),
+    searchParams.get("id"),
+    searchParams.get("salesOrderId"),
+    !!activeSession
+  ]);
+
+  const buildSalesOrderPayload = (salesStatus = "Draft", customOrderNo = null) => {
+    const usdRate = Number(form.exchangeRate || 1);
+
+    const customerAccount = dbAccounts.find(acc => acc.accountCode === form.customerAccountNo);
+    const salesAccount = dbAccounts.find(acc => acc.accountCode === form.salesAccountNo);
+
+    return {
+      countryId: form.countryId || null,
+      countryBranchId: form.countryBranchId || null,
+      cityBranchId: form.cityBranchId || null,
+      customerAccountId: form.salesAccountLedgerId || null,
+      customerLedgerId: form.customerAccountLedgerId || null,
+      salesOrderNo: customOrderNo || form.salesOrderNo,
+      salesContractNo: form.salesContractNo || form.salesOrderNo,
+      orderDate: form.salesDate || new Date().toISOString().slice(0, 10),
+      customerName: form.customerAccountName || null,
+      accountNumber: form.customerAccountNo || null,
+      manualReferenceNumber: form.customerAccountManualReferenceNumber || null,
+      customerNumber: customerAccount?.customerNumber || null,
+      quantity: reportTotals.totalQty || 0,
+      totalWeight: reportTotals.totalNet || 0,
+      currencyCode: form.salesCurrency || "USD",
+      exchangeRate: usdRate,
+      orderTotal: reportTotals.grandFinal || reportTotals.grandPrimaryFinal || 0,
+      paidAmount: isTransferred ? (reportTotals.grandFinal || reportTotals.grandPrimaryFinal || 0) : 0,
+      remainingAmount: isTransferred ? 0 : (reportTotals.grandFinal || reportTotals.grandPrimaryFinal || 0),
+      salesStatus: salesStatus.toLowerCase(),
+      paymentStatus: isTransferred ? "completed" : "pending",
+      deliveryStatus: "pending",
+      formData: {
+        form,
+        totals: reportTotals,
+        goodsEntries: goodsEntries,
+        reports: reportsList,
+        workflow: {
+          currentStep: isTransferred ? "sales_transfer_payment" : "booking_sales_order",
+          nextStep: isTransferred ? "Post Payment" : "Booking Confirm",
+          bookingStatus: "Saved",
+          confirmationStatus: isTransferred ? "Confirmed" : "Pending",
+          journalStatus: isTransferred ? "Posted" : "Pending",
+          paymentStatus: isTransferred ? "completed" : "Pending",
+          savedAt: new Date().toISOString(),
+        },
+        savedAt: new Date().toISOString()
+      }
+    };
+  };
+
+  const handleSaveSalesOrder = async (shouldClose = false) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setSavingOrder(true);
+    setSaveMessage("");
+    try {
+      const nextOrderNo = (form.salesOrderNo || "").trim();
+      const response = await fetch(savedOrderId ? `/api/erp/sales/orders/${savedOrderId}` : "/api/erp/sales/orders", {
+        method: savedOrderId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildSalesOrderPayload("Draft", nextOrderNo))
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        const errDetails = payload?.error?.details ? JSON.stringify(payload.error.details) : "";
+        throw new Error(`${payload?.error?.message || payload?.error || "Sales order failed to save."} ${errDetails}`);
+      }
+      const returnedOrderId = payload.data?.salesOrderId || savedOrderId || payload.data?.id;
+      const returnedOrderNo = payload.data?.salesOrderNo || savedOrderNo || form.salesOrderNo;
+      setSavedOrderId(returnedOrderId || "");
+      setSavedOrderNo(returnedOrderNo);
+      setSaveMessage(`Successfully saved Sales Order: ${returnedOrderNo}.`);
+      setRegisterRefreshKey((key) => key + 1);
+
+      if (shouldClose) {
+        setIsFormOpen(false);
+        handleReset();
+        if (searchParams.get("id") || searchParams.get("salesOrderNo")) {
+          router.push("/dashboard/sales/sales-booking-register");
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error saving order.";
+      setSaveMessage(msg);
+      alert(msg);
+    } finally {
+      setSavingOrder(false);
+      isSubmittingRef.current = false;
+    }
+  };
+
+  const handleTransfer = async () => {
+    setSavingOrder(true);
+    setSaveMessage("");
+    try {
+      const nextOrderNo = (form.salesOrderNo || "").trim();
+      const transferPayload = buildSalesOrderPayload("Pending", nextOrderNo);
+      const response = await fetch(savedOrderId ? `/api/erp/sales/orders/${savedOrderId}` : "/api/erp/sales/orders", {
+        method: savedOrderId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(transferPayload)
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        const errDetails = payload?.error?.details ? JSON.stringify(payload.error.details) : "";
+        throw new Error(`${payload?.error?.message || payload?.error || "Sales order failed to save."} ${errDetails}`);
+      }
+      const returnedOrderId = payload.data?.salesOrderId || savedOrderId || payload.data?.id;
+      const returnedOrderNo = payload.data?.salesOrderNo || savedOrderNo || form.salesOrderNo;
+
+      if (returnedOrderId) {
+        const transferResponse = await fetch(`/api/erp/sales/orders/${returnedOrderId}/transfer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        });
+        const transferPayloadData = await transferResponse.json().catch(() => ({}));
+        if (!transferResponse.ok || !transferPayloadData.ok) {
+          throw new Error(transferPayloadData?.error?.message || transferPayloadData?.error || "Roznamcha/Ledger Transfer failed.");
+        }
+      }
+
+      setSavedOrderId(returnedOrderId || "");
+      setSavedOrderNo(returnedOrderNo);
+      setSaveMessage(`Transferred Sales Order ${returnedOrderNo} to Journal / Payment and ledger posting.`);
+      setTransferredData(payload.data || { salesOrderNo: returnedOrderNo });
+      setIsTransferred(true);
+      setRegisterRefreshKey((key) => key + 1);
+
+      window.location.href = `/dashboard/journal/sales-order-payment/advance?salesOrderNo=${encodeURIComponent(returnedOrderNo)}`;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error saving order.";
+      setSaveMessage(msg);
+      alert(msg);
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  const handleOpenA4Report = (autoPrint = false) => {
+    const firstGoodName = goodsEntries[0]?.goodsName || "Cargo";
+    const firstQtyUnit = goodsEntries[0]?.qtyName || "BAGS";
+    const rawRemarks = form.remarks || form.orderReportRemarks || "";
+
+    const reportData = {
+      id: savedOrderId || "new-temp",
+      salesBookingOrderNumber: form.salesOrderNo,
+      salesDate: form.salesDate,
+      bookingDate: form.salesDate,
+      salesAccountName: form.salesAccountName,
+      salesAccountNumber: form.salesAccountNo,
+      purchaseAccountName: form.customerAccountName,
+      purchaseAccountNumber: form.customerAccountNo,
+      supplierName: form.salesAccountName || "N/A",
+      customerName: form.customerAccountName || "N/A",
+      productName: firstGoodName,
+      goodsDescription: rawRemarks,
+      quantity: reportTotals.totalQty,
+      unit: firstQtyUnit,
+      totalWeight: reportTotals.totalNet,
+      containerCount: form.containerCount || 0,
+      salesRate: avgRateKg,
+      totalSalesAmount: reportTotals.grandPrimaryFinal,
+      currency: form.currencyType,
+      status: isTransferred ? "Posted" : "Pending",
+      paymentStatus: isTransferred ? "completed" : "pending",
+      branchName: form.branchName || "Main Branch",
+      countryName: form.branchCountry || "Country",
+      createdAt: new Date().toISOString(),
+      totalGrossWeight: reportTotals.totalGross,
+      totalNetWeight: reportTotals.totalNet,
+      salesAmount: reportTotals.grandPrimaryFinal,
+      finalAmount: reportTotals.grandFinal,
+      form_data: { form, goodsEntries },
+      audit: {
+        userName: form.userName || "Admin User",
+        userId: form.userId || "USR-1001",
+        branchCode: form.branchCode || "BR-KBL-001"
+      }
+    };
+
+    openSalesA4ReportWindow({
+      title: "Sales Booking Order",
+      subtitle: "DGT Accounts Sales Registry",
+      salesData: reportData,
+      autoPrint
+    });
+  };
+
+  const handleReset = () => {
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    setForm({
+      ...DEFAULT_FORM,
+      salesOrderNo: `SO-2026-${randomSuffix}`,
+      salesContractNo: `SC-2026-${randomSuffix}`,
+      billNo: `BILL-${randomSuffix}`,
+    });
+    setGoodsEntries([]);
+    setReportsList([]);
+    setSavedOrderId("");
+    setSavedOrderNo("");
+    setIsTransferred(false);
+    setTransferredData(null);
+    setSaveMessage("All inputs and goods listings cleared.");
+  };
+
+  const handleNewReportSubmit = (e) => {
+    e.preventDefault();
+    if (!newReportForm.name.trim()) {
+      alert("Report name is required.");
+      return;
+    }
+    const newReport = {
+      id: crypto.randomUUID(),
+      name: newReportForm.name,
+      description: newReportForm.description,
+      notes: newReportForm.notes,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const updatedReports = [...reportsList, newReport];
+    setReportsList(updatedReports);
+    setSelectedReportId(newReport.id);
+    setNewReportForm({ name: "", description: "", notes: "" });
+    setIsNewReportModalOpen(false);
+
+    if (savedOrderId) {
+      setTimeout(() => {
+        handleSaveSalesOrder(false);
+      }, 100);
+    }
+  };
+
+  const handleDeleteReport = (id) => {
+    if (!window.confirm("Are you sure you want to delete this report?")) return;
+    const updatedReports = reportsList.filter(r => r.id !== id);
+    setReportsList(updatedReports);
+    if (selectedReportId === id) setSelectedReportId("");
+    if (savedOrderId) {
+      setTimeout(() => {
+        handleSaveSalesOrder(false);
+      }, 100);
+    }
+  };
+
+  const handleAddGoodsEntry = async () => {
+    const searchName = (form.goodsName || "").trim().toUpperCase();
+    if (!searchName) {
+      alert("Please select or enter Goods Name before adding an item to the list.");
+      return;
+    }
+    const selectedGood = dbGoods.find(g =>
+      (g.goods_name || g.goodsName || "").trim().toUpperCase() === searchName
+    );
+    const sizeStr = (form.size || "").trim();
+    const brandStr = (form.brand || "").trim();
+
+    if (selectedGood && sizeStr && brandStr) {
+      const hasVar = (selectedGood.variations || []).some(v => 
+        (v.size || "").trim().toUpperCase() === sizeStr.toUpperCase() &&
+        (v.brand || "").trim().toUpperCase() === brandStr.toUpperCase()
+      );
+      if (!hasVar) {
+        fetch("/api/erp/goods/variations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            goodsId: selectedGood.id,
+            size: sizeStr.toUpperCase(),
+            brand: brandStr.toUpperCase()
+          })
+        }).then(res => res.json())
+          .then(data => {
+            if (data.ok) {
+              fetch("/api/erp/goods?limit=500")
+                .then(r => r.json())
+                .then(reloadRes => {
+                  const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+                  if (goodsData) setDbGoods(goodsData);
+                }).catch(() => {});
+            }
+          }).catch(() => {});
+      }
+    }
+
+    const calculated = calculateItemTotals(form);
+    setGoodsEntries((prev) => [
+      ...prev,
+      {
+        allotName: form.allotName || `ALT-${Math.floor(1000 + Math.random() * 9000)}`,
+        goodsName: form.goodsName,
+        size: form.size || "-",
+        brand: form.brand || "-",
+        origin: form.origin || "-",
+        hsCode: form.hsCode || "-",
+        qtyName: form.qtyName || "BAGS",
+        qtyNo: Number(form.qtyNo || 0),
+        qtyKgs: Number(form.qtyKgs || 0),
+        grossWeight: calculated.grossWeight,
+        emptyKgs: Number(form.emptyKgs || 0),
+        netWeight: calculated.netWeight,
+        priceType: form.priceType || "P/KGs",
+        divideType: form.divideType || "D/KGs",
+        divideWeight: Number(form.divideWeight || 1),
+        coursePrice: Number(form.coursePrice || 0),
+        currencyType: form.currencyType || "USD",
+        purchaseCurrency: form.purchaseCurrency || form.currencyType || "USD",
+        exchangeRate: Number(form.exchangeRate || 1),
+        totalAmount: form.manualTotalAmount !== undefined && form.manualTotalAmount !== "" ? Number(form.manualTotalAmount) : calculated.totalAmount,
+        op: form.operator || "*",
+        finalAmount: form.manualFinalAmount !== undefined && form.manualFinalAmount !== "" ? Number(form.manualFinalAmount) : calculated.finalAmount
+      }
+    ]);
+    setSaveMessage("Item added to live report draft list.");
+    // Clear/reset item fields
+    setForm((prev) => ({
+      ...prev,
+      goodsName: "",
+      size: "",
+      brand: "",
+      origin: "",
+      hsCode: "",
+      qtyNo: 0,
+      qtyKgs: 0,
+      emptyKgs: 0,
+      netWeight: "",
+      coursePrice: 0,
+      allotName: `ALT-${Math.floor(4424 + Math.random() * 1000)}`,
+      manualTotalAmount: "",
+      manualFinalAmount: ""
+    }));
+  };
+
+  const handleViewGoodsEntry = (index) => {
+    const row = goodsEntries[index];
+    alert(`View Item:
+
+Goods: ${row.goodsName}
+Brand: ${row.brand}
+Size: ${row.size}
+Origin: ${row.origin}
+Qty: ${row.qtyNo} ${row.qtyName}
+Price: ${row.coursePrice} ${row.currencyType}
+Amount: ${row.totalAmount.toLocaleString()} ${row.currencyType}`);
+  };
+
+  const handleEditGoodsEntry = (index) => {
+    const row = goodsEntries[index];
+    setForm((prev) => ({
+      ...prev,
+      goodsName: row.goodsName,
+      size: row.size,
+      brand: row.brand,
+      origin: row.origin,
+      hsCode: row.hsCode,
+      qtyName: row.qtyName,
+      qtyNo: row.qtyNo,
+      qtyKgs: row.qtyKgs,
+      emptyKgs: row.emptyKgs,
+      netWeight: row.netWeight,
+      priceType: row.priceType,
+      divideType: row.divideType,
+      divideWeight: row.divideWeight,
+      coursePrice: row.coursePrice,
+      currencyType: row.currencyType,
+      salesCurrency: row.purchaseCurrency || row.salesCurrency,
+      exchangeRate: row.exchangeRate,
+      operator: row.op,
+      allotName: row.allotName,
+      manualTotalAmount: row.totalAmount,
+      manualFinalAmount: row.finalAmount
+    }));
+    setGoodsEntries((prev) => prev.filter((_, idx) => idx !== index));
+    setActiveTab("goods");
+    setSaveMessage("Item moved to form for editing.");
+  };
+
+  const handleAddNewCountry = async () => {
+    const { name } = newCountryForm;
+    if (!name.trim()) {
+      setNewCountryError("Country name is required.");
+      return;
+    }
+    setNewCountryLoading(true);
+    setNewCountryError("");
+    try {
+      const trimmed = name.trim();
+      const iso2 = trimmed.slice(0, 2).toUpperCase();
+      const iso3 = trimmed.slice(0, 3).toUpperCase();
+      const code = iso2.toLowerCase();
+      const response = await fetch("/api/erp/locations/countries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmed,
+          iso2,
+          iso3,
+          currencyCode: "USD",
+          officialEmail: `official.${code}@dgtllc.com`,
+          adminEmail: `admin.${code}@dgtllc.com`,
+          whatsappNumber: null
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || "Failed to create country.");
+      }
+      const created = payload.data?.country;
+      if (created) {
+        setAllCountries(prev => [...prev, created]);
+        if (newCountryForm.targetField === "loadingCountry") {
+          setValue("loadingCountry", created.name);
+          setValue("originCountry", created.name);
+          setValue("origin", created.name);
+        } else if (newCountryForm.targetField === "receivingCountry") {
+          setValue("receivingCountry", created.name);
+          setValue("receivedCountry", created.name);
+          setValue("destinationCountry", created.name);
+        } else if (newGoodModal) {
+          setNewGoodForm(p => ({ ...p, originCountryId: created.id }));
+        } else if (customVariationModal) {
+          setCustomVariationForm(p => ({ ...p, originCountryId: created.id }));
+        } else {
+          setValue("origin", created.name);
+        }
+      }
+      const reloadRes = await fetch("/api/erp/locations/countries?all=true&limit=500").then(r => r.json()).catch(() => ({}));
+      const countriesData = reloadRes?.data?.countries || reloadRes?.countries;
+      if (countriesData) setAllCountries(countriesData);
+      setNewCountryModal(false);
+      setNewCountryForm({ name: "" });
+      setSaveMessage(`Country "${trimmed}" saved to master.`);
+    } catch (err) {
+      setNewCountryError(err instanceof Error ? err.message : "Failed to create country.");
+    } finally {
+      setNewCountryLoading(false);
+    }
+  };
+
+  const handleAddNewGood = async () => {
+    const { goodsName, chsCode } = newGoodForm;
+    if (!goodsName.trim() || !chsCode.trim()) {
+      setNewGoodError("Goods name and HS code are required.");
+      return;
+    }
+    setNewGoodLoading(true);
+    setNewGoodError("");
+    try {
+      const response = await fetch("/api/erp/goods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goodsName: goodsName.trim().toUpperCase(),
+          chsCode: chsCode.trim(),
+          originalLanguage: "en"
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || "Failed to create good.");
+      }
+      const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
+      const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+      if (goodsData) setDbGoods(goodsData);
+      setValue("goodsName", goodsName.trim().toUpperCase());
+      setValue("hsCode", chsCode.trim());
+      setNewGoodModal(false);
+      setNewGoodForm({ goodsName: "", chsCode: "" });
+      setSaveMessage(`Good "${goodsName.trim().toUpperCase()}" saved to master.`);
+    } catch (err) {
+      setNewGoodError(err instanceof Error ? err.message : "Failed to create good.");
+    } finally {
+      setNewGoodLoading(false);
+    }
+  };
+
+  const openCreateAccountModal = (type) => {
+    const defaultName = type === "purchase"
+      ? (customerDetail ? (customerDetail.customer_name ? `${customerDetail.customer_name} (${customerDetail.company_name})` : customerDetail.customer_name) : (form.customerName || ""))
+      : (sellerDetail ? (sellerDetail.customer_name ? `${sellerDetail.customer_name} (${sellerDetail.company_name})` : sellerDetail.customer_name) : (form.customerName || ""));
+
+    setCreateAccountType(type);
+    setCreateAccountForm({
+      code: "AUTO",
+      name: defaultName,
+      kind: type === "purchase" ? "asset" : "revenue",
+      currency: form.currencyType || "USD",
+      parentId: "",
+      isControlAccount: false
+    });
+    setCreateAccountError("");
+    setCreateAccountModalOpen(true);
+  };
+
+  const handleAddNewAccount = async () => {
+    const { code, name, kind, currency, parentId, isControlAccount } = createAccountForm;
+    if (!name.trim() || !code.trim()) {
+      setCreateAccountError("Account name and code are required.");
+      return;
+    }
+    setCreateAccountLoading(true);
+    setCreateAccountError("");
+
+    try {
+      const scope = form.cityBranchId ? "city_branch" : form.countryBranchId ? "main_branch" : form.countryId ? "country" : "super_admin";
+      const payload = {
+        scope,
+        countryId: form.countryId || null,
+        countryBranchId: form.countryBranchId || null,
+        cityBranchId: form.cityBranchId || null,
+        parentId: parentId || null,
+        customerId: form.customerId || null,
+        code: code.trim(),
+        manualReferenceNumber: null,
+        name: name.trim(),
+        kind,
+        currency: currency.toUpperCase(),
+        openingBalance: 0,
+        isControlAccount
+      };
+
+      const response = await fetch("/api/erp/accounting/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const payloadData = await response.json().catch(() => ({}));
+      if (!response.ok || !payloadData.ok) {
+        throw new Error(payloadData?.error?.message || payloadData?.error || "Failed to create account.");
+      }
+
+      const reloadRes = await fetch("/api/erp/accounting/accounts?limit=1000").then(r => r.json()).catch(() => ({}));
+      if (reloadRes?.data?.accounts) {
+        const mapped = reloadRes.data.accounts.map(mapEnterpriseAccount);
+        setDbAccounts(mapped);
+
+        const createdAcc = mapped.find(acc => acc.accountCode === payloadData.accountCode);
+        if (createdAcc) {
+          applyAccountMaster(createAccountType, createdAcc);
+        } else {
+          applyAccountMaster(createAccountType, {
+            accountCode: payloadData.accountCode,
+            accountName: name.trim(),
+            cityBranchName: "",
+            ledgerCurrency: currency.toUpperCase(),
+            customerId: payload.customerId
+          });
+        }
+      }
+
+      setCreateAccountModalOpen(false);
+    } catch (err) {
+      setCreateAccountError(err instanceof Error ? err.message : "Failed to create account.");
+    } finally {
+      setCreateAccountLoading(false);
+    }
+  };
+
+  const handleAddNewCompany = async () => {
+    const { name, legalName, baseCurrency } = createCompanyForm;
+    if (!name.trim()) {
+      setCreateCompanyError("Company name is required.");
+      return;
+    }
+    setCreateCompanyLoading(true);
+    setCreateCompanyError("");
+
+    try {
+      const lang = (typeof document !== "undefined" ? document.documentElement.lang : "en") || "en";
+      const originalLanguage = ["ar", "ur", "fa", "ps"].includes(lang) ? lang : "en";
+
+      const response = await fetch("/api/erp/companies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          legalName: legalName.trim() || name.trim(),
+          baseCurrency: baseCurrency || "USD",
+          originalLanguage
+        })
+      });
+
+      const payloadData = await response.json().catch(() => ({}));
+      if (!response.ok || !payloadData.ok) {
+        throw new Error(payloadData?.error?.message || payloadData?.error || "Failed to create company.");
+      }
+
+      const createdId = payloadData.companyId || payloadData.data?.companyId;
+      const finalName = name.trim();
+      const finalCode = "COM-" + finalName.slice(0, 3).toUpperCase();
+
+      const reloadRes = await fetch("/api/erp/companies?limit=100").then(r => r.json()).catch(() => ({}));
+      const companiesData = reloadRes?.data?.companies || reloadRes?.companies;
+      if (companiesData) {
+        setDbCompanies(companiesData);
+      } else {
+        setDbCompanies(prev => [...prev, { id: createdId, name: finalName, legal_name: legalName.trim() || finalName }]);
+      }
+
+      if (createCompanyType === "purchase") {
+        setValue("purchaseCompanyId", createdId);
+        setValue("purchaseCompanyName", finalName);
+        setValue("purchaseCompanyCode", finalCode);
+      } else {
+        setValue("salesCompanyId", createdId);
+        setValue("salesCompanyName", finalName);
+        setValue("salesCompanyCode", finalCode);
+      }
+
+      setCreateCompanyModalOpen(false);
+      setCreateCompanyForm({ name: "", legalName: "", baseCurrency: "USD" });
+      setSaveMessage(`Company "${finalName}" created successfully.`);
+    } catch (err) {
+      setCreateCompanyError(err instanceof Error ? err.message : "Failed to create company.");
+    } finally {
+      setCreateCompanyLoading(false);
+    }
+  };
+
+  const handleSaveCustomVariation = async () => {
+    const { goodsName, brand, size } = customVariationForm;
+    if (!brand.trim() || !size.trim()) {
+      alert("Please fill both Brand and Size.");
+      return;
+    }
+
+    const searchName = goodsName?.trim().toUpperCase() || "";
+    const selectedGood = dbGoods.find(g => {
+      const gName = (g.goods_name || g.goodsName || "").trim().toUpperCase();
+      return gName === searchName;
+    });
+
+    let targetGoodsId = null;
+
+    if (!selectedGood) {
+      setSavingOrder(true);
+      setSaveMessage(`Creating new Good "${searchName}" in master...`);
+      try {
+        let baseCode = searchName.substring(0, 10).trim();
+        let finalCode = baseCode;
+        let suffix = 1;
+        while (dbGoods.some(g => (g.chs_code || g.chsCode || "").trim().toUpperCase() === finalCode.toUpperCase())) {
+          const suffixStr = `-${suffix}`;
+          finalCode = `${baseCode.substring(0, 10 - suffixStr.length)}${suffixStr}`;
+          suffix++;
+        }
+
+        const createRes = await fetch("/api/erp/goods", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            goodsName: searchName,
+            chsCode: finalCode,
+            originalLanguage: "en",
+            initialVariation: {
+              size: size.trim().toUpperCase(),
+              brand: brand.trim().toUpperCase()
+            }
+          })
+        });
+        const createData = await createRes.json().catch(() => ({}));
+        if (!createRes.ok || !createData.ok) {
+          throw new Error(createData?.error?.message || createData?.error || "Failed to create Good in master.");
+        }
+        targetGoodsId = createData.goodsId || createData.data?.goodsId;
+      } catch (err) {
+        setSavingOrder(false);
+        alert(err instanceof Error ? err.message : "Error creating Good.");
+        return;
+      }
+    } else {
+      targetGoodsId = selectedGood.id;
+      setSavingOrder(true);
+      setSaveMessage(`Registering variation ${brand.trim().toUpperCase()} - ${size.trim().toUpperCase()}...`);
+      try {
+        const response = await fetch("/api/erp/goods/variations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            goodsId: targetGoodsId,
+            size: size.trim().toUpperCase(),
+            brand: brand.trim().toUpperCase()
+          })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload?.error?.message || payload?.error || "Failed to save variation.");
+        }
+      } catch (err) {
+        setSavingOrder(false);
+        alert(err instanceof Error ? err.message : "Error saving variation.");
+        return;
+      }
+    }
+
+    try {
+      const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
+      const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+      if (goodsData) {
+        setDbGoods(goodsData);
+      }
+
+      setValue("brand", brand.trim().toUpperCase());
+      setValue("size", size.trim().toUpperCase());
+
+      const good = goodsData?.find((g) => g.id === targetGoodsId);
+      if (good?.origin_country_id) {
+        const matching = transitCountryOptions.find(c => c.id === good.origin_country_id);
+        if (matching) {
+          setValue("origin", matching.name);
+        }
+      }
+      setCustomVariationModal(false);
+      setSaveMessage(`Variation "${brand.trim().toUpperCase()} - ${size.trim().toUpperCase()}" saved successfully.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error saving variation.");
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  const handleUpdateHsCode = async () => {
+    const selectedGood = dbGoods.find(g => (g.goods_name || g.goodsName || "").trim().toUpperCase() === (form.goodsName || "").trim().toUpperCase());
+    if (!selectedGood) return;
+    
+    setSavingOrder(true);
+    setSaveMessage("Updating HS Code...");
+    try {
+      const response = await fetch(`/api/erp/goods/${selectedGood.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chsCode: form.hsCode })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(data?.error || data?.error?.message || "Failed to update HS Code.");
+      
+      const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
+      const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+      if (goodsData) setDbGoods(goodsData);
+      
+      setSaveMessage("HS Code updated successfully.");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error updating HS Code.");
+    } finally {
+      setSavingOrder(false);
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
+  };
+
+  const handleAddNewVariationItem = async (type) => {
+    const selectedGood = dbGoods.find(g => (g.goods_name || g.goodsName || "").trim().toUpperCase() === (form.goodsName || "").trim().toUpperCase());
+    if (!selectedGood) {
+       alert(`Please select a Good first before adding a new ${type}.`);
+       return;
+    }
+    
+    const value = window.prompt(`Enter New ${type === 'brand' ? 'Brand' : 'Size'}:`);
+    if (!value || !value.trim()) return;
+    
+    setSavingOrder(true);
+    setSaveMessage(`Saving new ${type}...`);
+    try {
+      const response = await fetch("/api/erp/goods/variations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goodsId: selectedGood.id,
+          size: type === 'size' ? value.trim().toUpperCase() : (form.size || "-").trim().toUpperCase(),
+          brand: type === 'brand' ? value.trim().toUpperCase() : (form.brand || "-").trim().toUpperCase()
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || payload?.error || `Failed to save ${type}.`);
+      }
+      
+      const reloadRes = await fetch("/api/erp/goods?limit=500").then(r => r.json()).catch(() => ({}));
+      const goodsData = reloadRes?.data?.goods || reloadRes?.goods;
+      if (goodsData) setDbGoods(goodsData);
+      
+      setValue(type, value.trim().toUpperCase());
+      setSaveMessage(`New ${type} saved successfully.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : `Error saving ${type}.`);
+    } finally {
+      setSavingOrder(false);
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
+  };
+
+  const handleAddNewLocationItem = async (type, targetField) => {
+    const value = window.prompt(`Enter New ${type === 'country' ? 'Country' : 'Port'} Name:`);
+    if (!value || !value.trim()) return;
+    const trimmed = value.trim();
+
+    setSavingOrder(true);
+    setSaveMessage(`Saving new ${type}...`);
+
+    try {
+      if (type === "country") {
+        const iso2 = trimmed.slice(0, 2).toUpperCase();
+        const iso3 = trimmed.slice(0, 3).toUpperCase();
+        const code = iso2.toLowerCase();
+        
+        const response = await fetch("/api/erp/locations/countries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: trimmed,
+            iso2,
+            iso3,
+            currencyCode: "USD",
+            officialEmail: `official.${code}@dgtllc.com`,
+            adminEmail: `admin.${code}@dgtllc.com`,
+            whatsappNumber: null
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || payload?.error || "Failed to create country.");
+        
+        const reloadRes = await fetch("/api/erp/locations/countries?all=true&limit=500").then(r => r.json()).catch(() => ({}));
+        const countriesData = reloadRes?.data?.countries || reloadRes?.countries;
+        if (countriesData) setAllCountries(countriesData);
+        
+        if (targetField === "loadingCountry") {
+          setValue("loadingCountry", trimmed);
+          setValue("originCountry", trimmed);
+          setValue("origin", trimmed);
+          setValue("loadingPort", "");
+          setValue("loadingLocation", "");
+        } else if (targetField === "receivingCountry") {
+          setValue("receivingCountry", trimmed);
+          setValue("receivedCountry", trimmed);
+          setValue("destinationCountry", trimmed);
+          setValue("receivingPort", "");
+          setValue("destinationPort", "");
+          setValue("receivedPort", "");
+        }
+      } else if (type === "port") {
+        let countryName = "";
+        let isReceiving = false;
+        if (targetField === "loadingPort") {
+           countryName = form.loadingCountry;
+        } else if (targetField === "receivingPort") {
+           countryName = form.receivingCountry;
+           isReceiving = true;
+        }
+        
+        const countryObj = allCountries.find(c => c.name === countryName);
+        const countryId = countryObj ? countryObj.id : null;
+        
+        const transportTypeMapping = {
+          "By Sea": "sea",
+          "By Road": "road",
+          "By Air": "air"
+        };
+        const transportType = transportTypeMapping[form.shippingMode] || "sea";
+
+        const endpoint = isReceiving ? "/api/erp/ports/received" : "/api/erp/ports/loading";
+        
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            portName: trimmed,
+            countryId: countryId,
+            portCode: trimmed.slice(0, 3).toUpperCase(),
+            transportType: transportType,
+            isActive: true
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload?.error?.message || payload?.error || "Failed to create port.");
+
+        const [loadRes, recRes] = await Promise.all([
+          fetch("/api/erp/ports/loading?all=true&limit=500"),
+          fetch("/api/erp/ports/received?all=true&limit=500")
+        ]);
+        const loadPorts = await loadRes.json().then(r => r?.data?.ports || r?.ports).catch(() => null);
+        const recPorts = await recRes.json().then(r => r?.data?.ports || r?.ports).catch(() => null);
+        
+        if (loadPorts) setDbLoadingPorts(loadPorts);
+        if (recPorts) setDbReceivedPorts(recPorts);
+
+        if (targetField === "loadingPort") {
+          setValue("loadingPort", trimmed);
+          setValue("loadingLocation", trimmed);
+          if (form.shippingMode === "By Air") setValue("airportName", trimmed);
+          if (form.shippingMode === "By Road") setValue("loadingBorder", trimmed);
+        } else if (targetField === "receivingPort") {
+          setValue("receivingPort", trimmed);
+          setValue("destinationPort", trimmed);
+          setValue("receivedPort", trimmed);
+          if (form.shippingMode === "By Air") setValue("destinationAirportName", trimmed);
+          if (form.shippingMode === "By Road") setValue("receivingBorder", trimmed);
+        }
+      }
+      
+      setSaveMessage(`New ${type} saved successfully.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : `Error saving ${type}.`);
+    } finally {
+      setSavingOrder(false);
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
+  };
+
   const [customerPinDropdownOpen, setPurchasePinDropdownOpen] = useState(false);
   const [salesPinDropdownOpen, setSalesPinDropdownOpen] = useState(false);
   const [companySelectOpen, setPurchaseCompanySelectOpen] = useState(false);
@@ -905,6 +2499,41 @@ export function SalesOrderWizard({ session }) {
                    </div>
                 </div>
               </div>
+
+              {/* Card 4: Customer Account Details */}
+              <div className="bg-card border border-border shadow-sm rounded-xl p-3.5 hover:shadow-md hover:border-primary/30 transition duration-200">
+                <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-border/60">
+                  <span className="p-1 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-950/30">
+                    <ArrowDownLeft className="h-3.5 w-3.5" />
+                  </span>
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Customer Account (DR)</h4>
+                </div>
+                <div className="space-y-1.5 text-[10px]">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Account Code:</span>
+                    <span className="font-bold text-foreground truncate block font-mono text-right" title={form.customerAccountNo}>{form.customerAccountNo || "N/A"}</span>
+                  </div>
+                  <div className="space-y-0.5 pt-1">
+                    <span className="text-muted-foreground block text-[9px]">Account Name:</span>
+                    <span className="font-semibold text-rose-700 dark:text-rose-400 block truncate text-xs" title={form.customerAccountName}>{form.customerAccountName || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between pt-1">
+                    <span className="text-muted-foreground">Branch:</span>
+                    <span className="font-semibold text-foreground truncate" title={form.customerAccountBranch}>{form.customerAccountBranch || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between pt-0.5">
+                    <span className="text-muted-foreground">Currency:</span>
+                    <span className="font-bold text-foreground">{form.customerAccountCurrency || form.salesCurrency || form.secondaryCurrency || "-"}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-0.5 border-t border-border/20 mt-1">
+                    <span className="text-muted-foreground font-semibold">Company:</span>
+                    <span className="font-bold text-foreground truncate max-w-[120px] text-[8.5px] text-right font-mono" title={form.salesCompanyName || "None"}>
+                      {form.salesCompanyName || "None"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -1051,6 +2680,117 @@ export function SalesOrderWizard({ session }) {
                   >
                     Actions <ChevronDown className="h-3 w-3" />
                   </Button>
+
+                  {viewDropdownOpen && (
+                    <div className="absolute right-0 top-8.5 w-48 rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewDropdownOpen(false);
+                          handleReset();
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                      >
+                        <span className="h-3.5 w-3.5 flex items-center justify-center font-bold text-sm text-primary">+</span>
+                        <span>New Booking</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewDropdownOpen(false);
+                          setGoodsEntries([]);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 text-left transition"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        <span>Clear Goods</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewDropdownOpen(false);
+                          setIsFormOpen(false);
+                          handleReset();
+                          if (searchParams.get("id") || searchParams.get("salesOrderNo")) {
+                            router.push("/dashboard/sales/sales-booking-register");
+                          }
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900 text-left transition border-b border-border/40 pb-2 mb-1"
+                      >
+                        <X className="h-3.5 w-3.5 text-slate-500" />
+                        <span>Close Form</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewDropdownOpen(false);
+                          window.print();
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition border-b border-border/40 pb-2 mb-1"
+                      >
+                        <Printer className="h-3.5 w-3.5 text-blue-500" />
+                        <span>Print Screen</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewDropdownOpen(false);
+                          setPreviewModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                      >
+                        <Eye className="h-3.5 w-3.5 text-sky-500" />
+                        <span>Open Large Preview</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewDropdownOpen(false);
+                          handleOpenA4Report(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition border-b border-border/40 pb-2 mb-1"
+                      >
+                        <Download className="h-3.5 w-3.5 text-blue-500" />
+                        <span>Open A4 / PDF Template</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewDropdownOpen(false);
+                          setReportSaved(!!form.orderReportRemarks);
+                          setIsTransferred(false);
+                          setActiveTab("report");
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition border-b border-border/40 pb-2 mb-1"
+                      >
+                        <Eye className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">View / Check Entry</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewDropdownOpen(false);
+                          handleSaveSalesOrder(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                      >
+                        <Save className="h-3.5 w-3.5 text-blue-500" />
+                        <span>Save Draft</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewDropdownOpen(false);
+                          handleSaveSalesOrder(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                      >
+                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        <span>Save & Close</span>
+                      </button>
+                    </div>
+                  )}
                 </div>,
                 actionsPortal
               )}
@@ -1109,6 +2849,117 @@ export function SalesOrderWizard({ session }) {
                 >
                   Actions <ChevronDown className="h-3 w-3" />
                 </Button>
+
+                {viewDropdownOpen && (
+                  <div className="absolute right-0 top-8.5 w-48 rounded-xl bg-card border border-border shadow-2xl z-50 p-1.5 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewDropdownOpen(false);
+                        handleReset();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                    >
+                      <span className="h-3.5 w-3.5 flex items-center justify-center font-bold text-sm text-primary">+</span>
+                      <span>New Booking</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewDropdownOpen(false);
+                        setGoodsEntries([]);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 text-left transition"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                      <span>Clear Goods</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewDropdownOpen(false);
+                        setIsFormOpen(false);
+                        handleReset();
+                        if (searchParams.get("id") || searchParams.get("salesOrderNo")) {
+                          router.push("/dashboard/sales/sales-booking-register");
+                        }
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900 text-left transition border-b border-border/40 pb-2 mb-1"
+                    >
+                      <X className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Close Form</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewDropdownOpen(false);
+                        window.print();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition border-b border-border/40 pb-2 mb-1"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-blue-500" />
+                      <span>Print Screen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewDropdownOpen(false);
+                        setPreviewModalOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-sky-500" />
+                      <span>Open Large Preview</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewDropdownOpen(false);
+                        handleOpenA4Report(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition border-b border-border/40 pb-2 mb-1"
+                    >
+                      <Download className="h-3.5 w-3.5 text-blue-500" />
+                      <span>Open A4 / PDF Template</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewDropdownOpen(false);
+                        setReportSaved(!!form.orderReportRemarks);
+                        setIsTransferred(false);
+                        setActiveTab("report");
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition border-b border-border/40 pb-2 mb-1"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">View / Check Entry</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewDropdownOpen(false);
+                        handleSaveSalesOrder(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                    >
+                      <Save className="h-3.5 w-3.5 text-blue-500" />
+                      <span>Save Draft</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewDropdownOpen(false);
+                        handleSaveSalesOrder(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted/80 text-left transition"
+                    >
+                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>Save & Close</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1132,12 +2983,266 @@ export function SalesOrderWizard({ session }) {
           )}
 
           {activeTab !== "report" && (
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mt-0 items-start">
-              <div className="lg:col-span-1 space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-0 items-start w-full">
+              <section className="lg:col-span-9 space-y-4 order-2 lg:order-2 mt-4">
+                {/* GLOBAL INFO CARDS (Always visible at top) */}
                 {renderGlobalInfoCards()}
-              </div>
 
-              <main className="space-y-3 flex flex-col order-1 lg:order-1 mt-0">
+                {/* LOT STOCK PANEL */}
+                {lotPanelOpen && (
+                  <div className="rounded-2xl border border-border bg-card p-4 shadow-sm animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3 border-b border-border pb-2">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Lot Stock Panel</p>
+                        <h4 className="text-sm font-black text-foreground">{selectedSaleSource.label}</h4>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={lotSearch}
+                          onChange={(e) => setLotSearch(e.target.value)}
+                          placeholder="Search lot no, goods, stock ref..."
+                          className="h-8 w-56 rounded-lg border border-input bg-background px-3 text-[10px] outline-none focus:border-primary"
+                        />
+                        <button type="button" onClick={() => setLotPanelOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-border">
+                      <table className="w-full text-[10px] text-foreground border-collapse text-left whitespace-nowrap">
+                        <thead className="bg-slate-950 text-white">
+                          <tr className="font-bold uppercase tracking-wider text-[9px]">
+                            <th className="px-3 py-2.5 text-left">Lot No</th>
+                            <th className="px-3 py-2.5 text-left">Goods / Brand</th>
+                            <th className="px-3 py-2.5 text-right">Available</th>
+                            <th className="px-3 py-2.5 text-right">Net KG</th>
+                            <th className="px-3 py-2.5 text-left">Location</th>
+                            <th className="px-3 py-2.5 text-left">Status</th>
+                            <th className="px-3 py-2.5 text-center w-36">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredSaleLots.map((lot) => {
+                            const isChecked = checkedLotNo === lot.lotNo;
+                            const deductions = MOCK_LOT_DEDUCTIONS[lot.lotNo] || [];
+                            const totalDeductedQty = deductions.reduce((sum, d) => sum + d.quantity, 0);
+                            const totalDeductedWeight = deductions.reduce((sum, d) => sum + d.weight, 0);
+                            const originalQty = lot.availableQty + totalDeductedQty;
+                            const originalWeight = lot.netWeight + totalDeductedWeight;
+                            return (
+                              <React.Fragment key={lot.lotNo}>
+                                <tr className="border-t border-border hover:bg-sky-50/50 transition">
+                                  <td className="px-3 py-2.5 font-black text-primary">
+                                    {lot.lotNo}
+                                    <div className="text-[9px] font-semibold text-muted-foreground font-mono">{lot.stockRef}</div>
+                                  </td>
+                                  <td className="px-3 py-2.5 font-bold text-foreground">
+                                    {lot.goodsName}
+                                    <div className="text-[9px] font-semibold text-muted-foreground">{lot.brand} / {lot.size} / {lot.origin}</div>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right font-black">{Number(lot.availableQty || 0).toLocaleString()} {lot.qtyName}</td>
+                                  <td className="px-3 py-2.5 text-right font-mono font-bold">{Number(lot.netWeight || 0).toLocaleString()}</td>
+                                  <td className="px-3 py-2.5 text-muted-foreground">{lot.location}</td>
+                                  <td className="px-3 py-2.5"><span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-700">{lot.status}</span></td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    <div className="flex gap-1.5 justify-center items-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          applySaleLot(lot);
+                                          setLotPanelOpen(false);
+                                        }}
+                                        className="rounded-lg bg-sky-600 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white shadow-sm hover:bg-sky-700 transition shrink-0"
+                                      >
+                                        Use Lot
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCheckedLotNo(checkedLotNo === lot.lotNo ? null : lot.lotNo);
+                                        }}
+                                        className="rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider transition shrink-0"
+                                      >
+                                        {checkedLotNo === lot.lotNo ? "Hide" : "Check Stock"}
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                                {isChecked && (
+                                  <tr className="bg-slate-50/70 border-t border-b border-slate-250 animate-in fade-in slide-in-from-top-1 duration-200">
+                                    <td colSpan={7} className="px-4 py-3 bg-slate-50/50">
+                                      <div className="space-y-2.5 max-w-[95%] mx-auto">
+                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1">
+                                          <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"></span>
+                                            Stock Utilization History & Balance for {lot.lotNo}
+                                          </h5>
+                                          <div className="text-[9px] font-bold text-slate-500">
+                                            Original Capacity: <span className="font-mono text-slate-800">{originalQty.toLocaleString()} {lot.qtyName}</span> ({originalWeight.toLocaleString()} KG)
+                                          </div>
+                                        </div>
+
+                                        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                                          <table className="w-full text-[9px] text-slate-700 border-collapse">
+                                            <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[8px] border-b border-slate-200">
+                                              <tr>
+                                                <th className="px-3 py-1.5 text-left">Transaction Ref</th>
+                                                <th className="px-3 py-1.5 text-left">Sale Date</th>
+                                                <th className="px-3 py-1.5 text-left">Customer / Debtor</th>
+                                                <th className="px-3 py-1.5 text-right">Qty Deducted</th>
+                                                <th className="px-3 py-1.5 text-right">Weight Deducted</th>
+                                                <th className="px-3 py-1.5 text-left">Status</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {/* Initial import/purchase record */}
+                                              <tr className="border-b border-slate-100 font-semibold bg-emerald-50/20 text-emerald-800">
+                                                <td className="px-3 py-1.5 font-mono">{lot.stockRef}</td>
+                                                <td className="px-3 py-1.5">Intake Date</td>
+                                                <td className="px-3 py-1.5 italic text-emerald-700">Initial Import / Stock Inbound</td>
+                                                <td className="px-3 py-1.5 text-right font-mono font-bold text-emerald-600">+{originalQty.toLocaleString()}</td>
+                                                <td className="px-3 py-1.5 text-right font-mono font-bold text-emerald-600">+{originalWeight.toLocaleString()} KG</td>
+                                                <td className="px-3 py-1.5"><span className="text-[8px] font-black uppercase bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded">Inbound</span></td>
+                                              </tr>
+
+                                              {/* Deduction history */}
+                                              {deductions.map((d, dIdx) => (
+                                                <tr key={dIdx} className="border-b border-slate-100 text-red-800 hover:bg-slate-50/50 transition">
+                                                  <td className="px-3 py-1.5 font-mono font-bold">{d.reference}</td>
+                                                  <td className="px-3 py-1.5">{d.date}</td>
+                                                  <td className="px-3 py-1.5 font-semibold text-slate-800">{d.customer}</td>
+                                                  <td className="px-3 py-1.5 text-right font-mono font-bold">-{d.quantity.toLocaleString()}</td>
+                                                  <td className="px-3 py-1.5 text-right font-mono font-bold">-{d.weight.toLocaleString()} KG</td>
+                                                  <td className="px-3 py-1.5"><span className="text-[8px] font-black uppercase bg-red-100 text-red-800 px-1 py-0.5 rounded">Sold Out</span></td>
+                                                </tr>
+                                              ))}
+
+                                              {/* Total Sold Summary row */}
+                                              {deductions.length > 0 && (
+                                                <tr className="bg-slate-50/50 border-t border-slate-150 font-bold">
+                                                  <td colSpan={3} className="px-3 py-1.5 text-right text-slate-500 uppercase tracking-wider text-[8px]">Total Outward Deductions:</td>
+                                                  <td className="px-3 py-1.5 text-right font-mono text-red-600 font-black">-{totalDeductedQty.toLocaleString()} {lot.qtyName}</td>
+                                                  <td className="px-3 py-1.5 text-right font-mono text-red-600 font-black">-{totalDeductedWeight.toLocaleString()} KG</td>
+                                                  <td className="px-3 py-1.5 text-slate-400 font-semibold">—</td>
+                                                </tr>
+                                              )}
+
+                                              {/* Net Remaining Balance row */}
+                                              <tr className="bg-sky-50 border-t border-slate-200 font-black text-sky-950">
+                                                <td colSpan={3} className="px-3 py-1.5 text-right uppercase tracking-wider text-[8px]">Net Available Balance:</td>
+                                                <td className="px-3 py-1.5 text-right font-mono text-[10px] font-black text-sky-700">{lot.availableQty.toLocaleString()} {lot.qtyName}</td>
+                                                <td className="px-3 py-1.5 text-right font-mono text-[10px] font-black text-sky-700">{lot.netWeight.toLocaleString()} KG</td>
+                                                <td className="px-3 py-1.5"><span className="text-[8px] font-black uppercase bg-sky-200 text-sky-800 px-1 py-0.5 rounded animate-pulse">Live Stock</span></td>
+                                              </tr>
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                          {filteredSaleLots.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground italic font-semibold">
+                                No lots found for this source.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* GOODS LIST TABLE */}
+                {(activeTab === "goods" || activeTab === "others") && (
+                  <div className="mt-4">
+                    <div className="overflow-x-auto rounded-lg border border-border bg-background shadow-sm">
+                      <table className="w-full text-[9px] text-foreground border-collapse text-left whitespace-nowrap">
+                        <thead>
+                          <tr className="bg-muted/80 text-muted-foreground border-b border-border font-bold uppercase tracking-wider">
+                            <th className="px-3 py-2.5 text-center w-8">#</th>
+                            <th className="px-3 py-2.5">Goods Name</th>
+                            <th className="px-3 py-2.5 text-center">Size</th>
+                            <th className="px-3 py-2.5 text-center">Brand</th>
+                            <th className="px-3 py-2.5 text-center">HS Code</th>
+                            <th className="px-3 py-2.5 text-center">Origin</th>
+                            <th className="px-3 py-2.5 text-right">Qty</th>
+                            <th className="px-3 py-2.5 text-center">Unit</th>
+                            <th className="px-3 py-2.5 text-right">Price ({form.currencyType || "USD"})</th>
+                            <th className="px-3 py-2.5 text-right">Amount ({form.currencyType || "USD"})</th>
+                            <th className="px-3 py-2.5 text-center">Ex. Rate</th>
+                            <th className="px-3 py-2.5 text-right bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Final ({form.secondaryCurrency || "PKR"})</th>
+                            <th className="px-3 py-2.5 text-center w-10">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {goodsEntries.length === 0 ? (
+                            <tr>
+                              <td colSpan={13} className="px-3 py-6 text-center text-muted-foreground italic font-semibold text-[10px]">
+                                No goods added yet. Add an item above to see it here.
+                              </td>
+                            </tr>
+                          ) : (
+                            goodsEntries.map((row, index) => (
+                              <tr key={index} className="border-t border-border hover:bg-muted/50 transition">
+                                <td className="px-3 py-2 text-center font-mono text-muted-foreground">{index + 1}</td>
+                                <td className="px-3 py-2 font-black text-primary">{row.goodsName}</td>
+                                <td className="px-3 py-2 text-center font-semibold">{row.size}</td>
+                                <td className="px-3 py-2 text-center font-semibold">{row.brand}</td>
+                                <td className="px-3 py-2 text-center font-mono text-muted-foreground">{row.hsCode}</td>
+                                <td className="px-3 py-2 text-center font-semibold">{row.origin}</td>
+                                <td className="px-3 py-2 text-right font-mono font-bold">{row.qtyNo.toLocaleString()}</td>
+                                <td className="px-3 py-2 text-center font-semibold">{row.qtyName}</td>
+                                <td className="px-3 py-2 text-right font-mono font-bold text-muted-foreground">{row.coursePrice.toFixed(2)}</td>
+                                <td className="px-3 py-2 text-right font-mono font-black text-yellow-600 dark:text-yellow-450">{row.totalAmount.toLocaleString()}</td>
+                                <td className="px-3 py-2 text-center font-mono text-muted-foreground">{row.op || "*"} {row.exchangeRate}</td>
+                                <td className="px-3 py-2 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
+                                  {row.finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleViewGoodsEntry(index)}
+                                      className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[9px] font-bold transition-colors"
+                                      title="View"
+                                    >
+                                      <Eye className="h-3 w-3" /> View
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditGoodsEntry(index)}
+                                      className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-[9px] font-bold transition-colors shadow-sm border border-blue-200"
+                                      title="Edit"
+                                    >
+                                      <Edit3 className="h-3 w-3" /> Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setGoodsEntries(prev => prev.filter((_, idx) => idx !== index))}
+                                      className="flex items-center gap-1 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded text-[9px] font-bold transition-colors shadow-sm border border-red-100"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-3 w-3" /> Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <main className="lg:col-span-3 space-y-3 flex flex-col order-1 lg:order-1 mt-4">
 
               {activeTab === "booking" && (
                 <fieldset disabled={isTransferred && !session?.scopes?.isSuperAdmin} className="space-y-3 order-2 w-full mt-0 rounded-2xl border border-border bg-card p-4 shadow-sm">
@@ -1396,161 +3501,58 @@ export function SalesOrderWizard({ session }) {
                     </h3>
                   </div>
                   
-                  <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-3 shadow-sm">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">Sale Source / Lot Selection</p>
-                        <h4 className="text-sm font-black text-foreground">Choose where this sale will be supplied from</h4>
-                        <p className="text-[10px] text-muted-foreground">Booking, in-transit loading, local purchase, warehouse stock, or endorse stock can be selected before goods entry.</p>
-                      </div>
+                  <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3.5 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700 font-bold mb-1">Sale Source / Lot Selection</p>
+                    <select
+                      value={form.saleSource || "booking"}
+                      onChange={(e) => openSaleSource(e.target.value)}
+                      className="w-full bg-background border border-input rounded px-3 py-2 text-foreground font-bold outline-none focus:border-primary text-xs h-10 mt-2 shadow-sm"
+                    >
+                      <option value="booking">Booking Sale (Fresh Booking)</option>
+                      <option value="in_transit">In-Transit Lot (Cargo on Route)</option>
+                      <option value="local">Local Purchase (Purchased Locally)</option>
+                      <option value="warehouse">Warehouse Stock (In Whse)</option>
+                      <option value="endorse">Endorse Stock (Traceable Stock)</option>
+                    </select>
+                    {form.saleSource && form.saleSource !== "booking" && (
                       <button
                         type="button"
-                        onClick={() => setLotPanelOpen((open) => !open)}
-                        className="h-8 rounded-lg border border-sky-300 bg-white px-3 text-[10px] font-black uppercase tracking-wider text-sky-700 shadow-sm hover:bg-sky-100"
+                        onClick={() => setLotPanelOpen(prev => !prev)}
+                        className="mt-2.5 w-full h-8 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded text-[10px] shadow transition uppercase tracking-wider"
                       >
-                        {lotPanelOpen ? "Close Lots" : "Open Lots"}
+                        {lotPanelOpen ? "Close Stock Panel" : "View / Open Stock Lots"}
                       </button>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                      {SALE_SOURCE_OPTIONS.map((option) => {
-                        const SourceIcon = option.icon;
-                        const isActive = (form.saleSource || "booking") === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => openSaleSource(option.value)}
-                            className={`min-h-[76px] rounded-xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow-md ${isActive ? "border-sky-400 bg-white shadow-sm ring-2 ring-sky-100" : "border-border bg-white/70 hover:border-sky-200"}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${isActive ? "bg-sky-600 text-white" : "bg-sky-100 text-sky-700"}`}>
-                                <SourceIcon className="h-3.5 w-3.5" />
-                              </span>
-                              <span className="text-[10px] font-black text-foreground">{option.label}</span>
-                            </div>
-                            <p className="mt-1 text-[9px] leading-4 text-muted-foreground">{option.description}</p>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Cargo / Lot Dropdown Selection */}
-                    {(form.saleSource && form.saleSource !== "booking") && (
-                      <div className="mt-3 p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
-                        <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                          Select {form.saleSource === "in_transit" ? "Transit Cargo (Lot)" : "Stock Lot"}
-                        </label>
-                        <div className="flex items-center gap-2 mt-1">
-                          <select
-                            value={selectedLotId}
-                            onChange={(e) => setSelectedLotId(e.target.value)}
-                            className="flex-1 bg-background border border-input rounded px-2.5 py-1 text-foreground outline-none focus:border-primary text-[10px] h-8"
-                          >
-                            <option value="">-- Choose {form.saleSource === "in_transit" ? "Cargo" : "Lot"} --</option>
-                            {MOCK_SALE_LOTS.filter(l => l.source === form.saleSource).map((lot) => (
-                              <option key={lot.lotNo} value={lot.lotNo}>
-                                {lot.lotNo} - {lot.goodsName} ({lot.availableQty} {lot.qtyName} available) - Ref: {lot.stockRef}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            disabled={!selectedLotId}
-                            onClick={() => setIsLotModalOpen(true)}
-                            className="h-8 bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 rounded text-[10px] disabled:opacity-50 transition shadow-sm"
-                          >
-                            OK
-                          </button>
-                        </div>
-                      </div>
                     )}
 
                     {selectedSaleLot ? (
-                      <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[10px] lg:grid-cols-5">
+                      <div className="mt-3 space-y-1.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[10px]">
                         <div>
-                          <p className="text-[9px] font-black uppercase text-emerald-700">Selected Lot</p>
-                          <p className="font-black text-foreground">{selectedSaleLot.lotNo}</p>
+                          <span className="text-emerald-700 font-bold block uppercase text-[8px]">Selected Lot:</span>
+                          <span className="font-black text-foreground text-xs">{selectedSaleLot.lotNo}</span>
                         </div>
-                        <div>
-                          <p className="text-[9px] font-black uppercase text-emerald-700">Goods</p>
-                          <p className="font-bold text-foreground">{selectedSaleLot.goodsName}</p>
+                        <div className="flex justify-between border-t border-emerald-100/50 pt-1.5">
+                          <span className="text-emerald-700 font-semibold">Goods:</span>
+                          <span className="font-bold text-foreground truncate max-w-[120px]">{selectedSaleLot.goodsName}</span>
                         </div>
-                        <div>
-                          <p className="text-[9px] font-black uppercase text-emerald-700">Available Qty</p>
-                          <p className="font-black text-foreground">{Number(selectedSaleLot.availableQty || 0).toLocaleString()} {selectedSaleLot.qtyName}</p>
+                        <div className="flex justify-between">
+                          <span className="text-emerald-700 font-semibold">Available Qty:</span>
+                          <span className="font-black text-foreground font-mono">{Number(selectedSaleLot.availableQty || 0).toLocaleString()} {selectedSaleLot.qtyName}</span>
                         </div>
-                        <div>
-                          <p className="text-[9px] font-black uppercase text-emerald-700">Net Weight</p>
-                          <p className="font-black text-foreground">{Number(selectedSaleLot.netWeight || 0).toLocaleString()} KG</p>
+                        <div className="flex justify-between">
+                          <span className="text-emerald-700 font-semibold">Net Weight:</span>
+                          <span className="font-black text-foreground font-mono">{Number(selectedSaleLot.netWeight || 0).toLocaleString()} KG</span>
                         </div>
-                        <div>
-                          <p className="text-[9px] font-black uppercase text-emerald-700">Stock Ref</p>
-                          <p className="font-bold text-foreground">{selectedSaleLot.stockRef}</p>
+                        <div className="flex justify-between">
+                          <span className="text-emerald-700 font-semibold">Stock Ref:</span>
+                          <span className="font-bold text-foreground font-mono">{selectedSaleLot.stockRef}</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="mt-3 rounded-xl border border-dashed border-sky-300 bg-white/60 px-3 py-2 text-[10px] font-semibold text-sky-700">
-                        Current source: {selectedSaleSource.label}. Open lots and select a lot number to auto-fill goods, quantity, weight, currency and rate.
-                      </div>
-                    )}
-
-                    {lotPanelOpen && (
-                      <div className="mt-3 rounded-2xl border border-border bg-white p-3 shadow-lg">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Lot Stock Panel</p>
-                            <h4 className="text-sm font-black text-foreground">{selectedSaleSource.label}</h4>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={lotSearch}
-                              onChange={(e) => setLotSearch(e.target.value)}
-                              placeholder="Search lot no, goods, stock ref..."
-                              className="h-8 w-56 rounded-lg border border-input bg-background px-3 text-[10px] outline-none focus:border-primary"
-                            />
-                            <button type="button" onClick={() => setLotPanelOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted">
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                      form.saleSource !== "booking" && (
+                        <div className="mt-3 rounded-xl border border-dashed border-sky-300 bg-white/60 p-2.5 text-[10px] font-semibold text-sky-700 leading-relaxed">
+                          Please open stock lots to copy and use an available cargo lot for this sales entry.
                         </div>
-                        <div className="mt-3 overflow-x-auto rounded-xl border border-border">
-                          <table className="min-w-[760px] w-full text-[10px]">
-                            <thead className="bg-slate-950 text-white">
-                              <tr>
-                                <th className="px-3 py-2 text-left">Lot No</th>
-                                <th className="px-3 py-2 text-left">Goods / Brand</th>
-                                <th className="px-3 py-2 text-right">Available</th>
-                                <th className="px-3 py-2 text-right">Net KG</th>
-                                <th className="px-3 py-2 text-left">Location</th>
-                                <th className="px-3 py-2 text-left">Status</th>
-                                <th className="px-3 py-2 text-center">Action</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {filteredSaleLots.map((lot) => (
-                                <tr key={lot.lotNo} className="border-t border-border hover:bg-sky-50">
-                                  <td className="px-3 py-2 font-black text-primary">{lot.lotNo}<div className="text-[9px] font-semibold text-muted-foreground">{lot.stockRef}</div></td>
-                                  <td className="px-3 py-2 font-bold text-foreground">{lot.goodsName}<div className="text-[9px] font-semibold text-muted-foreground">{lot.brand} / {lot.size} / {lot.origin}</div></td>
-                                  <td className="px-3 py-2 text-right font-black">{Number(lot.availableQty || 0).toLocaleString()} {lot.qtyName}</td>
-                                  <td className="px-3 py-2 text-right font-mono font-bold">{Number(lot.netWeight || 0).toLocaleString()}</td>
-                                  <td className="px-3 py-2 text-muted-foreground">{lot.location}</td>
-                                  <td className="px-3 py-2"><span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-700">{lot.status}</span></td>
-                                  <td className="px-3 py-2 text-center">
-                                    <button type="button" onClick={() => applySaleLot(lot)} className="rounded-lg bg-primary px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-primary-foreground shadow-sm hover:bg-primary/90">
-                                      Use Lot
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                              {filteredSaleLots.length === 0 && (
-                                <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">No lots found for this source.</td></tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                      )
                     )}
                   </div>
                   <div className="grid grid-cols-1 gap-3">
@@ -1659,13 +3661,51 @@ export function SalesOrderWizard({ session }) {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-muted-foreground mb-1">Allot Name / ID</label>
-                        <input
-                          type="text"
-                          value={form.allotName || ""}
-                          onChange={(e) => setValue("allotName", e.target.value)}
-                          className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
-                        />
+                        <label className="block text-[10px] text-muted-foreground mb-1 font-bold">Allot Name / ID</label>
+                        {form.saleSource && form.saleSource !== "booking" ? (
+                          <select
+                            value={form.allotName || ""}
+                            onChange={(e) => {
+                              const selectedLotNo = e.target.value;
+                              setValue("allotName", selectedLotNo);
+                              const lotObj = MOCK_SALE_LOTS.find(l => l.lotNo === selectedLotNo);
+                              if (lotObj) {
+                                applySaleLot(lotObj);
+                              } else {
+                                setForm(prev => ({
+                                  ...prev,
+                                  allotName: "",
+                                  stockLotNo: "",
+                                  goodsName: "",
+                                  brand: "",
+                                  size: "",
+                                  origin: "",
+                                  hsCode: "",
+                                  qtyNo: 0,
+                                  qtyKgs: 0,
+                                  netWeight: "",
+                                  coursePrice: 0
+                                }));
+                              }
+                            }}
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px] font-bold"
+                          >
+                            <option value="">-- Choose Lot --</option>
+                            {MOCK_SALE_LOTS.filter(l => l.source === form.saleSource).map((lot) => (
+                              <option key={lot.lotNo} value={lot.lotNo}>
+                                {lot.lotNo} - {lot.goodsName}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={form.allotName || ""}
+                            onChange={(e) => setValue("allotName", e.target.value)}
+                            placeholder="e.g. ALT-2003"
+                            className="w-full bg-background border border-input rounded px-2.5 py-1.5 text-foreground outline-none focus:border-primary text-[10px]"
+                          />
+                        )}
                       </div>
                     </div>
 
@@ -2268,212 +4308,369 @@ export function SalesOrderWizard({ session }) {
         )}
 
       {activeTab === "report" && (
-              <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50">
 
-                  {/* Transfer / Journal Status Block */}
-                  {isTransferred ? (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 shadow-sm">
-                        <div className="flex items-center gap-2 mb-2 border-b border-emerald-100 pb-2">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                          <h4 className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Transfer Completed</h4>
-                        </div>
-                        <p className="text-[9px] text-emerald-700 font-semibold mb-3 leading-relaxed">
-                          This bill has been automatically transferred and posted to the business journal (Roznamcha). All associated ledger accounts have been updated.
-                        </p>
+          {/* Top Review Header Banner */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div>
+              <h2 className="text-base font-black text-slate-900 uppercase tracking-wider">Sales Booking Order – Final Review & Approval</h2>
+              <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Please review all information carefully before final approval. You can approve, send back for edit, or request changes.</p>
+            </div>
+            <div className="flex gap-2.5">
+              <Button
+                type="button"
+                onClick={() => handleOpenA4Report(false)}
+                className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-[10px] font-bold h-9 px-3 rounded-lg shadow-sm flex items-center gap-1.5"
+              >
+                <Download className="h-3.5 w-3.5 text-slate-500" />
+                Download Review Report (PDF)
+              </Button>
+              <Button
+                type="button"
+                onClick={() => window.print()}
+                className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-[10px] font-bold h-9 px-3 rounded-lg shadow-sm flex items-center gap-1.5"
+              >
+                <Printer className="h-3.5 w-3.5 text-slate-500" />
+                Print Review
+              </Button>
+            </div>
+          </div>
 
-                        <div className="space-y-1.5 text-[9px] font-mono bg-white/60 p-2 rounded border border-emerald-100/50">
-                          <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">General Serial No:</span> <span className="font-bold text-emerald-900">{form.generalSerialNumber || `GSN-${new Date().getFullYear()}-0001`}</span></div>
-                          <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Roznamcha (Journal) No:</span> <span className="font-bold text-emerald-900">{form.journalNumber || `JRN-${new Date().getFullYear()}-8821`}</span></div>
-                          <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Branch Roznamcha No:</span> <span className="font-bold text-emerald-900">{form.branchJournalNumber || `BR-JRN-402`}</span></div>
-                          <div className="flex justify-between"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Cash Entry Serial:</span> <span className="font-bold text-emerald-900">{form.cashEntrySerial || `CE-9921`}</span></div>
-                          <div className="flex justify-between border-t border-emerald-100/50 pt-1 mt-1"><span className="text-emerald-700/80 uppercase font-sans font-bold text-[8px]">Business Entry Ref:</span> <span className="font-bold text-emerald-900 uppercase">{form.businessEntryRef || `BUS-ENT-PURCHASE`}</span></div>
-                        </div>
-                      </div>
-                  ) : (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CheckCircle2 className="h-4 w-4 text-amber-600" />
-                        <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-800">Pending Transfer</h4>
-                      </div>
-                      <p className="text-[9px] text-amber-700 font-semibold mt-1">
-                        This booking is pending verification. Once transferred, the journal (Roznamcha) and serial details will automatically appear here.
-                      </p>
-                    </div>
+          {/* Alert Success bar */}
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-3.5 flex items-center gap-3 text-[10px] font-bold shadow-sm">
+            <span className="h-6 w-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs font-black">✓</span>
+            All information has been saved successfully and is ready for final review.
+          </div>
+
+          {/* Grid Layout Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            
+            {/* 1. Branch & Booking Info */}
+            <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-[10px]">
+              <h3 className="font-black text-slate-800 border-b border-slate-100 pb-1.5 mb-2.5 uppercase flex items-center gap-2">
+                <span className="w-4 h-4 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[8px]">1</span>
+                Branch Information
+              </h3>
+              <div className="grid grid-cols-[90px_1fr] gap-x-2 gap-y-1.5">
+                <span className="text-slate-400 font-semibold">Country:</span><span className="font-bold text-slate-800">{form.branchCountry || "Pakistan"}</span>
+                <span className="text-slate-400 font-semibold">Main Branch:</span><span className="font-bold text-slate-800">{form.branchName || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">City Branch:</span><span className="font-bold text-slate-800">{form.branchName || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Branch Code:</span><span className="font-bold text-slate-800">{form.branchCode || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">User Admin:</span><span className="font-bold text-slate-800">{form.userName || "ADMIN"}</span>
+                <span className="text-slate-400 font-semibold">User ID:</span><span className="font-bold text-slate-800 font-mono">{form.userId || "USR-1001"}</span>
+                <span className="text-slate-400 font-semibold">Currency:</span><span className="font-bold text-slate-800">{form.salesCurrency || "PKR"}</span>
+                <span className="text-slate-400 font-semibold">Status:</span><span className="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[8px] font-black uppercase w-max">{isTransferred ? "Active" : "Draft"}</span>
+                <span className="text-slate-400 font-semibold">Established Date:</span><span className="font-bold text-slate-800">{form.salesDate}</span>
+              </div>
+            </div>
+
+            {/* 2. Address & Logistics */}
+            <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-[10px]">
+              <h3 className="font-black text-slate-800 border-b border-slate-100 pb-1.5 mb-2.5 uppercase flex items-center gap-2">
+                <span className="w-4 h-4 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[8px]">2</span>
+                Logistics & Routing
+              </h3>
+              <div className="grid grid-cols-[90px_1fr] gap-x-2 gap-y-1.5">
+                <span className="text-slate-400 font-semibold">Loading Mode:</span><span className="font-bold text-slate-800">{form.salesLoadingMode || "By Sea"}</span>
+                <span className="text-slate-400 font-semibold">Contract No:</span><span className="font-bold text-slate-800">{form.salesContractNo || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Port of Loading:</span><span className="font-bold text-slate-800">{form.salesPortOfLoading || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Port of Discharge:</span><span className="font-bold text-slate-800">{form.salesPortOfDischarge || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Destination Country:</span><span className="font-bold text-slate-800">{form.salesDestinationCountry || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Origin Country:</span><span className="font-bold text-slate-800">{form.origin || "Pakistan"}</span>
+                <span className="text-slate-400 font-semibold">Delivery Term:</span><span className="font-bold text-slate-800">{form.deliveryTerm || "CFR"}</span>
+              </div>
+            </div>
+
+            {/* 3. Customer Account (DR) */}
+            <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-[10px]">
+              <h3 className="font-black text-slate-800 border-b border-slate-100 pb-1.5 mb-2.5 uppercase flex items-center gap-2">
+                <span className="w-4 h-4 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[8px]">3</span>
+                Customer Account (DR)
+              </h3>
+              <div className="grid grid-cols-[90px_1fr] gap-x-2 gap-y-1.5">
+                <span className="text-slate-400 font-semibold">Account Code:</span><span className="font-bold text-slate-800 font-mono">{form.customerAccountNo || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Account Name:</span><span className="font-bold text-slate-800">{form.customerAccountName || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Branch:</span><span className="font-bold text-slate-800">{form.customerAccountBranch || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Currency:</span><span className="font-bold text-slate-800">{form.salesCurrency || "PKR"}</span>
+                <span className="text-slate-400 font-semibold">Company:</span><span className="font-bold text-slate-800">{form.salesCompanyName || "None"}</span>
+                <span className="text-slate-400 font-semibold">Email:</span><span className="font-bold text-slate-800 truncate" title={form.customerAccountEmail}>{form.customerAccountEmail || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">WhatsApp:</span><span className="font-bold text-slate-800">{form.customerAccountWhatsapp || "N/A"}</span>
+              </div>
+            </div>
+
+            {/* 4. Sales Account (CR) */}
+            <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-[10px]">
+              <h3 className="font-black text-slate-800 border-b border-slate-100 pb-1.5 mb-2.5 uppercase flex items-center gap-2">
+                <span className="w-4 h-4 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[8px]">4</span>
+                Sales Account (CR)
+              </h3>
+              <div className="grid grid-cols-[90px_1fr] gap-x-2 gap-y-1.5">
+                <span className="text-slate-400 font-semibold">Account Code:</span><span className="font-bold text-slate-800 font-mono">{form.salesAccountNo || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Account Name:</span><span className="font-bold text-slate-800">{form.salesAccountName || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Branch:</span><span className="font-bold text-slate-800">{form.salesAccountBranch || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Currency:</span><span className="font-bold text-slate-800">{form.salesCurrency || "PKR"}</span>
+                <span className="text-slate-400 font-semibold">Company:</span><span className="font-bold text-slate-800">{form.salesCompanyName || "None"}</span>
+                <span className="text-slate-400 font-semibold">Email:</span><span className="font-bold text-slate-800 truncate" title={form.salesAccountEmail}>{form.salesAccountEmail || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">WhatsApp:</span><span className="font-bold text-slate-800">{form.salesAccountWhatsapp || "N/A"}</span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Row 2 Grid Cards */}
+          <div className="grid gap-4 md:grid-cols-3">
+
+            {/* 5. Roles & Permissions Summary */}
+            <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-[10px]">
+              <h3 className="font-black text-slate-800 border-b border-slate-100 pb-1.5 mb-2.5 uppercase flex items-center gap-2">
+                <span className="w-4 h-4 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[8px]">5</span>
+                Roles & Permissions
+              </h3>
+              <table className="w-full text-left text-[9px] mt-1">
+                <thead>
+                  <tr className="border-b border-slate-150 text-slate-400 font-bold uppercase tracking-wider">
+                    <th className="pb-1.5">Role Name</th>
+                    <th className="pb-1.5">Users</th>
+                    <th className="pb-1.5 text-right">Permissions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold">
+                  <tr><td className="py-1">Branch Admin</td><td className="py-1">2</td><td className="py-1 text-right text-blue-600">Full Access</td></tr>
+                  <tr><td className="py-1">Accountant</td><td className="py-1">3</td><td className="py-1 text-right text-blue-600">Accounting Access</td></tr>
+                  <tr><td className="py-1">Store Manager</td><td className="py-1">1</td><td className="py-1 text-right text-blue-600">Inventory Access</td></tr>
+                  <tr><td className="py-1">Sales Executive</td><td className="py-1">4</td><td className="py-1 text-right text-blue-600">Sales Access</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 6. Accounting Setup / Parameters */}
+            <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-[10px]">
+              <h3 className="font-black text-slate-800 border-b border-slate-100 pb-1.5 mb-2.5 uppercase flex items-center gap-2">
+                <span className="w-4 h-4 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[8px]">6</span>
+                Accounting Setup
+              </h3>
+              <div className="grid grid-cols-[140px_1fr] gap-x-2 gap-y-1.5">
+                <span className="text-slate-400 font-semibold">Default Purchase Account:</span><span className="font-bold text-slate-800">Purchases - Local</span>
+                <span className="text-slate-400 font-semibold">Default Sales Account:</span><span className="font-bold text-slate-800">Sales - Local</span>
+                <span className="text-slate-400 font-semibold">General Serial No:</span><span className="font-bold text-slate-800 font-mono">{form.generalSerialNumber || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Roznamcha (Journal) No:</span><span className="font-bold text-slate-800 font-mono">{form.journalNumber || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Cash Entry Serial:</span><span className="font-bold text-slate-800 font-mono">{form.cashEntrySerial || "N/A"}</span>
+                <span className="text-slate-400 font-semibold">Current Year Start:</span><span className="font-bold text-slate-800">01 Jul 2025</span>
+                <span className="text-slate-400 font-semibold">Accounting Method:</span><span className="font-bold text-slate-800">Accrual Basis</span>
+              </div>
+            </div>
+
+            {/* 7. Communication Setup */}
+            <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-[10px]">
+              <h3 className="font-black text-slate-800 border-b border-slate-100 pb-1.5 mb-2.5 uppercase flex items-center gap-2">
+                <span className="w-4 h-4 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[8px]">7</span>
+                Communication Setup
+              </h3>
+              <div className="grid grid-cols-[140px_1fr] gap-x-2 gap-y-1.5">
+                <span className="text-slate-400 font-semibold">Email (For Documents):</span><span className="font-bold text-slate-850 truncate">{form.branchEmail || "info@damaanbusiness.com"}</span>
+                <span className="text-slate-400 font-semibold">Email (Notifications):</span><span className="font-bold text-slate-850 truncate">{form.notificationsEmail || "notify@damaanbusiness.com"}</span>
+                <span className="text-slate-400 font-semibold">WhatsApp Number:</span><span className="font-bold text-slate-800">+92 333 1234567</span>
+                <span className="text-slate-400 font-semibold">SMS Notifications:</span><span className="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[8px] font-black uppercase w-max">Enabled</span>
+                <span className="text-slate-400 font-semibold">Email Notifications:</span><span className="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[8px] font-black uppercase w-max">Enabled</span>
+                <span className="text-slate-400 font-semibold">Language:</span><span className="font-bold text-slate-800">English</span>
+                <span className="text-slate-400 font-semibold">Time Zone:</span><span className="font-bold text-slate-800 truncate">(GMT+05:00) Pakistan</span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Goods Details Spreadsheet-like Table */}
+          <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+            <h3 className="font-black text-[11px] text-slate-800 border-b border-slate-100 pb-2 mb-3 uppercase flex items-center gap-2">
+              <Package className="h-3.5 w-3.5 text-blue-600" /> Goods Details
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px] text-left border-collapse border border-slate-200">
+                <thead className="bg-slate-50 text-slate-650 font-bold uppercase tracking-wider text-[8px] border-b border-slate-200">
+                  <tr>
+                    <th className="p-2 border-r border-slate-200">Goods</th>
+                    <th className="p-2 border-r border-slate-200">Brand</th>
+                    <th className="p-2 border-r border-slate-200">Origin</th>
+                    <th className="p-2 border-r border-slate-200 text-right">Qty</th>
+                    <th className="p-2 border-r border-slate-200 text-right">G.Wt</th>
+                    <th className="p-2 border-r border-slate-200 text-right">N.Wt</th>
+                    <th className="p-2 border-r border-slate-200 text-right">Rate</th>
+                    <th className="p-2 border-r border-slate-200 text-right">Amount ({form.currencyType || "USD"})</th>
+                    <th className="p-2 text-right text-emerald-800">Final ({form.secondaryCurrency || "PKR"})</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150 font-semibold">
+                  {goodsEntries.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 transition">
+                      <td className="p-2 font-bold border-r border-slate-200">{row.goodsName}</td>
+                      <td className="p-2 border-r border-slate-200">{row.brand}</td>
+                      <td className="p-2 border-r border-slate-200">{row.origin}</td>
+                      <td className="p-2 text-right border-r border-slate-200 font-mono font-bold">{row.qtyNo.toLocaleString()} {row.qtyName}</td>
+                      <td className="p-2 text-right border-r border-slate-200 font-mono">{row.grossWeight.toFixed(2)}</td>
+                      <td className="p-2 text-right border-r border-slate-200 font-mono font-bold">{row.netWeight.toFixed(2)}</td>
+                      <td className="p-2 text-right border-r border-slate-200 font-mono">{row.coursePrice.toFixed(2)}</td>
+                      <td className="p-2 text-right border-r border-slate-200 font-mono font-bold text-slate-700">{row.totalAmount.toLocaleString()}</td>
+                      <td className="p-2 text-right font-mono font-bold text-emerald-700 bg-emerald-50/40">
+                        {row.finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                  {goodsEntries.length > 0 && (
+                    <tr className="bg-slate-50 font-black border-t-2 border-slate-300 text-slate-800">
+                      <td colSpan={3} className="p-2 text-right border-r border-slate-200">TOTALS:</td>
+                      <td className="p-2 text-right border-r border-slate-200">{reportTotals.totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || ""}</td>
+                      <td className="p-2 text-right border-r border-slate-200 font-mono">{reportTotals.totalGross.toFixed(2)}</td>
+                      <td className="p-2 text-right border-r border-slate-200 font-mono">{reportTotals.totalNet.toFixed(2)}</td>
+                      <td className="p-2 text-right border-r border-slate-200 font-mono bg-slate-100/50">-</td>
+                      <td className="p-2 text-right border-r border-slate-200 font-mono text-slate-900">{reportTotals.grandPrimaryFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="p-2 text-right font-mono text-emerald-800 bg-emerald-100">{reportTotals.grandFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    </tr>
                   )}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-                  {/* Inline Bill View */}
-                  <div className="rounded-2xl border border-slate-200 bg-slate-100/70 p-4 shadow-sm overflow-x-auto">
-                    <div className="mx-auto w-full max-w-5xl bg-white border border-slate-200 p-5 md:p-6 shadow-sm print:max-w-none print:border-0 print:p-0 print:shadow-none">
-                          <div className="mb-6 overflow-hidden rounded-xl border border-slate-200">
-                            <div className="flex flex-col gap-4 bg-slate-950 px-5 py-4 text-white md:flex-row md:items-center md:justify-between">
-                              <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300">Damaan Business Group</p>
-                                <h1 className="mt-1 text-xl font-black uppercase tracking-[0.22em]">Sales Booking Order</h1>
-                                <p className="mt-1 text-[10px] font-semibold text-slate-300">Professional verification, account routing, goods, payment and audit template</p>
-                              </div>
-                              <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-right text-[10px] font-bold md:min-w-[360px]">
-                                <span className="text-slate-400">PO No</span><span>{form.salesOrderNo || "N/A"}</span>
-                                <span className="text-slate-400">Bill No</span><span>{form.billNo || "N/A"}</span>
-                                <span className="text-slate-400">Date</span><span>{form.salesDate || "N/A"}</span>
-                                <span className="text-slate-400">Status</span><span className={isTransferred ? "text-emerald-300" : "text-amber-300"}>{isTransferred ? "Transferred" : "Pending Transfer"}</span>
-                              </div>
-                            </div>
-                            <div className="grid gap-4 mb-6 text-[10px] md:grid-cols-2">
-                              <div className="border border-slate-300 p-3 rounded">
-                                <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800 text-[10px]">Sales Account (CR)</h3>
-                                <div className="grid grid-cols-[80px_1fr] gap-1">
-                                  <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.salesAccountNo || "N/A"}</span>
-                                  <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.salesAccountName || "N/A"}</span>
-                                  <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.salesCompanyName || "N/A"}</span>
-                                </div>
-                              </div>
-                              <div className="border border-slate-300 p-3 rounded">
-                                <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800 text-[10px]">Customer Account (DR)</h3>
-                                <div className="grid grid-cols-[80px_1fr] gap-1">
-                                  <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.customerAccountNo || "N/A"}</span>
-                                  <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.customerAccountName || "N/A"}</span>
-                                  <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.salesCompanyName || "N/A"}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="grid gap-0 border-t border-slate-200 bg-white text-[10px] font-semibold text-slate-700 md:grid-cols-4">
-                              <div className="border-b border-slate-200 p-3 md:border-b-0 md:border-r"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Country</span>{form.branchCountry || form.origin || "N/A"}</div>
-                              <div className="border-b border-slate-200 p-3 md:border-b-0 md:border-r"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Branch</span>{form.branchName || "N/A"}</div>
-                              <div className="border-b border-slate-200 p-3 md:border-b-0 md:border-r"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Branch Code</span>{form.branchCode || "N/A"}</div>
-                              <div className="p-3"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Currency</span>{form.salesCurrency || form.currencyType || "N/A"}</div>
-                            </div>
-                          </div>
-                          
-                          <div className="mb-6">
-                            <h3 className="font-black text-[10px] border-b border-slate-800 pb-1 mb-2 uppercase text-slate-800 flex items-center gap-2">
-                              <Package className="h-3.5 w-3.5" /> Goods Details
-                            </h3>
-                            <table className="w-full text-[10px] text-left border border-slate-300">
-                              <thead className="bg-slate-100 border-b border-slate-300">
-                                <tr>
-                                  <th className="p-1.5 font-bold uppercase border-r border-slate-300">Goods</th>
-                                  <th className="p-1.5 font-bold uppercase border-r border-slate-300">Brand</th>
-                                  <th className="p-1.5 font-bold uppercase border-r border-slate-300">Origin</th>
-                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">Qty</th>
-                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">G.Wt</th>
-                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">N.Wt</th>
-                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">Rate</th>
-                                  <th className="p-1.5 text-right font-bold uppercase border-r border-slate-300">Amount ({form.currencyType || "USD"})</th>
-                                  <th className="p-1.5 text-right font-bold uppercase text-emerald-800">Final ({form.secondaryCurrency || "PKR"})</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {goodsEntries.map((row, idx) => (
-                                  <tr key={idx} className="border-b border-slate-200">
-                                    <td className="p-1.5 font-bold border-r border-slate-300">{row.goodsName}</td>
-                                    <td className="p-1.5 border-r border-slate-300">{row.brand}</td>
-                                    <td className="p-1.5 border-r border-slate-300">{row.origin}</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono font-bold">{row.qtyNo.toLocaleString()} {row.qtyName}</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono">{row.grossWeight.toFixed(2)}</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono font-bold">{row.netWeight.toFixed(2)}</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono">{row.coursePrice.toFixed(2)}</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300 font-mono font-bold text-slate-700">{row.totalAmount.toLocaleString()}</td>
-                                    <td className="p-1.5 text-right font-mono font-bold text-emerald-700 bg-emerald-50">
-                                      {row.finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </td>
-                                  </tr>
-                                ))}
-                                {goodsEntries.length > 0 && (
-                                  <tr className="bg-slate-50 font-bold border-t-2 border-slate-400">
-                                    <td colSpan={3} className="p-1.5 text-right border-r border-slate-300">TOTALS:</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300">{reportTotals.totalQty.toLocaleString()} {goodsEntries[0]?.qtyName || ""}</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300">{reportTotals.totalGross.toFixed(2)}</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300">{reportTotals.totalNet.toFixed(2)}</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300 bg-slate-200">-</td>
-                                    <td className="p-1.5 text-right border-r border-slate-300 text-slate-800">{reportTotals.grandPrimaryFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                    <td className="p-1.5 text-right text-emerald-800 bg-emerald-100">{reportTotals.grandFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      </div>
+          {/* Remarks (Report) Input */}
+          <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+            <h3 className="font-black text-[11px] text-slate-800 border-b border-slate-100 pb-2 mb-3 uppercase">
+              Remarks (Report Summary)
+            </h3>
+            <textarea
+              value={form.orderReportRemarks}
+              onChange={(e) => handleTextChange("orderReportRemarks", e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-900 outline-none focus:border-blue-500 resize-none h-24 text-[10px] font-semibold"
+              placeholder="Type verification, approval, or audit remarks here..."
+            />
+          </div>
 
-                      {/* Account Verification & Transfer Info */}
-                  <div className="mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Ledger Routing Details</h4>
-                    <div className="space-y-3 text-[9px]">
-                      <div className="bg-slate-50 border border-slate-200 rounded p-3">
-                        <div className="flex justify-between items-center mb-1"><span className="font-bold text-rose-700 uppercase text-[8px] bg-rose-100 px-1.5 py-0.5 rounded">Customer Account (DR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.customerAccountNo || "N/A"}</span></div>
-                        <div className="font-bold text-slate-900 mb-1 truncate text-[10px]" title={form.customerAccountName}>{form.customerAccountName || "N/A"}</div>
-                        <div className="flex justify-between items-center text-[8px] text-slate-500 mb-0.5">
-                          <span>Branch: <strong className="text-slate-700">{form.customerAccountBranch || "-"}</strong></span>
-                          <span>Country: <strong className="text-slate-700">{form.origin || "-"}</strong></span>
-                        </div>
-                        <div className="flex justify-between items-center text-[8px] text-slate-500 mb-3">
-                          <span>Currency: <strong className="text-slate-700">{form.salesCurrency || form.customerAccountCurrency || "-"}</strong></span>
-                          <span>Contact: <strong className="text-slate-700">{form.customerAccountMobile || form.customerAccountWhatsapp || "-"}</strong></span>
-                        </div>
-
-                        <div className="flex justify-between items-center mb-1 border-t border-slate-200 pt-3"><span className="font-bold text-emerald-700 uppercase text-[8px] bg-emerald-100 px-1.5 py-0.5 rounded">Sales Account (CR)</span> <span className="text-slate-600 font-mono text-[8px]">{form.salesAccountNo || "N/A"}</span></div>
-                        <div className="font-bold text-slate-900 mb-1 truncate text-[10px]" title={form.salesAccountName}>{form.salesAccountName || "N/A"}</div>
-                        <div className="flex justify-between items-center text-[8px] text-slate-500 mb-0.5">
-                          <span>Branch: <strong className="text-slate-700">{form.salesAccountBranch || "-"}</strong></span>
-                          <span>Country: <strong className="text-slate-700">{form.branchCountry || "-"}</strong></span>
-                        </div>
-                        <div className="flex justify-between items-center text-[8px] text-slate-500 mb-2">
-                          <span>Currency: <strong className="text-slate-700">{form.salesAccountCurrency || "-"}</strong></span>
-                          <span>Contact: <strong className="text-slate-700">{form.salesAccountMobile || form.salesAccountWhatsapp || "-"}</strong></span>
-                        </div>
-
-                        <div className="border-t border-slate-200 pt-3 mt-3 space-y-1.5">
-                          <div className="flex justify-between items-center"><span className="text-slate-500 font-bold uppercase text-[8px]">Transfer Date:</span> <span className="font-bold text-slate-900 font-mono">{form.salesDate}</span></div>
-                          <div className="flex justify-between items-center"><span className="text-slate-500 font-bold uppercase text-[8px]">Transferred To:</span> <span className="font-black text-blue-600 uppercase">Customer Accounts</span></div>
-                        </div>
-                      </div>
+          {/* Saved Reports */}
+          {reportsList.length > 0 && (
+            <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+              <h3 className="font-black text-[11px] text-slate-800 border-b border-slate-100 pb-2 mb-3 uppercase">Saved Reports</h3>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {reportsList.map((report) => (
+                  <div key={report.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[10px] font-semibold relative">
+                    <div className="flex justify-between items-start mb-1.5">
+                      <span className="font-bold text-slate-800 uppercase tracking-wider">{report.name}</span>
+                      <button type="button" onClick={() => handleDeleteReport(report.id)} className="text-red-500 hover:text-red-700 transition">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
+                    {report.description && <p className="text-slate-600 mb-1.5">{report.description}</p>}
+                    <p className="text-slate-400 font-mono text-[8px]">{formatShortDate(report.createdAt)}</p>
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                  {/* User Info */}
-                  <div className="mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">User & Session Information</h4>
-                    <div className="bg-slate-50 border border-slate-200 rounded p-3 space-y-2 text-[9px]">
-                      <div className="flex justify-between"><span className="text-slate-500 font-bold uppercase text-[8px]">User ID:</span> <span className="font-semibold text-slate-900 font-mono">{form.userId || "USR-1001"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 font-bold uppercase text-[8px]">User Name:</span> <span className="font-bold text-slate-900 uppercase">{form.userName || "ADMIN"}</span></div>
-                      <div className="flex justify-between border-t border-slate-200 pt-1.5 mt-0.5"><span className="text-slate-500 font-bold uppercase text-[8px]">Team Name:</span> <span className="font-semibold text-slate-900">Logistics & Operations</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 font-bold uppercase text-[8px]">Team Code:</span> <span className="font-semibold text-slate-900 font-mono">TR-LOG</span></div>
-                    </div>
-                  </div>
+          {/* FINAL APPROVAL ACTIONS (Approve, Send Back, Request Changes) */}
+          <div className="grid gap-4 md:grid-cols-3">
 
-                  {/* Remarks Input */}
-                  <div className="mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 block border-b border-slate-100 pb-1">Remarks (Report)</span>
-                    <textarea
-                      value={form.orderReportRemarks}
-                      onChange={(e) => handleTextChange("orderReportRemarks", e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-900 outline-none focus:border-blue-500 resize-none h-20 text-[9px] font-semibold"
-                      placeholder="Type verification or audit remarks here..."
-                    />
-                  </div>
-
-                  {/* Saved Reports */}
-                  {reportsList.length > 0 && (
-                    <div>
-                      <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Saved Reports</h4>
-                      <div className="space-y-2 mb-4">
-                        {reportsList.map((report) => (
-                          <div key={report.id} className="bg-slate-50 border border-slate-200 rounded p-2 text-[9px]">
-                            <div className="flex justify-between items-start mb-1">
-                              <span className="font-bold text-slate-800">{report.name}</span>
-                              <button type="button" onClick={() => handleDeleteReport(report.id)} className="text-red-500 hover:text-red-700">
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
-                            {report.description && <p className="text-slate-600 mb-1 font-semibold">{report.description}</p>}
-                            <p className="text-slate-500 font-mono text-[8px]">{formatShortDate(report.createdAt)}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+            {/* A. Approve & Activate */}
+            <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="h-5 w-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[10px]">✓</span>
+                  <h4 className="text-xs font-black text-slate-900 uppercase">Approve & Activate Order</h4>
                 </div>
-              )}
+                <p className="text-[10px] text-slate-500 font-semibold leading-relaxed mb-4">
+                  Approve this booking order and transfer/post it to the General Ledger. The booking will become active and available for all operations.
+                </p>
+              </div>
+              <div>
+                {isTransferred ? (
+                  <div className="w-full bg-emerald-50 text-emerald-800 text-[10px] font-black uppercase text-center py-2 border border-emerald-200 rounded-lg">
+                    Approved & Transferred
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={handleTransfer}
+                    disabled={savingOrder || isTransferred}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 rounded-lg text-xs uppercase tracking-wider shadow transition-all flex items-center justify-center gap-2"
+                  >
+                    Approve & Activate
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* B. Send Back for Edit */}
+            <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="h-5 w-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-[10px]">↩</span>
+                  <h4 className="text-xs font-black text-slate-900 uppercase">Send Back for Edit</h4>
+                </div>
+                <p className="text-[10px] text-slate-500 font-semibold leading-relaxed mb-4">
+                  Send this booking back to the entries screen for corrections, adjustments, or additional cargo/amount information.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => setActiveTab("goods")}
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold h-10 rounded-lg text-xs uppercase tracking-wider shadow transition-all"
+              >
+                Send Back for Edit
+              </Button>
+            </div>
+
+            {/* C. Request Changes */}
+            <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="h-5 w-5 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-[10px]">✕</span>
+                  <h4 className="text-xs font-black text-slate-900 uppercase">Request Changes / Cancel</h4>
+                </div>
+                <p className="text-[10px] text-slate-500 font-semibold leading-relaxed mb-4">
+                  Flag specific discrepancies or cancel this booking process entirely. All logs will record this audit action.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (confirm("Are you sure you want to request changes and reset this booking?")) {
+                    handleReset();
+                    setActiveTab("booking");
+                  }
+                }}
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold h-10 rounded-lg text-xs uppercase tracking-wider shadow transition-all"
+              >
+                Request Changes
+              </Button>
+            </div>
+
+          </div>
+
+          {/* Information banner */}
+          <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg text-[9px] font-semibold text-slate-500 leading-relaxed">
+            Please review all information carefully before taking action. Once approved, the booking will be finalized and its postings posted permanently to the general ledger.
+          </div>
+
+          {/* Bottom Navigation Buttons */}
+          <div className="flex justify-between items-center border-t border-slate-200 pt-4 mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setActiveTab("goods")}
+              className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 text-[11px] font-bold h-10 px-6 rounded-lg shadow-sm"
+            >
+              ← Back to Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/dashboard/sales/sales-booking-register")}
+              className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 text-[11px] font-bold h-10 px-6 rounded-lg shadow-sm"
+            >
+              Close Review ✕
+            </Button>
+          </div>
+
+        </div>
+      )}
 
       {previewModalOpen && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in duration-200">
@@ -2490,38 +4687,48 @@ export function SalesOrderWizard({ session }) {
             <div className="flex-1 overflow-y-auto p-8 bg-slate-100/50 flex justify-center custom-scrollbar">
               <div className="w-[210mm] min-h-[297mm] bg-white shadow-xl border border-slate-200 p-8 transform scale-[0.9] origin-top print:scale-100 print:shadow-none print:m-0 print:border-none print:p-0">
 
-                {/* Header */}
-                <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
-                  <h1 className="text-2xl font-black uppercase text-slate-900 tracking-widest">Sales Booking Order</h1>
-                  <div className="flex justify-between items-end mt-4 text-xs font-bold text-slate-700">
-                    <div className="text-left">
-                      <p>Booking Date: {form.salesDate}</p>
-                      <p>Branch: {form.branchName} ({form.branchCode})</p>
+                {/* Header Banner */}
+                <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 text-left">
+                  <div className="flex flex-col gap-4 bg-slate-950 px-5 py-4 text-white md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300">Damaan Business Group</p>
+                      <h1 className="mt-1 text-xl font-black uppercase tracking-[0.22em]">Sales Booking Order</h1>
+                      <p className="mt-1 text-[10px] font-semibold text-slate-300">Professional verification, account routing, goods, payment and audit template</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-slate-900">PO No: {form.salesOrderNo}</p>
-                      <p>Contract No: {form.salesContractNo || "N/A"}</p>
+                    <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-right text-[10px] font-bold md:min-w-[360px]">
+                      <span className="text-slate-400">PO No</span><span>{form.salesOrderNo || "N/A"}</span>
+                      <span className="text-slate-400">Bill No</span><span>{form.billNo || "N/A"}</span>
+                      <span className="text-slate-400">Date</span><span>{form.salesDate || "N/A"}</span>
+                      <span className="text-slate-400">Status</span><span className={isTransferred ? "text-emerald-300" : "text-amber-300"}>{isTransferred ? "Transferred" : "Pending Transfer"}</span>
                     </div>
                   </div>
-                </div>
 
-                {/* Account Info */}
-                <div className="grid grid-cols-2 gap-4 mb-6 text-[10px]">
-                  <div className="border border-slate-300 p-3 rounded">
-                    <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800">Customer Account (DR)</h3>
-                    <div className="grid grid-cols-[80px_1fr] gap-1">
-                      <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.customerAccountNo || "N/A"}</span>
-                      <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.customerAccountName || "N/A"}</span>
-                      <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.salesCompanyName || "N/A"}</span>
+                  {/* Account Info Cards */}
+                  <div className="grid gap-4 p-4 text-[10px] md:grid-cols-2 bg-slate-50/50">
+                    <div className="border border-slate-300 bg-white p-3 rounded shadow-sm">
+                      <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800 text-[10px]">Sales Account (CR)</h3>
+                      <div className="grid grid-cols-[80px_1fr] gap-1">
+                        <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.salesAccountNo || "N/A"}</span>
+                        <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.salesAccountName || "N/A"}</span>
+                        <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.salesCompanyName || "N/A"}</span>
+                      </div>
+                    </div>
+                    <div className="border border-slate-300 bg-white p-3 rounded shadow-sm">
+                      <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800 text-[10px]">Customer Account (DR)</h3>
+                      <div className="grid grid-cols-[80px_1fr] gap-1">
+                        <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.customerAccountNo || "N/A"}</span>
+                        <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.customerAccountName || "N/A"}</span>
+                        <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.salesCompanyName || "N/A"}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="border border-slate-300 p-3 rounded">
-                    <h3 className="font-black border-b border-slate-200 pb-1 mb-2 uppercase text-slate-800">Sales Account (CR)</h3>
-                    <div className="grid grid-cols-[80px_1fr] gap-1">
-                      <span className="text-slate-500 font-semibold">Account Code:</span><span className="font-bold">{form.salesAccountNo || "N/A"}</span>
-                      <span className="text-slate-500 font-semibold">Account Name:</span><span className="font-bold">{form.salesAccountName || "N/A"}</span>
-                      <span className="text-slate-500 font-semibold">Company:</span><span className="font-bold">{form.salesCompanyName || "N/A"}</span>
-                    </div>
+
+                  {/* Routing row */}
+                  <div className="grid gap-0 border-t border-slate-200 bg-white text-[10px] font-semibold text-slate-700 md:grid-cols-4">
+                    <div className="border-b border-slate-200 p-3 md:border-b-0 md:border-r"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Country</span>{form.branchCountry || form.origin || "N/A"}</div>
+                    <div className="border-b border-slate-200 p-3 md:border-b-0 md:border-r"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Branch</span>{form.branchName || "N/A"}</div>
+                    <div className="border-b border-slate-200 p-3 md:border-b-0 md:border-r"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Branch Code</span>{form.branchCode || "N/A"}</div>
+                    <div className="p-3"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Currency</span>{form.salesCurrency || form.currencyType || "N/A"}</div>
                   </div>
                 </div>
 
@@ -3200,7 +5407,7 @@ export function SalesOrderWizard({ session }) {
               <div className="flex items-start gap-3 bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100">
                 <CheckSquare className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
                 <p className="font-semibold leading-relaxed">
-                  You are about to transfer this Sales Booking to the <strong>Purchase Transfer Payment</strong> module.
+                  You are about to transfer this Sales Booking to the <strong>Sales Transfer / Receipt</strong> module.
                   <br/><br/>
                   <em>Note: No accounting entries (Roznamcha, Ledger) will be posted at this stage. Entries will only be posted when the payment is officially processed.</em>
                 </p>

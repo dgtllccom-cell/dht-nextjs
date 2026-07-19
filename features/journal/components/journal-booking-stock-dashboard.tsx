@@ -118,6 +118,22 @@ function SummaryCard({
   );
 }
 
+const MOCK_STOCK_UTILIZATION: Record<string, Array<{ customer: string; date: string; quantity: number; weight: number; reference: string }>> = {
+  "SO-2026-3028": [
+    { customer: "Sharjah Supply A/C", date: "2026-07-16", quantity: 2000, weight: 20000, reference: "SO-2026-3101" },
+    { customer: "Kharadar Customer A/C", date: "2026-07-18", quantity: 1500, weight: 15000, reference: "SO-2026-3205" }
+  ],
+  "SO-2026-8256": [
+    { customer: "Dubai Customer A/C", date: "2026-07-15", quantity: 200, weight: 9980, reference: "SO-2026-8311" }
+  ],
+  "SO-2026-6156": [
+    { customer: "Kabul Trading A/C", date: "2026-07-17", quantity: 100, weight: 4990, reference: "SO-2026-6204" }
+  ],
+  "SO-2026-9313": [
+    { customer: "Dubai Customer A/C", date: "2026-07-16", quantity: 150, weight: 7485, reference: "SO-2026-9412" }
+  ]
+};
+
 /* ─────────────────────────────────────────────
    Main Component
 ───────────────────────────────────────────── */
@@ -130,6 +146,7 @@ export function JournalBookingStockDashboard({ session }: { session: any }) {
   // Filter panel
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [branchPanelOpen, setBranchPanelOpen] = useState(true);
+  const [expandedBillNo, setExpandedBillNo] = useState<string | null>(null);
 
   // Filter values
   const [dateFrom, setDateFrom] = useState("");
@@ -443,7 +460,7 @@ export function JournalBookingStockDashboard({ session }: { session: any }) {
             <table className="w-full text-xs min-w-[1100px]">
               <thead>
                 <tr className="bg-[#0d2d6b] text-white">
-                  {["Sr.#", "Receipt Date", "Purchase Bill No", "Goods Name", "HS Code", "Unit", "Qty", "Gross Wt (KG)", "Net Wt (KG)", "Purchase Country", "Purchase Branch", "Purchase Account", "Sales Account", "Imp / Exp"].map(h => (
+                  {["Sr.#", "Receipt Date", "Purchase Bill No", "Goods Name", "HS Code", "Unit", "Qty", "Gross Wt (KG)", "Net Wt (KG)", "Purchase Country", "Purchase Branch", "Purchase Account", "Sales Account", "Imp / Exp", "Action"].map(h => (
                     <th key={h} className="px-3 py-3 text-left font-bold text-[11px] uppercase tracking-wide whitespace-nowrap first:text-center">{h}</th>
                   ))}
                 </tr>
@@ -452,16 +469,16 @@ export function JournalBookingStockDashboard({ session }: { session: any }) {
                 {loading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i} className={i % 2 === 0 ? "bg-white dark:bg-slate-800" : "bg-blue-50/40 dark:bg-slate-700/30"}>
-                      {Array.from({ length: 14 }).map((_, j) => (
+                      {Array.from({ length: 15 }).map((_, j) => (
                         <td key={j} className="px-3 py-3">
-                          <div className="h-3.5 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" style={{ width: j === 2 ? "80%" : "60%" }} />
+                          <div className="h-3.5 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" style={{ width: j === 2 ? "80%" : "65%" }} />
                         </td>
                       ))}
                     </tr>
                   ))
                 ) : error ? (
                   <tr>
-                    <td colSpan={14} className="px-6 py-16 text-center text-slate-400 dark:text-slate-500">
+                    <td colSpan={15} className="px-6 py-16 text-center text-slate-400 dark:text-slate-500">
                       <div className="flex flex-col items-center gap-3">
                         <Package className="w-10 h-10 opacity-30" />
                         <span className="text-sm font-semibold text-red-500">{error}</span>
@@ -471,7 +488,7 @@ export function JournalBookingStockDashboard({ session }: { session: any }) {
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="px-6 py-16 text-center">
+                    <td colSpan={15} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center gap-3 text-slate-400 dark:text-slate-500">
                         <Package className="w-10 h-10 opacity-30" />
                         <p className="text-sm font-semibold">No transferred stock found</p>
@@ -483,38 +500,130 @@ export function JournalBookingStockDashboard({ session }: { session: any }) {
                   rows.map((row, idx) => {
                     const globalIdx = (page - 1) * limit + idx + 1;
                     const isEven = idx % 2 === 1;
+                    const isExpanded = expandedBillNo === row.billNumber;
+                    const deductions = MOCK_STOCK_UTILIZATION[row.billNumber] || [];
+                    const totalDeductedQty = deductions.reduce((sum, d) => sum + d.quantity, 0);
+                    const totalDeductedWeight = deductions.reduce((sum, d) => sum + d.weight, 0);
+                    const originalQty = row.quantity + totalDeductedQty;
+                    const originalWeight = row.netWeight + totalDeductedWeight;
                     return (
-                      <tr key={`${row.orderId}-${idx}`}
-                        className={`border-b border-slate-100 dark:border-slate-700/50 transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/20 ${isEven ? "bg-[#f5f8ff] dark:bg-slate-700/20" : "bg-white dark:bg-slate-800"}`}>
-                        <td className="px-3 py-2.5 text-center font-bold text-slate-500 dark:text-slate-400">{globalIdx}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap font-semibold text-slate-700 dark:text-slate-300">{fmtDate(row.receiptDate)}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap">
-                          <span className="font-black text-[#0d2d6b] dark:text-blue-400">{row.billNumber}</span>
-                        </td>
-                        <td className="px-3 py-2.5 font-semibold text-slate-800 dark:text-slate-200 max-w-[160px] truncate">{row.goodsName}</td>
-                        <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400 font-mono text-[11px]">{row.hsCode}</td>
-                        <td className="px-3 py-2.5 text-center font-semibold text-slate-700 dark:text-slate-300">{row.unit}</td>
-                        <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-800 dark:text-slate-200">{fmtNum(row.quantity)}</td>
-                        <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-800 dark:text-slate-200">{fmtNum(row.grossWeight, 2)}</td>
-                        <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-800 dark:text-slate-200">{fmtNum(row.netWeight, 2)}</td>
-                        <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.purchaseCountry}</td>
-                        <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.purchaseBranch}</td>
-                        <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 max-w-[150px] truncate">
-                          <span className="text-slate-400 dark:text-slate-500 mr-1">{row.purchaseAccountNo}</span>
-                          {row.purchaseAccount}
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 max-w-[150px] truncate">
-                          <span className="text-slate-400 dark:text-slate-500 mr-1">{row.salesAccountNo}</span>
-                          {row.salesAccount}
-                        </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${row.importExport?.toLowerCase() === "export"
-                            ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400"
-                            : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400"}`}>
-                            {row.importExport || "Import"}
-                          </span>
-                        </td>
-                      </tr>
+                      <React.Fragment key={`${row.orderId}-${idx}`}>
+                        <tr className={`border-b border-slate-100 dark:border-slate-700/50 transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/20 ${isEven ? "bg-[#f5f8ff] dark:bg-slate-700/20" : "bg-white dark:bg-slate-800"}`}>
+                          <td className="px-3 py-2.5 text-center font-bold text-slate-500 dark:text-slate-400">{globalIdx}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap font-semibold text-slate-700 dark:text-slate-300">{fmtDate(row.receiptDate)}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            <span className="font-black text-[#0d2d6b] dark:text-blue-400">{row.billNumber}</span>
+                          </td>
+                          <td className="px-3 py-2.5 font-semibold text-slate-800 dark:text-slate-200 max-w-[160px] truncate">{row.goodsName}</td>
+                          <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400 font-mono text-[11px]">{row.hsCode}</td>
+                          <td className="px-3 py-2.5 text-center font-semibold text-slate-700 dark:text-slate-300">{row.unit}</td>
+                          <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-800 dark:text-slate-200">{fmtNum(row.quantity)}</td>
+                          <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-800 dark:text-slate-200">{fmtNum(row.grossWeight, 2)}</td>
+                          <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-800 dark:text-slate-200">{fmtNum(row.netWeight, 2)}</td>
+                          <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.purchaseCountry}</td>
+                          <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.purchaseBranch}</td>
+                          <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 max-w-[150px] truncate">
+                            <span className="text-slate-400 dark:text-slate-500 mr-1">{row.purchaseAccountNo}</span>
+                            {row.purchaseAccount}
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 max-w-[150px] truncate">
+                            <span className="text-slate-400 dark:text-slate-500 mr-1">{row.salesAccountNo}</span>
+                            {row.salesAccount}
+                          </td>
+                          <td className="px-3 py-2.5 text-center">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${row.importExport?.toLowerCase() === "export"
+                              ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400"
+                              : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400"}`}>
+                              {row.importExport || "Import"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedBillNo(isExpanded ? null : row.billNumber);
+                              }}
+                              className="inline-flex items-center gap-1 rounded bg-[#0d2d6b] hover:bg-blue-900 text-white px-2.5 py-1 text-[9px] font-bold uppercase transition"
+                            >
+                              <Search className="w-2.5 h-2.5" />
+                              {isExpanded ? "Hide" : "Check"}
+                            </button>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-slate-50/70 border-t border-b border-slate-250 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <td colSpan={15} className="px-4 py-3 bg-slate-50/50">
+                              <div className="space-y-2.5 max-w-[95%] mx-auto text-[10px]">
+                                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1">
+                                  <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"></span>
+                                    Stock Utilization History & Balance for {row.billNumber}
+                                  </h5>
+                                  <div className="text-[9px] font-bold text-slate-500">
+                                    Goods: <span className="text-slate-800 font-bold">{row.goodsName}</span> | Original Capacity: <span className="font-mono text-slate-800">{originalQty.toLocaleString()} {row.unit}</span> ({originalWeight.toLocaleString()} KG)
+                                  </div>
+                                </div>
+
+                                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                                  <table className="w-full text-[9px] text-slate-700 border-collapse">
+                                    <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[8px] border-b border-slate-200">
+                                      <tr>
+                                        <th className="px-3 py-1.5 text-left">Transaction Ref</th>
+                                        <th className="px-3 py-1.5 text-left">Sale Date</th>
+                                        <th className="px-3 py-1.5 text-left">Customer / Debtor</th>
+                                        <th className="px-3 py-1.5 text-right">Qty Deducted</th>
+                                        <th className="px-3 py-1.5 text-right">Weight Deducted</th>
+                                        <th className="px-3 py-1.5 text-left">Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {/* Initial import/purchase record */}
+                                      <tr className="border-b border-slate-100 font-semibold bg-emerald-50/20 text-emerald-800">
+                                        <td className="px-3 py-1.5 font-mono">{row.orderId || "PO-INTAKE"}</td>
+                                        <td className="px-3 py-1.5">Intake Date</td>
+                                        <td className="px-3 py-1.5 italic text-emerald-700">Initial Import / Stock Inbound</td>
+                                        <td className="px-3 py-1.5 text-right font-mono font-bold text-emerald-600">+{originalQty.toLocaleString()}</td>
+                                        <td className="px-3 py-1.5 text-right font-mono font-bold text-emerald-600">+{originalWeight.toLocaleString()} KG</td>
+                                        <td className="px-3 py-1.5"><span className="text-[8px] font-black uppercase bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded">Inbound</span></td>
+                                      </tr>
+
+                                      {/* Deduction history */}
+                                      {deductions.map((d, dIdx) => (
+                                        <tr key={dIdx} className="border-b border-slate-100 text-red-800 hover:bg-slate-50/50 transition">
+                                          <td className="px-3 py-1.5 font-mono font-bold">{d.reference}</td>
+                                          <td className="px-3 py-1.5">{d.date}</td>
+                                          <td className="px-3 py-1.5 font-semibold text-slate-800">{d.customer}</td>
+                                          <td className="px-3 py-1.5 text-right font-mono font-bold">-{d.quantity.toLocaleString()}</td>
+                                          <td className="px-3 py-1.5 text-right font-mono font-bold">-{d.weight.toLocaleString()} KG</td>
+                                          <td className="px-3 py-1.5"><span className="text-[8px] font-black uppercase bg-red-100 text-red-800 px-1 py-0.5 rounded">Sold Out</span></td>
+                                        </tr>
+                                      ))}
+
+                                      {/* Total Sold Summary row */}
+                                      {deductions.length > 0 && (
+                                        <tr className="bg-slate-50/50 border-t border-slate-150 font-bold">
+                                          <td colSpan={3} className="px-3 py-1.5 text-right text-slate-500 uppercase tracking-wider text-[8px]">Total Outward Deductions:</td>
+                                          <td className="px-3 py-1.5 text-right font-mono text-red-600 font-black">-{totalDeductedQty.toLocaleString()} {row.unit}</td>
+                                          <td className="px-3 py-1.5 text-right font-mono text-red-600 font-black">-{totalDeductedWeight.toLocaleString()} KG</td>
+                                          <td className="px-3 py-1.5 text-slate-400 font-semibold">—</td>
+                                        </tr>
+                                      )}
+
+                                      {/* Net Remaining Balance row */}
+                                      <tr className="bg-sky-50 border-t border-slate-200 font-black text-sky-950">
+                                        <td colSpan={3} className="px-3 py-1.5 text-right uppercase tracking-wider text-[8px]">Net Available Balance:</td>
+                                        <td className="px-3 py-1.5 text-right font-mono text-[10px] font-black text-sky-700">{row.quantity.toLocaleString()} {row.unit}</td>
+                                        <td className="px-3 py-1.5 text-right font-mono text-[10px] font-black text-sky-700">{row.netWeight.toLocaleString()} KG</td>
+                                        <td className="px-3 py-1.5"><span className="text-[8px] font-black uppercase bg-sky-200 text-sky-800 px-1 py-0.5 rounded animate-pulse">Live Stock</span></td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}
