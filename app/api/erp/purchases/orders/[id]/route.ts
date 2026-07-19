@@ -218,10 +218,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     
     patch.updated_at = new Date().toISOString();
 
-    const isAlreadyPosted = (before as any)?.ledger_posting_status === "posted";
+    const isOrderAlreadyPosted = (before as any)?.ledger_posting_status === "posted";
     const shouldPost =
-      (patch.ledger_posting_status === "posted" && !isAlreadyPosted) ||
-      (isAlreadyPosted && (body.ledgerPostingStatus === "posted" || body.orderTotal !== undefined || body.formData !== undefined));
+      (patch.ledger_posting_status === "posted" && !isOrderAlreadyPosted) ||
+      (isOrderAlreadyPosted && (body.ledgerPostingStatus === "posted" || body.orderTotal !== undefined || body.formData !== undefined));
 
     // Ledger posting has been removed from Purchase Booking.
     // Booking must remain only in the Purchase Booking Register until transferred and paid.

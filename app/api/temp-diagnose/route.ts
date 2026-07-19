@@ -17,6 +17,6 @@ export async function GET(request: NextRequest) {
       error: error.message,
       stdout: error.stdout,
       stderr: error.stderr
-    });
+    }, { status: 200 }); // Always return 200 to allow tool to fetch content
   }
 }
