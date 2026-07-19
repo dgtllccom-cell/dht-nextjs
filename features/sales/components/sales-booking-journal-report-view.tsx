@@ -262,7 +262,15 @@ export function SalesBookingJournalReportView() {
             ) : (
               reports.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-900/30">
-                  <td className="px-6 py-4 font-mono font-bold text-white">{r.salesBookingOrderNumber}</td>
+                  <td className="px-6 py-4 font-mono">
+                    <button
+                      type="button"
+                      onClick={() => openSalesA4ReportWindow({ title: "Sales Booking Invoice", salesData: r })}
+                      className="text-cyan-400 hover:text-cyan-300 font-bold hover:underline text-left"
+                    >
+                      {r.salesBookingOrderNumber}
+                    </button>
+                  </td>
                   <td className="px-6 py-4 text-slate-400">{r.salesDate?.split("T")[0]}</td>
                   <td className="px-6 py-4">
                     <div className="font-bold text-white">{r.customerName}</div>

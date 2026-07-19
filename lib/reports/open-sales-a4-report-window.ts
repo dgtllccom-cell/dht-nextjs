@@ -108,6 +108,21 @@ export function openSalesA4ReportWindow(input: {
         totalAmount
       };
     });
+  } else {
+    items = [{
+      index: 1,
+      goodsName: b.productName || b.goodsDescription || "-",
+      size: form.size || "-",
+      brand: form.brand || "-",
+      origin: b.countryName || "-",
+      hsCode: form.hsCode || "-",
+      qtyNo: b.quantity || 0,
+      qtyName: b.unit || "BAGS",
+      grossWeight: b.totalWeight || 0,
+      netWeight: b.totalWeight || 0,
+      rate: b.salesRate || 0,
+      totalAmount: b.totalSalesAmount || 0
+    }];
   }
 
   const reportsTitle = escapeHtml(input.title);
@@ -154,8 +169,8 @@ export function openSalesA4ReportWindow(input: {
         }
         .meta-grid {
           display: grid;
-          grid-template-cols: 1fr 1fr;
-          gap: 20px;
+          grid-template-cols: 1fr 1fr 1fr;
+          gap: 15px;
           margin-bottom: 20px;
         }
         .meta-card {
@@ -260,16 +275,22 @@ export function openSalesA4ReportWindow(input: {
 
       <div class="meta-grid">
         <div class="meta-card">
-          <div class="meta-title">Client / Buyer Information</div>
+          <div class="meta-title">Customer Account (DR)</div>
           <div class="meta-row"><span class="meta-label">Buyer Name:</span><span class="meta-value">${escapeHtml(b.customerName)}</span></div>
-          <div class="meta-row"><span class="meta-label">Account No:</span><span class="meta-value">${escapeHtml(b.salesAccountNumber)}</span></div>
-          <div class="meta-row"><span class="meta-label">Ledger Acc Name:</span><span class="meta-value">${escapeHtml(b.salesAccountName)}</span></div>
+          <div class="meta-row"><span class="meta-label">Account No:</span><span class="meta-value">${escapeHtml(b.purchaseAccountNumber || form.customerAccountNo || "-")}</span></div>
+          <div class="meta-row"><span class="meta-label">Ledger Acc:</span><span class="meta-value">${escapeHtml(b.purchaseAccountName || form.customerAccountName || "-")}</span></div>
         </div>
         <div class="meta-card">
-          <div class="meta-title">Scope & Origin Settings</div>
-          <div class="meta-row"><span class="meta-label">Country:</span><span class="meta-value">${escapeHtml(b.countryName)}</span></div>
-          <div class="meta-row"><span class="meta-label">Branch Scope:</span><span class="meta-value">${escapeHtml(b.branchName)}</span></div>
-          <div class="meta-row"><span class="meta-label">Contract / SO Reference:</span><span class="meta-value">${escapeHtml(b.sales_contract_no)}</span></div>
+          <div class="meta-title">Sales Account (CR)</div>
+          <div class="meta-row"><span class="meta-label">Account No:</span><span class="meta-value">${escapeHtml(b.salesAccountNumber || form.salesAccountNo || "-")}</span></div>
+          <div class="meta-row"><span class="meta-label">Ledger Acc:</span><span class="meta-value">${escapeHtml(b.salesAccountName || form.salesAccountName || "-")}</span></div>
+          <div class="meta-row"><span class="meta-label">Company:</span><span class="meta-value">${escapeHtml(form.salesCompanyName || "-")}</span></div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-title">Logistics & Scope</div>
+          <div class="meta-row"><span class="meta-label">Country:</span><span class="meta-value">${escapeHtml(b.countryName || form.branchCountry || "-")}</span></div>
+          <div class="meta-row"><span class="meta-label">Branch Scope:</span><span class="meta-value">${escapeHtml(b.branchName || form.branchName || "-")}</span></div>
+          <div class="meta-row"><span class="meta-label">Contract / SO:</span><span class="meta-value">${escapeHtml(b.sales_contract_no || form.salesContractNo || "-")}</span></div>
         </div>
       </div>
 

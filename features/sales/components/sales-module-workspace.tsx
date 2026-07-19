@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { openSalesA4ReportWindow } from "@/lib/reports/open-sales-a4-report-window";
 
 type SalesModuleType = "sales" | "stock";
 
