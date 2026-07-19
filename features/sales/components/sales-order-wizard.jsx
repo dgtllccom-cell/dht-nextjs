@@ -49,7 +49,7 @@ import { CompanyPicker } from "@/features/companies/components/company-picker";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SimpleModal } from "@/components/ui/simple-modal";
 import { openTradeDocumentWindow } from "@/lib/reports/open-trade-document-window";
-import { openSalesA4ReportWindow } from "@/lib/reports/open-purchase-a4-report-window";
+import { openSalesA4ReportWindow } from "@/lib/reports/open-sales-a4-report-window";
 import { SalesBookingJournalReportView } from "./sales-booking-journal-report-view";
 
 // Ã¢â€â‚¬Ã¢â€â‚¬ Non-location constants (static values, not from master forms) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -2342,6 +2342,7 @@ export function SalesOrderWizard({ session }) {
                               <div className="border-b border-slate-200 p-3 md:border-b-0 md:border-r"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Branch Code</span>{form.branchCode || "N/A"}</div>
                               <div className="p-3"><span className="block text-[8px] uppercase tracking-wider text-slate-400">Currency</span>{form.salesCurrency || form.currencyType || "N/A"}</div>
                             </div>
+                          </div>
                           
                           <div className="mb-6">
                             <h3 className="font-black text-[10px] border-b border-slate-800 pb-1 mb-2 uppercase text-slate-800 flex items-center gap-2">
@@ -2471,8 +2472,8 @@ export function SalesOrderWizard({ session }) {
                       </div>
                     </div>
                   )}
-        </div>
-      )}
+                </div>
+              )}
 
       {previewModalOpen && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in duration-200">
@@ -3341,8 +3342,6 @@ export function SalesOrderWizard({ session }) {
             </div>
           </div>
         </div>
-      )}
-        </>
       )}
     </div>
   );
