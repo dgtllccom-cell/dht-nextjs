@@ -2704,3 +2704,9 @@ Body: {
     "savedAt": "2026-07-20T13:51:56.055Z"
   }
 }
+
+[GET /api/erp/purchases/orders] Time: 2026-07-20T21:33:04.530Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-20T21:33:19.528Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
