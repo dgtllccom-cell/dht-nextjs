@@ -54,6 +54,20 @@ export function PurchaseLoadingFormView() {
     void loadData();
   }, []);
 
+  useEffect(() => {
+    if (orders.length > 0 && !selectedPO) {
+      const searchParams = new URLSearchParams(window.location.search);
+      const poNo = searchParams.get("purchaseOrderNo");
+      if (poNo) {
+        const match = orders.find(o => o.purchase_order_no === poNo);
+        if (match) {
+          setSelectedPO(match);
+          setActiveTab("load");
+        }
+      }
+    }
+  }, [orders, selectedPO]);
+
   const pendingLoadingOrders = useMemo(() => {
     const loadedPONumbers = new Set(loadingRecords.map(r => r.purchase_order_no).filter(Boolean));
 
@@ -65,9 +79,11 @@ export function PurchaseLoadingFormView() {
       const advancePercent = Number(form.advancePercent || 0);
       const paidAdvance = Number(row.advance_paid || 0);
       
-      const hasMetAdvanceReq = advancePercent > 0 ? paidAdvance > 0 : (status === "partial" || status === "advance pending" || isAdvancePaid);
+      const hasMetAdvanceReq = advancePercent > 0 
+        ? (paidAdvance > 0 || isAdvancePaid || status.includes("partial") || status.includes("advance paid"))
+        : true;
 
-      if (!isAdvancePaid && !hasMetAdvanceReq) return false;
+      if (!hasMetAdvanceReq) return false;
       if (row.ledger_posting_status !== "Posted" && row.ledger_posting_status !== "posted") return false;
 
       const goods = row.form_data?.goodsEntries || [];

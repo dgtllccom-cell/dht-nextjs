@@ -544,4 +544,34 @@ export const savedReports = pgTable("saved_reports", {
   ...timestamps
 });
 
+export const localPurchases = pgTable("local_purchases", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  companyId: uuid("company_id").references(() => companies.id),
+  countryId: uuid("country_id").references(() => countries.id),
+  countryBranchId: uuid("country_branch_id").references(() => countryBranches.id),
+  cityBranchId: uuid("city_branch_id").references(() => cityBranches.id),
+  goodsId: uuid("goods_id").references(() => goods.id),
+  goodsName: text("goods_name").notNull(),
+  supplierName: text("supplier_name"),
+  quantityName: text("quantity_name").default("Bags").notNull(),
+  quantityKgs: numeric("quantity_kgs", { precision: 18, scale: 4 }).default("0").notNull(),
+  totalGrossWeight: numeric("total_gross_weight", { precision: 18, scale: 4 }).default("0").notNull(),
+  emptyKgs: numeric("empty_kgs", { precision: 18, scale: 4 }).default("0").notNull(),
+  netWeight: numeric("net_weight", { precision: 18, scale: 4 }).default("0").notNull(),
+  divideKgs: numeric("divide_kgs", { precision: 18, scale: 4 }).default("0").notNull(),
+  numbers: numeric("numbers", { precision: 18, scale: 4 }).default("0").notNull(),
+  rateType: text("rate_type").default("per_kg").notNull(),
+  purchaseRate: numeric("purchase_rate", { precision: 18, scale: 4 }).default("0").notNull(),
+  purchaseCurrency: text("purchase_currency").default("USD").notNull(),
+  exchangeRate: numeric("exchange_rate", { precision: 18, scale: 8 }).default("1").notNull(),
+  localCurrency: text("local_currency").default("PKR").notNull(),
+  purchaseCost: numeric("purchase_cost", { precision: 18, scale: 4 }).default("0").notNull(),
+  finalCost: numeric("final_cost", { precision: 18, scale: 4 }).default("0").notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true })
+});
+
+
 

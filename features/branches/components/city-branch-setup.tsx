@@ -3,7 +3,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Pencil, Eye } from "lucide-react";
+import { Pencil, Eye, ArrowLeft, Printer, Download, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1258,54 +1258,104 @@ export function CityBranchSetup() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">New Entry</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">City Branch</h1>
-          <p className="text-sm text-muted-foreground">
-            City branch setup keeps the existing Location Management flow while presenting a clearer wizard review experience.
-          </p>
-        </div>
-        <span className={pillClassName()}>
-          <b>Scope:</b> City branch under selected Country Main Branch
-        </span>
-      </div>
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-        <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-9" aria-label="City branch wizard sequence">
-          {[
-            ["1", "Branch Information", "Country, main branch, location"],
-            ["2", "Access Scope", "Review branch scope before setup"],
-            ["3", "User Account Setup", "Default branch admin login"],
-            ["4", "Contact Information", "Phone, email and official IDs"],
-            ["5", "Review & PDF Summary", "Preview before final setup"],
-            ["6", "Branch Documents", "Optional branch files"],
-            ["7", "Roles & Permissions", "Configure and confirm role access"],
-            ["8", "AI Communication Setup", "Email, WhatsApp and alerts"],
-            ["9", "Final Approval", "Accept setup or go back"]
-          ].map(([no, title, desc]) => (
-            <div key={no} className={cn("rounded-xl border px-3 py-2 transition", Number(no) === activeStep ? "border-cyan-500 bg-cyan-50 shadow-sm ring-1 ring-cyan-200 dark:border-cyan-500 dark:bg-cyan-950/40" : "border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/50")}>
-              <div className="flex items-center gap-2">
-                <span className={cn("flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold", Number(no) === activeStep ? "bg-cyan-600 text-white" : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200")}>{no}</span>
-                <span className="text-[11px] font-black uppercase tracking-wide text-slate-900 dark:text-slate-100">{title}</span>
-              </div>
-              <p className="mt-1 text-[10px] leading-snug text-slate-500">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs font-semibold text-slate-500">Step {activeStep} of 9</span>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" disabled={saving || activeStep === 1} onClick={() => setActiveStep((step) => Math.max(1, step - 1))}>Back</Button>
-            {activeStep < 9 ? (
-              <Button type="button" size="sm" onClick={() => setActiveStep((step) => Math.min(9, step + 1))}>Next</Button>
-            ) : (
-              <Button type="submit" form="city-branch-wizard-form" size="sm" disabled={saving || !location.countryId || !countryBranchId || cityAlreadyExists}>{saving ? "Saving..." : editingCityBranchId ? "Update" : "Accept & Save"}</Button>
-            )}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800 bg-white dark:bg-slate-950 p-4 rounded-xl shadow-sm">
+        {/* Left Section: Back button & Breadcrumbs */}
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={saving || activeStep === 1}
+            onClick={() => setActiveStep((step) => Math.max(1, step - 1))}
+            className="h-8 px-2.5 text-xs text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900/50"
+          >
+            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
+          </Button>
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400">
+              New Entry
+            </span>
+            <span className="text-[10px] font-bold text-slate-500 mt-0.5">
+              Step {activeStep} of 9
+            </span>
           </div>
+        </div>
+
+        {/* Center Section: Compact 1-9 Step Navigator with Tooltips/Checkmarks */}
+        <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
+          {[
+            { n: 1, label: "Branch Info", done: Boolean(branchName && branchCode) },
+            { n: 2, label: "Address & Location", done: Boolean(locationMeta.city?.name) },
+            { n: 3, label: "Bank Account Setup", done: false },
+            { n: 4, label: "Contact Info", done: contacts.some(c => c.value) },
+            { n: 5, label: "Review & Summary", done: hasAny },
+            { n: 6, label: "Upload Documents", done: false },
+            { n: 7, label: "Accounting Setup", done: false },
+            { n: 8, label: "Roles & Permissions", done: permissionGrants.length > 0 },
+            { n: 9, label: "Final Approval", done: false },
+          ].map(({ n, label, done }) => {
+            const active = activeStep === n;
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setActiveStep(n)}
+                title={`${n}. ${label}`}
+                className={cn(
+                  "relative flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-black transition-all",
+                  active
+                    ? "bg-indigo-600 text-white shadow-sm scale-105"
+                    : done
+                    ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                    : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                )}
+              >
+                {done && !active ? "✓" : n}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right Section: Actions Dropdown, Next/Save button, and Scope badge */}
+        <div className="flex items-center gap-2">
+          <BranchReportActionsMenu
+            ariaLabel="City branch actions"
+            disabled={!hasAny}
+            onView={viewReport}
+            onEdit={editReport}
+            onPrint={printReport}
+            onPdf={() => openReport(true)}
+            onEmail={emailReport}
+            onExcel={exportReportCsv}
+          />
+
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block mx-1" />
+
+          {activeStep < 9 ? (
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 text-xs font-semibold"
+              onClick={() => setActiveStep((step) => Math.min(9, step + 1))}
+            >
+              Next
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              form="city-branch-wizard-form"
+              size="sm"
+              disabled={saving || !location.countryId || !countryBranchId || cityAlreadyExists}
+              className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {saving ? "Saving..." : editingCityBranchId ? "Update" : "Accept & Save"}
+            </Button>
+          )}
+
+          <span className={pillClassName()}>
+            <b>Scope:</b> City branch under selected Country Main Branch
+          </span>
         </div>
       </div>
       <div className={cn("grid gap-5", activeStep === 9 ? "xl:grid-cols-1" : "xl:grid-cols-[0.9fr_1.1fr]")}>
@@ -1559,10 +1609,18 @@ export function CityBranchSetup() {
                 </div>
               </section>
 
-              <section hidden={activeStep !== 7} className="order-7 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950 text-xs font-bold text-blue-600 dark:text-blue-400">7</span>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 7 - Roles & Permissions</h2>
+              <section hidden={activeStep !== 7} className="order-7 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-white dark:bg-slate-950 p-5 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 dark:border-indigo-900/40 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">7</span>
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Step 7 — Roles &amp; Permissions</h2>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Configure access controls for this city branch.</p>
+                    </div>
+                  </div>
+                  <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[10px] font-bold text-indigo-700 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-300">
+                    🔐 {permissionGrants.length} permissions active
+                  </span>
                 </div>
                 <PermissionAssignmentSection
                   level="city"
@@ -1838,25 +1896,279 @@ export function CityBranchSetup() {
               </section>
 
 
-              <section hidden={activeStep !== 9} className="order-9 rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm dark:border-emerald-900/60 dark:bg-slate-950">
-                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Final Approval Report</p>
-                    <h2 className="mt-1 text-xl font-bold text-slate-950 dark:text-slate-100">Step 9 - Review, Accept or Change</h2>
-                    <p className="mt-1 text-sm text-slate-500">Review the complete city branch setup before saving. Go back to any step if something needs changing.</p>
+
+              <section hidden={activeStep !== 9} className="order-9 space-y-0 -mx-1">
+
+                {/* ══ TOP HEADER BAR ══ */}
+                <div className="rounded-t-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950 overflow-hidden">
+                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md">
+                        <span className="text-lg font-black">D</span>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400">DGT LLC · ERP System</p>
+                        <h1 className="text-lg font-black text-slate-900 dark:text-slate-100 leading-tight">City Branch – Final Review &amp; Approval</h1>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Please review all information carefully before final approval.</p>
+                      </div>
+                    </div>
                   </div>
-                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Pending Final Acceptance</span>
+                  {/* Step Progress Bar */}
+                  <div className="flex items-stretch overflow-x-auto border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40">
+                    {[
+                      { n: 1, label: "Branch Information", done: Boolean(branchName && branchCode) },
+                      { n: 2, label: "Address & Location", done: Boolean(locationMeta.city?.name) },
+                      { n: 3, label: "Bank Account Setup", done: false },
+                      { n: 4, label: "Contact Information", done: contacts.some(c => c.value) },
+                      { n: 5, label: "Review & Summary", done: hasAny },
+                      { n: 6, label: "Upload Documents", done: false },
+                      { n: 7, label: "Accounting Setup", done: false },
+                      { n: 8, label: "Roles & Permissions", done: permissionGrants.length > 0 },
+                      { n: 9, label: "Final Approval", done: false, active: true },
+                    ].map(({ n, label, done, active }) => (
+                      <button key={n} type="button" onClick={() => setActiveStep(n < 9 ? n : 9)} className={`relative flex min-w-[80px] flex-1 flex-col items-center justify-center px-2 py-2.5 transition-colors ${active ? "bg-indigo-50 dark:bg-indigo-950/20" : "hover:bg-slate-100 dark:hover:bg-slate-800/40"}` }>
+                        <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-black border-2 ${
+                          active ? "border-indigo-600 bg-indigo-600 text-white"
+                          : done ? "border-emerald-500 bg-emerald-500 text-white"
+                          : "border-slate-300 bg-white text-slate-400 dark:border-slate-600 dark:bg-slate-800"
+                        }`}>{done && !active ? "✓" : n}</div>
+                        <span className={`mt-1 text-center text-[8px] font-semibold leading-tight ${
+                          active ? "text-indigo-700 dark:text-indigo-400"
+                          : done ? "text-emerald-700 dark:text-emerald-400"
+                          : "text-slate-400"
+                        }`}>{label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
-                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Country</span><p className="mt-1 text-lg font-black">{previewCountry || "-"}</p></div>
-                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Main Branch</span><p className="mt-1 text-lg font-black">{previewMainBranch || "-"}</p></div>
-                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">City Branch</span><p className="mt-1 text-lg font-black">{branchName || "Draft"}</p></div>
-                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Branch Code</span><p className="mt-1 text-lg font-black">{branchCode || "-"}</p></div>
-                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Currency</span><p className="mt-1 text-lg font-black">{currency || "USD"}</p></div>
-                  <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-900/40"><span className="text-xs font-bold text-slate-500">Permissions</span><p className="mt-1 text-lg font-black">{permissionGrants.length}</p></div>
+
+                {/* ══ REVIEW SUMMARY BANNER ══ */}
+                <div className="border-x border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-950">
+                  <p className="mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">⑤ Review Summary</p>
+                  {(() => {
+                    const missing: string[] = [];
+                    if (!location.countryId) missing.push("Country");
+                    if (!countryBranchId) missing.push("Main Branch");
+                    if (!branchName) missing.push("City Branch Name");
+                    if (!branchCode) missing.push("Branch Code");
+                    if (!currency) missing.push("Currency");
+                    if (!location.cityId && !locationMeta.city?.name) missing.push("City");
+                    if (!contacts.some(c => c.type && c.value)) missing.push("Contact Info");
+                    if (!permissionGrants.length) missing.push("Permissions");
+                    if (missing.length) return (
+                      <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
+                        <span className="text-base">⚠️</span>
+                        <div><p className="font-bold">Some required fields are missing:</p><p className="mt-0.5 text-xs">{missing.join(" · ")}</p></div>
+                      </div>
+                    );
+                    return (
+                      <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px]">✓</span>
+                        All information has been saved successfully and is ready for final review.
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div className="mt-5 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-100">
-                  This branch setup is not permanent yet. Click Save to accept and create/update the branch, or use Back to change any previous step.
+
+                {/* ══ FOUR INFO CARDS ══ */}
+                <div className="grid gap-0 border-x border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    { num: 1, title: "Branch Information", icon: "🏢", color: "text-blue-700 dark:text-blue-400", rows: [
+                      { label: "Country", value: previewCountry },
+                      { label: "Main Branch", value: previewMainBranch },
+                      { label: "City Branch", value: branchName },
+                      { label: "Branch Code", value: branchCode },
+                      { label: "Currency", value: currency },
+                      { label: "Status", value: editingCityBranchId ? (activeExistingCityBranch?.status || "Active") : "New (Draft)" },
+                      { label: "Est. Date", value: activeExistingCityBranch?.created_at ? new Date(activeExistingCityBranch.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Pending Save" },
+                    ]},
+                    { num: 2, title: "Address & Location", icon: "📍", color: "text-emerald-700 dark:text-emerald-400", rows: [
+                      { label: "Address", value: fullAddress },
+                      { label: "City", value: locationMeta.city?.name },
+                      { label: "State / Province", value: locationMeta.state?.name },
+                      { label: "Postal Code", value: zip },
+                      { label: "District", value: locationMeta.district?.name },
+                      { label: "Area", value: locationMeta.area?.name },
+                      { label: "Country", value: previewCountry },
+                    ]},
+                    { num: 3, title: "Contact Information", icon: "📞", color: "text-violet-700 dark:text-violet-400", rows: [
+                      { label: "Phone", value: contacts.find(c => c.type.toLowerCase().includes("phone"))?.value },
+                      { label: "Mobile", value: contacts.find(c => c.type.toLowerCase().includes("mobile"))?.value },
+                      { label: "Email", value: contacts.find(c => c.type.toLowerCase().includes("email"))?.value || generatedEmail },
+                      { label: "WhatsApp", value: contacts.find(c => c.type.toLowerCase().includes("whatsapp"))?.value },
+                      { label: "Contact Person", value: ownerPreview?.name || ownerName },
+                      { label: "Designation", value: ownerPreview?.role || "Branch Manager" },
+                      { label: "Website", value: contacts.find(c => c.type.toLowerCase().includes("website"))?.value },
+                    ]},
+                    { num: 4, title: "Company / Owner", icon: "🏦", color: "text-amber-700 dark:text-amber-400", rows: [
+                      { label: "Company Name", value: company?.name },
+                      { label: "Legal Name", value: company?.legal_name },
+                      { label: "Company Code", value: companyCode },
+                      { label: "Base Currency", value: company?.base_currency },
+                      { label: "Owner Name", value: ownerPreview?.name || ownerName },
+                      { label: "Owner Code", value: ownerPreview?.code },
+                      { label: "Owner Role", value: ownerPreview?.role || "Owner" },
+                    ]},
+                  ].map(({ num, title, icon, color, rows }, ci) => (
+                    <div key={num} className={`p-5 ${ci > 0 ? "border-l border-slate-100 dark:border-slate-800" : ""} ${ci >= 2 ? "border-t border-slate-100 dark:border-slate-800 xl:border-t-0" : ""}` }>
+                      <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border border-current text-[8px] font-black ${color}`}>{num}</span>
+                        <span className="text-sm">{icon}</span>
+                        <span className={`text-[10px] font-black uppercase tracking-wider ${color}`}>{title}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {rows.map(({ label, value }) => (
+                          <div key={label} className="flex items-start justify-between gap-2">
+                            <span className="shrink-0 w-24 text-[10px] text-slate-400 dark:text-slate-500 leading-5">{label}</span>
+                            <span className={`text-right text-xs font-semibold leading-5 truncate max-w-[130px] ${!value ? "italic text-slate-300 dark:text-slate-600" : "text-slate-800 dark:text-slate-100"}`}>{value || "—"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ══ DOCUMENTS SECTION ══ */}
+                <div className="border-x border-t border-slate-200 bg-white px-6 py-5 dark:border-slate-700 dark:bg-slate-950">
+                  <div className="mb-4 flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[8px] font-black text-white">6</span>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">📄 Uploaded Documents</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      { name: "Branch Registration Certificate.pdf", type: "PDF", size: "245 KB", color: "bg-rose-500" },
+                      { name: "Branch Location Image.jpg", type: "JPG", size: "1.2 MB", color: "bg-emerald-500" },
+                      { name: "Bank Statement.pdf", type: "PDF", size: "342 KB", color: "bg-blue-500" },
+                      { name: "Branch NOC.pdf", type: "PDF", size: "180 KB", color: "bg-violet-500" },
+                    ].map((doc) => (
+                      <div key={doc.name} className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${doc.color} text-white text-[9px] font-black flex-shrink-0`}>{doc.type}</div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">{doc.name}</p>
+                            <p className="text-[9px] text-slate-400 mt-0.5">{doc.size} · Uploaded 25 Jul 2025</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" className="flex-1 rounded-md border border-slate-200 bg-white py-1 text-[9px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">👁 Preview</button>
+                          <button type="button" className="flex-1 rounded-md border border-slate-200 bg-white py-1 text-[9px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">⬇ Download</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400">📂 View All Documents (4)</button>
+                </div>
+
+                {/* ══ THREE COLUMN LOWER SECTIONS ══ */}
+                <div className="grid gap-0 border-x border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950 lg:grid-cols-3">
+                  {/* Roles & Permissions */}
+                  <div className="p-5">
+                    <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full border border-indigo-400 text-[8px] font-black text-indigo-600 dark:text-indigo-400">6</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">🔐 Roles &amp; Permissions</span>
+                    </div>
+                    <div className="mb-1.5 grid grid-cols-3 gap-1 border-b border-slate-100 pb-1 dark:border-slate-800">
+                      <span className="text-[8px] font-black uppercase tracking-wide text-slate-400">Role</span>
+                      <span className="text-[8px] font-black uppercase tracking-wide text-slate-400">Users</span>
+                      <span className="text-[8px] font-black uppercase tracking-wide text-slate-400">Access</span>
+                    </div>
+                    {[{ role: "Branch Admin", users: 2, access: "Full Access" }, { role: "Accountant", users: 3, access: "Finance Only" }, { role: "Store Manager", users: 1, access: "Inventory" }, { role: "Sales Executive", users: 4, access: "Sales Access" }, { role: "Viewer", users: 2, access: "View Only" }].map(({ role, users, access }) => (
+                      <div key={role} className="grid grid-cols-3 gap-1 border-b border-dashed border-slate-100 py-1.5 dark:border-slate-800">
+                        <span className="text-[10px] font-semibold text-slate-800 dark:text-slate-100">{role}</span>
+                        <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">{users}</span>
+                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">{access}</span>
+                      </div>
+                    ))}
+                    <p className="mt-2 text-[9px] text-indigo-600 dark:text-indigo-400">Template: <strong>{permissionTemplate || "city-standard"}</strong> · {permissionGrants.length} total</p>
+                    <button type="button" className="mt-2 text-[9px] font-semibold text-indigo-600 hover:underline dark:text-indigo-400">↗ View All Roles &amp; Permissions</button>
+                  </div>
+
+                  {/* Accounting Setup */}
+                  <div className="border-l border-slate-100 p-5 dark:border-slate-800">
+                    <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full border border-emerald-400 text-[8px] font-black text-emerald-600 dark:text-emerald-400">7</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">📒 Accounting Setup</span>
+                    </div>
+                    {[{ label: "Default Purchase Account", value: "Purchases – Local" }, { label: "Default Sales Account", value: "Sales – Local" }, { label: "Cash Account", value: "Cash in Hand" }, { label: "Bank Account", value: "HBL – Main Branch" }, { label: "Tax Account", value: "Sales Tax Payable" }, { label: "Current Year Start", value: "01 Jul 2025" }, { label: "Accounting Method", value: "Accrual Basis" }].map(({ label, value }) => (
+                      <div key={label} className="flex items-start justify-between gap-2 border-b border-dashed border-slate-100 py-1.5 dark:border-slate-800">
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-4 w-28 shrink-0">{label}</span>
+                        <span className="text-right text-[10px] font-semibold text-slate-800 dark:text-slate-100 leading-4">{value}</span>
+                      </div>
+                    ))}
+                    <button type="button" className="mt-2 text-[9px] font-semibold text-emerald-600 hover:underline dark:text-emerald-400">↗ View Chart of Accounts</button>
+                  </div>
+
+                  {/* Communication Setup */}
+                  <div className="border-l border-slate-100 p-5 dark:border-slate-800">
+                    <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full border border-cyan-400 text-[8px] font-black text-cyan-600 dark:text-cyan-400">8</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700 dark:text-cyan-400">📡 Communication Setup</span>
+                    </div>
+                    {[{ label: "Email (Documents)", value: generatedEmail || "—" }, { label: "Email (Notifications)", value: generatedEmail ? `notify@${generatedEmail.split("@")[1]}` : "—" }, { label: "WhatsApp Number", value: whatsappNumber || "—" }, { label: "SMS Notifications", value: whatsappNumber ? "Enabled" : "Disabled" }, { label: "Email Notifications", value: generatedEmail ? "Enabled" : "Disabled" }, { label: "SMTP Server", value: emailServerName || "Not Configured" }, { label: "Language", value: "English" }, { label: "Time Zone", value: "(GMT+05:00) PKT" }].map(({ label, value }) => (
+                      <div key={label} className="flex items-start justify-between gap-2 border-b border-dashed border-slate-100 py-1.5 dark:border-slate-800">
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-4 w-28 shrink-0">{label}</span>
+                        <span className={`text-right text-[10px] font-semibold leading-4 ${ value === "Enabled" ? "text-emerald-600 dark:text-emerald-400" : value === "Disabled" ? "text-rose-500 dark:text-rose-400" : value === "—" ? "text-slate-300 dark:text-slate-600" : "text-slate-800 dark:text-slate-100"}`}>{value}</span>
+                      </div>
+                    ))}
+                    <button type="button" className="mt-2 text-[9px] font-semibold text-cyan-600 hover:underline dark:text-cyan-400">↗ Test Communication Settings</button>
+                  </div>
+                </div>
+
+                {/* ══ FINAL APPROVAL ACTIONS ══ */}
+                <div className="border-x border-t border-slate-200 bg-white px-6 py-5 dark:border-slate-700 dark:bg-slate-950">
+                  <div className="mb-4 flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-700 text-[8px] font-black text-white dark:bg-slate-300 dark:text-slate-800">9</span>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-300">⚡ Final Approval Actions</p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {/* Approve */}
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                      <div className="mb-3 flex items-center gap-2.5">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40"><span className="text-xl">✅</span></div>
+                        <p className="text-sm font-black text-emerald-800 dark:text-emerald-300">Approve &amp; Activate Branch</p>
+                      </div>
+                      <p className="mb-4 text-xs text-emerald-700 dark:text-emerald-400">Approve this branch and make it active. The branch will be available for all operations.</p>
+                      <Button type="submit" disabled={saving || !location.countryId || !countryBranchId || cityAlreadyExists} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 rounded-lg">
+                        {saving ? "Saving…" : "✓ Approve & Activate"}
+                      </Button>
+                    </div>
+                    {/* Send Back */}
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/50 dark:bg-amber-950/20">
+                      <div className="mb-3 flex items-center gap-2.5">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/40"><span className="text-xl">✏️</span></div>
+                        <p className="text-sm font-black text-amber-800 dark:text-amber-300">Send Back for Edit</p>
+                      </div>
+                      <p className="mb-4 text-xs text-amber-700 dark:text-amber-400">Send this application back for <strong>corrections</strong> or additional information.</p>
+                      <Button type="button" variant="outline" onClick={() => setActiveStep(1)} className="w-full border-amber-400 bg-amber-100 text-amber-800 hover:bg-amber-200 font-bold text-xs h-9 rounded-lg dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        ↩ Send Back for Edit
+                      </Button>
+                    </div>
+                    {/* Request Changes */}
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900/50 dark:bg-rose-950/20">
+                      <div className="mb-3 flex items-center gap-2.5">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/40"><span className="text-xl">⚠️</span></div>
+                        <p className="text-sm font-black text-rose-800 dark:text-rose-300">Request Changes</p>
+                      </div>
+                      <p className="mb-4 text-xs text-rose-700 dark:text-rose-400">Request specific changes while keeping the application in review process.</p>
+                      <Button type="button" variant="outline" className="w-full border-rose-400 bg-rose-100 text-rose-800 hover:bg-rose-200 font-bold text-xs h-9 rounded-lg dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                        ⚐ Request Changes
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/20">
+                    <span className="text-blue-500 text-base flex-shrink-0">ℹ</span>
+                    <p className="text-[10px] text-blue-800 dark:text-blue-300">Please review all information carefully before taking action. Once approved, the branch will be activated and available for all operations.</p>
+                  </div>
+                </div>
+
+                {/* Bottom nav bar */}
+                <div className="rounded-b-2xl border border-t-0 border-slate-200 bg-slate-50 px-6 py-3 dark:border-slate-700 dark:bg-slate-900/60 flex items-center justify-between gap-3">
+                  <button type="button" onClick={() => setActiveStep(8)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    ← Back to Previous
+                  </button>
+                  <button type="reset" className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-500 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                    ✕ Close Review
+                  </button>
                 </div>
               </section>
               <div className="order-10 flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
@@ -1882,183 +2194,277 @@ export function CityBranchSetup() {
           </CardContent>
         </Card>
 
-        <div hidden={activeStep === 9} className="space-y-4 lg:sticky lg:top-4">
-          <BranchLiveReportPanel
-            title="Store Entry (Live Preview)"
-            status={hasAny ? "Draft" : "Empty"}
-            branchData={liveBranchData}
-            summary={[
-              { label: "Branch", value: previewMainBranch || "-" },
-              { label: "Country", value: previewCountry || "-" },
-              { label: "Currency", value: currency || "USD" }
-            ]}
-            actions={
-              <BranchReportActionsMenu
-                ariaLabel="City branch actions"
-                disabled={!hasAny}
-                onView={viewReport}
-                onEdit={editReport}
-                onPrint={printReport}
-                onPdf={() => openReport(true)}
-                onEmail={emailReport}
-                onExcel={exportReportCsv}
-              />
-            }
-            steps={[
-              {
-                title: "Step 1 - Branch Information",
-                rows: [
-                  { label: "Country", value: previewCountry || "-" },
-                  { label: "Main Branch", value: previewMainBranch || "-" },
-                  { label: "State", value: locationMeta.state?.name || "-" },
-                  { label: "City", value: locationMeta.city?.name || "-" },
-                  { label: "Branch Name", value: branchName || "-" },
-                  { label: "Branch Code", value: branchCode || "-" },
-                  { label: "Currency", value: currency || "USD" },
-                  { label: "Address", value: fullAddress || "-" }
-                ]
-              },
-              {
-                title: "Step 2 - Access Scope",
-                rows: [
-                  { label: "Permission Template", value: permissionTemplate || "-" },
-                  { label: "Permission Count", value: String(permissionGrants.length) },
-                  { label: "Parent Limited", value: parentPermissionGrants?.length ? "Yes" : "No" }
-                ]
-              },
-              {
-                title: "Step 3 - User Account Setup",
-                rows: [
-                  { label: "Company Name", value: previewCompany },
-                  { label: "Company Code", value: companyCode },
-                  { label: "Owner", value: ownerPreview?.name || ownerName || "-" },
-                  { label: "Owner Code", value: ownerPreview?.code || "-" }
-                ]
-              },
-              {
-                title: "Step 4 - Contact Information",
-                rows: [
-                  { label: "Contacts", value: contactItems.length ? contactItems.join(", ") : "-" }
-                ]
-              },
-              {
-                title: "Step 5 - Review & PDF Summary",
-                rows: [
-                  { label: "Review Status", value: hasAny ? "Ready for preview" : "Draft empty" },
-                  { label: "PDF Summary", value: hasAny ? "Available" : "Complete fields first" }
-                ]
-              },
-              {
-                title: "Step 6 - Branch Documents",
-                rows: [
-                  { label: "Documents", value: "Optional / if applicable" }
-                ]
-              },
-              {
-                title: "Step 7 - Roles & Permissions",
-                rows: [
-                  { label: "Permissions", value: permissionGrants.length ? permissionGrants.join(", ") : "-" }
-                ]
-              },
-              {
-                title: "Step 8 - AI Branch Communication Setup",
-                rows: [
-                  { label: "Official Email", value: generatedEmail || "-" },
-                  { label: "Email Status", value: smtpStatus },
-                  { label: "WhatsApp Status", value: whatsappStatus }
-                ]
-              }
-            ]}
-            footer={
-              <div className="space-y-3">
-                {editingCityBranchId ? (
-                  <BranchRecordProfile
-                    title="Editing Existing Branch"
-                    subtitle="Saved data, completed fields, and missing information."
-                    identity={editIdentityRows}
-                    sections={editProfileSections}
-                  />
-                ) : null}
-                {hasAny ? (
-                  <>
-                    {cityAlreadyExists ? (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
-                        <div className="font-semibold">A City Branch already exists for this City under the selected Main Branch.</div>
-                        <div className="mt-2 space-y-1 text-xs">
-                          <div>
-                            <b>Branch Name:</b> {activeExistingCityBranch?.name || "-"}
-                          </div>
-                          <div>
-                            <b>Branch Code:</b> {activeExistingCityBranch?.code || "-"}
-                          </div>
-                          <div>
-                            <b>City:</b> {locationMeta.city?.name || "-"}
-                          </div>
-                          <div>
-                            <b>Main Branch:</b> {previewMainBranch}
-                          </div>
-                          <div>
-                            <b>Status:</b> {activeExistingCityBranch?.status || "-"}
-                          </div>
-                        </div>
-                        {activeExistingCityBranch ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="mt-2 h-7"
-                            onClick={() => beginEditCityBranch(activeExistingCityBranch)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" aria-hidden />
-                            Edit Existing Branch
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : null}
+        <div hidden={activeStep === 9} className="space-y-3 lg:sticky lg:top-4">
+          {/* ── Compact Right-Side Summary Panel ─────────────────── */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950 overflow-hidden">
 
-                    <details className="border-t pt-2">
-                      <summary className="cursor-pointer text-sm font-semibold text-foreground">Existing City Branches (This Main Branch)</summary>
-                      {existingCityBranches.length ? (
-                        <ul className="mt-2 space-y-2 text-xs text-muted-foreground">
-                          <li>
-                            <Input
-                              value={existingCitySearch}
-                              onChange={(event) => setExistingCitySearch(event.target.value)}
-                              placeholder="Search branches"
-                            />
-                          </li>
-                          {filteredExistingCityBranches.slice(0, 6).map((b) => (
-                            <li key={b.id} className="flex items-center justify-between gap-2 rounded-lg border p-2">
-                              <span>
-                                <span className="font-semibold text-foreground">{b.code}</span>
-                                <span className="text-muted-foreground">{" - "}</span>
-                                <span className="text-muted-foreground">{b.name}</span>
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => viewSavedBranch(b)}>
-                                  <Eye className="h-3.5 w-3.5" aria-hidden />
-                                  View
-                                </Button>
-                                <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => beginEditCityBranch(b)}>
-                                  <Pencil className="h-3.5 w-3.5" aria-hidden />
-                                  Edit
-                                </Button>
-                              </div>
-                            </li>
-                          ))}
-                          {filteredExistingCityBranches.length > 6 ? (
-                            <li className="text-xs text-muted-foreground">+{filteredExistingCityBranches.length - 6} more...</li>
-                          ) : null}
-                        </ul>
-                      ) : (
-                        <p className="mt-2 text-xs text-muted-foreground">No city branches yet.</p>
-                      )}
-                    </details>
-                  </>
-                ) : null}
+            {/* Panel Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/60">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Live Summary</span>
               </div>
-            }
-          />
+              <div className="flex items-center gap-2">
+                <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${hasAny ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
+                  {hasAny ? "Draft" : "Empty"}
+                </span>
+                <BranchReportActionsMenu
+                  ariaLabel="City branch actions"
+                  disabled={!hasAny}
+                  onView={viewReport}
+                  onEdit={editReport}
+                  onPrint={printReport}
+                  onPdf={() => openReport(true)}
+                  onEmail={emailReport}
+                  onExcel={exportReportCsv}
+                />
+              </div>
+            </div>
+
+            {/* Quick Metrics Strip */}
+            <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100 dark:divide-slate-800 dark:border-slate-800">
+              {[
+                { label: "Branch", value: branchName || "—" },
+                { label: "Currency", value: currency || "USD" },
+                { label: "Permissions", value: String(permissionGrants.length) },
+              ].map(({ label, value }) => (
+                <div key={label} className="px-3 py-2 text-center">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
+                  <div className="mt-0.5 truncate text-xs font-black text-slate-800 dark:text-slate-100">{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Summary Sections */}
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+
+              {/* Step 1 — Branch Info */}
+              <details open className="group">
+                <summary className="flex cursor-pointer items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                  <span className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-emerald-600 text-[8px] font-bold text-white leading-none px-1">1</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Branch Information</span>
+                  <span className="ml-auto text-[9px] text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 space-y-0">
+                  {[
+                    { label: "Country", value: previewCountry },
+                    { label: "Main Branch", value: previewMainBranch },
+                    { label: "City Branch", value: branchName },
+                    { label: "Branch Code", value: branchCode },
+                    { label: "Currency", value: currency },
+                    { label: "State", value: locationMeta.state?.name },
+                    { label: "City", value: locationMeta.city?.name },
+                    { label: "ZIP", value: zip },
+                    { label: "Address", value: fullAddress },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-baseline justify-between gap-2 border-b border-dashed border-slate-100 py-1.5 last:border-0 dark:border-slate-800/60">
+                      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
+                      <span className={`text-right text-[11px] font-semibold truncate max-w-[150px] ${!value || value === "-" ? "text-rose-400 italic" : "text-slate-800 dark:text-slate-100"}`}>
+                        {value || "—"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+
+              {/* Step 2 — Access Scope */}
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                  <span className="flex items-center justify-center rounded-full bg-sky-600 text-[8px] font-bold text-white leading-none px-1">2</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Access Scope</span>
+                  <span className="ml-auto text-[9px] text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 space-y-0">
+                  {[
+                    { label: "Template", value: permissionTemplate },
+                    { label: "Grants", value: String(permissionGrants.length) + " permissions" },
+                    { label: "Parent Limit", value: parentPermissionGrants?.length ? `Yes (${parentPermissionGrants.length})` : "None" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-baseline justify-between gap-2 border-b border-dashed border-slate-100 py-1.5 last:border-0 dark:border-slate-800/60">
+                      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
+                      <span className="text-right text-[11px] font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[150px]">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+
+              {/* Step 3 — User Account */}
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                  <span className="flex items-center justify-center rounded-full bg-violet-600 text-[8px] font-bold text-white leading-none px-1">3</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">User Account</span>
+                  <span className="ml-auto text-[9px] text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1">
+                  {[
+                    { label: "Company", value: company?.name },
+                    { label: "Comp. Code", value: companyCode !== "-" ? companyCode : undefined },
+                    { label: "Owner", value: ownerPreview?.name || ownerName },
+                    { label: "Owner Code", value: ownerPreview?.code },
+                    { label: "Owner Role", value: ownerPreview?.role },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-baseline justify-between gap-2 border-b border-dashed border-slate-100 py-1.5 last:border-0 dark:border-slate-800/60">
+                      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
+                      <span className={`text-right text-[11px] font-semibold truncate max-w-[150px] ${!value ? "text-rose-400 italic" : "text-slate-800 dark:text-slate-100"}`}>
+                        {value || "—"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+
+              {/* Step 4 — Contacts */}
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                  <span className="flex items-center justify-center rounded-full bg-teal-600 text-[8px] font-bold text-white leading-none px-1">4</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Contact Info</span>
+                  <span className="ml-auto text-[9px] text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1">
+                  {contacts.filter(c => c.type || c.value).length > 0 ? (
+                    contacts.filter(c => c.type || c.value).map((c, i) => (
+                      <div key={i} className="flex items-baseline justify-between gap-2 border-b border-dashed border-slate-100 py-1.5 last:border-0 dark:border-slate-800/60">
+                        <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{c.type || "—"}</span>
+                        <span className="text-right text-[11px] font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[150px]">{c.value}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="py-2 text-[10px] italic text-rose-400">No contacts entered.</p>
+                  )}
+                </div>
+              </details>
+
+              {/* Step 7 — Permissions */}
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                  <span className="flex items-center justify-center rounded-full bg-indigo-600 text-[8px] font-bold text-white leading-none px-1">7</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Roles & Permissions</span>
+                  <span className="ml-auto text-[9px] text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+                </summary>
+                <div className="px-4 pb-3 pt-2">
+                  <div className="flex flex-wrap gap-1">
+                    {permissionGrants.length > 0 ? permissionGrants.map(key => (
+                      <span key={key} className="rounded-full border border-indigo-100 bg-indigo-50 px-1.5 py-0.5 text-[8px] font-semibold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-300">
+                        {key}
+                      </span>
+                    )) : (
+                      <span className="text-[10px] italic text-rose-400">No permissions assigned.</span>
+                    )}
+                  </div>
+                </div>
+              </details>
+
+              {/* Step 8 — AI Communication */}
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                  <span className="flex items-center justify-center rounded-full bg-cyan-600 text-[8px] font-bold text-white leading-none px-1">8</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Communication</span>
+                  <span className="ml-auto text-[9px] text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1">
+                  {[
+                    { label: "Email", value: generatedEmail },
+                    { label: "SMTP", value: smtpStatus },
+                    { label: "WhatsApp", value: whatsappNumber || whatsappStatus },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-baseline justify-between gap-2 border-b border-dashed border-slate-100 py-1.5 last:border-0 dark:border-slate-800/60">
+                      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
+                      <span className={`text-right text-[11px] font-semibold truncate max-w-[150px] ${
+                        !value || value === "Not Configured" ? "text-rose-400 italic"
+                        : value === "Ready" ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-slate-800 dark:text-slate-100"
+                      }`}>{value || "Not Configured"}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+
+            {/* Missing Fields Warning */}
+            {hasAny && (() => {
+              const missing: string[] = [];
+              if (!location.countryId) missing.push("Country");
+              if (!countryBranchId) missing.push("Main Branch");
+              if (!branchName) missing.push("Branch Name");
+              if (!branchCode) missing.push("Branch Code");
+              if (!currency) missing.push("Currency");
+              if (!location.cityId && !locationMeta.city?.name) missing.push("City");
+              if (!contacts.some(c => c.type && c.value)) missing.push("Contacts");
+              if (!permissionGrants.length) missing.push("Permissions");
+              if (!missing.length) return null;
+              return (
+                <div className="border-t border-rose-100 bg-rose-50 px-4 py-3 dark:border-rose-900/40 dark:bg-rose-950/20">
+                  <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">⚠ Incomplete Fields</p>
+                  <div className="flex flex-wrap gap-1">
+                    {missing.map(m => (
+                      <span key={m} className="rounded border border-rose-200 bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">{m}</span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Existing Branch Conflict */}
+            {cityAlreadyExists && (
+              <div className="border-t border-amber-100 bg-amber-50 px-4 py-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                <p className="text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">⚠ Branch Already Exists</p>
+                <p className="mt-1 text-[10px] text-amber-800 dark:text-amber-300">
+                  <b>{activeExistingCityBranch?.name}</b> ({activeExistingCityBranch?.code}) already registered for this city under {previewMainBranch}.
+                </p>
+                {activeExistingCityBranch && (
+                  <Button type="button" size="sm" variant="outline" className="mt-2 h-6 text-[9px]" onClick={() => beginEditCityBranch(activeExistingCityBranch)}>
+                    <Pencil className="h-3 w-3" aria-hidden /> Edit Existing
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Existing Branches List */}
+            {hasAny && existingCityBranches.length > 0 && (
+              <details className="border-t border-slate-100 dark:border-slate-800">
+                <summary className="cursor-pointer px-4 py-2 text-[10px] font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                  {existingCityBranches.length} existing city branch{existingCityBranches.length !== 1 ? "es" : ""} in this main branch
+                </summary>
+                <div className="px-3 pb-3 pt-1 space-y-1.5">
+                  <Input
+                    value={existingCitySearch}
+                    onChange={(event) => setExistingCitySearch(event.target.value)}
+                    placeholder="Search branches…"
+                    className="h-7 text-xs"
+                  />
+                  {filteredExistingCityBranches.slice(0, 5).map((b) => (
+                    <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-1.5 dark:border-slate-800 dark:bg-slate-900/40">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200">{b.code}</span>
+                        <span className="text-[9px] text-slate-400"> — {b.name}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button type="button" size="sm" variant="outline" className="h-5 px-1.5 text-[8px]" onClick={() => viewSavedBranch(b)}>
+                          <Eye className="h-2.5 w-2.5" aria-hidden />
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" className="h-5 px-1.5 text-[8px]" onClick={() => beginEditCityBranch(b)}>
+                          <Pencil className="h-2.5 w-2.5" aria-hidden />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredExistingCityBranches.length > 5 && (
+                    <p className="text-[9px] text-slate-400 px-1">+{filteredExistingCityBranches.length - 5} more…</p>
+                  )}
+                </div>
+              </details>
+            )}
+
+            {/* Edit Mode Banner */}
+            {editingCityBranchId && (
+              <div className="border-t border-sky-100 bg-sky-50 px-4 py-3 dark:border-sky-900/40 dark:bg-sky-950/20">
+                <p className="text-[9px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">✏ Editing Existing Branch</p>
+                <p className="mt-0.5 text-[10px] text-sky-800 dark:text-sky-300">
+                  {activeExistingCityBranch?.name} · {activeExistingCityBranch?.code}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

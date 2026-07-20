@@ -3414,8 +3414,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       setTypeDetails({});
       setAttachmentFile(null);
       
-      // Auto-reload data
-      await loadOrders();
+      // Auto-redirect if in advance mode
+      if (activeMode === "advance" && selected?.purchase_order_no) {
+        setTimeout(() => {
+          router.push(`/dashboard/purchase/loading-form?purchaseOrderNo=${encodeURIComponent(selected.purchase_order_no)}`);
+        }, 1500);
+      } else {
+        await loadOrders();
+      }
     } catch (err: any) {
       setPaymentError(err?.message || "Failed to process payment settlement. Please try again.");
     } finally {
@@ -4423,6 +4429,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               const grossWeightHeader = goods.reduce((sum: number, g: any) => sum + Number(g.grossWeight || g.gross_weight || 0), 0);
               const netWeightHeader = goods.reduce((sum: number, g: any) => sum + Number(g.netWeight || g.net_weight || 0), 0);
 
+              const advancePercent = Number(form.advancePercent || 0);
+              const requiredAdvanceBC = (purchaseTotalHeader * advancePercent) / 100;
+              const paidAdvanceBC = Number(selected.advance_paid || 0);
+              const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
+
               const detailCells = [
                 ["PO Number", selected.purchase_order_no || "-"],
                 ["Contract", selected.purchase_contract_no || form.contractNo || "-"],
@@ -4434,7 +4445,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 ["Status", statusHeader]
               ];
 
-              const summaryCells = [
+              const summaryCells = activeMode === "advance" ? [
+                ["Invoice Amount", money(purchaseTotalHeader, poCurrencyHeader), money(purchaseTotalHeader * exRateHeader, baseCurrency), "text-slate-900 dark:text-slate-100"],
+                ["Required Advance", money(requiredAdvanceBC, poCurrencyHeader), `Percent: ${advancePercent}%`, "text-indigo-700 dark:text-indigo-300"],
+                ["Remaining Advance", money(remainingAdvanceBC, poCurrencyHeader), `${poCurrencyHeader} Balance`, "text-rose-700 dark:text-rose-300"],
+                ["Final Converted Advance", money(remainingAdvanceBC * exRateHeader, baseCurrency), `${poCurrencyHeader} converted to ${baseCurrency}`, "text-emerald-700 dark:text-emerald-300"]
+              ] : [
                 ["Invoice Amount", money(purchaseTotalHeader, poCurrencyHeader), money(purchaseTotalHeader * exRateHeader, baseCurrency), "text-slate-900 dark:text-slate-100"],
                 ["Advance / Paid", money(advanceHeader, poCurrencyHeader), money(advanceHeader * exRateHeader, baseCurrency), "text-emerald-700 dark:text-emerald-300"],
                 ["Remaining Balance", money(remainingHeader, poCurrencyHeader), money(remainingHeader * exRateHeader, baseCurrency), "text-rose-700 dark:text-rose-300"],

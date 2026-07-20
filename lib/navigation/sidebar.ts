@@ -412,6 +412,11 @@ export const sidebarTree: SidebarNode[] = [
             href: "/dashboard/purchase/purchase-order-tracking" as Route
           }
         ]
+      },
+      {
+        key: "local-purchase",
+        labelKey: "nav.local_purchase",
+        href: "/dashboard/purchase/local-purchase" as Route
       }
     ]
   },
