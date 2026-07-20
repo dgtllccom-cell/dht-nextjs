@@ -93,6 +93,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       return NextResponse.json({ ok: false, error: { message: "Sales order not found" } }, { status: 404 });
     }
 
+    // Sales Order becomes read-only after transfer
+    const currentStatus = String((before as any).sales_status || "").toLowerCase();
+    if (currentStatus === "transferred" || currentStatus === "finalized" || currentStatus === "completed") {
+      return NextResponse.json({ ok: false, error: { message: "This Sales Order has already been transferred and is read-only." } }, { status: 400 });
+    }
+
     authorizeApiScope(session, {
       resource: "sales",
       action: "update",
@@ -126,7 +132,101 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (body.orderTotal !== undefined) patch.order_total = body.orderTotal;
     if (body.paidAmount !== undefined) patch.paid_amount = body.paidAmount;
     if (body.remainingAmount !== undefined) patch.remaining_amount = body.remainingAmount;
-    if (body.salesStatus !== undefined) patch.sales_status = body.salesStatus;
+    
+    if (body.salesStatus !== undefined) {
+      patch.sales_status = body.salesStatus;
+      
+      const targetStatus = String(body.salesStatus).toLowerCase();
+      if (targetStatus === "transferred" || targetStatus === "finalized" || targetStatus === "completed") {
+        patch.sales_status = "Transferred";
+        patch.transfer_date = new Date().toISOString().slice(0, 10);
+        patch.transfer_user = session.fullName || session.email || "Admin User";
+        
+        // Generate transfer serial number
+        try {
+          const admin = createSupabaseAdminClient() as any;
+          const { data: generatedSerial } = await admin.rpc("next_transaction_serial", {
+            p_scope_type: "transfer",
+            p_scope_key: (before as any).country_id || "global",
+            p_prefix: "TR"
+          });
+          patch.transfer_serial_number = generatedSerial || `TR-${Math.floor(100000 + Math.random() * 900000)}`;
+        } catch (serialErr) {
+          console.error("Non-fatal: Failed to generate transfer serial number:", serialErr);
+          patch.transfer_serial_number = `TR-${Math.floor(100000 + Math.random() * 900000)}`;
+        }
+
+        // Automatic Accounting Posting: JV, Roznamcha, Cash Roznamcha, General Ledger
+        const finalCost = Number(body.orderTotal ?? before.order_total ?? 0) * Number(body.exchangeRate ?? before.exchange_rate ?? 1);
+        const raw = body.formData || before.form_data || {};
+        const f = raw.form || {};
+        
+        const purchaseAccountCode = f.purchaseAccountNo;
+        const salesAccountCode = f.salesAccountNo;
+        
+        if (purchaseAccountCode && salesAccountCode && finalCost > 0) {
+          try {
+            const entryNo = `JV-SO-${Math.floor(100000 + Math.random() * 900000)}`;
+            const memo = `Sales Order Transfer - ${body.customerName || before.customer_name || "Customer"} (${body.productSummary || before.product_summary || "Goods"})`;
+            const admin = createSupabaseAdminClient() as any;
+
+            const { data: foundAccounts } = await admin
+              .from("accounts")
+              .select("id, code")
+              .in("code", [purchaseAccountCode, salesAccountCode]);
+
+            const debitAccObj = foundAccounts?.find(a => a.code === purchaseAccountCode);
+            const creditAccObj = foundAccounts?.find(a => a.code === salesAccountCode);
+
+            if (debitAccObj && creditAccObj) {
+              const { data: journalEntry } = await admin
+                .from("journal_entries")
+                .insert({
+                  company_id: (before as any).company_id,
+                  entry_no: entryNo,
+                  entry_date: new Date().toISOString().slice(0, 10),
+                  status: "posted",
+                  memo: memo,
+                  source_type: "sales_order",
+                  source_id: (before as any).id,
+                  posted_at: new Date().toISOString(),
+                  posted_by: session.userId,
+                })
+                .select()
+                .single();
+
+              if (journalEntry) {
+                // Save generated JV Serial inside Sales Order workflow state / trace
+                patch.workflow_state = {
+                  ...(before.workflow_state || {}),
+                  journal_serial_number: entryNo
+                };
+                
+                await admin.from("journal_lines").insert([
+                  {
+                    journal_entry_id: journalEntry.id,
+                    account_id: debitAccObj.id,
+                    description: `Debit: Customer Ledger - ${body.customerName || before.customer_name || "Customer"}`,
+                    debit: finalCost,
+                    credit: 0
+                  },
+                  {
+                    journal_entry_id: journalEntry.id,
+                    account_id: creditAccObj.id,
+                    description: `Credit: Sales Ledger - ${body.productSummary || before.product_summary || "Goods"}`,
+                    debit: 0,
+                    credit: finalCost
+                  }
+                ]);
+              }
+            }
+          } catch (journalErr) {
+            console.error("Non-fatal: Sales journal entry auto-posting error:", journalErr);
+          }
+        }
+      }
+    }
+    
     if (body.paymentStatus !== undefined) patch.payment_status = body.paymentStatus;
     if (body.deliveryStatus !== undefined) patch.delivery_status = body.deliveryStatus;
     

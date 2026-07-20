@@ -1933,6 +1933,7 @@ export function PurchaseOrderManagementDashboard() {
   const [selectedCountryForSummary, setSelectedCountryForSummary] = useState<string | null>(null);
   const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
   const [expandedTableCountries, setExpandedTableCountries] = useState<Record<string, boolean>>({});
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   const [filters, setFilters] = useState({
     country: "all",
@@ -2376,7 +2377,16 @@ export function PurchaseOrderManagementDashboard() {
         <span>17 Jun 2026, 08:54 PM</span>
       </div>
 
-      {/* CTA Button Removed as per request */}
+      {/* New Booking Button */}
+      <Button
+        type="button"
+        size="sm"
+        onClick={() => router.push("/dashboard/purchase/local-purchase?create=true")}
+        className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 h-9 rounded-xl shadow-md shadow-blue-100 flex items-center gap-1.5"
+      >
+        <Plus className="h-4 w-4" />
+        New
+      </Button>
     </div>
   );
 
@@ -2483,7 +2493,7 @@ export function PurchaseOrderManagementDashboard() {
                 {/* Group header row */}
                 <tr>
                   {[
-                    { label: "General Information", span: 11, cls: "bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-t-2 border-t-slate-400" },
+                    { label: "General Information", span: 12, cls: "bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-t-2 border-t-slate-400" },
                     { label: "Product Information", span: 7, cls: "bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-t-2 border-t-emerald-500" },
                     { label: "Financial Information", span: 7, cls: "bg-blue-50/50 dark:bg-blue-950/20 text-blue-800 dark:text-blue-400 border-t-2 border-t-blue-500" },
                     { label: "Route & Loading", span: 7, cls: "bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-800 dark:text-indigo-400 border-t-2 border-t-indigo-500" },
@@ -2502,7 +2512,7 @@ export function PurchaseOrderManagementDashboard() {
                 {/* Column headers */}
                 <tr className="bg-white dark:bg-slate-950 text-[9px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b-2 border-slate-200 dark:border-slate-800">
                   {[
-                    "SR.", "SUPER S/N", "CTY S/N", "BR. S/N",
+                    "", "SR.", "SUPER S/N", "CTY S/N", "BR. S/N",
                     "PURCHASE CODE", "SALES CODE", "INVOICE NO.", "DATE",
                     "BRANCH NAME", "COUNTRY", "USER NAME",
                     "GOODS NAME", "BRAND", "ORIGIN",
@@ -2543,7 +2553,7 @@ export function PurchaseOrderManagementDashboard() {
                         className="bg-slate-50 border-y border-slate-200 cursor-pointer hover:bg-blue-50 dark:bg-slate-900/40 dark:border-slate-800 dark:hover:bg-blue-900/20 transition-colors"
                         onClick={() => setExpandedTableCountries(prev => ({ ...prev, [countryName]: !isExpanded }))}
                       >
-                        <td colSpan={19} className="px-4 py-3 font-black text-[11px] uppercase tracking-wider text-slate-800 dark:text-slate-200 text-left">
+                        <td colSpan={20} className="px-4 py-3 font-black text-[11px] uppercase tracking-wider text-slate-800 dark:text-slate-200 text-left">
                           <div className="flex items-center gap-2">
                             <span>{countryName} ({group.rows.length} Records)</span>
                           </div>
@@ -2555,7 +2565,7 @@ export function PurchaseOrderManagementDashboard() {
                         <td className="px-2 py-3 font-black font-mono text-[11px] text-right text-blue-700 dark:text-blue-400">
                           {groupFinalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {localCurrencyLabel}
                         </td>
-                        <td colSpan={12} className="px-4 py-3 text-right">
+                        <td colSpan={13} className="px-4 py-3 text-right">
                            <div className="flex justify-end pr-4">
                             <div className="bg-slate-200 dark:bg-slate-800 p-1 rounded hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
                               {isExpanded ? (
@@ -2587,9 +2597,20 @@ export function PurchaseOrderManagementDashboard() {
                   const userName = row.audit?.userName || "-";
 
                   // Product
+                  const getOriginText = (g: any, r: any) => {
+                    const originVal = g?.origin || g?.originCountry || r.form_data?.form?.origin || r.form_data?.form?.originCountry || "";
+                    if (!originVal || originVal === "-" || originVal.toLowerCase() === "n/a") {
+                      return r.countryName || "Local";
+                    }
+                    if (/^[0-9a-fA-F-]{36}$/.test(originVal)) {
+                      return r.countryName || "Local";
+                    }
+                    return originVal;
+                  };
+
                   const goodsName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || row.productName || "-";
                   const brand = goods.map((g: any) => g.brand || g.size || "").filter(Boolean).join(", ") || "-";
-                  const origin = goods.map((g: any) => g.origin).filter(Boolean).join(", ") || row.form_data?.goodsEntries?.[0]?.origin || row.countryName || "-";
+                  const origin = goods.map((g: any) => getOriginText(g, row)).filter(Boolean).join(", ") || row.countryName || "-";
                   const totalQty = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || 0), 0) : Number(row.quantity || 0);
                   const qtyUnit = g0?.qtyName || row.unit || "-";
                   const totalGross = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(row.totalGrossWeight || row.totalWeight || 0);
@@ -2659,107 +2680,180 @@ export function PurchaseOrderManagementDashboard() {
                   };
 
                   return (
-                    <tr
-                      key={row.id}
-                      onClick={() => setSelectedId(row.id)}
-                      className={cn(
-                        "cursor-pointer transition hover:bg-blue-50/30 dark:hover:bg-blue-950/10 text-center text-[10px] font-semibold text-slate-800 dark:text-slate-350",
-                        isPoSelected && "bg-blue-50/40 dark:bg-blue-950/10"
-                      )}
-                    >
-                      {/* General */}
-                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-center`}>{srNo}</td>
-                      <td className={`px-2 py-2 font-mono text-[9px] ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{superSerialNo}</td>
-                      <td className={`px-2 py-2 font-mono text-[9px] ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{countrySerialNo}</td>
-                      <td className={`px-2 py-2 font-mono text-[9px] ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{branchSerialNo}</td>
-                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{purchaseCode}</td>
-                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{salesCode}</td>
-                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{invoiceNo}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{bookingDateVal}</td>
-                      <td className={`px-2 py-2 font-semibold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left`}>{branchName}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{countryName}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{userName}</td>
-                      {/* Product */}
-                      <td className={`px-2 py-2 font-semibold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left`}>{goodsName}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{brand}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{origin}</td>
-                      <td className={`px-2 py-2 font-mono font-semibold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalQty.toLocaleString()}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{qtyUnit}</td>
-                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalGross.toLocaleString()}</td>
-                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalNet.toLocaleString()}</td>
-                      {/* Financial */}
-                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${purchaseCurrency}` : "-"}
-                      </td>
-                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {totalAmt > 0 ? `${totalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${purchaseCurrency}` : "-"}
-                      </td>
-                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {purchaseAmt > 0 ? `${purchaseAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${purchaseCurrency}` : "-"}
-                      </td>
-                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
-                      </td>
-                      <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
-                        {finalAmt > 0 ? `${finalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${localCur}` : "-"}
-                      </td>
-                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
-                        {invoicePercent ? (
-                          <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>
-                        ) : <span className={getRowColor()}>-</span>}
-                      </td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left whitespace-nowrap`}>{payCondition}</td>
-                      {/* Route */}
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{routeName}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{loadingCountry}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{loadingPort}</td>
-                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{date(loadingDateVal)}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{receivingCountry}</td>
-                      <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{receivingPort}</td>
-                      <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{date(receivingDateVal)}</td>
-                      {/* Status */}
-                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
-                        {isPosted ? (
-                          <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap">YES</span>
-                        ) : (
-                          <span className="inline-flex rounded border border-red-300 bg-red-50 text-red-600 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap animate-pulse">NO</span>
+                    <Fragment key={row.id}>
+                      <tr
+                        onClick={() => setSelectedId(row.id)}
+                        className={cn(
+                          "cursor-pointer transition hover:bg-blue-50/30 dark:hover:bg-blue-950/10 text-center text-[10px] font-semibold text-slate-800 dark:text-slate-350",
+                          isPoSelected && "bg-blue-50/40 dark:bg-blue-950/10"
                         )}
-                      </td>
-                      {/* Actions */}
-                      <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center">
-                          <DocumentAttachmentIcon entityId={row.id} entityType="purchase" />
-                        </div>
-                      </td>
-                      <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1">
-                          {(!isPosted || isSuperAdmin) && (
+                      >
+                        {/* Plus/Minus Expand button */}
+                        <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-center">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedRows(prev => ({ ...prev, [row.id]: !prev[row.id] }));
+                            }}
+                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                          >
+                            {expandedRows[row.id] ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 hover:text-blue-600"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            )}
+                          </button>
+                        </td>
+                        {/* General */}
+                        <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-center`}>{srNo}</td>
+                        <td className={`px-2 py-2 font-mono text-[9px] ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{superSerialNo}</td>
+                        <td className={`px-2 py-2 font-mono text-[9px] ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{countrySerialNo}</td>
+                        <td className={`px-2 py-2 font-mono text-[9px] ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{branchSerialNo}</td>
+                        <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{purchaseCode}</td>
+                        <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{salesCode}</td>
+                        <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{invoiceNo}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{bookingDateVal}</td>
+                        <td className={`px-2 py-2 font-semibold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left`}>{branchName}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{countryName}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{userName}</td>
+                        {/* Product */}
+                        <td className={`px-2 py-2 font-semibold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap text-left`}>{goodsName}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{brand}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{origin}</td>
+                        <td className={`px-2 py-2 font-mono font-semibold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalQty.toLocaleString()}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{qtyUnit}</td>
+                        <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalGross.toLocaleString()}</td>
+                        <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>{totalNet.toLocaleString()}</td>
+                        {/* Financial */}
+                        <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
+                          {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${purchaseCurrency}` : "-"}
+                        </td>
+                        <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
+                          {totalAmt > 0 ? `${totalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${purchaseCurrency}` : "-"}
+                        </td>
+                        <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
+                          {purchaseAmt > 0 ? `${purchaseAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${purchaseCurrency}` : "-"}
+                        </td>
+                        <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
+                          {exchangeRate > 0 ? exchangeRate.toLocaleString() : "-"}
+                        </td>
+                        <td className={`px-2 py-2 font-mono font-bold ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-right`}>
+                          {finalAmt > 0 ? `${finalAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${localCur}` : "-"}
+                        </td>
+                        <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
+                          {invoicePercent ? (
+                            <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>
+                          ) : <span className={getRowColor()}>-</span>}
+                        </td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left whitespace-nowrap`}>{payCondition}</td>
+                        {/* Route */}
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850`}>{routeName}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{loadingCountry}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{loadingPort}</td>
+                        <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{date(loadingDateVal)}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{receivingCountry}</td>
+                        <td className={`px-2 py-2 ${getRowColor()} border-r border-slate-100 dark:border-slate-850 text-left`}>{receivingPort}</td>
+                        <td className={`px-2 py-2 font-mono ${getRowColor()} border-r border-slate-100 dark:border-slate-850 whitespace-nowrap`}>{date(receivingDateVal)}</td>
+                        {/* Status */}
+                        <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850">
+                          {isPosted ? (
+                            <span className="inline-flex rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap">YES</span>
+                          ) : (
+                            <span className="inline-flex rounded border border-red-300 bg-red-50 text-red-600 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap animate-pulse">NO</span>
+                          )}
+                        </td>
+                        {/* Actions */}
+                        <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center">
+                            <DocumentAttachmentIcon entityId={row.id} entityType="purchase" />
+                          </div>
+                        </td>
+                        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            {(!isPosted || isSuperAdmin) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(row.id)}&purchaseOrderNo=${encodeURIComponent(row.purchaseBookingOrderNumber || "")}`);
+                                }}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
+                                title="Edit Booking"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
-                                router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(row.id)}&purchaseOrderNo=${encodeURIComponent(row.purchaseBookingOrderNumber || "")}`);
+                                setSelectedId(row.id);
+                                setIsDrawerOpen(true);
                               }}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
-                              title="Edit Booking"
+                              className="inline-flex h-7 px-2 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-slate-700 text-[10px] font-bold dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 uppercase tracking-wider"
+                              title="View Booking"
                             >
-                              <Edit3 className="h-3.5 w-3.5" />
+                              <Eye className="h-3.5 w-3.5 mr-1" />
+                              View
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedId(row.id);
-                              setIsDrawerOpen(true);
-                            }}
-                            className="inline-flex h-7 px-2 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-slate-700 text-[10px] font-bold dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 uppercase tracking-wider"
-                            title="View Booking"
-                          >
-                            <Eye className="h-3.5 w-3.5 mr-1" />
-                            View
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Nested Collapsible Sub-Table for Multiple Goods Entries */}
+                      {expandedRows[row.id] && goods.length > 0 && (
+                        <tr className="bg-slate-50/50 dark:bg-slate-900/10">
+                          <td colSpan={36} className="px-6 py-3 border-b border-slate-250">
+                            <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl p-3.5 shadow-sm space-y-2.5 max-w-4xl">
+                              <div className="flex items-center gap-2 border-b border-slate-150 pb-2">
+                                <FileText className="h-4 w-4 text-blue-600" />
+                                <span className="text-[11px] font-black uppercase text-slate-850 dark:text-slate-250 tracking-wider">
+                                  Bill Items Breakdown ({goods.length} items)
+                                </span>
+                              </div>
+                              <table className="w-full text-left text-[10px] border border-slate-150 dark:border-slate-800">
+                                <thead className="bg-slate-50 dark:bg-slate-900 text-slate-650 dark:text-slate-400 font-bold uppercase tracking-wider text-[8.5px]">
+                                  <tr>
+                                    <th className="p-2 border-b">Goods Name</th>
+                                    <th className="p-2 border-b">Brand/Size</th>
+                                    <th className="p-2 border-b">Origin</th>
+                                    <th className="p-2 border-b text-right">Qty</th>
+                                    <th className="p-2 border-b text-right">Gross Wt</th>
+                                    <th className="p-2 border-b text-right">Net Wt</th>
+                                    <th className="p-2 border-b text-right">Price</th>
+                                    <th className="p-2 border-b text-right">Total Amount</th>
+                                    <th className="p-2 border-b text-right font-black">Final Amount</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-medium">
+                                  {goods.map((g: any, gIdx: number) => {
+                                    const gQty = Number(g.qtyNo || 0);
+                                    const gGross = Number(g.grossWeight || 0);
+                                    const gNet = Number(g.netWeight || g.grossWeight || 0);
+                                    const gPrice = Number(g.coursePrice || 0);
+                                    const gTotal = Number(g.totalAmount || 0);
+                                    const gFinal = Number(g.finalAmount || 0);
+                                    const gOriginResolved = getOriginText(g, row);
+                                    return (
+                                      <tr key={gIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                                        <td className="p-2 font-bold text-slate-800 dark:text-slate-200">{g.goodsName || "-"}</td>
+                                        <td className="p-2 text-slate-500">{g.brand || "-"} / {g.size || "-"}</td>
+                                        <td className="p-2 text-slate-600">{gOriginResolved}</td>
+                                        <td className="p-2 text-right font-mono font-bold">{gQty.toLocaleString()} {g.qtyName || "-"}</td>
+                                        <td className="p-2 text-right font-mono">{gGross.toLocaleString()} kg</td>
+                                        <td className="p-2 text-right font-mono text-blue-600 font-bold">{gNet.toLocaleString()} kg</td>
+                                        <td className="p-2 text-right font-mono">${gPrice.toLocaleString()}</td>
+                                        <td className="p-2 text-right font-mono font-bold">${gTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        <td className="p-2 text-right font-mono font-black text-emerald-600">${gFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
                     </Fragment>

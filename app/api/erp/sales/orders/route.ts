@@ -6,6 +6,29 @@ import { createApiSupabaseClient, requireSupabaseData, writeAuditLog } from "@/l
 import { optionalUuidSchema } from "@/lib/api/erp-validation";
 import { requireErpSession } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import postgres from "postgres";
+
+async function ensureTableExists() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) return;
+
+  const sqlClient = postgres(dbUrl, { max: 1, prepare: false });
+  try {
+    await sqlClient`
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS transfer_date text;
+    `;
+    await sqlClient`
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS transfer_user text;
+    `;
+    await sqlClient`
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS transfer_serial_number text;
+    `;
+  } catch (err) {
+    console.error("Auto migration check for sales_orders failed:", err);
+  } finally {
+    await sqlClient.end();
+  }
+}
 
 const salesOrderSchema = z.object({
   countryId: optionalUuidSchema,
@@ -120,6 +143,7 @@ async function resolveEffectiveScope(input: {
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureTableExists();
     const session = await requireErpSession();
     const params = request.nextUrl.searchParams;
     const countryId = params.get("countryId");
@@ -155,6 +179,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureTableExists();
     const session = await requireErpSession();
     const body = salesOrderSchema.parse(await request.json());
     const effective = await resolveEffectiveScope({

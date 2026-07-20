@@ -417,6 +417,16 @@ export const sidebarTree: SidebarNode[] = [
         key: "local-purchase",
         labelKey: "nav.local_purchase",
         href: "/dashboard/purchase/local-purchase" as Route
+      },
+      {
+        key: "local-purchase-journal-report",
+        labelKey: "Local Purchase Journal Report" as any,
+        href: "/dashboard/purchase/local-purchase-journal-report" as Route
+      },
+      {
+        key: "local-goods-received",
+        labelKey: "Local Goods Received" as any,
+        href: "/dashboard/purchase/local-goods-received" as Route
       }
     ]
   },

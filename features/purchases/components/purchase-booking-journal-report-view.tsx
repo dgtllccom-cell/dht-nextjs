@@ -1333,6 +1333,7 @@ export function PurchaseBookingJournalReportView({
   const [usdRates, setUsdRates] = useState<Record<string, number>>({});
   const [lastExchangeRateUpdate, setLastExchangeRateUpdate] = useState<string | null>(null);
   const [allCountriesExpanded, setAllCountriesExpanded] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   const [titleSlot, setTitleSlot] = useState<Element | null>(null);
   const [actionsSlot, setActionsSlot] = useState<Element | null>(null);
@@ -2345,7 +2346,7 @@ export function PurchaseBookingJournalReportView({
         <div className="p-0">
           <DarkTable
             tableGroups={[
-              { label: "General Information", span: 10, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
+              { label: "General Information", span: 11, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Product Information", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Financial Information", span: 10, cls: "bg-[#0f2942] text-white border-b border-slate-800 border-r border-slate-700" },
               { label: "Route & Loading", span: 7, cls: "bg-[#143657] text-white border-b border-slate-800 border-r border-slate-700" },
@@ -2354,6 +2355,7 @@ export function PurchaseBookingJournalReportView({
             ]}
             headers={[
               // ── General Information ──────────────────────────────────────
+              "",
               "SR.",
               "SUPER S/N",
               "CTY S/N",
@@ -2429,9 +2431,20 @@ export function PurchaseBookingJournalReportView({
               const userName = report.audit?.userName || (report as any).createdByName || "-";
 
               // ── Product Information ──────────────────────────────────────
+              const getOriginText = (g: any, r: any) => {
+                const originVal = g?.origin || g?.originCountry || r.form_data?.form?.origin || r.form_data?.form?.originCountry || "";
+                if (!originVal || originVal === "-" || originVal.toLowerCase() === "n/a") {
+                  return r.countryName || "Local";
+                }
+                if (/^[0-9a-fA-F-]{36}$/.test(originVal)) {
+                  return r.countryName || "Local";
+                }
+                return originVal;
+              };
+
               const goodsName = goods.map((g: any) => g.goodsName).filter(Boolean).join(", ") || report.productName || "-";
               const brand = goods.map((g: any) => g.brand || g.size || "").filter(Boolean).join(", ") || "-";
-              const origin = goods.map((g: any) => g.origin).filter(Boolean).join(", ") || "-";
+              const origin = goods.map((g: any) => getOriginText(g, report)).filter(Boolean).join(", ") || "-";
               const totalQty = goods.length > 0
                 ? goods.reduce((sum: number, g: any) => sum + Number(g.qtyNo || 0), 0)
                 : Number(report.quantity || 0);
@@ -2514,7 +2527,7 @@ export function PurchaseBookingJournalReportView({
                   YES
                 </span>
               ) : (
-                <span className="inline-flex rounded bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap animate-pulse">
+                <span className="inline-flex rounded bg-red-55 border border-red-200 px-2 py-0.5 text-[8px] font-bold uppercase whitespace-nowrap animate-pulse">
                   NO
                 </span>
               );
@@ -2558,107 +2571,178 @@ export function PurchaseBookingJournalReportView({
                 return isPosted ? "text-slate-900 dark:text-slate-200" : "text-amber-600 dark:text-amber-500";
               };
 
+              const pNum = `P#${registerRows.length - index}`;
+
               return (
-                <tr
-                  key={report.id}
-                  onClick={() => { setSelectedId(report.id); setIsDrawerOpen(true); }}
-                  className={`cursor-pointer border-b border-slate-200 hover:bg-blue-50/30 dark:hover:bg-blue-950/10 transition-colors ${
-                    highlightPurchaseOrderNo && report.purchaseBookingOrderNumber === highlightPurchaseOrderNo
-                      ? "bg-emerald-50 ring-1 ring-inset ring-emerald-300"
-                      : ""
-                  }`}
-                >
-                  {/* ── General Information ─────────────────────── */}
-                  <Td center className={`${getRowColor()} font-bold text-[10px]`}>{srNo}</Td>
-                  <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{superSerialNo}</Td>
-                  <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{countrySerialNo}</Td>
-                  <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{branchSerialNo}</Td>
-                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`} title={`${purchaseAccCode} - ${purchaseAccount}`}>
-                    <span className="font-mono text-blue-600 dark:text-blue-400 font-bold mr-1">{purchaseAccCode}</span>
-                    {purchaseAccount.length > 20 ? purchaseAccount.slice(0, 20) + '...' : purchaseAccount}
-                  </Td>
-                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`} title={`${salesAccCode} - ${salesAccount}`}>
-                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold mr-1">{salesAccCode}</span>
-                    {salesAccount.length > 20 ? salesAccount.slice(0, 20) + '...' : salesAccount}
-                  </Td>
-                  <Td className={`${getRowColor()} text-[10px]`}>{countryName}</Td>
-                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`}>{branchName}</Td>
-                  <Td className={`font-semibold ${getRowColor()} whitespace-nowrap text-[10px]`}>{dateStr}</Td>
-                  <Td className={`font-semibold ${getRowColor()} text-[10px]`}>{userName}</Td>
-                  {/* ── Product Information ─────────────────────── */}
-                  <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`}>{goodsName}</Td>
-                  <Td className={`${getRowColor()} text-[10px]`}>{brand}</Td>
-                  <Td className={`${getRowColor()} text-[10px]`}>{origin}</Td>
-                  <Td right className={`font-mono font-semibold ${getRowColor()} text-[10px]`}>{formatNumber(totalQty)}</Td>
-                  <Td center className={`${getRowColor()} text-[10px]`}>{qtyUnit}</Td>
-                  <Td right className={`font-mono ${getRowColor()} text-[10px]`}>{formatNumber(totalGross)}</Td>
-                  <Td right className={`font-mono ${getRowColor()} text-[10px]`}>{formatNumber(totalNet)}</Td>
-                  {/* ── Financial Information ───────────────────── */}
-                  <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{currency}</Td>
-                  <Td right className={`font-mono font-semibold ${getRowColor()} text-[10px]`}>
-                    {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${currency}` : "-"}
-                  </Td>
-                  <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
-                    {totalAmt > 0 ? `${formatMoney(totalAmt)} ${currency}` : "-"}
-                  </Td>
-                  <Td right className={`font-mono font-bold text-amber-600 dark:text-amber-500 text-[10px]`}>
-                    {advanceAmtFC > 0 ? `${formatMoney(advanceAmtFC)} ${currency}` : "-"}
-                  </Td>
-                  <Td right className={`font-mono ${getRowColor()} text-[10px]`}>
-                    {exchangeRate > 0 ? exchangeRate.toLocaleString("en-US") : "-"}
-                  </Td>
-                  <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{localCurrency}</Td>
-                  <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
-                    {finalAmt > 0 ? `${formatMoney(finalAmt)} ${localCurrency}` : "-"}
-                  </Td>
-                  <Td right className={`font-mono font-bold text-indigo-600 dark:text-indigo-400 text-[10px]`}>
-                    {advanceAmtLC > 0 ? `${formatMoney(advanceAmtLC)} ${localCurrency}` : "-"}
-                  </Td>
-                  <Td center className="text-[10px]">
-                    {invoicePercent !== "-" ? (
-                      <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>
-                    ) : <span className={getRowColor()}>-</span>}
-                  </Td>
-                  <Td className={`${getRowColor()} text-[10px] whitespace-nowrap`}>{payCondition}</Td>
-                  {/* ── Route & Loading ─────────────────────────── */}
-                  <Td center className={`${getRowColor()} text-[10px]`}>{routeName}</Td>
-                  <Td className={`${getRowColor()} text-[10px]`}>{loadingCountry}</Td>
-                  <Td className={`${getRowColor()} text-[10px]`}>{loadingPort}</Td>
-                  <Td center className={`font-mono ${getRowColor()} text-[10px] whitespace-nowrap`}>{loadingDate}</Td>
-                  <Td className={`${getRowColor()} text-[10px]`}>{receivingCountry}</Td>
-                  <Td className={`${getRowColor()} text-[10px]`}>{receivingPort}</Td>
-                  <Td center className={`font-mono ${getRowColor()} text-[10px] whitespace-nowrap`}>{receivingDate}</Td>
-                  {/* ── Status ──────────────────────────────────── */}
-                  <Td center>{transferStatusBadge}</Td>
-                  <Td center>{invStatusBadge}</Td>
-                  <Td center>{payStatusBadge}</Td>
-                  <Td center>{loadStatusBadge}</Td>
-                  {/* ── Actions ─────────────────────────────────── */}
-                  <Td center onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1">
+                <Fragment key={report.id}>
+                  <tr
+                    onClick={() => { setSelectedId(report.id); setIsDrawerOpen(true); }}
+                    className={`cursor-pointer border-b border-slate-200 hover:bg-blue-50/30 dark:hover:bg-blue-950/10 transition-colors ${
+                      highlightPurchaseOrderNo && report.purchaseBookingOrderNumber === highlightPurchaseOrderNo
+                        ? "bg-emerald-50 ring-1 ring-inset ring-emerald-300"
+                        : ""
+                    }`}
+                  >
+                    {/* Expand/Collapse Toggle Column */}
+                    <td className="whitespace-nowrap border-r border-slate-200 px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                       <button
-                          type="button"
-                          onClick={() => {
-                            router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
+                        type="button"
+                        onClick={() => setExpandedRows(prev => ({ ...prev, [report.id]: !prev[report.id] }))}
+                        className="p-1 hover:bg-slate-100 rounded transition-colors"
+                      >
+                        {expandedRows[report.id] ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 hover:text-blue-650"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        )}
+                      </button>
+                    </td>
+
+                    {/* ── General Information ─────────────────────── */}
+                    <Td center className={`${getRowColor()} font-bold text-[10px]`}>{pNum}</Td>
+                    <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{superSerialNo}</Td>
+                    <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{countrySerialNo}</Td>
+                    <Td center className={`font-mono text-[10px] ${getRowColor()}`}>{branchSerialNo}</Td>
+                    <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`} title={`${purchaseAccCode} - ${purchaseAccount}`}>
+                      <span className="font-mono text-blue-600 dark:text-blue-400 font-bold mr-1">{purchaseAccCode}</span>
+                      {purchaseAccount.length > 20 ? purchaseAccount.slice(0, 20) + '...' : purchaseAccount}
+                    </Td>
+                    <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`} title={`${salesAccCode} - ${salesAccount}`}>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold mr-1">{salesAccCode}</span>
+                      {salesAccount.length > 20 ? salesAccount.slice(0, 20) + '...' : salesAccount}
+                    </Td>
+                    <Td className={`${getRowColor()} text-[10px]`}>{countryName}</Td>
+                    <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`}>{branchName}</Td>
+                    <Td className={`font-semibold ${getRowColor()} whitespace-nowrap text-[10px]`}>{dateStr}</Td>
+                    <Td className={`font-semibold ${getRowColor()} text-[10px]`}>{userName}</Td>
+                    {/* ── Product Information ─────────────────────── */}
+                    <Td className={`font-semibold ${getRowColor()} text-[10px] whitespace-nowrap`}>{goodsName}</Td>
+                    <Td className={`${getRowColor()} text-[10px]`}>{brand}</Td>
+                    <Td className={`${getRowColor()} text-[10px]`}>{origin}</Td>
+                    <Td right className={`font-mono font-semibold ${getRowColor()} text-[10px]`}>{formatNumber(totalQty)}</Td>
+                    <Td center className={`${getRowColor()} text-[10px]`}>{qtyUnit}</Td>
+                    <Td right className={`font-mono ${getRowColor()} text-[10px]`}>{formatNumber(totalGross)}</Td>
+                    <Td right className={`font-mono ${getRowColor()} text-[10px]`}>{formatNumber(totalNet)}</Td>
+                    {/* ── Financial Information ───────────────────── */}
+                    <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{currency}</Td>
+                    <Td right className={`font-mono font-semibold ${getRowColor()} text-[10px]`}>
+                      {purchasePrice > 0 ? `${purchasePrice.toFixed(3)} ${currency}` : "-"}
+                    </Td>
+                    <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
+                      {totalAmt > 0 ? `${formatMoney(totalAmt)} ${currency}` : "-"}
+                    </Td>
+                    <Td right className={`font-mono font-bold text-amber-600 dark:text-amber-500 text-[10px]`}>
+                      {advanceAmtFC > 0 ? `${formatMoney(advanceAmtFC)} ${currency}` : "-"}
+                    </Td>
+                    <Td right className={`font-mono ${getRowColor()} text-[10px]`}>
+                      {exchangeRate > 0 ? exchangeRate.toLocaleString("en-US") : "-"}
+                    </Td>
+                    <Td center className={`font-bold ${getRowColor()} text-[10px]`}>{localCurrency}</Td>
+                    <Td right className={`font-mono font-bold ${getRowColor()} text-[10px]`}>
+                      {finalAmt > 0 ? `${formatMoney(finalAmt)} ${localCurrency}` : "-"}
+                    </Td>
+                    <Td right className={`font-mono font-bold text-indigo-600 dark:text-indigo-400 text-[10px]`}>
+                      {advanceAmtLC > 0 ? `${formatMoney(advanceAmtLC)} ${localCurrency}` : "-"}
+                    </Td>
+                    <Td center className="text-[10px]">
+                      {invoicePercent !== "-" ? (
+                        <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 text-[9px] font-black">{invoicePercent}%</span>
+                      ) : <span className={getRowColor()}>-</span>}
+                    </Td>
+                    <Td className={`${getRowColor()} text-[10px] whitespace-nowrap`}>{payCondition}</Td>
+                    {/* ── Route & Loading ─────────────────────────── */}
+                    <Td center className={`${getRowColor()} text-[10px]`}>{routeName}</Td>
+                    <Td className={`${getRowColor()} text-[10px]`}>{loadingCountry}</Td>
+                    <Td className={`${getRowColor()} text-[10px]`}>{loadingPort}</Td>
+                    <Td center className={`font-mono ${getRowColor()} text-[10px] whitespace-nowrap`}>{loadingDate}</Td>
+                    <Td className={`${getRowColor()} text-[10px]`}>{receivingCountry}</Td>
+                    <Td className={`${getRowColor()} text-[10px]`}>{receivingPort}</Td>
+                    <Td center className={`font-mono ${getRowColor()} text-[10px] whitespace-nowrap`}>{receivingDate}</Td>
+                    {/* ── Status ──────────────────────────────────── */}
+                    <Td center>{transferStatusBadge}</Td>
+                    <Td center>{invStatusBadge}</Td>
+                    <Td center>{payStatusBadge}</Td>
+                    <Td center>{loadStatusBadge}</Td>
+                    {/* ── Actions ─────────────────────────────────── */}
+                    <Td center onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => {
+                              router.push(`/dashboard/purchase/new-purchase-booking-order?id=${encodeURIComponent(report.id)}&purchaseOrderNo=${encodeURIComponent(report.purchaseBookingOrderNumber)}`);
+                            }}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
+                            title="Edit Booking"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                        <RowActionsMenu
+                          report={report}
+                          onSelect={() => {
+                            setSelectedId(report.id);
+                            setIsDrawerOpen(true);
                           }}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm text-blue-600 dark:border-slate-800 dark:bg-slate-950 dark:text-blue-400"
-                          title="Edit Booking"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" />
-                        </button>
-                      <RowActionsMenu
-                        report={report}
-                        onSelect={() => {
-                          setSelectedId(report.id);
-                          setIsDrawerOpen(true);
-                        }}
-                        isSuperAdmin={isSuperAdmin}
-                        isCountryAdmin={isCountryAdmin}
-                        isBranchAdmin={isBranchAdmin}
-                      />
-                    </div>
-                  </Td>
-                </tr>
+                          isSuperAdmin={isSuperAdmin}
+                          isCountryAdmin={isCountryAdmin}
+                          isBranchAdmin={isBranchAdmin}
+                        />
+                      </div>
+                    </Td>
+                  </tr>
+
+                  {/* Expanded Items sub-table breakdown row */}
+                  {expandedRows[report.id] && goods.length > 0 && (
+                    <tr className="bg-slate-50/40 dark:bg-slate-900/10">
+                      <td colSpan={41} className="px-6 py-3 border-b border-slate-200">
+                        <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 shadow-sm space-y-2.5 max-w-4xl text-[10px]">
+                          <div className="flex items-center gap-2 border-b border-slate-150 pb-2">
+                            <FileText className="h-4 w-4 text-blue-600" />
+                            <span className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider">Bill Goods Breakdown ({goods.length} Items)</span>
+                          </div>
+                          <table className="w-full text-left text-[10px] border border-slate-150 dark:border-slate-800">
+                            <thead className="bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[8.5px]">
+                              <tr>
+                                <th className="p-2 border-b">Goods Name</th>
+                                <th className="p-2 border-b">Brand/Size</th>
+                                <th className="p-2 border-b">Origin Country</th>
+                                <th className="p-2 border-b text-right">Quantity</th>
+                                <th className="p-2 border-b text-right">Gross Wt</th>
+                                <th className="p-2 border-b text-right">Net Wt</th>
+                                <th className="p-2 border-b text-right">Price</th>
+                                <th className="p-2 border-b text-right">Total Amount</th>
+                                <th className="p-2 border-b text-right font-black">Final Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-150 dark:divide-slate-800 font-medium">
+                              {goods.map((g: any, gIdx: number) => {
+                                const gQty = Number(g.qtyNo || 0);
+                                const gGross = Number(g.grossWeight || 0);
+                                const gNet = Number(g.netWeight || g.grossWeight || 0);
+                                const gPrice = Number(g.coursePrice || 0);
+                                const gTotal = Number(g.totalAmount || 0);
+                                const gFinal = Number(g.finalAmount || 0);
+                                const gOrigin = getOriginText(g, report);
+                                return (
+                                  <tr key={gIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                                    <td className="p-2 font-bold text-slate-850 dark:text-slate-200">{g.goodsName || "-"}</td>
+                                    <td className="p-2 text-slate-500">{g.brand || "-"} / {g.size || "-"}</td>
+                                    <td className="p-2 text-slate-600">{gOrigin}</td>
+                                    <td className="p-2 text-right font-mono font-bold">{gQty.toLocaleString()} {g.qtyName || "-"}</td>
+                                    <td className="p-2 text-right font-mono">{gGross.toLocaleString()} kg</td>
+                                    <td className="p-2 text-right font-mono text-blue-600 font-bold">{gNet.toLocaleString()} kg</td>
+                                    <td className="p-2 text-right font-mono">${gPrice.toLocaleString()}</td>
+                                    <td className="p-2 text-right font-mono font-bold">${gTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                    <td className="p-2 text-right font-mono font-black text-emerald-600">${gFinal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
           </DarkTable>
