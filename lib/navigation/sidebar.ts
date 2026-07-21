@@ -436,6 +436,28 @@ export const sidebarTree: SidebarNode[] = [
     ]
   },
   {
+    key: "stock-reports",
+    labelKey: "nav.stock_reports",
+    iconKey: "bar-chart",
+    children: [
+      {
+        key: "salesman-report",
+        labelKey: "nav.salesman_report",
+        href: "/dashboard/inventory/stock-reports/salesman" as Route
+      },
+      {
+        key: "country-report",
+        labelKey: "nav.country_report",
+        href: "/dashboard/inventory/stock-reports/country" as Route
+      },
+      {
+        key: "branch-report",
+        labelKey: "nav.branch_report",
+        href: "/dashboard/inventory/stock-reports/branch" as Route
+      }
+    ]
+  },
+  {
     key: "sales",
     labelKey: "nav.sales",
     iconKey: "gantt",

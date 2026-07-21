@@ -66,6 +66,10 @@ export type UiKey =
   | "nav.in_transit_stock"
   | "nav.export_stock"
   | "nav.delivered_stock"
+  | "nav.stock_reports"
+  | "nav.salesman_report"
+  | "nav.country_report"
+  | "nav.branch_report"
   | "nav.roznamcha"
   | "nav.expenses_bill"
   | "nav.all_roznamcha"
@@ -433,6 +437,10 @@ const en: Dict = {
   "nav.in_transit_stock": "In Transit Stock",
   "nav.export_stock": "Export Stock",
   "nav.delivered_stock": "Delivered Stock",
+  "nav.stock_reports": "Stock Reports",
+  "nav.salesman_report": "Salesman Report",
+  "nav.country_report": "Country Report",
+  "nav.branch_report": "Branch Report",
   "nav.roznamcha": "Daily Payment Entry",
   "nav.expenses_bill": "Expenses Bill",
   "nav.all_roznamcha": "All Roznamcha",
@@ -782,6 +790,10 @@ const ur: Dict = {
   "nav.in_transit_stock": "In Transit Stock",
   "nav.export_stock": "Export Stock",
   "nav.delivered_stock": "Delivered Stock",
+  "nav.stock_reports": "اسٹاک رپورٹس",
+  "nav.salesman_report": "سیلزمین رپورٹ",
+  "nav.country_report": "کنٹری رپورٹ",
+  "nav.branch_report": "برانچ رپورٹ",
   "nav.roznamcha": "ڈیلی پیمنٹ انٹری",
   "nav.expenses_bill": "اخراجات کا بل",
   "nav.all_roznamcha": "تمام روزنامچہ",
