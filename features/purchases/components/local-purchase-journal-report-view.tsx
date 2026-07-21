@@ -609,7 +609,7 @@ export function LocalPurchaseJournalReportView({ session }: { session: any }) {
         </CardContent>
       </Card>
 
-      {/* Redundant Transfer Payment section removed. Now resides in its own menu page. */} </Card>
+      {/* Redundant Transfer Payment section removed. Now resides in its own menu page. */}
 
       {/* Printable A4 Voucher Modal */}
       {selectedRowForVoucher && (
