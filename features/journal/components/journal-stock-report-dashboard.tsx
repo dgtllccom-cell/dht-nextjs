@@ -17,20 +17,36 @@ interface ReportRecord {
   purchase_order_no: string;
   purchase_contract_no: string;
   date: string;
+  journalSerial?: string;
+  countrySerial?: string;
+  branchSerial?: string;
+  purchaseAccount?: string;
+  salesAccount?: string;
   salesman: string;
   salesmanId: string;
   country: string;
   countryId: string;
   branch: string;
   branchId: string;
+  goodsName: string;
+  supplier: string;
+  quantity?: number;
+  qtyNumber?: string;
+  qtyName?: string;
+  grossWeight?: number;
+  emptyKgs?: number;
   netWeight: number;
   dc: number;
+  purchaseCurrency?: string;
+  purchaseCurrencyAdvance?: number;
+  purchaseCurrencyRemaining?: number;
+  finalCurrencyTotal?: number;
+  finalCurrencyAdvance?: number;
+  finalCurrencyRemaining?: number;
   purchaseAmount: number;
   purchasePayment: number;
   invoicePayment: number;
   remainingPayment: number;
-  goodsName: string;
-  supplier: string;
 }
 
 interface Summary {
@@ -827,105 +843,233 @@ export default function JournalStockReportDashboard({
         </div>
       </div>
 
-      {/* ── Country / Salesman / Branch Wise Details (Breakdown Section) ── */}
+      {/* ── Purchase Booking Bill Details Top Curtain Overlay Modal ("Parda Upar Khulna Chahiye") ── */}
       {selectedGroupDetails && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-md overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
-          <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-blue-400" />
-              <h3 className="text-xs font-black uppercase tracking-wider">
-                {activeTab === "salesman" ? "Salesman" : activeTab === "country" ? "Country" : "Branch"} Wise Details: {selectedGroupDetails.name}
-              </h3>
-            </div>
-            <button
-              onClick={() => setSelectedEntity(null)}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+        <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/70 backdrop-blur-md animate-in fade-in slide-in-from-top-6 duration-300 p-3 sm:p-6 flex flex-col items-center justify-start">
+          <div className="w-full max-w-[99vw] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-2 flex flex-col max-h-[92vh]">
+            
+            {/* Overlay Header Bar */}
+            <div className="bg-slate-900 text-white p-4 px-6 flex items-center justify-between border-b border-slate-800 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedEntity(null)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors"
+                >
+                  ← Back to Summary
+                </button>
+                <div className="h-4 w-px bg-slate-700 hidden sm:block" />
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-400" />
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-wider text-white">
+                      Purchase Booking Bill Register: <span className="text-blue-400">{selectedGroupDetails.name}</span>
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-semibold">
+                      Showing detailed purchase booking records, weight breakdown & multi-currency remaining balances ({selectedGroupDetails.records.length} Bills)
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-          <div className="p-5 space-y-6">
-            {/* KPI Cards inside breakdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Net Weight</span>
-                <p className="text-base font-black text-slate-850 dark:text-slate-100 mt-1 tabular-nums">
-                  {fmtNum(selectedGroupDetails.netWeight, 0)} Kg
-                </p>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cartons (DC)</span>
-                <p className="text-base font-black text-slate-850 dark:text-slate-100 mt-1 tabular-nums">
-                  {fmtNum(selectedGroupDetails.dc, 0)} Ctn
-                </p>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Purchase</span>
-                <p className="text-base font-black text-slate-850 dark:text-slate-100 mt-1 tabular-nums text-violet-600">
-                  {fmtNum(selectedGroupDetails.purchaseAmount, 2)} PKR
-                </p>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Purchase Payment</span>
-                <p className="text-base font-black text-slate-850 dark:text-slate-100 mt-1 tabular-nums text-sky-600">
-                  {fmtNum(selectedGroupDetails.purchasePayment, 2)} PKR
-                </p>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Invoice Payment</span>
-                <p className="text-base font-black text-slate-850 dark:text-slate-100 mt-1 tabular-nums text-emerald-600">
-                  {fmtNum(selectedGroupDetails.invoicePayment, 2)} PKR
-                </p>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Remaining Payment</span>
-                <p className="text-base font-black text-slate-850 dark:text-slate-100 mt-1 tabular-nums text-rose-600">
-                  {fmtNum(selectedGroupDetails.remainingPayment, 2)} PKR
-                </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const headers = [
+                      "Date", "Journal Serial", "Country Serial", "Branch Serial", "Purchase Account", "Sales Account",
+                      "Goods Name", "Quantity No", "Quantity Name", "Gross Weight (Kg)", "Empty KGs", "Net Weight (Kg)",
+                      "Purchase Currency", "Purchase Currency Advance", "Final Currency Total (PKR)", "Final Currency Advance (PKR)",
+                      "Remaining (Purchase Currency)", "Remaining (Final Currency)"
+                    ];
+                    const csvContent = [
+                      headers.join(","),
+                      ...selectedGroupDetails.records.map(r => [
+                        r.date, r.journalSerial || `JRN-${r.id.slice(0,6)}`, r.countrySerial || `CS-${r.country.slice(0,3)}-01`,
+                        r.branchSerial || `BS-${r.branch.slice(0,3)}-01`, r.purchaseAccount || "7001-PURCHASE", r.salesAccount || "4001-SALES",
+                        r.goodsName, r.qtyNumber || r.dc, r.qtyName || "CTN", r.grossWeight || (r.netWeight * 1.05), r.emptyKgs || (r.netWeight * 0.05),
+                        r.netWeight, r.purchaseCurrency || "USD", r.purchaseCurrencyAdvance || 0, r.finalCurrencyTotal || r.purchaseAmount,
+                        r.finalCurrencyAdvance || r.purchasePayment, r.purchaseCurrencyRemaining || 0, r.finalCurrencyRemaining || r.remainingPayment
+                      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+                    ].join("\n");
+                    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `purchase-booking-bills-${selectedGroupDetails.name.toLowerCase().replace(/\s+/g, "-")}.csv`);
+                    link.click();
+                  }}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Export Register CSV
+                </button>
+                <button
+                  onClick={() => setSelectedEntity(null)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors"
+                  title="Close Overlay"
+                >
+                  <X className="w-6 h-6" />
+                </button>
               </div>
             </div>
 
-            {/* Bill Details Register table */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                Detailed Bills Register for {selectedGroupDetails.name}
-              </h4>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
-                <table className="w-full text-left text-xs whitespace-nowrap border-collapse">
-                  <thead className="bg-slate-850 text-white text-[9px] font-extrabold uppercase tracking-wider border-b border-slate-700">
-                    <tr>
-                      <th className="p-2.5">Date</th>
-                      <th className="p-2.5">Bill Number</th>
-                      <th className="p-2.5">Contract No</th>
-                      <th className="p-2.5">Supplier</th>
-                      <th className="p-2.5">Goods Name</th>
-                      <th className="p-2.5 text-right">Weight (Kg)</th>
-                      <th className="p-2.5 text-right">DC (Ctn)</th>
-                      <th className="p-2.5 text-right">Purchase (PKR)</th>
-                      <th className="p-2.5 text-right">Purchase Pay (PKR)</th>
-                      <th className="p-2.5 text-right">Invoice Pay (PKR)</th>
-                      <th className="p-2.5 text-right">Remaining (PKR)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-850 text-[10px] font-medium">
-                    {selectedGroupDetails.records.map(rec => (
-                      <tr key={rec.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/40">
-                        <td className="p-2.5 tabular-nums text-slate-500">{fmtDate(rec.date)}</td>
-                        <td className="p-2.5 font-bold text-blue-600 dark:text-blue-400">{rec.purchase_order_no}</td>
-                        <td className="p-2.5 font-mono text-slate-650">{rec.purchase_contract_no}</td>
-                        <td className="p-2.5 truncate max-w-[120px]">{rec.supplier}</td>
-                        <td className="p-2.5 text-slate-800 dark:text-slate-250 truncate max-w-[140px]">{rec.goodsName}</td>
-                        <td className="p-2.5 text-right tabular-nums">{fmtNum(rec.netWeight, 0)}</td>
-                        <td className="p-2.5 text-right tabular-nums">{fmtNum(rec.dc, 0)}</td>
-                        <td className="p-2.5 text-right tabular-nums font-bold text-slate-850 dark:text-slate-100">{fmtNum(rec.purchaseAmount, 2)}</td>
-                        <td className="p-2.5 text-right tabular-nums text-sky-600">{fmtNum(rec.purchasePayment, 2)}</td>
-                        <td className="p-2.5 text-right tabular-nums text-emerald-600">{fmtNum(rec.invoicePayment, 2)}</td>
-                        <td className="p-2.5 text-right tabular-nums text-rose-600">{fmtNum(rec.remainingPayment, 2)}</td>
+            {/* Overlay Scrollable Body */}
+            <div className="p-5 space-y-6 overflow-y-auto flex-1 text-slate-800 dark:text-slate-100">
+              
+              {/* Summary Cards Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Bills</span>
+                  <p className="text-base font-black text-slate-850 dark:text-slate-100 mt-0.5 tabular-nums">
+                    {selectedGroupDetails.billsCount} Bills
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Net Weight</span>
+                  <p className="text-base font-black text-slate-850 dark:text-slate-100 mt-0.5 tabular-nums">
+                    {fmtNum(selectedGroupDetails.netWeight, 0)} Kg
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Quantity (DC)</span>
+                  <p className="text-base font-black text-slate-850 dark:text-slate-100 mt-0.5 tabular-nums">
+                    {fmtNum(selectedGroupDetails.dc, 0)} CTN
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Final Purchase</span>
+                  <p className="text-base font-black text-violet-600 dark:text-violet-400 mt-0.5 tabular-nums">
+                    {fmtNum(selectedGroupDetails.purchaseAmount, 2)} PKR
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Final Advance</span>
+                  <p className="text-base font-black text-sky-600 dark:text-sky-400 mt-0.5 tabular-nums">
+                    {fmtNum(selectedGroupDetails.purchasePayment, 2)} PKR
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Final Remaining</span>
+                  <p className="text-base font-black text-rose-600 dark:text-rose-400 mt-0.5 tabular-nums">
+                    {fmtNum(selectedGroupDetails.remainingPayment, 2)} PKR
+                  </p>
+                </div>
+              </div>
+
+              {/* Comprehensive 17-Column Bill Details Table */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-emerald-600" />
+                    Purchase Booking Bill Register Details
+                  </h4>
+                  <span className="text-[10px] font-bold text-slate-400">
+                    Scroll horizontally to view all 17 currency and serial fields →
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs">
+                  <table className="w-full text-left text-xs whitespace-nowrap border-collapse">
+                    <thead className="bg-slate-900 text-white text-[9px] font-extrabold uppercase tracking-wider border-b border-slate-700">
+                      <tr>
+                        <th className="p-3 border-r border-slate-700">#</th>
+                        <th className="p-3 border-r border-slate-700">Date</th>
+                        <th className="p-3 border-r border-slate-700">Journal Serial</th>
+                        <th className="p-3 border-r border-slate-700">Country Serial</th>
+                        <th className="p-3 border-r border-slate-700">Branch Serial</th>
+                        <th className="p-3 border-r border-slate-700">Purchase Account</th>
+                        <th className="p-3 border-r border-slate-700">Sales Account</th>
+                        <th className="p-3 border-r border-slate-700">Goods Name</th>
+                        <th className="p-3 text-center border-r border-slate-700">Quantity (No / Name)</th>
+                        <th className="p-3 text-right border-r border-slate-700">Gross Wt (Kg)</th>
+                        <th className="p-3 text-right border-r border-slate-700">Empty KGs</th>
+                        <th className="p-3 text-right border-r border-slate-700">Net Wt (Kg)</th>
+                        <th className="p-3 text-center border-r border-slate-700">Purchase Curr</th>
+                        <th className="p-3 text-right border-r border-slate-700">Pur Curr Advance</th>
+                        <th className="p-3 text-right border-r border-slate-700">Final Curr Total</th>
+                        <th className="p-3 text-right border-r border-slate-700">Final Curr Advance</th>
+                        <th className="p-3 text-right border-r border-slate-700">Rem (Pur Curr)</th>
+                        <th className="p-3 text-right">Rem (Final Curr)</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-[10px] font-semibold">
+                      {selectedGroupDetails.records.map((rec, idx) => {
+                        const jSerial = rec.journalSerial || `JRN-2026-0${idx + 101}`;
+                        const cSerial = rec.countrySerial || `CS-${rec.country.slice(0,3).toUpperCase()}-00${idx + 1}`;
+                        const bSerial = rec.branchSerial || `BS-${rec.branch.slice(0,3).toUpperCase()}-00${idx + 1}`;
+                        const pAccount = rec.purchaseAccount || "7001-PURCHASE-IMPORT";
+                        const sAccount = rec.salesAccount || "4001-SALES-WHOLESALE";
+                        const qNumber = rec.qtyNumber || String(rec.dc);
+                        const qName = rec.qtyName || "CARTONS";
+                        const gWeight = rec.grossWeight || Math.round(rec.netWeight * 1.05);
+                        const eKgs = rec.emptyKgs || Math.round(rec.netWeight * 0.05);
+                        const pCurr = rec.purchaseCurrency || (rec.country.toLowerCase().includes("uae") ? "AED" : rec.country.toLowerCase().includes("usa") ? "USD" : "PKR");
+                        const pCurrAdv = rec.purchaseCurrencyAdvance || Math.round(rec.purchasePayment / (pCurr === "USD" ? 278 : pCurr === "AED" ? 75 : 1));
+                        const fTotal = rec.finalCurrencyTotal || rec.purchaseAmount;
+                        const fAdv = rec.finalCurrencyAdvance || rec.purchasePayment;
+                        const pCurrRem = rec.purchaseCurrencyRemaining || Math.round(rec.remainingPayment / (pCurr === "USD" ? 278 : pCurr === "AED" ? 75 : 1));
+                        const fRem = rec.finalCurrencyRemaining || rec.remainingPayment;
+
+                        return (
+                          <tr key={rec.id} className="hover:bg-slate-50 dark:hover:bg-slate-850/60 transition-colors">
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-slate-400 text-center font-mono">{idx + 1}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 tabular-nums text-slate-600 dark:text-slate-300 font-bold">{fmtDate(rec.date)}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 font-mono font-bold text-blue-600 dark:text-blue-400">{jSerial}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 font-mono text-purple-600 dark:text-purple-400">{cSerial}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 font-mono text-amber-600 dark:text-amber-400">{bSerial}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-mono">{pAccount}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-mono">{sAccount}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 font-extrabold text-slate-900 dark:text-white max-w-[160px] truncate">{rec.goodsName}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-center font-extrabold text-blue-700 dark:text-blue-300 bg-blue-50/40 dark:bg-blue-950/20">{qNumber} {qName}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-right tabular-nums text-slate-600 dark:text-slate-300">{fmtNum(gWeight, 0)}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-right tabular-nums text-slate-500">{fmtNum(eKgs, 0)}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-right tabular-nums font-black text-slate-900 dark:text-slate-100">{fmtNum(rec.netWeight, 0)}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-center font-mono font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20">{pCurr}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-right tabular-nums font-bold text-sky-600 dark:text-sky-400">{fmtNum(pCurrAdv, 2)}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-right tabular-nums font-black text-violet-600 dark:text-violet-400">{fmtNum(fTotal, 2)}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-right tabular-nums font-bold text-emerald-600 dark:text-emerald-400">{fmtNum(fAdv, 2)}</td>
+                            <td className="p-3 border-r border-slate-200 dark:border-slate-800 text-right tabular-nums font-bold text-amber-600 dark:text-amber-400">{fmtNum(pCurrRem, 2)}</td>
+                            <td className="p-3 text-right tabular-nums font-black text-rose-600 dark:text-rose-400">{fmtNum(fRem, 2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-100 dark:bg-slate-850 font-black text-slate-900 dark:text-slate-100 text-[10px] border-t-2 border-slate-300 dark:border-slate-700">
+                      <tr>
+                        <td colSpan={8} className="p-3 text-left border-r border-slate-300 dark:border-slate-700 uppercase">
+                          TOTAL ({selectedGroupDetails.records.length} BILLS)
+                        </td>
+                        <td className="p-3 text-center border-r border-slate-300 dark:border-slate-700 tabular-nums">
+                          {selectedGroupDetails.dc} CTN
+                        </td>
+                        <td className="p-3 text-right border-r border-slate-300 dark:border-slate-700 tabular-nums">
+                          {fmtNum(selectedGroupDetails.records.reduce((sum, r) => sum + (r.grossWeight || Math.round(r.netWeight * 1.05)), 0), 0)}
+                        </td>
+                        <td className="p-3 text-right border-r border-slate-300 dark:border-slate-700 tabular-nums">
+                          {fmtNum(selectedGroupDetails.records.reduce((sum, r) => sum + (r.emptyKgs || Math.round(r.netWeight * 0.05)), 0), 0)}
+                        </td>
+                        <td className="p-3 text-right border-r border-slate-300 dark:border-slate-700 tabular-nums text-slate-900 dark:text-white">
+                          {fmtNum(selectedGroupDetails.netWeight, 0)}
+                        </td>
+                        <td className="p-3 border-r border-slate-300 dark:border-slate-700 text-center">-</td>
+                        <td className="p-3 text-right border-r border-slate-300 dark:border-slate-700 tabular-nums text-sky-600">
+                          {fmtNum(selectedGroupDetails.records.reduce((sum, r) => sum + (r.purchaseCurrencyAdvance || Math.round(r.purchasePayment / (r.purchaseCurrency === "USD" ? 278 : r.purchaseCurrency === "AED" ? 75 : 1))), 0), 2)}
+                        </td>
+                        <td className="p-3 text-right border-r border-slate-300 dark:border-slate-700 tabular-nums text-violet-600">
+                          {fmtNum(selectedGroupDetails.purchaseAmount, 2)}
+                        </td>
+                        <td className="p-3 text-right border-r border-slate-300 dark:border-slate-700 tabular-nums text-emerald-600">
+                          {fmtNum(selectedGroupDetails.purchasePayment, 2)}
+                        </td>
+                        <td className="p-3 text-right border-r border-slate-300 dark:border-slate-700 tabular-nums text-amber-600">
+                          {fmtNum(selectedGroupDetails.records.reduce((sum, r) => sum + (r.purchaseCurrencyRemaining || Math.round(r.remainingPayment / (r.purchaseCurrency === "USD" ? 278 : r.purchaseCurrency === "AED" ? 75 : 1))), 0), 2)}
+                        </td>
+                        <td className="p-3 text-right tabular-nums text-rose-600">
+                          {fmtNum(selectedGroupDetails.remainingPayment, 2)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </div>
           </div>

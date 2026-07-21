@@ -2755,3 +2755,15 @@ Params: limit=200
 
 [GET /api/erp/purchases/orders] Time: 2026-07-21T19:29:05.130Z
 Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-21T19:57:57.816Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-21T19:57:57.820Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-21T19:59:07.604Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[CLIENT LOG] Time: 2026-07-21T20:00:00.316Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
