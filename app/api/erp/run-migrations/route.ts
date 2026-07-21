@@ -18,7 +18,8 @@ export async function GET() {
     const filesToRun = [
       "0073_entity_serial_counters.sql",
       "0074_fix_recalc_with_loading_proportional.sql",
-      "0075_payment_posting_workflow_fixes.sql"
+      "0075_payment_posting_workflow_fixes.sql",
+      "0077_daily_usd_rates_audit_columns.sql"
     ];
 
     const results = [];

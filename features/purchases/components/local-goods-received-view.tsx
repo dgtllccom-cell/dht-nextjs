@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { fetchWarehouses } from "@/features/warehouses/warehouse-api";
 import {
-  Package, Search, Coins, Loader2, Truck, Globe, Pencil, CheckCircle2, X, ChevronDown, Building2, FileText, Send, Eye, MoreVertical, Edit3, ArrowRight, ArrowLeft
+  Package, Search, Coins, Loader2, Truck, Globe, Pencil, CheckCircle2, X, ChevronDown, Building2, FileText, Send, Eye, MoreVertical, Edit3, ArrowRight, ArrowLeft, Calendar
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,10 +57,23 @@ export function LocalGoodsReceivedView({
   const [selectedCountryId, setSelectedCountryId] = useState("");
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const [selectedCityBranchId, setSelectedCityBranchId] = useState("");
+  
+  // Date filter states
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // Warehouse list states
   const [warehousesList, setWarehousesList] = useState<any[]>([]);
   const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+
+  // Header Portal Slots
+  const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setTitleSlot(document.getElementById("erp-page-title-slot"));
+    setActionsSlot(document.getElementById("erp-page-actions-slot"));
+  }, []);
 
   // Fetch warehouses on mount
   useEffect(() => {
@@ -120,6 +134,8 @@ export function LocalGoodsReceivedView({
       if (selectedCountryId) params.append("countryId", selectedCountryId);
       if (selectedBranchId) params.append("countryBranchId", selectedBranchId);
       if (selectedCityBranchId) params.append("cityBranchId", selectedCityBranchId);
+      if (dateFrom) params.append("dateFrom", dateFrom);
+      if (dateTo) params.append("dateTo", dateTo);
       if (params.toString()) query += `?${params.toString()}`;
 
       const res = await fetch(query);
@@ -144,20 +160,28 @@ export function LocalGoodsReceivedView({
 
   useEffect(() => {
     void loadHistory();
-  }, [selectedCountryId, selectedBranchId, selectedCityBranchId]);
+  }, [selectedCountryId, selectedBranchId, selectedCityBranchId, dateFrom, dateTo]);
 
-  // Filter purchases by text search
+  // Filter purchases by text search and date range
   const filteredPurchases = useMemo(() => {
     return purchases.filter(p => {
       const q = searchQuery.toLowerCase();
-      return (p.goodsName || p.goods_name || "").toLowerCase().includes(q) ||
-             (p.supplierName || p.supplier_name || "").toLowerCase().includes(q) ||
-             (p.paymentMode || p.payment_mode || "").toLowerCase().includes(q) ||
-             (p.shippingMode || p.shipping_mode || "").toLowerCase().includes(q) ||
-             (p.truckNo || p.truck_no || "").toLowerCase().includes(q) ||
-             (p.driverName || p.driver_name || "").toLowerCase().includes(q);
+      const matchSearch = !q || (
+        (p.goodsName || p.goods_name || "").toLowerCase().includes(q) ||
+        (p.supplierName || p.supplier_name || "").toLowerCase().includes(q) ||
+        (p.paymentMode || p.payment_mode || "").toLowerCase().includes(q) ||
+        (p.shippingMode || p.shipping_mode || "").toLowerCase().includes(q) ||
+        (p.truckNo || p.truck_no || "").toLowerCase().includes(q) ||
+        (p.driverName || p.driver_name || "").toLowerCase().includes(q)
+      );
+
+      const pDate = p.entryDate || p.entry_date || p.createdAt || p.created_at || "";
+      const matchDateFrom = !dateFrom || pDate >= dateFrom;
+      const matchDateTo = !dateTo || pDate <= dateTo;
+
+      return matchSearch && matchDateFrom && matchDateTo;
     });
-  }, [purchases, searchQuery]);
+  }, [purchases, searchQuery, dateFrom, dateTo]);
 
   // Group filtered purchases into tabs for local goods receipt
   const localGoodsReceivedDashboard = useMemo(() => {
@@ -207,274 +231,330 @@ export function LocalGoodsReceivedView({
   }
 
   return (
-    <div className="w-full px-3 sm:px-6 py-4 space-y-6">
+    <div className="w-full px-3 sm:px-6 py-4 space-y-4">
       
-      {/* Context Location Selectors */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600">
-            <Package className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-black text-slate-800 tracking-tight">Local Goods Received</h1>
-            <p className="text-xs text-slate-500 font-medium">Route and process accepted local purchase bills by shipment type.</p>
-          </div>
-        </div>
+      {/* ── ERP Top Header Title Portal ── */}
+      {titleSlot && createPortal(
+        <div className="flex items-center gap-2">
+          <Package className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          <h1 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">
+            Local Goods Received
+          </h1>
+        </div>,
+        titleSlot
+      )}
 
-        <div className="flex flex-wrap items-center gap-3">
+      {/* ── ERP Top Header Controls Portal ── */}
+      {actionsSlot && createPortal(
+        <div className="flex flex-wrap items-center gap-2">
+          
+          {/* 1. Country Dropdown */}
           {countryOptions.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <Globe className="h-3 w-3 text-blue-500" /> Country
-              </span>
-              <select
-                value={selectedCountryId}
-                onChange={e => setSelectedCountryId(e.target.value)}
-                className="h-9 w-40 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-bold outline-none focus:border-blue-500"
-              >
-                <option value="">All Countries</option>
-                {countryOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Country Branch</span>
             <select
-              value={selectedBranchId}
-              onChange={e => setSelectedBranchId(e.target.value)}
-              className="h-9 w-48 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-bold outline-none focus:border-blue-500"
+              value={selectedCountryId}
+              onChange={e => setSelectedCountryId(e.target.value)}
+              className="h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-[11px] font-bold outline-none uppercase"
             >
-              {filteredCountryBranches.map(b => (
-                <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-              ))}
+              <option value="">1. ALL COUNTRIES</option>
+              {countryOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-          </div>
-
-          {activeCityBranches.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">City Branch</span>
-              <select
-                value={selectedCityBranchId}
-                onChange={e => setSelectedCityBranchId(e.target.value)}
-                className="h-9 w-44 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-bold outline-none focus:border-blue-500"
-              >
-                <option value="">Select City Branch...</option>
-                {activeCityBranches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
           )}
 
-          {/* Search Registry Bar */}
-          <div className="flex flex-col gap-1 w-48 sm:w-60">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Search Registry</span>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search item, vendor..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-200 pl-8 pr-3 text-xs outline-none bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-semibold text-slate-800"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+          {/* 2. Country Branch Dropdown */}
+          <select
+            value={selectedBranchId}
+            onChange={e => setSelectedBranchId(e.target.value)}
+            className="h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-[11px] font-bold outline-none uppercase max-w-[160px]"
+          >
+            <option value="">2. ALL BRANCHES</option>
+            {filteredCountryBranches.map(b => (
+              <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+            ))}
+          </select>
 
-      {/* Main Receiving Module Card */}
-      <Card className="overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm">
-        <CardHeader className="border-b border-slate-100 bg-white p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-900">
-                <Package className="h-4 w-4 text-emerald-600" /> Local Goods Received
-              </CardTitle>
-              <p className="mt-1 text-xs font-semibold text-slate-500">Accepted / transferred local purchase bills are routed by shipment type into one receiving process only.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
-              {(["warehouse", "export", "loading"] as LocalGoodsReceiptType[]).map(type => (
-                <button key={type} type="button" onClick={() => setGoodsReceivedTab(type)} className={`rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition ${goodsReceivedTab === type ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-white"}`}>
-                  {localGoodsReceiptLabel(type)} ({localGoodsReceivedDashboard[type].length})
+          {/* 3. City Branch Dropdown */}
+          <select
+            value={selectedCityBranchId}
+            onChange={e => setSelectedCityBranchId(e.target.value)}
+            className="h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-[11px] font-bold outline-none uppercase max-w-[150px]"
+          >
+            <option value="">3. ALL CITIES</option>
+            {activeCityBranches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+
+          {/* 4. Date From */}
+          <input
+            type="date"
+            placeholder="Date From"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="h-8 text-[10px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2"
+          />
+
+          {/* 5. Process Type Dropdown */}
+          <select
+            value={goodsReceivedTab}
+            onChange={e => setGoodsReceivedTab(e.target.value as LocalGoodsReceiptType)}
+            className="h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 px-2 text-[11px] font-black outline-none uppercase"
+          >
+            <option value="warehouse">WAREHOUSE ({localGoodsReceivedDashboard.warehouse?.length || 0})</option>
+            <option value="export">EXPORT ({localGoodsReceivedDashboard.export?.length || 0})</option>
+            <option value="loading">LOADING ({localGoodsReceivedDashboard.loading?.length || 0})</option>
+          </select>
+
+          {/* 6. Search Input */}
+          <div className="relative">
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search registry..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="h-8 w-36 sm:w-44 pl-8 pr-2 text-[11px] font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>,
+        actionsSlot
+      )}
+
+      {/* Main Receiving Module Dashboard Card */}
+      <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden">
+        <CardHeader className="bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 py-3.5 px-4 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+              <Package className="h-4 w-4 text-emerald-600" />
+              LOCAL GOODS RECEIVED
+            </CardTitle>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+              Accepted / transferred local purchase bills are routed by shipment type into one receiving process only.
+            </p>
+          </div>
+
+          {/* 3 Receiving Sub-Tabs */}
+          <div className="flex items-center gap-1.5 bg-slate-200/70 dark:bg-slate-800 p-1 rounded-xl">
+            {(["warehouse", "export", "loading"] as LocalGoodsReceiptType[]).map(tab => {
+              const count = localGoodsReceivedDashboard[tab]?.length || 0;
+              const isActive = goodsReceivedTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setGoodsReceivedTab(tab)}
+                  className={`px-3 py-1 text-[11px] font-black uppercase rounded-lg transition-all ${
+                    isActive
+                      ? "bg-slate-900 text-white dark:bg-emerald-600 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  {localGoodsReceiptLabel(tab)} ({count})
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </CardHeader>
+
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            {loadingHistory ? (
-              <div className="p-12 text-center text-slate-400 font-mono">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-650 mb-2" />
-                Loading pending bills...
-              </div>
-            ) : (
-              <table className="w-full min-w-[1500px] border-collapse text-left text-[10px]">
-                <thead className="bg-slate-900 text-[9px] font-black uppercase tracking-wider text-white">
-                  <tr>
-                    <th className="px-2 py-2">Local Purchase Bill No</th>
-                    <th className="px-2 py-2">Manual Bill No</th>
-                    <th className="px-2 py-2">Journal Serial</th>
-                    <th className="px-2 py-2">Country Serial</th>
-                    <th className="px-2 py-2">Branch Serial</th>
-                    <th className="px-2 py-2">Country</th>
-                    <th className="px-2 py-2">Branch</th>
-                    <th className="px-2 py-2">Supplier / Party Name</th>
-                    <th className="px-2 py-2">Goods Name</th>
-                    <th className="px-2 py-2 text-right">Quantity</th>
-                    <th className="px-2 py-2 text-right">Gross Weight</th>
-                    <th className="px-2 py-2 text-right">Net Weight</th>
-                    <th className="px-2 py-2">Shipment Type</th>
-                    <th className="px-2 py-2 text-right">Purchase Amount</th>
-                    <th className="px-2 py-2 text-right">Final Amount</th>
-                    <th className="px-2 py-2">Status</th>
-                    <th className="px-2 py-2">Date</th>
-                    <th className="px-2 py-2">User Name</th>
-                    <th className="px-2 py-2 text-center">Action</th>
+          {loadingHistory ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+              <span className="text-xs font-bold uppercase tracking-wider">Loading receiving registry...</span>
+            </div>
+          ) : activeGoodsReceivedRows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center space-y-2">
+              <Package className="h-10 w-10 text-slate-300 dark:text-slate-700" />
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase">
+                No {localGoodsReceiptLabel(goodsReceivedTab)} Receipts Pending
+              </p>
+              <p className="text-xs text-slate-400 max-w-sm">
+                No accepted local purchase bills matching "{goodsReceivedTab}" shipment type found for the selected branch.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-black uppercase text-[9px] border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                    <th className="py-2.5 px-3">PURCHASE BILL</th>
+                    <th className="py-2.5 px-3">SUPPLIER</th>
+                    <th className="py-2.5 px-3">GOODS / ITEM</th>
+                    <th className="py-2.5 px-3 text-right">QUANTITY</th>
+                    <th className="py-2.5 px-3 text-right">TOTAL AMOUNT</th>
+                    <th className="py-2.5 px-3">SHIPMENT / TRUCK</th>
+                    <th className="py-2.5 px-3 text-center">STATUS</th>
+                    <th className="py-2.5 px-3 text-center">ACTION</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {activeGoodsReceivedRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={19} className="px-4 py-10 text-center text-xs font-bold text-slate-400">
-                        No {localGoodsReceiptLabel(goodsReceivedTab).toLowerCase()} bills are pending in Local Goods Received.
-                      </td>
-                    </tr>
-                  ) : (
-                    activeGoodsReceivedRows.map((row: any) => {
-                      const rowCurrency = row.local_currency || row.localCurrency || row.purchase_currency || row.purchaseCurrency || localCurrency || "PKR";
-                      const shipment = row.shipping_mode || row.shippingMode || row.shipment_type || row.shipmentType || localGoodsReceiptLabel(goodsReceivedTab);
-                      const status = row.goods_receipt_status || row.goodsReceiptStatus || "Pending Receipt";
-                      const billNo = row.journal_serial_no || row.serial_no || row.serialNo || row.bill_no || row.billNo || ("LP-" + String(row.id || "").slice(0, 8));
-                      return (
-                        <tr key={`received-${row.id}`} className="cursor-pointer hover:bg-emerald-50/50" onClick={() => setActiveGoodsReceipt({ type: goodsReceivedTab, row })}>
-                          <td className="px-2 py-2 font-mono font-black text-blue-700">{billNo}</td>
-                          <td className="px-2 py-2 font-mono text-slate-600">{row.manual_bill_no || row.manualBillNo || "-"}</td>
-                          <td className="px-2 py-2 font-mono text-slate-600">{row.journal_serial_no || row.journalSerialNo || "-"}</td>
-                          <td className="px-2 py-2 font-mono text-slate-600">{row.country_serial_no || row.countrySerialNo || "-"}</td>
-                          <td className="px-2 py-2 font-mono text-slate-600">{row.branch_serial_no || row.branchSerialNo || "-"}</td>
-                          <td className="px-2 py-2 font-semibold text-slate-700">{row.country_name || row.countryName || activeBranch?.countryName || activeBranch?.country_name || "-"}</td>
-                          <td className="px-2 py-2 font-semibold text-slate-700">{row.city_branch_name || row.cityBranchName || row.branch_name || row.branchName || activeBranch?.name || "-"}</td>
-                          <td className="px-2 py-2 font-bold text-slate-800">{row.supplier_name || row.supplierName || "Local Vendor"}</td>
-                          <td className="px-2 py-2 font-black text-slate-900">{row.goods_name || row.goodsName || "-"}</td>
-                          <td className="px-2 py-2 text-right font-mono font-bold">{Number(row.quantity_kgs || row.quantityKgs || 0).toLocaleString()} {row.quantity_name || row.quantityName || ""}</td>
-                          <td className="px-2 py-2 text-right font-mono">{Number(row.total_gross_weight || row.totalGrossWeight || 0).toLocaleString()} kg</td>
-                          <td className="px-2 py-2 text-right font-mono font-bold text-blue-700">{Number(row.net_weight || row.netWeight || 0).toLocaleString()} kg</td>
-                          <td className="px-2 py-2">
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-black text-slate-700">{shipment}</span>
-                          </td>
-                          <td className="px-2 py-2 text-right font-mono">{money(row.purchase_cost || row.purchaseCost || 0, row.purchase_currency || row.purchaseCurrency || rowCurrency)}</td>
-                          <td className="px-2 py-2 text-right font-mono font-black text-emerald-700">{money(row.final_cost || row.finalCost || row.purchase_cost || 0, rowCurrency)}</td>
-                          <td className="px-2 py-2">
-                            <span className={`rounded-full px-2 py-0.5 font-black ${String(status).includes("Completed") || String(status).includes("Received") ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{status}</span>
-                          </td>
-                          <td className="px-2 py-2 font-mono text-slate-500">{new Date(row.created_at || row.createdAt || Date.now()).toLocaleDateString("en-GB")}</td>
-                          <td className="px-2 py-2 font-semibold text-slate-700">{row.created_by_name || row.userName || session.fullName || session.email || "Admin"}</td>
-                          <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
-                            <Button type="button" size="sm" variant="outline" onClick={() => setActiveGoodsReceipt({ type: goodsReceivedTab, row })} className="h-7 rounded-lg px-2 text-[10px] font-black">Open Form</Button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                <tbody className="divide-y divide-slate-150 dark:divide-slate-800 font-semibold text-slate-800 dark:text-slate-200">
+                  {activeGoodsReceivedRows.map(row => {
+                    const status = String(row.status || row.bill_status || "Pending");
+                    const isDone = status.toLowerCase().includes("completed") || status.toLowerCase().includes("received");
+
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors">
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900 dark:text-white">
+                          {row.serialNo || row.serial_no || `#PO-${row.id.slice(0, 6)}`}
+                        </td>
+                        <td className="py-2.5 px-3 font-bold">
+                          {row.supplierName || row.supplier_name || "Local Vendor"}
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-slate-700 dark:text-slate-300">
+                          {row.goodsName || row.goods_name || "General Goods"}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold">
+                          {row.quantity || row.qty || 0} {row.unit || "Bag"}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
+                          {money(row.totalAmount || row.total_amount, row.currency || localCurrency)}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[10px] text-slate-500">
+                          {row.truckNo || row.truck_no ? `Truck #${row.truckNo || row.truck_no}` : (row.shippingMode || row.shipping_mode || "Direct")}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${
+                            isDone
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800"
+                              : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
+                          }`}>
+                            {isDone && <CheckCircle2 className="h-3 w-3 text-emerald-600" />}
+                            {status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <Button
+                            size="sm"
+                            onClick={() => setActiveGoodsReceipt({ type: goodsReceivedTab, row })}
+                            disabled={isDone}
+                            className={`h-7 px-3 text-[10px] font-black uppercase rounded-lg shadow-xs ${
+                              isDone
+                                ? "bg-slate-100 text-slate-400 dark:bg-slate-800"
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            }`}
+                          >
+                            {isDone ? "Completed" : `Process ${localGoodsReceiptLabel(goodsReceivedTab)}`}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-            )}
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* activeGoodsReceipt Modal Form */}
+      {/* Process Goods Receipt Modal */}
       {activeGoodsReceipt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm animate-in fade-in">
-          <form onSubmit={saveLocalGoodsReceipt} className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-50 px-5 py-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-750">Local Goods Received</p>
-                <h3 className="mt-1 text-lg font-black text-slate-900">{localGoodsReceiptLabel(activeGoodsReceipt.type)} Receipt Form</h3>
-                <p className="text-xs font-semibold text-slate-500">Bill is routed from Local Purchase by shipment type. Existing accounting posting remains unchanged.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-150 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-emerald-600" />
+                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                  Process {localGoodsReceiptLabel(activeGoodsReceipt.type)} Receipt
+                </h3>
               </div>
-              <button type="button" onClick={() => setActiveGoodsReceipt(null)} className="rounded-xl border border-slate-200 bg-white p-2 text-slate-500 hover:text-slate-900">
-                <X className="h-4 w-4" />
+              <button
+                onClick={() => setActiveGoodsReceipt(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="max-h-[calc(92vh-145px)] overflow-y-auto p-5">
-              <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-blue-600">Bill Number</span>
-                  <p className="mt-1 font-mono text-sm font-black text-slate-900">{activeGoodsReceipt.row.journal_serial_no || activeGoodsReceipt.row.serial_no || activeGoodsReceipt.row.bill_no || "-"}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Supplier / Party</span>
-                  <p className="mt-1 truncate text-sm font-black text-slate-900">{activeGoodsReceipt.row.supplier_name || activeGoodsReceipt.row.supplierName || "Local Vendor"}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Goods</span>
-                  <p className="mt-1 truncate text-sm font-black text-slate-900">{activeGoodsReceipt.row.goods_name || activeGoodsReceipt.row.goodsName || "-"}</p>
-                </div>
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700">Quantity / Net WT</span>
-                  <p className="mt-1 text-sm font-black text-slate-900">{Number(activeGoodsReceipt.row.quantity_kgs || activeGoodsReceipt.row.quantityKgs || 0).toLocaleString()} / {Number(activeGoodsReceipt.row.net_weight || activeGoodsReceipt.row.netWeight || 0).toLocaleString()} kg</p>
-                </div>
+            <form onSubmit={saveLocalGoodsReceipt} className="space-y-4">
+              <div className="bg-slate-50 dark:bg-slate-850 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-1 font-semibold">
+                <p><span className="text-slate-400 uppercase">Bill No:</span> {activeGoodsReceipt.row.serialNo || activeGoodsReceipt.row.serial_no || `#PO-${activeGoodsReceipt.row.id.slice(0, 6)}`}</p>
+                <p><span className="text-slate-400 uppercase">Supplier:</span> {activeGoodsReceipt.row.supplierName || activeGoodsReceipt.row.supplier_name}</p>
+                <p><span className="text-slate-400 uppercase">Item:</span> {activeGoodsReceipt.row.goodsName || activeGoodsReceipt.row.goods_name} ({activeGoodsReceipt.row.quantity} {activeGoodsReceipt.row.unit || "Bag"})</p>
               </div>
 
               {activeGoodsReceipt.type === "warehouse" && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Warehouse Name<input name="warehouseName" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Warehouse Location<input name="warehouseLocation" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Receiving Date<input name="receivingDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Received Quantity<input name="receivedQuantity" type="number" step="0.01" defaultValue={Number(activeGoodsReceipt.row.quantity_kgs || activeGoodsReceipt.row.quantityKgs || 0)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Gross Weight<input name="grossWeight" type="number" step="0.01" defaultValue={Number(activeGoodsReceipt.row.total_gross_weight || activeGoodsReceipt.row.totalGrossWeight || 0)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Net Weight<input name="netWeight" type="number" step="0.01" defaultValue={Number(activeGoodsReceipt.row.net_weight || activeGoodsReceipt.row.netWeight || 0)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Damage / Shortage<input name="damageShortage" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Received By<input name="receivedBy" defaultValue={session.fullName || session.email || "Admin"} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-400">
+                    Select Target Warehouse
+                  </label>
+                  <select
+                    name="warehouseId"
+                    required
+                    className="w-full h-9 px-2 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none"
+                  >
+                    <option value="">Choose Warehouse...</option>
+                    {warehousesList.map(w => (
+                      <option key={w.id} value={w.id}>{w.name} ({w.code || w.city || "Main"})</option>
+                    ))}
+                  </select>
                 </div>
               )}
 
               {activeGoodsReceipt.type === "loading" && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Truck Number<input name="truckNumber" defaultValue={activeGoodsReceipt.row.truck_no || activeGoodsReceipt.row.truckNo || ""} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Driver Name<input name="driverName" defaultValue={activeGoodsReceipt.row.driver_name || activeGoodsReceipt.row.driver_name || ""} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Driver Mobile<input name="driverMobile" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Loading Date<input name="loadingDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Loading Location<input name="loadingLocation" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Destination<input name="destination" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Loaded Quantity<input name="loadedQuantity" type="number" step="0.01" defaultValue={Number(activeGoodsReceipt.row.quantity_kgs || activeGoodsReceipt.row.quantityKgs || 0)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Loading Charges<input name="loadingCharges" type="number" step="0.01" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Gross Weight<input name="grossWeight" type="number" step="0.01" defaultValue={Number(activeGoodsReceipt.row.total_gross_weight || activeGoodsReceipt.row.totalGrossWeight || 0)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Net Weight<input name="netWeight" type="number" step="0.01" defaultValue={Number(activeGoodsReceipt.row.net_weight || activeGoodsReceipt.row.netWeight || 0)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-400">Truck No</label>
+                    <input
+                      name="truckNo"
+                      type="text"
+                      required
+                      placeholder="e.g. KBL-7892"
+                      defaultValue={activeGoodsReceipt.row.truckNo || activeGoodsReceipt.row.truck_no || ""}
+                      className="w-full h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-400">Driver Name</label>
+                    <input
+                      name="driverName"
+                      type="text"
+                      required
+                      placeholder="Driver Name"
+                      defaultValue={activeGoodsReceipt.row.driverName || activeGoodsReceipt.row.driver_name || ""}
+                      className="w-full h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850"
+                    />
+                  </div>
                 </div>
               )}
 
               {activeGoodsReceipt.type === "export" && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Export Country<input name="exportCountry" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Port / Border<input name="portBorder" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Container Number<input name="containerNumber" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Truck Number<input name="truckNumber" defaultValue={activeGoodsReceipt.row.truck_no || activeGoodsReceipt.row.truckNo || ""} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Export Date<input name="exportDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" required /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Export Quantity<input name="exportQuantity" type="number" step="0.01" defaultValue={Number(activeGoodsReceipt.row.quantity_kgs || activeGoodsReceipt.row.quantityKgs || 0)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Gross Weight<input name="grossWeight" type="number" step="0.01" defaultValue={Number(activeGoodsReceipt.row.total_gross_weight || activeGoodsReceipt.row.totalGrossWeight || 0)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Net Weight<input name="netWeight" type="number" step="0.01" defaultValue={Number(activeGoodsReceipt.row.net_weight || activeGoodsReceipt.row.netWeight || 0)} className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Export Document Number<input name="exportDocumentNumber" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
-                  <label className="space-y-1 text-[10px] font-black uppercase text-slate-500">Shipping / Transport Details<input name="shippingTransportDetails" className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-bold normal-case text-slate-900" /></label>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-400">Export Customs Reference / Declaration No</label>
+                  <input
+                    name="exportRef"
+                    type="text"
+                    required
+                    placeholder="e.g. EXP-2026-9901"
+                    className="w-full h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850"
+                  />
                 </div>
               )}
 
-              <label className="mt-4 block space-y-1 text-[10px] font-black uppercase text-slate-500">Remarks<textarea name="remarks" rows={4} className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold normal-case text-slate-900" placeholder="Enter receiving, loading, export notes or shortage details..." /></label>
-            </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-400">Receiving Remarks / Notes</label>
+                <textarea
+                  name="remarks"
+                  rows={2}
+                  placeholder="Verification notes, weight check, condition..."
+                  className="w-full p-2.5 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 outline-none"
+                />
+              </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-5 py-4">
-              <p className="text-[11px] font-bold text-slate-500">Saving this form updates only Local Goods Received status. Journal, Roznamcha and Ledger posting stay as-is.</p>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => setActiveGoodsReceipt(null)} className="rounded-xl">Cancel</Button>
-                <Button type="submit" disabled={savingGoodsReceipt} className="rounded-xl bg-emerald-600 font-black hover:bg-emerald-700 text-white">
-                  {savingGoodsReceipt ? "Saving..." : `Save ${localGoodsReceiptLabel(activeGoodsReceipt.type)}`}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-150 dark:border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveGoodsReceipt(null)}
+                  className="h-9 px-4 text-xs font-bold rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={savingGoodsReceipt}
+                  className="h-9 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md"
+                >
+                  {savingGoodsReceipt ? "Saving..." : "Confirm & Complete Receipt"}
                 </Button>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
 

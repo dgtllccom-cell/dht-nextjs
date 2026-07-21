@@ -3841,13 +3841,7 @@ export function SalesOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentM
           })()}
         </div>
       )}
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 p-6 pb-0 md:grid-cols-5 max-w-6xl">
-        {cards.map((card) => (
-          <Metric key={card.label} {...card} />
-        ))}
-      </div>
+      {/* KPI Cards removed as requested by user - summary is already displayed in top header cards */}
 
       {/* Main Table Card */}
       <div className="m-6 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">

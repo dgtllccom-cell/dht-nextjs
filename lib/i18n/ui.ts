@@ -61,6 +61,7 @@ export type UiKey =
   | "nav.confirmed_stock"
   | "nav.import_stock"
   | "nav.journal_stock"
+  | "nav.journal_bill_checking"
   | "nav.journal_booking_stock"
   | "nav.warehouse_stock"
   | "nav.in_transit_stock"
@@ -70,6 +71,10 @@ export type UiKey =
   | "nav.salesman_report"
   | "nav.country_report"
   | "nav.branch_report"
+  | "nav.journal_report"
+  | "nav.journal_salesman_report"
+  | "nav.journal_country_report"
+  | "nav.journal_branch_report"
   | "nav.roznamcha"
   | "nav.expenses_bill"
   | "nav.all_roznamcha"
@@ -432,6 +437,7 @@ const en: Dict = {
   "nav.confirmed_stock": "Confirmed Stock",
   "nav.import_stock": "Import Stock",
   "nav.journal_stock": "Journal Stock",
+  "nav.journal_bill_checking": "Journal Bill Checking",
   "nav.journal_booking_stock": "Journal Booking Stock",
   "nav.warehouse_stock": "Warehouse Stock",
   "nav.in_transit_stock": "In Transit Stock",
@@ -441,6 +447,10 @@ const en: Dict = {
   "nav.salesman_report": "Salesman Report",
   "nav.country_report": "Country Report",
   "nav.branch_report": "Branch Report",
+  "nav.journal_report": "Journal Report",
+  "nav.journal_salesman_report": "Journal Salesman Report",
+  "nav.journal_country_report": "Journal Country Report",
+  "nav.journal_branch_report": "Journal Branch Report",
   "nav.roznamcha": "Daily Payment Entry",
   "nav.expenses_bill": "Expenses Bill",
   "nav.all_roznamcha": "All Roznamcha",
@@ -785,7 +795,8 @@ const ur: Dict = {
   "nav.booking_stock": "Booking Stock",
   "nav.confirmed_stock": "Confirmed Stock",
   "nav.import_stock": "Import Stock",
-  "nav.journal_stock": "Journal Stock",
+  "nav.journal_stock": "جرنل اسٹاک",
+  "nav.journal_bill_checking": "جرنل بل چیکنگ",
   "nav.warehouse_stock": "Warehouse Stock",
   "nav.in_transit_stock": "In Transit Stock",
   "nav.export_stock": "Export Stock",
@@ -794,6 +805,10 @@ const ur: Dict = {
   "nav.salesman_report": "سیلزمین رپورٹ",
   "nav.country_report": "کنٹری رپورٹ",
   "nav.branch_report": "برانچ رپورٹ",
+  "nav.journal_report": "جرنل رپورٹ",
+  "nav.journal_salesman_report": "جرنل سیلز مین رپورٹ",
+  "nav.journal_country_report": "جرنل کنٹری رپورٹ",
+  "nav.journal_branch_report": "جرنل برانچ رپورٹ",
   "nav.roznamcha": "ڈیلی پیمنٹ انٹری",
   "nav.expenses_bill": "اخراجات کا بل",
   "nav.all_roznamcha": "تمام روزنامچہ",

@@ -308,55 +308,6 @@ export const sidebarTree: SidebarNode[] = [
         ]
       },
   {
-    key: "logistics",
-    labelKey: "nav.shipping_clearing",
-    iconKey: "truck",
-    children: [
-      {
-        key: "logistics-dashboard",
-        labelKey: "nav.shipping_clearing",
-        href: "/dashboard/logistics" as Route,
-        roles: ["super_admin", "agent_user"]
-      },
-      {
-        key: "shipping-shipment-details",
-        labelKey: "nav.shipment_details",
-        href: "/dashboard/shipping-line/shipment-details" as Route,
-        roles: ["super_admin", "agent_user"]
-      },
-      {
-        key: "shipping-shipment-report",
-        labelKey: "nav.shipment_report",
-        href: "/dashboard/shipping-line/shipment-report" as Route,
-        roles: ["super_admin", "agent_user"]
-      },
-      {
-        key: "shipping-agent",
-        labelKey: "nav.shipping_agent_entry",
-        href: "/dashboard/shipping-line/agent-entry" as Route,
-        roles: ["super_admin", "agent_user"]
-      },
-      {
-        key: "clearing-custom",
-        labelKey: "nav.agent_custom_entry",
-        href: "/dashboard/clearing-agent/agent-custom-entry" as Route,
-        roles: ["super_admin", "agent_user"]
-      },
-      {
-        key: "clearing-bill",
-        labelKey: "nav.clearing_bill_entry",
-        href: "/dashboard/clearing-agent/bill-entry" as Route,
-        roles: ["super_admin", "agent_user"]
-      },
-      {
-        key: "clearing-payment-bill",
-        labelKey: "nav.payment_bill_entry",
-        href: "/dashboard/clearing-agent/payment-bill-entry" as Route,
-        roles: ["super_admin", "agent_user"]
-      }
-    ]
-  },
-  {
     key: "purchase",
     labelKey: "nav.purchase",
     iconKey: "gantt",
@@ -436,28 +387,6 @@ export const sidebarTree: SidebarNode[] = [
     ]
   },
   {
-    key: "stock-reports",
-    labelKey: "nav.stock_reports",
-    iconKey: "bar-chart",
-    children: [
-      {
-        key: "salesman-report",
-        labelKey: "nav.salesman_report",
-        href: "/dashboard/inventory/stock-reports/salesman" as Route
-      },
-      {
-        key: "country-report",
-        labelKey: "nav.country_report",
-        href: "/dashboard/inventory/stock-reports/country" as Route
-      },
-      {
-        key: "branch-report",
-        labelKey: "nav.branch_report",
-        href: "/dashboard/inventory/stock-reports/branch" as Route
-      }
-    ]
-  },
-  {
     key: "sales",
     labelKey: "nav.sales",
     iconKey: "gantt",
@@ -486,6 +415,57 @@ export const sidebarTree: SidebarNode[] = [
         key: "sales-local",
         labelKey: "nav.local_sales",
         href: "/dashboard/sales/local-sales" as Route
+      }
+    ]
+  },
+  {
+    key: "stock-reports",
+    labelKey: "nav.stock_reports",
+    iconKey: "bar-chart",
+    children: [
+      {
+        key: "journal-stock-group",
+        labelKey: "nav.journal_stock",
+        iconKey: "clipboard-list",
+        children: [
+          {
+            key: "salesman-report",
+            labelKey: "nav.salesman_report",
+            href: "/dashboard/inventory/stock-reports/salesman" as Route
+          },
+          {
+            key: "country-report",
+            labelKey: "nav.country_report",
+            href: "/dashboard/inventory/stock-reports/country" as Route
+          },
+          {
+            key: "branch-report",
+            labelKey: "nav.branch_report",
+            href: "/dashboard/inventory/stock-reports/branch" as Route
+          }
+        ]
+      },
+      {
+        key: "journal-bill-checking-group",
+        labelKey: "nav.journal_bill_checking",
+        iconKey: "file-text",
+        children: [
+          {
+            key: "journal-salesman-report",
+            labelKey: "nav.journal_salesman_report",
+            href: "/dashboard/inventory/journal-report/salesman" as Route
+          },
+          {
+            key: "journal-country-report",
+            labelKey: "nav.journal_country_report",
+            href: "/dashboard/inventory/journal-report/country" as Route
+          },
+          {
+            key: "journal-branch-report",
+            labelKey: "nav.journal_branch_report",
+            href: "/dashboard/inventory/journal-report/branch" as Route
+          }
+        ]
       }
     ]
   },
@@ -528,6 +508,55 @@ export const sidebarTree: SidebarNode[] = [
         key: "stock-delivered",
         labelKey: "nav.delivered_stock",
         href: "/dashboard/purchase/stock/delivered" as Route
+      }
+    ]
+  },
+  {
+    key: "logistics",
+    labelKey: "nav.shipping_clearing",
+    iconKey: "truck",
+    children: [
+      {
+        key: "logistics-dashboard",
+        labelKey: "nav.shipping_clearing",
+        href: "/dashboard/logistics" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "shipping-shipment-details",
+        labelKey: "nav.shipment_details",
+        href: "/dashboard/shipping-line/shipment-details" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "shipping-shipment-report",
+        labelKey: "nav.shipment_report",
+        href: "/dashboard/shipping-line/shipment-report" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "shipping-agent",
+        labelKey: "nav.shipping_agent_entry",
+        href: "/dashboard/shipping-line/agent-entry" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "clearing-custom",
+        labelKey: "nav.agent_custom_entry",
+        href: "/dashboard/clearing-agent/agent-custom-entry" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "clearing-bill",
+        labelKey: "nav.clearing_bill_entry",
+        href: "/dashboard/clearing-agent/bill-entry" as Route,
+        roles: ["super_admin", "agent_user"]
+      },
+      {
+        key: "clearing-payment-bill",
+        labelKey: "nav.payment_bill_entry",
+        href: "/dashboard/clearing-agent/payment-bill-entry" as Route,
+        roles: ["super_admin", "agent_user"]
       }
     ]
   },
