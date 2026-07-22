@@ -48,41 +48,6 @@ function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
   const poData = poRow?.form_data || {};
   const goods = poData.goodsEntries || [];
 
-  // Determine loaded Gross and Net weight
-  const qtyKgs = Number(reportPayload.oneQtyKgs || 0);
-  const emptyKgs = Number(reportPayload.oneEmptyKgs || 0);
-  
-  let grossWeight = Number(reportPayload.grossWeight || 0);
-  let netWeight = Number(reportPayload.netWeight || 0);
-  
-  if (grossWeight === 0 && qtyKgs > 0) {
-    grossWeight = qty * qtyKgs;
-  }
-  if (netWeight === 0 && qtyKgs > 0) {
-    netWeight = qty * (qtyKgs - emptyKgs);
-  }
-
-  // Price Rate
-  let priceRate = Number(reportPayload.priceRateC1 || 0);
-  let priceType = String(reportPayload.priceType || "");
-
-  // Find matching good from contract if we don't have rate or type
-  const goodName = reportPayload.goodsName || reportPayload.item || "";
-  const good = goods.find((g: any) => (g.itemName || g.goodsName || g.item) === goodName);
-  if (good) {
-    if (priceRate === 0) priceRate = Number(good.coursePrice || 0);
-    if (!priceType) priceType = good.priceType || "P/Unit";
-  }
-
-  // If still 0, look at first good from PO or PO totals
-  if (priceRate === 0 && goods.length > 0) {
-    const firstGood = goods[0] || {};
-    priceRate = Number(firstGood.coursePrice || 0);
-    if (!priceType) priceType = firstGood.priceType || "P/Unit";
-  }
-
-  const isPerKg = priceType === "P/KGs" || priceType.toLowerCase().includes("kg");
-
   // Robust total PO quantity resolution
   const totalQuantity = Number(
     poRow.total_quantity ||
@@ -95,14 +60,74 @@ function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
   );
 
   const poTotal = Number(poRow?.order_total || poData.totals?.grandFinal || form.totalAmount || 0);
+  const totalContractGross = Number(
+    poData.totals?.totalGrossWeight ||
+    poData.workflow?.totalGrossWeight ||
+    goods.reduce((sum: number, item: any) => sum + Number(item.grossWeight || item.gross_weight || item.grossWt || 0), 0) ||
+    form.totalGrossWeight ||
+    form.grossWeight ||
+    0
+  );
+  const totalContractNet = Number(
+    poData.totals?.totalNetWeight ||
+    poData.workflow?.totalNetWeight ||
+    goods.reduce((sum: number, item: any) => sum + Number(item.netWeight || item.net_weight || item.netWt || 0), 0) ||
+    form.totalNetWeight ||
+    form.netWeight ||
+    0
+  );
+
+  // Find matching good from contract
+  const goodName = reportPayload.goodsName || reportPayload.item || "";
+  const good = goods.find((g: any) => (g.itemName || g.goodsName || g.item) === goodName) || goods[0] || {};
+
+  // Per-unit weight determination
+  let qtyKgs = Number(reportPayload.oneQtyKgs || good.qtyKgs || 0);
+  let emptyKgs = Number(reportPayload.oneEmptyKgs || good.emptyKgs || 0);
+
+  if (qtyKgs === 0 && totalQuantity > 0 && totalContractGross > 0) {
+    qtyKgs = totalContractGross / totalQuantity;
+  }
+
+  let grossWeight = Number(reportPayload.grossWeight || 0);
+  let netWeight = Number(reportPayload.netWeight || 0);
+
+  // If stored gross/net weight equals full contract weight or is zero for a partial load, recalculate strictly for `qty`
+  if (grossWeight === 0 || (totalContractGross > 0 && grossWeight >= totalContractGross && qty < totalQuantity)) {
+    grossWeight = qtyKgs > 0 ? (qty * qtyKgs) : (totalQuantity > 0 ? (qty / totalQuantity) * totalContractGross : 0);
+  }
+
+  if (netWeight === 0 || (totalContractNet > 0 && netWeight >= totalContractNet && qty < totalQuantity)) {
+    const netPerUnit = Math.max(0, qtyKgs - emptyKgs);
+    netWeight = netPerUnit > 0 ? (qty * netPerUnit) : (totalQuantity > 0 ? (qty / totalQuantity) * totalContractNet : 0);
+  }
+
+  // Price Rate and Price Type
+  let priceRate = Number(reportPayload.priceRateC1 || 0);
+  let priceType = String(reportPayload.priceType || "");
+
+  if (priceRate === 0) priceRate = Number(good.coursePrice || 0);
+  if (!priceType) priceType = good.priceType || "P/Unit";
+
+  const isPerKg = priceType === "P/KGs" || priceType.toLowerCase().startsWith("p/kg");
+
   const proRataRatio = totalQuantity > 0 ? (qty / totalQuantity) : (poTotal > 0 && qty > 0 ? 1 : 0);
 
   // Calculate Purchase Amount strictly for this loaded container quantity
   let amountUSD = 0;
   if (priceRate > 0) {
-    amountUSD = isPerKg ? (netWeight * priceRate) : (qty * priceRate);
+    if (isPerKg && netWeight > 0) {
+      const perKgAmount = netWeight * priceRate;
+      // Sanity check: if perKg amount exceeds full contract value for small loading, fallback to per unit
+      if (poTotal > 0 && perKgAmount > poTotal * 1.5 && qty < totalQuantity) {
+        amountUSD = qty * priceRate;
+      } else {
+        amountUSD = perKgAmount;
+      }
+    } else {
+      amountUSD = qty * priceRate;
+    }
   } else {
-    // Pro-rate fallback based on loaded quantity ratio
     amountUSD = proRataRatio * poTotal;
   }
 
@@ -590,6 +615,34 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
       form.netWeight ||
       0
   );
+  const loadedGrossWeight = useMemo(() => {
+    if (!visibleLoadingRows.length) return 0;
+    const sum = visibleLoadingRows.reduce((acc, item) => {
+      const fin = calcLoadingFinance(item, poRow, form);
+      return acc + (fin.grossWeight || 0);
+    }, 0);
+    if (sum > 0) return sum;
+    return totalQuantity > 0 ? Math.round((previousLoadedQuantity / totalQuantity) * contractGrossWeight) : 0;
+  }, [visibleLoadingRows, poRow, form, totalQuantity, previousLoadedQuantity, contractGrossWeight]);
+
+  const loadedNetWeight = useMemo(() => {
+    if (!visibleLoadingRows.length) return 0;
+    const sum = visibleLoadingRows.reduce((acc, item) => {
+      const fin = calcLoadingFinance(item, poRow, form);
+      return acc + (fin.netWeight || 0);
+    }, 0);
+    if (sum > 0) return sum;
+    return totalQuantity > 0 ? Math.round((previousLoadedQuantity / totalQuantity) * contractNetWeight) : 0;
+  }, [visibleLoadingRows, poRow, form, totalQuantity, previousLoadedQuantity, contractNetWeight]);
+
+  const remainingGrossWeight = Math.max(0, contractGrossWeight - loadedGrossWeight);
+  const remainingNetWeight = Math.max(0, contractNetWeight - loadedNetWeight);
+
+  const currentInputQty = Number(quantityNo || 0);
+  const currentInputQtyKgs = Number(oneQtyKgs || 0);
+  const currentInputEmptyKgs = Number(oneEmptyKgs || 0);
+  const currentInputGrossKgs = currentInputQty > 0 && currentInputQtyKgs > 0 ? (currentInputQty * currentInputQtyKgs) : 0;
+  const currentInputNetKgs = currentInputQty > 0 && currentInputQtyKgs > 0 ? (currentInputQty * Math.max(0, currentInputQtyKgs - currentInputEmptyKgs)) : 0;
   const contractPurchaseAmount = Number(
     poRow.order_total ||
       poData.totals?.grandFinal ||
@@ -965,9 +1018,60 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                         <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">GOODS ENTRY</h4>
                       </div>
 
-                      <div className="rounded-md border border-slate-200 bg-slate-50 p-4 mb-4 dark:border-slate-800 dark:bg-slate-900/50">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase">NET KGS:</p>
-                        <p className="text-lg font-black text-slate-900 dark:text-white">0.00</p>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50/90 p-2.5 mb-4 text-[10px] space-y-2 dark:border-slate-800 dark:bg-slate-900/60 shadow-xs">
+                        <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-1.5 font-bold">
+                          <span className="text-slate-500 uppercase tracking-wider text-[9px] flex items-center gap-1">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                            PO SUMMARY ({history.length} {history.length === 1 ? 'Entry' : 'Entries'})
+                          </span>
+                          <span className="font-mono text-[9px] text-slate-600 dark:text-slate-300">
+                            Total: <strong className="font-black text-slate-900 dark:text-white">{totalQuantity.toLocaleString()}</strong> {unitLabel}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5 text-center">
+                          <div className="bg-white p-1.5 rounded border border-slate-100 dark:border-slate-800 dark:bg-slate-950">
+                            <div className="text-[8px] font-extrabold uppercase text-slate-400">Total</div>
+                            <div className="font-mono font-black text-slate-800 dark:text-slate-200 text-[10px] leading-tight">
+                              {totalQuantity.toLocaleString()} <span className="text-[8px] font-medium text-slate-400">{unitLabel}</span>
+                            </div>
+                            <div className="text-[8px] text-slate-500 mt-0.5 font-mono leading-tight">
+                              <div><span className="text-slate-400">Net:</span> {contractNetWeight.toLocaleString()} kg</div>
+                              <div><span className="text-slate-400">Gross:</span> {contractGrossWeight.toLocaleString()} kg</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-emerald-50/70 p-1.5 rounded border border-emerald-200/60 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+                            <div className="text-[8px] font-extrabold uppercase text-emerald-700 dark:text-emerald-400">Loaded ({history.length})</div>
+                            <div className="font-mono font-black text-emerald-700 dark:text-emerald-300 text-[10px] leading-tight">
+                              {totalLoadedQuantity.toLocaleString()} <span className="text-[8px] font-medium text-emerald-600/70">{unitLabel}</span>
+                            </div>
+                            <div className="text-[8px] text-emerald-700/80 dark:text-emerald-400 mt-0.5 font-mono leading-tight">
+                              <div><span className="text-emerald-600/60">Net:</span> {loadedNetWeight.toLocaleString()} kg</div>
+                              <div><span className="text-emerald-600/60">Gross:</span> {loadedGrossWeight.toLocaleString()} kg</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-rose-50/70 p-1.5 rounded border border-rose-200/60 dark:border-rose-900/50 dark:bg-rose-950/30">
+                            <div className="text-[8px] font-extrabold uppercase text-rose-600 dark:text-rose-400">Remaining</div>
+                            <div className="font-mono font-black text-rose-600 dark:text-rose-400 text-[10px] leading-tight">
+                              {remainingToLoadQuantity.toLocaleString()} <span className="text-[8px] font-medium text-rose-500/70">{unitLabel}</span>
+                            </div>
+                            <div className="text-[8px] text-rose-600/80 dark:text-rose-400 mt-0.5 font-mono leading-tight">
+                              <div><span className="text-rose-500/60">Net:</span> {remainingNetWeight.toLocaleString()} kg</div>
+                              <div><span className="text-rose-500/60">Gross:</span> {remainingGrossWeight.toLocaleString()} kg</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {currentInputNetKgs > 0 && (
+                          <div className="flex items-center justify-between bg-cyan-50 p-1 rounded border border-cyan-200 text-[9.5px] dark:bg-cyan-950/40 dark:border-cyan-800">
+                            <span className="font-bold text-cyan-800 dark:text-cyan-300">CURRENT ENTRY WEIGHT:</span>
+                            <span className="font-mono font-black text-cyan-900 dark:text-cyan-200">
+                              Net: {currentInputNetKgs.toLocaleString()} kg | Gross: {currentInputGrossKgs.toLocaleString()} kg
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-3 mb-4">
@@ -1516,9 +1620,13 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {(visibleLoadingRows.length ? visibleLoadingRows : [record]).map((h, i) => {
+                        const rows = visibleLoadingRows.length ? visibleLoadingRows : [record];
                         const finance = calcLoadingFinance(h, poRow, form);
                         const loadedQty = Number(h.report_payload?.loadedQuantity || h.report_payload?.loadingQuantity || h.loadedQuantity || currentLoadingQuantity || 0);
-                        const remainingQty = Math.max(0, totalQuantity - (i === 0 ? totalLoadedQuantity : loadedQty));
+                        const cumulativeLoadedUpToThisRow = rows.slice(0, i + 1).reduce((sum, item) => {
+                          return sum + Number(item.report_payload?.loadedQuantity || item.report_payload?.loadingQuantity || item.loadedQuantity || 0);
+                        }, 0);
+                        const remainingQty = Math.max(0, totalQuantity - cumulativeLoadedUpToThisRow);
                         const advanceLocal = getAdvanceAppliedLocal(finance, loadedQty);
                         const balanceLocal = Math.max(0, (finance.amountPKR || 0) - advanceLocal);
                         const gName = h.report_payload?.goodsName || h.report_payload?.item || form.goodsName || form.itemName || "-";
