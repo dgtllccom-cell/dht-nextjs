@@ -18,7 +18,7 @@ const querySchema = z.object({
   cityBranchId: uuidSchema.optional(),
   status: loadingStatusSchema.optional(),
   q: z.string().trim().max(200).optional(),
-  limit: z.coerce.number().int().min(1).max(300).default(100)
+  limit: z.coerce.number().int().min(1).max(10000).default(100)
 });
 
 const createSchema = z.object({
@@ -169,7 +169,79 @@ export async function GET(request: NextRequest) {
     }
 
     const records = data ?? [];
-    return apiOk({ records, summary: summarize(records), setupRequired: false, setupMessage: null });
+
+    // ── 2. Fetch approved purchase orders with advance paid to ensure all approved bookings show automatically in loading queue ──
+    try {
+      let poQuery = supabase
+        .from("purchase_orders")
+        .select("id, purchase_order_no, country_id, country_branch_id, city_branch_id, form_data, advance_paid, remaining_due, order_total, payment_status, created_at, countries(name, iso2), country_branches(name, code), city_branches(name, code, city_name), purchase_order_payments(amount, exchange_rate, reference_no, narration, source_reference_no)")
+        .is("deleted_at", null)
+        .or("advance_paid.gt.0,payment_status.in.(partially_paid,paid)");
+
+      poQuery = enforceScopeFilter(poQuery, session, {
+        countryId: query.countryId,
+        countryBranchId: query.countryBranchId,
+        cityBranchId: query.cityBranchId
+      });
+
+      const { data: poList } = await poQuery.limit(100);
+      const existingPoIds = new Set(records.map(r => r.purchase_order_id).filter(Boolean));
+      const syntheticRecords: any[] = [];
+
+      if (poList && poList.length > 0) {
+        for (const po of poList) {
+          if (!existingPoIds.has(po.id)) {
+            const form = po.form_data?.form || {};
+            syntheticRecords.push({
+              id: `synthetic-${po.id}`,
+              loading_record_no: `PLR-PENDING`,
+              purchase_order_id: po.id,
+              purchase_order_no: po.purchase_order_no,
+              container_number: "-",
+              container_type: "20ft Standard",
+              loading_status: "pending",
+              loaded_at: po.created_at,
+              loading_location: form.loadingPort || form.originCountry || "-",
+              receiving_location: form.receivedPort || form.destinationCountry || "-",
+              shipmentStatus: "Pending Loading",
+              carrier_name: "-",
+              remarks: "Automatic loading queue entry from approved Purchase Booking.",
+              report_payload: {
+                loadedQuantity: 0,
+                loadingQuantity: 0,
+                pending: true
+              },
+              country_id: po.country_id,
+              country_branch_id: po.country_branch_id,
+              city_branch_id: po.city_branch_id,
+              loaded_quantity: 0,
+              total_quantity: Number(po.form_data?.totals?.totalQuantity || form.quantity || 0),
+              loading_percentage: 0,
+              loaded_purchase_amount: 0,
+              loaded_advance_amount: 0,
+              purchase_currency: po.currency_code || form.currencyType || "USD",
+              exchange_rate: Number(po.exchange_rate || form.exchangeRate || 1),
+              loaded_purchase_local: 0,
+              loaded_advance_local: 0,
+              payment_made: 0,
+              remaining_loading_balance: Number(po.order_total || 0),
+              local_currency: po.countries?.currency || form.branchCurrency || "PKR",
+              posted_to_journal: false,
+              created_at: po.created_at,
+              countries: po.countries,
+              country_branches: po.country_branches,
+              city_branches: po.city_branches,
+              purchase_orders: [po]
+            });
+          }
+        }
+      }
+
+      const allRecords = [...records, ...syntheticRecords];
+      return apiOk({ records: allRecords, setupRequired: false, setupMessage: null });
+    } catch (_) {
+      return apiOk({ records, setupRequired: false, setupMessage: null });
+    }
   } catch (error) {
     return handleApiError(error);
   }

@@ -2413,6 +2413,7 @@ export function SalesOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentM
   const [addOptionOpen, setAddOptionOpen] = useState(false);
   const [addOptionType, setAddOptionType] = useState<"bank" | "method">("bank");
   const [activeTab, setActiveTab] = useState<"remaining" | "advance" | "history">("advance");
+  const [isOrderDetailsExpanded, setIsOrderDetailsExpanded] = useState<boolean>(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const [titleSlot, setTitleSlot] = useState<Element | null>(null);
@@ -4435,8 +4436,50 @@ export function SalesOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentM
                 ["Final Balance", money(remainingHeader * exRateHeader, baseCurrency), `${poCurrencyHeader} converted to ${baseCurrency}`, "text-blue-700 dark:text-blue-300"]
               ];
 
+              if (!isOrderDetailsExpanded) {
+                return (
+                  <section className="rounded-xl border border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm transition-all">
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div>
+                          <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Order Summary</div>
+                          <div className="text-base font-black text-slate-900 dark:text-slate-50">{selected.sales_order_no}</div>
+                        </div>
+                        <div className="h-6 w-px bg-emerald-200 dark:bg-emerald-900 hidden sm:block" />
+                        <div className="text-xs">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Supplier</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200">{supplierHeader}</span>
+                        </div>
+                        <div className="h-6 w-px bg-emerald-200 dark:bg-emerald-900 hidden md:block" />
+                        <div className="text-xs">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Invoice Total</span>
+                          <span className="font-mono font-black text-slate-900 dark:text-slate-100">{money(purchaseTotalHeader, poCurrencyHeader)}</span>
+                        </div>
+                        <div className="h-6 w-px bg-emerald-200 dark:bg-emerald-900 hidden md:block" />
+                        <div className="text-xs">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Remaining Balance</span>
+                          <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(remainingHeader, poCurrencyHeader)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">{poCurrencyHeader} / {baseCurrency}</span>
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">{statusHeader}</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsOrderDetailsExpanded(true)}
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3 py-1.5 text-xs font-black uppercase tracking-wider shadow-sm transition-all"
+                        >
+                          <Plus className="h-4 w-4 stroke-[3]" />
+                          <span>Expand Details</span>
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                );
+              }
+
               return (
-                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950 transition-all">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-300">Sales Order Details</div>
@@ -4445,6 +4488,14 @@ export function SalesOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentM
                     <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                       <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">{poCurrencyHeader} / {baseCurrency}</span>
                       <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">{statusHeader}</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsOrderDetailsExpanded(false)}
+                        className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3 py-1.5 text-xs font-black uppercase tracking-wider shadow-sm transition-all ml-2"
+                      >
+                        <Minus className="h-4 w-4 stroke-[3]" />
+                        <span>Collapse Details</span>
+                      </button>
                     </div>
                   </div>
 
@@ -5756,12 +5807,17 @@ export function SalesOrderPaymentJournal({ mode = "advance" }: { mode?: PaymentM
                           const remainingDue = Number(selected.remaining_due || 0);
 
                           if (activeMode === "advance") {
+                            const displayAdvance = remainingAdvanceBC > 0 ? remainingAdvanceBC : remainingDue;
                             return (
                               <div className="flex flex-col gap-1">
                                 <div>
-                                  <span className="font-bold text-foreground">{currentLanguage === "en" ? "Remaining Advance to Pay: " : "باقی ایڈوانس ادائیگی: "}</span>
+                                  <span className="font-bold text-foreground">
+                                    {currentLanguage === "en"
+                                      ? (remainingAdvanceBC > 0 ? "Remaining Advance to Pay: " : "Remaining Balance for Advance/Endorsement: ")
+                                      : (remainingAdvanceBC > 0 ? "باقی ایڈوانس ادائیگی: " : "باقی بل رقم (ایڈوانس/انڈورسمنٹ): ")}
+                                  </span>
                                   <span className="font-extrabold text-rose-600">
-                                    {money(remainingAdvanceBC, selected.currency_code ?? "USD")} ({money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)})
+                                    {money(displayAdvance, selected.currency_code ?? "USD")} ({money(displayAdvance * (selected.exchange_rate || 1), baseCurrency)})
                                   </span>
                                 </div>
                                 <div className="text-[10px]">

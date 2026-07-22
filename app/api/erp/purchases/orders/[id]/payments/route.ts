@@ -242,11 +242,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const bodyAmountUSD = isForeignCurrency ? Number(body.amount) : Number(body.amount) / Number(body.exchangeRate || 1);
 
     if (body.kind === "advance" && advancePercent > 0) {
-      if (remainingAdvanceUSD <= tolerance) {
-        throw new Error(`Advance payment is already fully paid (Required: ${requiredAdvanceUSD.toFixed(2)}, Paid: ${advancePaidUSD.toFixed(2)}). Duplicate posting is not allowed.`);
+      const maxAllowedAdvanceUSD = Math.max(remainingAdvanceUSD, remainingDueUSD);
+      if (remainingDueUSD <= tolerance) {
+        throw new Error("This purchase order is already fully paid. Duplicate posting is not allowed.");
       }
-      if (bodyAmountUSD > remainingAdvanceUSD + tolerance) {
-        throw new Error(`Advance payment amount cannot exceed remaining advance balance (${remainingAdvanceUSD.toFixed(2)}).`);
+      if (bodyAmountUSD > maxAllowedAdvanceUSD + tolerance) {
+        throw new Error(`Payment amount cannot exceed remaining purchase order balance (${remainingDueUSD.toFixed(2)} USD).`);
       }
     }
 
@@ -255,7 +256,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }
 
     if ((body.kind === "remaining" || body.kind === "credit") && bodyAmountUSD > remainingDueUSD + tolerance) {
-      throw new Error(`Payment amount cannot exceed remaining payable balance (${remainingDueUSD.toFixed(2)}).`);
+      throw new Error(`Payment amount cannot exceed remaining payable balance (${remainingDueUSD.toFixed(2)} USD).`);
     }
 
     const effectiveRoznamchaExchangeRate = isForeignCurrency ? Number(body.exchangeRate || 1) : 1;

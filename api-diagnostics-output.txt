@@ -2767,3 +2767,135 @@ Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
 
 [CLIENT LOG] Time: 2026-07-21T20:00:00.316Z
 Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T08:21:01.006Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T08:21:01.009Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-22T08:21:36.681Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[CLIENT LOG] Time: 2026-07-22T08:26:39.777Z
+Message: Click Show Payment History. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[CLIENT LOG] Time: 2026-07-22T08:26:53.596Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T08:27:32.757Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-22T08:31:04.841Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[CLIENT LOG] Time: 2026-07-22T09:07:37.076Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T09:41:15.973Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T09:52:45.010Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T09:52:46.762Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-22T09:54:39.515Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T09:57:15.210Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T09:57:15.235Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-22T09:57:22.899Z
+Message: Click Payment Entry. row.id: 234ea776-1a18-4ae5-ac41-cea4dcefa37b
+
+[CLIENT LOG] Time: 2026-07-22T09:58:30.324Z
+Message: Click Payment Entry. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T10:00:33.010Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-22T10:18:05.406Z
+Message: Click Payment Entry. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T10:25:30.384Z
+Params: limit=500
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T10:25:30.388Z
+Params: limit=500
+
+[CLIENT LOG] Time: 2026-07-22T10:27:27.561Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T10:28:03.421Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T10:28:03.423Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T10:35:13.583Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-22T10:48:54.710Z
+Message: Click Payment Entry. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
+
+[CLIENT LOG] Time: 2026-07-22T10:50:09.294Z
+Message: Click Payment Entry. row.id: d2b5435a-a0f7-4be9-a743-29f72b5dc345
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T10:54:48.303Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T11:18:51.472Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:00:16.581Z
+Params: limit=200
+
+[CLIENT LOG] Time: 2026-07-22T12:01:11.255Z
+Message: Click Payment Entry. row.id: cc1607f9-623d-4884-b174-e85c09d204c6
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:08:40.703Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:08:40.711Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:11:26.415Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:11:26.424Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:15:52.770Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:19:14.201Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:21:11.767Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:27:49.883Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T12:27:49.905Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T13:33:22.661Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T13:34:03.073Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T13:37:54.723Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T13:37:54.728Z
+Params: limit=200
+
+[GET /api/erp/purchases/orders] Time: 2026-07-22T13:47:06.937Z
+Params: limit=200

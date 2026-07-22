@@ -144,14 +144,14 @@ export function SalesBookingJournalReportView() {
   }
 
   return (
-    <div className="space-y-6 text-slate-100">
+    <div className="space-y-6 text-foreground">
       
       {/* Search & Filters */}
-      <div className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 flex flex-wrap gap-4 items-end">
+      <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-wrap gap-4 items-end">
         <div className="flex-1 min-w-[240px]">
-          <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Search Records</label>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Search Records</label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -159,17 +159,17 @@ export function SalesBookingJournalReportView() {
                 if (e.key === "Enter") void loadReports(query);
               }}
               placeholder="Search sales order #, customer, brand..."
-              className="bg-slate-950 border-slate-850 pl-9 text-xs text-white placeholder-slate-600 h-10"
+              className="bg-background border-input pl-9 text-xs text-foreground placeholder:text-muted-foreground h-10 shadow-sm"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Country</label>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Country</label>
           <select
             value={countryId}
             onChange={(e) => setCountryId(e.target.value)}
-            className="bg-slate-950 border border-slate-850 rounded-xl px-3 h-10 text-xs text-white"
+            className="bg-background border border-input rounded-lg px-3 h-10 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring shadow-sm"
           >
             <option value="">All Countries</option>
             {countries.map((c) => (
@@ -179,12 +179,12 @@ export function SalesBookingJournalReportView() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Branch Scope</label>
+          <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Branch Scope</label>
           <select
             value={branchId}
             onChange={(e) => setBranchId(e.target.value)}
             disabled={!countryId}
-            className="bg-slate-950 border border-slate-850 rounded-xl px-3 h-10 text-xs text-white disabled:opacity-40"
+            className="bg-background border border-input rounded-lg px-3 h-10 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring shadow-sm disabled:opacity-50"
           >
             <option value="">All Branches</option>
             {branches.map((b) => (
@@ -198,7 +198,7 @@ export function SalesBookingJournalReportView() {
             onClick={() => void loadReports(query)}
             disabled={loading}
             variant="outline"
-            className="border-slate-850 bg-slate-900/60 text-white h-10 px-3"
+            className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground h-10 px-3 shadow-sm"
           >
             <RefreshCcw className={loading ? "animate-spin h-4 w-4" : "h-4 w-4"} />
           </Button>
@@ -206,7 +206,7 @@ export function SalesBookingJournalReportView() {
           <Button
             onClick={exportCsv}
             disabled={reports.length === 0}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-10 text-xs px-4"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-10 text-xs px-4 shadow-sm"
           >
             <Download className="h-4 w-4 mr-2" /> Export CSV
           </Button>
@@ -215,80 +215,80 @@ export function SalesBookingJournalReportView() {
 
       {/* Aggregate Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl">
-          <span className="text-xs text-slate-500 font-bold block uppercase mb-1">Total Sales Orders</span>
-          <span className="text-lg font-black text-white">{summary.total}</span>
+        <div className="bg-card border border-border p-4 rounded-xl shadow-sm">
+          <span className="text-xs text-muted-foreground font-semibold block uppercase tracking-wider mb-1">Total Sales Orders</span>
+          <span className="text-2xl font-extrabold text-foreground">{summary.total}</span>
         </div>
-        <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl">
-          <span className="text-xs text-slate-500 font-bold block uppercase mb-1">Total Weight</span>
-          <span className="text-lg font-black text-white">{reports.reduce((sum, r) => sum + Number(r.totalWeight || 0), 0).toLocaleString()} KG</span>
+        <div className="bg-card border border-border p-4 rounded-xl shadow-sm">
+          <span className="text-xs text-muted-foreground font-semibold block uppercase tracking-wider mb-1">Total Weight</span>
+          <span className="text-2xl font-extrabold text-foreground">{reports.reduce((sum, r) => sum + Number(r.totalWeight || 0), 0).toLocaleString()} <span className="text-xs font-semibold text-muted-foreground">KG</span></span>
         </div>
-        <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl">
-          <span className="text-xs text-slate-500 font-bold block uppercase mb-1">Total Containers Booked</span>
-          <span className="text-lg font-black text-indigo-400">{summary.containers}</span>
+        <div className="bg-card border border-border p-4 rounded-xl shadow-sm">
+          <span className="text-xs text-muted-foreground font-semibold block uppercase tracking-wider mb-1">Total Containers Booked</span>
+          <span className="text-2xl font-extrabold text-primary">{summary.containers}</span>
         </div>
-        <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl bg-indigo-950/20">
-          <span className="text-xs text-indigo-400 font-bold block uppercase mb-1">Gross sales amount</span>
-          <span className="text-lg font-black text-white">{summary.amount.toLocaleString()} USD</span>
+        <div className="bg-card border border-border p-4 rounded-xl shadow-sm bg-primary/5">
+          <span className="text-xs text-primary font-bold block uppercase tracking-wider mb-1">Gross Sales Amount</span>
+          <span className="text-2xl font-extrabold text-primary">{summary.amount.toLocaleString()} <span className="text-xs font-semibold">USD</span></span>
         </div>
       </div>
 
       {/* Report Table */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/20">
-        <table className="min-w-full text-xs text-left text-slate-350">
-          <thead className="bg-slate-950 text-slate-450 uppercase text-xs font-semibold">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+        <table className="min-w-full text-xs text-left">
+          <thead className="bg-muted/70 text-muted-foreground border-b border-border uppercase text-[11px] font-bold tracking-wider">
             <tr>
-              <th className="px-6 py-4">SO Number</th>
-              <th className="px-6 py-4">Date</th>
-              <th className="px-6 py-4">Customer Details</th>
-              <th className="px-6 py-4">Products / Description</th>
-              <th className="px-6 py-4">Quantity</th>
-              <th className="px-6 py-4">Weight</th>
-              <th className="px-6 py-4">Containers</th>
-              <th className="px-6 py-4">Sales Total</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-center">Print</th>
+              <th className="px-6 py-3.5">SO Number</th>
+              <th className="px-6 py-3.5">Date</th>
+              <th className="px-6 py-3.5">Customer Details</th>
+              <th className="px-6 py-3.5">Products / Description</th>
+              <th className="px-6 py-3.5">Quantity</th>
+              <th className="px-6 py-3.5">Weight</th>
+              <th className="px-6 py-3.5">Containers</th>
+              <th className="px-6 py-3.5">Sales Total</th>
+              <th className="px-6 py-3.5">Status</th>
+              <th className="px-6 py-3.5 text-center">Print</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-850">
+          <tbody className="divide-y divide-border">
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-6 py-12 text-center text-slate-400 font-medium">Loading sales booking registry...</td>
+                <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground font-medium">Loading sales booking registry...</td>
               </tr>
             ) : reports.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-6 py-12 text-center text-slate-500">No sales orders found.</td>
+                <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground">No sales orders found.</td>
               </tr>
             ) : (
               reports.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-900/30">
+                <tr key={r.id} className="hover:bg-muted/50 transition-colors">
                   <td className="px-6 py-4 font-mono">
                     <button
                       type="button"
                       onClick={() => openSalesA4ReportWindow({ title: "Sales Booking Invoice", salesData: r })}
-                      className="text-cyan-400 hover:text-cyan-300 font-bold hover:underline text-left"
+                      className="text-primary hover:underline font-bold text-left"
                     >
                       {r.salesBookingOrderNumber}
                     </button>
                   </td>
-                  <td className="px-6 py-4 text-slate-400">{r.salesDate?.split("T")[0]}</td>
+                  <td className="px-6 py-4 text-muted-foreground">{r.salesDate?.split("T")[0]}</td>
                   <td className="px-6 py-4">
-                    <div className="font-bold text-white">{r.customerName}</div>
-                    <div className="text-[10px] text-slate-500">{r.branchName} • {r.countryName}</div>
+                    <div className="font-bold text-foreground">{r.customerName}</div>
+                    <div className="text-[11px] text-muted-foreground">{r.branchName} • {r.countryName}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="font-semibold text-slate-200">{r.productName}</div>
-                    <div className="text-[10px] text-slate-500 truncate max-w-xs">{r.goodsDescription}</div>
+                    <div className="font-semibold text-foreground">{r.productName}</div>
+                    <div className="text-[11px] text-muted-foreground truncate max-w-xs">{r.goodsDescription}</div>
                   </td>
-                  <td className="px-6 py-4">{r.quantity?.toLocaleString()} {r.unit}</td>
-                  <td className="px-6 py-4">{r.totalWeight?.toLocaleString()} KG</td>
-                  <td className="px-6 py-4 font-mono font-bold text-indigo-400">{r.containerCount}</td>
-                  <td className="px-6 py-4 font-black text-white">{r.totalSalesAmount?.toLocaleString()} {r.currency}</td>
+                  <td className="px-6 py-4 text-foreground font-medium">{r.quantity?.toLocaleString()} {r.unit}</td>
+                  <td className="px-6 py-4 text-foreground font-medium">{r.totalWeight?.toLocaleString()} KG</td>
+                  <td className="px-6 py-4 font-mono font-bold text-primary">{r.containerCount}</td>
+                  <td className="px-6 py-4 font-extrabold text-foreground">{r.totalSalesAmount?.toLocaleString()} {r.currency}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                      r.status === "Confirmed" 
-                        ? "bg-indigo-950 text-indigo-400 border border-indigo-900" 
-                        : "bg-slate-900 text-slate-500 border border-slate-800"
+                      r.status === "Finalized" || r.status === "Confirmed"
+                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                        : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
                     }`}>
                       {r.status}
                     </span>
@@ -297,9 +297,10 @@ export function SalesBookingJournalReportView() {
                     <Button
                       onClick={() => openSalesA4ReportWindow({ title: "Sales Booking Invoice", salesData: r })}
                       variant="outline"
-                      className="border-slate-800 bg-transparent text-slate-300 hover:bg-slate-950 text-xs px-2 py-1 h-auto"
+                      size="sm"
+                      className="border-input bg-background hover:bg-accent text-foreground text-xs px-2.5 py-1 h-auto shadow-sm"
                     >
-                      <Printer className="h-3 w-3" />
+                      <Printer className="h-3.5 w-3.5 mr-1" /> Print
                     </Button>
                   </td>
                 </tr>

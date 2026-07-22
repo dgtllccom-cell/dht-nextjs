@@ -30,6 +30,8 @@ import {
   WalletCards,
   Edit3,
   Truck,
+  Ship,
+  Info,
   User,
   Shield,
   Home,
@@ -649,22 +651,65 @@ function calcLoadingFinance(loadingRecord: any, poRow: any, form: any) {
   const payload = loadingRecord?.report_payload || {};
   const goods = poRow?.form_data?.goodsEntries || [];
   const firstGood = goods[0] || {};
-  const totalPurchase = Number(
-    payload.totalPurchase ||
-    payload.purchaseAmount ||
-    loadingRecord?.purchase_amount ||
+  const loadedQty = Number(payload.loadedQuantity || payload.loadQty || loadingRecord?.loadedQuantity || loadingRecord?.loaded_quantity || 0);
+  const netWeight = Number(payload.netWeight || payload.netWt || loadingRecord?.net_weight || 0);
+  const grossWeight = Number(payload.grossWeight || payload.grossWt || loadingRecord?.gross_weight || 0);
+  const priceRate = Number(payload.priceRateC1 || payload.priceRate || payload.purchaseRate || loadingRecord?.purchase_rate || firstGood.priceRate || firstGood.rate || 0);
+  const isPerKg = String(firstGood.priceType || payload.priceType || "").toLowerCase().includes("kg");
+  const totalQuantity = Number(
+    poRow?.form_data?.totals?.totalQuantity ||
+    goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || item.qty || 0), 0) ||
+    form.quantity ||
+    0
+  );
+  const contractPurchase = Number(
     firstGood.totalAmount ||
     form.totalAmount ||
     poRow?.order_total ||
     0
   );
-  const exchangeRate = Number(payload.exchangeRate || loadingRecord?.exchange_rate || poRow?.exchange_rate || form.exchangeRate || 1) || 1;
+  const explicitPurchase = Number(payload.totalPurchase || payload.purchaseAmount || loadingRecord?.purchase_amount || 0);
+  const calculatedPurchase = isPerKg && netWeight > 0 && priceRate > 0
+    ? netWeight * priceRate
+    : loadedQty > 0 && priceRate > 0
+      ? loadedQty * priceRate
+      : totalQuantity > 0 && loadedQty > 0 && contractPurchase > 0
+        ? (loadedQty / totalQuantity) * contractPurchase
+        : 0;
+  const totalPurchase = explicitPurchase > 0 ? explicitPurchase : calculatedPurchase;
+  const exchangeRate = Number(
+    payload.exchangeRate ||
+    loadingRecord?.exchange_rate ||
+    poRow?.exchange_rate ||
+    form.exchangeRate ||
+    1
+  ) || 1;
   return {
     amountUSD: totalPurchase,
+    amountPKR: totalPurchase * exchangeRate,
+    currency: payload.currency || loadingRecord?.currency || form.currencyType || form.currency || poRow?.currency_code || "USD",
     exRate: exchangeRate,
-    netWeight: Number(payload.netWeight || payload.netWt || loadingRecord?.net_weight || firstGood.netWeight || firstGood.netWt || 0),
-    grossWeight: Number(payload.grossWeight || payload.grossWt || loadingRecord?.gross_weight || firstGood.grossWeight || firstGood.grossWt || 0)
+    loadedQty,
+    totalQuantity,
+    netWeight,
+    grossWeight
   };
+}
+
+function normalizeAdvanceToPurchaseCurrency(rawAdvance: number, purchaseAmount: number, exchangeRate: number) {
+  if (!Number.isFinite(rawAdvance) || rawAdvance <= 0) return 0;
+  const rate = Number(exchangeRate || 1) || 1;
+  const purchase = Number(purchaseAmount || 0);
+  return rate > 1 && purchase > 0 && rawAdvance > purchase * 1.05 ? rawAdvance / rate : rawAdvance;
+}
+
+function allocateAdvanceForLoadedBill(rawAdvance: number, loadingFinance: ReturnType<typeof calcLoadingFinance> | null, purchaseAmount: number, exchangeRate: number) {
+  const normalized = normalizeAdvanceToPurchaseCurrency(rawAdvance, purchaseAmount, exchangeRate);
+  if (!loadingFinance) return normalized;
+  const ratio = loadingFinance.totalQuantity > 0 && loadingFinance.loadedQty > 0
+    ? loadingFinance.loadedQty / loadingFinance.totalQuantity
+    : 1;
+  return Math.min(loadingFinance.amountUSD, normalized * ratio);
 }
 function kpis(rows: PurchaseOrderRow[], baseCurrency: string): KpiCard[] {
   let totalPurchaseUSD = 0;
@@ -889,7 +934,8 @@ function NestedPaymentHistory({
   expandedIds,
   setExpandedIds,
   logClientError,
-  onOpenFullBill
+  onOpenFullBill,
+  loadingRemainingLoadingRecords = false
 }: { 
   row: any, 
   ledgers: any[], 
@@ -899,7 +945,8 @@ function NestedPaymentHistory({
   expandedIds: Record<string, boolean>,
   setExpandedIds: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
   logClientError: (msg: string) => void,
-  onOpenFullBill?: () => void
+  onOpenFullBill?: () => void,
+  loadingRemainingLoadingRecords?: boolean
 }) {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1132,7 +1179,7 @@ function NestedPaymentHistory({
         <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
           Traceable Payment History (Nested Journal Entries)
         </h4>
-        {loading && (
+        {(loading || loadingRemainingLoadingRecords) && (
           <span className="text-[10px] font-semibold text-slate-400 animate-pulse">Loading history...</span>
         )}
       </div>
@@ -2413,6 +2460,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [addOptionOpen, setAddOptionOpen] = useState(false);
   const [addOptionType, setAddOptionType] = useState<"bank" | "method">("bank");
   const [activeTab, setActiveTab] = useState<"remaining" | "advance" | "history">("advance");
+  const [isPoDetailsExpanded, setIsPoDetailsExpanded] = useState<boolean>(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const [titleSlot, setTitleSlot] = useState<Element | null>(null);
@@ -2451,6 +2499,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
   const [viewingRowPayments, setViewingRowPayments] = useState<any[]>([]);
   const [loadingViewingRowPayments, setLoadingViewingRowPayments] = useState(false);
   const [showModalHistory, setShowModalHistory] = useState(false);
+  const [remainingLoadingRecords, setRemainingLoadingRecords] = useState<any[]>([]);
+  const [loadingRemainingLoadingRecords, setLoadingRemainingLoadingRecords] = useState(false);
 
   useEffect(() => {
     if (!selectedId) {
@@ -2649,6 +2699,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       if (branchFilter && rowBranchName(row) !== branchFilter) return false;
       if (currencyFilter && rowCurrency(row) !== currencyFilter) return false;
 
+      const urlParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+      const urlPurchaseOrderNo = urlParams.get("purchaseOrderNo") || "";
+      const isUrlLoadingScope = activeMode === "remaining" && urlParams.get("fromLoading") === "true" && (!urlPurchaseOrderNo || row.purchase_order_no === urlPurchaseOrderNo);
+      if (activeMode === "remaining" && urlPurchaseOrderNo && row.purchase_order_no !== urlPurchaseOrderNo) return false;
+
       const form = row.form_data?.form || {};
       if (startDateFilter) {
         const rowDate = new Date(row.created_at || form.purchaseDate || form.bookingDate || "");
@@ -2695,8 +2750,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         if (paidAdvance <= 0) return false; // Not paid anything
       } else if (activeMode === "remaining") {
         // Required advance must be fully cleared first before appearing in remaining payments
-        if (advancePercent > 0 && remainingAdvance > 0.01) return false;
-        if (remainingDue <= 0.01) return false; // Already cleared
+        if (advancePercent > 0 && remainingAdvance > 0.01 && !isUrlLoadingScope) return false;
+        if (remainingDue <= 0.01 && !isUrlLoadingScope) return false; // Already cleared
 
         // STRICT BUSINESS RULE: Remaining payment requires Transfer to Loading first.
         // An order must have been transferred (dispatched) before remaining payment is allowed.
@@ -2749,7 +2804,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     });
   }, [activeMode, branchFilter, countryFilter, currencyFilter, draftFilter, orders, query, startDateFilter, endDateFilter]);
 
-  const selected = selectedId ? (filtered.find((row) => row.id === selectedId) ?? null) : null;
+  const selected = selectedId ? (orders.find((row) => row.id === selectedId) ?? filtered.find((row) => row.id === selectedId) ?? null) : null;
 
   // Container Selection local state (moved here to allow access to 'selected' initialization)
   const [selectedLoadingRecord, setSelectedLoadingRecord] = useState<any>(null);
@@ -2817,17 +2872,27 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     const isPerKg = firstGood.priceType === "P/KGs" || String(firstGood.priceType || "").toLowerCase().includes("kg");
 
     // Purchase Amount for this loading only
+    const explicitLoadingPurchaseAmount = Number(
+      searchParams.get("purchaseAmount") ||
+      searchParams.get("loadedPurchaseAmount") ||
+      selectedLoadingRecord?.report_payload?.totalPurchase ||
+      selectedLoadingRecord?.report_payload?.purchaseAmount ||
+      0
+    );
     const loadingPurchaseAmount = fromLoading
-      ? (isPerKg ? cNetWeight * cPriceRate : cLoadedQty * cPriceRate)
+      ? (explicitLoadingPurchaseAmount > 0 ? explicitLoadingPurchaseAmount : (isPerKg ? cNetWeight * cPriceRate : cLoadedQty * cPriceRate))
       : poOrderTotal;
+
+    const exRate = Number(selected.exchange_rate || form.exchangeRate || 1) || 1;
 
     // Required Advance allocated to this loading
     const loadingRequiredAdvance = (loadingPurchaseAmount * advancePercent) / 100;
 
-    // Advance already paid for this loading: pro-rated share of actual advance paid on the PO
-    const poAdvancePaid = Number(selected.advance_paid || 0);
+    // Advance already paid for this loading: normalize local stored advance, then allocate only this loaded bill share.
+    const rawPOAdvancePaid = Number(selected.advance_paid || form.advanceAmount || 0);
+    const poAdvancePaid = normalizeAdvanceToPurchaseCurrency(rawPOAdvancePaid, poOrderTotal, exRate);
     const loadingAdvancePaid = fromLoading
-      ? (totalPOQuantity > 0 ? (cLoadedQty / totalPOQuantity) * poAdvancePaid : poAdvancePaid)
+      ? Math.min(loadingPurchaseAmount, totalPOQuantity > 0 ? (cLoadedQty / totalPOQuantity) * poAdvancePaid : poAdvancePaid)
       : poAdvancePaid;
 
     // Remaining Advance for this loading
@@ -2856,7 +2921,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     const paidPercent = finalPurchaseAmount > 0 ? Math.min(100, (totalPaidSoFar / finalPurchaseAmount) * 100) : 0;
     const advancePaidPercent = loadingRequiredAdvance > 0 ? Math.min(100, (loadingAdvancePaid / loadingRequiredAdvance) * 100) : 0;
 
-    const exRate = selected.exchange_rate || 1;
     const isAdvComplete = loadingRemainingAdvance <= 0.01;
     const isFullyPaid = outstandingBalance <= 0.01;
 
@@ -2969,9 +3033,101 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     setFinalPayment((loadedRemainingUSD * exRateVal).toFixed(2));
   };
 
+  const displayRows = useMemo(() => {
+    if (activeMode !== "remaining") return filtered;
+
+    const urlParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+    const urlLoadingScope = urlParams.get("fromLoading") === "true";
+    if (!remainingLoadingRecords.length && urlLoadingScope) return filtered;
+
+    const needle = query.trim().toLowerCase();
+    const start = startDateFilter ? new Date(startDateFilter) : null;
+    const end = endDateFilter ? new Date(endDateFilter) : null;
+    if (start) start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(23, 59, 59, 999);
+
+    return remainingLoadingRecords
+      .map((loadingRecord: any) => {
+        const linkedPo = orders.find((row) => {
+          return row.id === loadingRecord.purchase_order_id
+            || row.purchase_order_no === loadingRecord.purchase_order_no;
+        });
+        const nestedPo = loadingRecord.purchase_orders || {};
+        const nestedFormData = nestedPo.form_data || {};
+        const row = (linkedPo || {
+          id: loadingRecord.purchase_order_id || loadingRecord.id,
+          purchase_order_no: loadingRecord.purchase_order_no || loadingRecord.loading_record_no || "-",
+          purchase_contract_no: nestedFormData?.form?.contractNo || "-",
+          form_data: nestedFormData,
+          country_id: loadingRecord.country_id || null,
+          country_branch_id: loadingRecord.country_branch_id || null,
+          city_branch_id: loadingRecord.city_branch_id || null,
+          status: "Posted",
+          ledger_posting_status: "Posted",
+          payment_status: "Pending",
+          advance_paid: nestedPo.advance_paid || 0,
+          remaining_due: nestedPo.remaining_due || 0,
+          order_total: nestedPo.order_total || 0,
+          created_at: loadingRecord.loaded_at || loadingRecord.created_at || new Date().toISOString()
+        }) as PurchaseOrderRow;
+
+        const form = { ...(row.form_data?.form || {}) };
+        if (!form.countryName && loadingRecord.countries?.name) form.countryName = loadingRecord.countries.name;
+        if (!form.branchCountry && loadingRecord.countries?.name) form.branchCountry = loadingRecord.countries.name;
+        if (!form.branchName && loadingRecord.city_branches?.name) form.branchName = loadingRecord.city_branches.name;
+        if (!form.branchName && loadingRecord.country_branches?.name) form.branchName = loadingRecord.country_branches.name;
+        if (!form.purchaseCurrency && loadingRecord.purchase_currency) form.purchaseCurrency = loadingRecord.purchase_currency;
+        if (!form.currencyType && loadingRecord.purchase_currency) form.currencyType = loadingRecord.purchase_currency;
+        if (!form.exchangeRate && loadingRecord.exchange_rate) form.exchangeRate = loadingRecord.exchange_rate;
+
+        return {
+          ...row,
+          form_data: {
+            ...(row.form_data || {}),
+            form
+          },
+          country_id: loadingRecord.country_id || row.country_id,
+          country_branch_id: loadingRecord.country_branch_id || row.country_branch_id,
+          city_branch_id: loadingRecord.city_branch_id || row.city_branch_id,
+          created_at: loadingRecord.loaded_at || loadingRecord.created_at || row.created_at,
+          __rowKey: `${row.id}::loading::${loadingRecord.id}`,
+          __loadingRecord: loadingRecord,
+          __isLoadingBill: true
+        } as PurchaseOrderRow & { __rowKey: string; __loadingRecord: any; __isLoadingBill: boolean };
+      })
+      .filter((row: any) => {
+        if (countryFilter && rowCountryName(row) !== countryFilter) return false;
+        if (branchFilter && rowBranchName(row) !== branchFilter) return false;
+        if (currencyFilter && rowCurrency(row) !== currencyFilter) return false;
+
+        const record = row.__loadingRecord || {};
+        const rowDate = new Date(record.loaded_at || record.created_at || row.created_at || "");
+        if (start && (Number.isNaN(rowDate.getTime()) || rowDate < start)) return false;
+        if (end && (Number.isNaN(rowDate.getTime()) || rowDate > end)) return false;
+
+        if (!needle) return true;
+        const form = row.form_data?.form || {};
+        return [
+          row.purchase_order_no,
+          row.purchase_contract_no,
+          record.loading_record_no,
+          record.container_number,
+          record.loading_location,
+          record.receiving_location,
+          form.goodsName,
+          form.purchaseAccountName,
+          form.salesAccountName,
+          rowCountryName(row),
+          rowBranchName(row)
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(needle));
+      });
+  }, [activeMode, branchFilter, countryFilter, currencyFilter, endDateFilter, filtered, orders, query, remainingLoadingRecords, startDateFilter]);
+
   const pageRows = useMemo(() => {
-    return filtered.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
-  }, [filtered, pageIndex, pageSize]);
+    return displayRows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
+  }, [displayRows, pageIndex, pageSize]);
 
   const countryGroups = useMemo(() => {
     const groups: Array<{ country: string; rows: PurchaseOrderRow[] }> = [];
@@ -3361,8 +3517,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       }
       
       const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-      const fromLoading = searchParams.get("fromLoading") === "true";
-      const loadingRecordId = searchParams.get("loadingRecordId") || "";
+      const selectedLoadingRecordId = selectedLoadingRecord?.id ? String(selectedLoadingRecord.id) : "";
+      const fromLoading = searchParams.get("fromLoading") === "true" || Boolean(selectedLoadingRecordId);
+      const loadingRecordId = selectedLoadingRecordId || searchParams.get("loadingRecordId") || "";
 
       const payload = {
         purchaseOrderId: selected.id,
@@ -3414,11 +3571,15 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       setTypeDetails({});
       setAttachmentFile(null);
       
-      // Auto-redirect if in advance mode
-      if (activeMode === "advance" && selected?.purchase_order_no) {
+      // Auto-redirect back to Purchase Loading Records if from loading or in advance/endorsement mode
+      if (fromLoading || (typeof window !== "undefined" && window.location.search.includes("fromLoading=true"))) {
         setTimeout(() => {
-          router.push(`/dashboard/purchase/loading-form?purchaseOrderNo=${encodeURIComponent(selected.purchase_order_no)}`);
-        }, 1500);
+          router.push("/dashboard/purchase/purchase-loading-records");
+        }, 1200);
+      } else if (activeMode === "advance" && selected?.purchase_order_no) {
+        setTimeout(() => {
+          router.push("/dashboard/purchase/purchase-loading-records");
+        }, 1200);
       } else {
         await loadOrders();
       }
@@ -3435,6 +3596,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     const goods = row.form_data?.goodsEntries || [];
     
     const statusText = row.payment_status || "Pending";
+    const rowKey = row.id;
     const isSelected = selected?.id === row.id;
     const isExpanded = Boolean(expandedIds[row.id]);
     const rowBg = isSelected ? "#eff6ff" : index % 2 === 0 ? "#ffffff" : "#f8fafc";
@@ -3452,7 +3614,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
     const getRowColor = () => isPosted ? "text-slate-900 dark:text-slate-100" : "text-red-650 dark:text-red-400 font-medium";
 
     return (
-      <React.Fragment key={row.id}>
+      <React.Fragment key={rowKey}>
         <tr
           onClick={() => setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] }))}
           style={{ background: rowBg, borderBottom: "1px solid #e2e8f0", cursor: "pointer", outline: isSelected ? "2px solid #3b82f6" : undefined, outlineOffset: -1 }}
@@ -3628,6 +3790,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 setExpandedIds={setExpandedIds}
                 logClientError={logClientError}
                 onOpenFullBill={() => setViewingRow(row)}
+                loadingRemainingLoadingRecords={loadingRemainingLoadingRecords}
               />
             </td>
           </tr>
@@ -3804,7 +3967,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
           )}
 
           {/* Records count */}
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 px-1">{filtered.length} {recordsTextMap[currentLanguage]}</span>
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 px-1">{displayRows.length} {recordsTextMap[currentLanguage]}</span>
 
           {/* Refresh Button */}
           <button id="refresh-btn" type="button" onClick={() => void loadOrders()} className="flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition">
@@ -3994,7 +4157,9 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                 </thead>
                                 <tbody>
                                   {group.rows.map((row) => {
-                                    const index = pageRows.indexOf(row);
+                                    const rowKey = String((row as any).__rowKey || row.id);
+                                    const rowSpecificLoadingRecord = (row as any).__loadingRecord || null;
+                                    const index = pageRows.findIndex((item) => String((item as any).__rowKey || item.id) === rowKey);
                                     const form = row.form_data?.form || {};
                                     const goods = row.form_data?.goodsEntries || [];
                                     const totalPrice = orderTotal(row);
@@ -4003,18 +4168,49 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     const rowLocalCurrency = rowOfficeCurrency(row);
                                     const conversionRate = getConversionRate(row, bookCur, rowLocalCurrency, liveRates);
                                     
-                                    const totalAmountBC = totalPrice;
-                                    const totalAmountLocal = totalAmountBC * conversionRate;
+                                    const urlParamsForRow = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+                                    const rowUrlPurchaseOrderNo = urlParamsForRow.get("purchaseOrderNo") || "";
+                                    const rowUrlLoadingScope = activeMode === "remaining"
+                                      && urlParamsForRow.get("fromLoading") === "true"
+                                      && (!rowUrlPurchaseOrderNo || rowUrlPurchaseOrderNo === row.purchase_order_no);
+                                    const rowLoadingRecord = rowUrlLoadingScope
+                                      ? {
+                                          id: urlParamsForRow.get("loadingRecordId") || "",
+                                          report_payload: {
+                                            loadedQuantity: Number(urlParamsForRow.get("loadedQty") || 0),
+                                            grossWeight: Number(urlParamsForRow.get("grossWeight") || 0),
+                                            netWeight: Number(urlParamsForRow.get("netWeight") || 0),
+                                            priceRateC1: Number(urlParamsForRow.get("priceRate") || 0),
+                                            totalPurchase: Number(urlParamsForRow.get("purchaseAmount") || urlParamsForRow.get("loadedPurchaseAmount") || 0),
+                                            exchangeRate: Number(urlParamsForRow.get("exchangeRate") || row.exchange_rate || form.exchangeRate || 1),
+                                            currency: urlParamsForRow.get("currency") || rowCurrency(row)
+                                          }
+                                        }
+                                      : (rowSpecificLoadingRecord || (activeMode === "remaining" && selected?.id === row.id && selectedLoadingRecord ? selectedLoadingRecord : null));
+                                    const rowLoadingFinance = rowLoadingRecord ? calcLoadingFinance(rowLoadingRecord, row, form) : null;
+
+                                    const totalAmountBC = rowLoadingFinance ? rowLoadingFinance.amountUSD : totalPrice;
+                                    const totalAmountLocal = rowLoadingFinance ? rowLoadingFinance.amountPKR : totalAmountBC * conversionRate;
                                     const advancePercent = Number(form.advancePercent || 0);
                                     const requiredAdvanceBC = (totalAmountBC * advancePercent) / 100;
-                                    const paidAdvanceBC = Number(row.advance_paid || 0);
+                                    const rawAdvanceBC = Number(row.advance_paid || form.advanceAmount || 0);
+                                    const paidAdvanceBC = allocateAdvanceForLoadedBill(rawAdvanceBC, rowLoadingFinance, totalPrice, conversionRate);
                                     const remainingAdvanceBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
                                     
-                                    const requiredAdvance = (totalAmountLocal * advancePercent) / 100;
+                                    const requiredAdvance = requiredAdvanceBC * conversionRate;
                                     const paidAdvance = paidAdvanceBC * conversionRate;
                                     const remainingAdvance = Math.max(0, requiredAdvance - paidAdvance);
+                                    const rowRemainingPaidBC = rowLoadingFinance && selected?.id === row.id
+                                      ? selectedOrderPayments
+                                          .filter((payment: any) => {
+                                            if ((payment.kind || "") !== "remaining") return false;
+                                            const paymentLoadingId = payment.typeDetails?.loadingRecordId || payment.typeDetails?.loading_record_id || "";
+                                            return !rowLoadingRecord?.id || paymentLoadingId === rowLoadingRecord.id;
+                                          })
+                                          .reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0)
+                                      : 0;
                                     
-                                    const remainingDueBC = Number(row.remaining_due || 0);
+                                    const remainingDueBC = rowLoadingFinance ? Math.max(0, totalAmountBC - paidAdvanceBC - rowRemainingPaidBC) : Number(row.remaining_due || 0);
                                     let paidAmountBC = 0;
                                     let paidAmountLocal = 0;
                                     let balanceAmountBC = 0;
@@ -4025,7 +4221,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       balanceAmountBC = Math.max(0, requiredAdvanceBC - paidAdvanceBC);
                                       balanceAmountLocal = remainingAdvance;
                                     } else if (activeMode === "remaining") {
-                                      const remPaidBC = Number(row.remaining_paid || 0);
+                                      const remPaidBC = rowLoadingFinance ? rowRemainingPaidBC : Number(row.remaining_paid || 0);
                                       paidAmountBC = remPaidBC;
                                       paidAmountLocal = remPaidBC * conversionRate;
                                       balanceAmountBC = remainingDueBC;
@@ -4039,8 +4235,8 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     }
                                     
                                     const statusText = row.payment_status || "Pending";
-                                    const isSelected = selected?.id === row.id;
-                                    const isExpanded = Boolean(expandedIds[row.id]);
+                                    const isSelected = selected?.id === row.id && (!rowSpecificLoadingRecord?.id || selectedLoadingRecord?.id === rowSpecificLoadingRecord.id);
+                                    const isExpanded = Boolean(expandedIds[rowKey]);
                                     const isPosted = row.ledger_posting_status === "Posted"
                                       || row.ledger_posting_status === "posted"
                                       || row.ledger_posting_status === "Transferred"
@@ -4052,22 +4248,22 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     
                                     // Derived details
                                     const goodsName = goods.map((g: any) => g.goodsName || g.name).filter(Boolean).join(", ") || form.goodsName || "-";
-                                    const totalQty = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || 0), 0) : Number(row.quantity || 0);
-                                    const grossWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
-                                    const netWeight = goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || g.grossWeight || 0), 0) : Number(form.netWeight || 0);
+                                    const totalQty = rowLoadingFinance?.loadedQty || (goods.length ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || 0), 0) : Number(row.quantity || 0));
+                                    const grossWeight = rowLoadingFinance?.grossWeight || (goods.length ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0));
+                                    const netWeight = rowLoadingFinance?.netWeight || (goods.length ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || g.grossWeight || 0), 0) : Number(form.netWeight || 0));
                                     const branchName = rowBranchName(row) || "-";
                                     const countryName = rowCountryName(row) || "-";
                                     const userName = row.audit?.userName || "-";
                                     
                                     // Serials
                                     const superSerialNo = index + 1 + pageIndex * pageSize;
-                                    const countryRows = filtered.filter((r) => rowCountryName(r) === countryName);
-                                    const countrySerialNo = countryRows.findIndex((r) => r.id === row.id) + 1;
-                                    const branchRows = filtered.filter((r) => rowBranchName(r) === branchName);
-                                    const branchSerialNo = branchRows.findIndex((r) => r.id === row.id) + 1;
+                                    const countryRows = displayRows.filter((r) => rowCountryName(r) === countryName);
+                                    const countrySerialNo = countryRows.findIndex((r) => String((r as any).__rowKey || r.id) === rowKey) + 1;
+                                    const branchRows = displayRows.filter((r) => rowBranchName(r) === branchName);
+                                    const branchSerialNo = branchRows.findIndex((r) => String((r as any).__rowKey || r.id) === rowKey) + 1;
 
                                     return (
-                                      <React.Fragment key={row.id}>
+                                      <React.Fragment key={rowKey}>
                                         <tr
                                           className={cn("border-b border-slate-100 dark:border-slate-800/60 text-center hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors", isSelected && "bg-blue-50/80 dark:bg-blue-900/30")}
                                         >
@@ -4178,6 +4374,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                       <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-350 dark:hover:bg-slate-800 transition font-bold" onClick={() => {
                                         try {
                                           logClientError(`Click Payment Entry. row.id: ${row.id}`);
+                                          if (rowSpecificLoadingRecord) setSelectedLoadingRecord(rowSpecificLoadingRecord);
                                           selectOrder(row.id);
                                           close();
                                         } catch (e: any) {
@@ -4207,7 +4404,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                                     <button className="flex w-full items-center px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition" onClick={() => {
                                       try {
                                         logClientError(`Click Show Payment History. row.id: ${row.id}`);
-                                        setExpandedIds((prev) => ({ ...prev, [row.id]: !prev[row.id] }));
+                                        setExpandedIds((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
                                         close();
                                       } catch (e: any) {
                                         logClientError(`Error in Show Payment History click: ${e.stack || e.message || String(e)}`);
@@ -4242,11 +4439,12 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 ledgers={ledgers} 
                 baseCurrency={baseCurrency} 
                 activeMode={activeMode} 
-                selectOrder={selectOrder}
+                selectOrder={(id: string) => { if (rowSpecificLoadingRecord) setSelectedLoadingRecord(rowSpecificLoadingRecord); selectOrder(id); }}
                 expandedIds={expandedIds}
                 setExpandedIds={setExpandedIds}
                 logClientError={logClientError}
                 onOpenFullBill={() => setViewingRow(row)}
+                loadingRemainingLoadingRecords={loadingRemainingLoadingRecords}
               />
                                             </td>
                                           </tr>
@@ -4266,7 +4464,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
       ) : (
         pageRows.map((row, index) => renderRow(row, index))
       )}
-              {!pageRows.length && !loading && (
+              {!pageRows.length && !loading && !loadingRemainingLoadingRecords && (
                 <tr>
                   <td
                     colSpan={11}
@@ -4292,7 +4490,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 </tr>
               )}
 
-              {loading && (
+              {(loading || loadingRemainingLoadingRecords) && (
                 <tr>
                   <td colSpan={11} style={{ padding: "60px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
                     Loading records...
@@ -4307,7 +4505,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
           <div className="flex items-center gap-6">
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              Showing <strong className="font-semibold text-slate-700 dark:text-slate-300">{pageRows.length ? pageIndex * pageSize + 1 : 0} to {Math.min(filtered.length, (pageIndex + 1) * pageSize)}</strong> of <strong className="font-semibold text-slate-700 dark:text-slate-300">{filtered.length}</strong> records
+              Showing <strong className="font-semibold text-slate-700 dark:text-slate-300">{pageRows.length ? pageIndex * pageSize + 1 : 0} to {Math.min(displayRows.length, (pageIndex + 1) * pageSize)}</strong> of <strong className="font-semibold text-slate-700 dark:text-slate-300">{displayRows.length}</strong> records
             </span>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500 dark:text-slate-400">Rows per page:</span>
@@ -4338,7 +4536,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
             >
               <span className="text-xs">?</span>
             </button>
-            {Array.from({ length: Math.ceil(filtered.length / pageSize) }).slice(0, 5).map((_, idx) => (
+            {Array.from({ length: Math.ceil(displayRows.length / pageSize) }).slice(0, 5).map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => setPageIndex(idx)}
@@ -4353,11 +4551,11 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               </button>
             ))}
             <button
-              disabled={(pageIndex + 1) * pageSize >= filtered.length}
+              disabled={(pageIndex + 1) * pageSize >= displayRows.length}
               onClick={() => setPageIndex((idx) => idx + 1)}
               className={cn(
                 "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-655 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400",
-                (pageIndex + 1) * pageSize >= filtered.length && "text-slate-400 opacity-50 cursor-not-allowed"
+                (pageIndex + 1) * pageSize >= displayRows.length && "text-slate-400 opacity-50 cursor-not-allowed"
               )}
               aria-label="Next page"
             >
@@ -4451,8 +4649,50 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                 ["Final Balance", money(remainingHeader * exRateHeader, baseCurrency), `${poCurrencyHeader} converted to ${baseCurrency}`, "text-blue-700 dark:text-blue-300"]
               ];
 
+              if (!isPoDetailsExpanded) {
+                return (
+                  <section className="rounded-xl border border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm transition-all">
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div>
+                          <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">PO Summary</div>
+                          <div className="text-base font-black text-slate-900 dark:text-slate-50">{selected.purchase_order_no}</div>
+                        </div>
+                        <div className="h-6 w-px bg-emerald-200 dark:bg-emerald-900 hidden sm:block" />
+                        <div className="text-xs">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Supplier</span>
+                          <span className="font-extrabold text-slate-800 dark:text-slate-200">{supplierHeader}</span>
+                        </div>
+                        <div className="h-6 w-px bg-emerald-200 dark:bg-emerald-900 hidden md:block" />
+                        <div className="text-xs">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Invoice Total</span>
+                          <span className="font-mono font-black text-slate-900 dark:text-slate-100">{money(purchaseTotalHeader, poCurrencyHeader)}</span>
+                        </div>
+                        <div className="h-6 w-px bg-emerald-200 dark:bg-emerald-900 hidden md:block" />
+                        <div className="text-xs">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">{activeMode === "advance" ? "Remaining Advance" : "Remaining Balance"}</span>
+                          <span className="font-mono font-black text-rose-600 dark:text-rose-400">{money(activeMode === "advance" ? remainingAdvanceBC : remainingHeader, poCurrencyHeader)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">{poCurrencyHeader} / {baseCurrency}</span>
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">{statusHeader}</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsPoDetailsExpanded(true)}
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3 py-1.5 text-xs font-black uppercase tracking-wider shadow-sm transition-all"
+                        >
+                          <Plus className="h-4 w-4 stroke-[3]" />
+                          <span>Expand Details</span>
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                );
+              }
+
               return (
-                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950 transition-all">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-300">Purchase Order Details</div>
@@ -4461,6 +4701,14 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                     <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                       <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">{poCurrencyHeader} / {baseCurrency}</span>
                       <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">{statusHeader}</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsPoDetailsExpanded(false)}
+                        className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3 py-1.5 text-xs font-black uppercase tracking-wider shadow-sm transition-all ml-2"
+                      >
+                        <Minus className="h-4 w-4 stroke-[3]" />
+                        <span>Collapse Details</span>
+                      </button>
                     </div>
                   </div>
 
@@ -4646,18 +4894,28 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               const isPerKg = firstGood.priceType === "P/KGs" || String(firstGood.priceType || "").toLowerCase().includes("kg");
 
               // Purchase Amount for this loading only
+              const explicitLoadingPurchaseAmount = Number(
+                searchParams.get("purchaseAmount") ||
+                searchParams.get("loadedPurchaseAmount") ||
+                selectedLoadingRecord?.report_payload?.totalPurchase ||
+                selectedLoadingRecord?.report_payload?.purchaseAmount ||
+                0
+              );
               const loadingPurchaseAmount = fromLoading
-                ? (isPerKg ? cNetWeight * cPriceRate : cLoadedQty * cPriceRate)
+                ? (explicitLoadingPurchaseAmount > 0 ? explicitLoadingPurchaseAmount : (isPerKg ? cNetWeight * cPriceRate : cLoadedQty * cPriceRate))
                 : poOrderTotal;
+
+              const exRate = Number(selected.exchange_rate || form.exchangeRate || 1) || 1;
 
               // Total Purchase Amount metric: loadingPurchaseAmount
               // Required Advance allocated to this loading
               const loadingRequiredAdvance = (loadingPurchaseAmount * advancePercent) / 100;
 
-              // Advance already paid for this loading: pro-rated share of actual advance paid on the PO
-              const poAdvancePaid = Number(selected.advance_paid || 0);
+              // Advance already paid for this loading: normalize local stored advance, then allocate only this loaded bill share.
+              const rawPOAdvancePaid = Number(selected.advance_paid || form.advanceAmount || 0);
+              const poAdvancePaid = normalizeAdvanceToPurchaseCurrency(rawPOAdvancePaid, poOrderTotal, exRate);
               const loadingAdvancePaid = fromLoading
-                ? (totalPOQuantity > 0 ? (cLoadedQty / totalPOQuantity) * poAdvancePaid : poAdvancePaid)
+                ? Math.min(loadingPurchaseAmount, totalPOQuantity > 0 ? (cLoadedQty / totalPOQuantity) * poAdvancePaid : poAdvancePaid)
                 : poAdvancePaid;
 
               // Remaining Advance for this loading
@@ -4687,7 +4945,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
               const advancePaidPercent = loadingRequiredAdvance > 0 ? Math.min(100, (loadingAdvancePaid / loadingRequiredAdvance) * 100) : 0;
 
               const poCurrency = (selected as any).form_data?.form?.currencyType || (selected as any).form_data?.form?.currency || selected.currency_code || "USD";
-              const exRate = selected.exchange_rate || 1;
               const isAdvComplete = loadingRemainingAdvance <= 0.01;
               const isFullyPaid = outstandingBalance <= 0.01;
 
@@ -4712,6 +4969,16 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-[10px] font-bold">
+                      {activeMode === "advance" && (
+                        <Button
+                          type="button"
+                          onClick={() => router.push(`/dashboard/purchase/purchase-loading-records?purchaseOrderNo=${encodeURIComponent(selected.purchase_order_no)}`)}
+                          className="h-7 px-3 bg-white text-blue-700 hover:bg-blue-50 font-black text-[10px] uppercase tracking-wider rounded-lg shadow-sm flex items-center gap-1.5 transition"
+                        >
+                          <Ship className="h-3.5 w-3.5 text-blue-600" />
+                          {currentLanguage === "en" ? "Proceed to Loading Records ➔" : "لوڈنگ ریکارڈز پر جائیں ➔"}
+                        </Button>
+                      )}
                       {isFullyPaid ? (
                         <span className="inline-flex items-center gap-1 bg-emerald-500 text-white px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider">
                           <CheckCircle className="h-3 w-3" /> Fully Paid
@@ -4939,11 +5206,20 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   const isPerKg = firstGood.priceType === "P/KGs" || String(firstGood.priceType || "").toLowerCase().includes("kg");
 
                   // Determine active totals based on loading record vs PO total
+                  const explicitLoadingPurchaseAmount = Number(
+                    searchParams.get("purchaseAmount") ||
+                    searchParams.get("loadedPurchaseAmount") ||
+                    selectedLoadingRecord?.report_payload?.totalPurchase ||
+                    selectedLoadingRecord?.report_payload?.purchaseAmount ||
+                    0
+                  );
                   const loadingPurchaseAmount = fromLoading
-                    ? (isPerKg ? cNetWeight * cPriceRate : cLoadedQty * cPriceRate)
+                    ? (explicitLoadingPurchaseAmount > 0 ? explicitLoadingPurchaseAmount : (isPerKg ? cNetWeight * cPriceRate : cLoadedQty * cPriceRate))
                     : totalPurchaseBC;
 
                   const loadingRequiredAdvance = (loadingPurchaseAmount * advancePercent) / 100;
+                  const rawPOAdvancePaid = Number(selected.advance_paid || form.advanceAmount || 0);
+                  const poAdvancePaidForStatement = normalizeAdvanceToPurchaseCurrency(rawPOAdvancePaid, totalPurchaseBC, Number(exRate || 1));
                   const statementPurchaseForeign = fromLoading ? loadingPurchaseAmount : totalPurchaseBC;
                   const statementPurchaseLocal = statementPurchaseForeign * Number(exRate || 1);
 
@@ -4952,8 +5228,7 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   
                   if (fromLoading && cLoadingRecordId) {
                     // 1. Synthetic pro-rated advance deduction row
-                    const poAdvancePaid = Number(selected.advance_paid || 0);
-                    const loadingAdvancePaid = totalPOQuantity > 0 ? (cLoadedQty / totalPOQuantity) * poAdvancePaid : poAdvancePaid;
+                    const loadingAdvancePaid = Math.min(loadingPurchaseAmount, totalPOQuantity > 0 ? (cLoadedQty / totalPOQuantity) * poAdvancePaidForStatement : poAdvancePaidForStatement);
                     
                     const poAdvancePayment = selectedOrderPayments.find((p: any) => p.kind === "advance");
                     const advanceSynthetic = {
@@ -5124,26 +5399,6 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                               <div className="flex justify-between gap-2"><span className="text-slate-400">Posting</span><span className="font-semibold text-slate-700 dark:text-slate-200">DR Party / CR Source</span></div>
                             </div>
                           </div>
-                        </div>
-
-                        <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-7">
-                          {[
-                            ["Purchase Total", money(statementPurchaseForeign, poCurrency), poCurrency, "text-slate-900 dark:text-slate-100"],
-                            ["Required Advance", money(loadingRequiredAdvance, poCurrency), poCurrency, "text-orange-700 dark:text-orange-300"],
-                            ["Received / Paid", money(totalReceivedPurchaseCurrency, poCurrency), poCurrency, "text-emerald-700 dark:text-emerald-300"],
-                            ["Balance", money(remainingPurchaseCurrency, poCurrency), poCurrency, "text-rose-700 dark:text-rose-300"],
-                            ["Final Local Total", money(statementPurchaseLocal, baseCurrency), baseCurrency, "text-slate-900 dark:text-slate-100"],
-                            ["Local Paid", money(totalReceivedLocalCurrency, baseCurrency), baseCurrency, "text-emerald-700 dark:text-emerald-300"],
-                            ["Local Balance", money(remainingLocalCurrency, baseCurrency), baseCurrency, "text-rose-700 dark:text-rose-300"]
-                          ].map(([label, value, cur, tone]) => (
-                            <div key={label} className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">{label}</span>
-                                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-500 dark:bg-slate-900">{cur}</span>
-                              </div>
-                              <div className={"mt-1 font-mono text-[11px] font-black " + tone}>{value}</div>
-                            </div>
-                          ))}
                         </div>
                       </div>
 
@@ -5750,6 +6005,28 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                   />
                 </FieldBlock>
 
+                {activeMode === "remaining" && !fromLoading && selected && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900 flex items-center justify-between gap-3 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Info className="h-4 w-4 shrink-0 text-amber-600" />
+                      <div>
+                        <span className="font-bold">{currentLanguage === "en" ? "Standard ERP Process: " : "معیاری ERP کا طریقہ: "}</span>
+                        <span>{currentLanguage === "en" ? "1. Advance Journal ➔ 2. Purchase Loading Records ➔ 3. Remaining Journal" : "1. ایڈوانس جرنل ➔ 2. پرچیز لوڈنگ ریکارڈز ➔ 3. ریمیننگ بل جرنل"}</span>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/dashboard/purchase/purchase-loading-records?purchaseOrderNo=${encodeURIComponent(selected.purchase_order_no)}`)}
+                      className="h-7 px-2.5 text-[10px] font-bold uppercase tracking-wider bg-white hover:bg-amber-100 dark:bg-amber-950 border-amber-300 shrink-0"
+                    >
+                      <Ship className="h-3 w-3 mr-1" />
+                      {currentLanguage === "en" ? "Open Loading Records ➔" : "لوڈنگ ریکارڈز پر جائیں ➔"}
+                    </Button>
+                  </div>
+                )}
+
                 {/* Summary & Action */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2 border-t border-border">
                   <div className="text-xs space-y-0.5 text-muted-foreground">
@@ -5772,12 +6049,17 @@ export function PurchaseOrderPaymentJournal({ mode = "advance" }: { mode?: Payme
                           const remainingDue = Number(selected.remaining_due || 0);
 
                           if (activeMode === "advance") {
+                            const displayAdvance = remainingAdvanceBC > 0 ? remainingAdvanceBC : remainingDue;
                             return (
                               <div className="flex flex-col gap-1">
                                 <div>
-                                  <span className="font-bold text-foreground">{currentLanguage === "en" ? "Remaining Advance to Pay: " : "باقی ایڈوانس ادائیگی: "}</span>
+                                  <span className="font-bold text-foreground">
+                                    {currentLanguage === "en"
+                                      ? (remainingAdvanceBC > 0 ? "Remaining Advance to Pay: " : "Remaining Balance for Advance/Endorsement: ")
+                                      : (remainingAdvanceBC > 0 ? "باقی ایڈوانس ادائیگی: " : "باقی بل رقم (ایڈوانس/انڈورسمنٹ): ")}
+                                  </span>
                                   <span className="font-extrabold text-rose-600">
-                                    {money(remainingAdvanceBC, selected.currency_code ?? "USD")} ({money(remainingAdvanceBC * (selected.exchange_rate || 1), baseCurrency)})
+                                    {money(displayAdvance, selected.currency_code ?? "USD")} ({money(displayAdvance * (selected.exchange_rate || 1), baseCurrency)})
                                   </span>
                                 </div>
                                 <div className="text-[10px]">
@@ -6734,6 +7016,17 @@ function getStatusBadge(status: string | null | undefined) {
     </span>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 

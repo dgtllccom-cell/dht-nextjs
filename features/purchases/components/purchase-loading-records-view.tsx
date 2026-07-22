@@ -83,20 +83,27 @@ function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
 
   const isPerKg = priceType === "P/KGs" || priceType.toLowerCase().includes("kg");
 
-  // Calculate Purchase Amount for this loading only
+  // Robust total PO quantity resolution
+  const totalQuantity = Number(
+    poRow.total_quantity ||
+    poData.totals?.totalQuantity ||
+    poData.workflow?.totalQuantity ||
+    goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
+    form.totalQuantity ||
+    form.quantity ||
+    0
+  );
+
+  const poTotal = Number(poRow?.order_total || poData.totals?.grandFinal || form.totalAmount || 0);
+  const proRataRatio = totalQuantity > 0 ? (qty / totalQuantity) : (poTotal > 0 && qty > 0 ? 1 : 0);
+
+  // Calculate Purchase Amount strictly for this loaded container quantity
   let amountUSD = 0;
   if (priceRate > 0) {
     amountUSD = isPerKg ? (netWeight * priceRate) : (qty * priceRate);
   } else {
-    // Pro-rate fallback as a safety net
-    const totalQuantity = Number(
-      poData.totals?.totalQuantity ||
-      goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
-      form.quantity ||
-      0
-    );
-    const poTotal = Number(poRow?.order_total || poData.totals?.grandFinal || form.totalAmount || 0);
-    amountUSD = totalQuantity > 0 ? (qty / totalQuantity) * poTotal : poTotal;
+    // Pro-rate fallback based on loaded quantity ratio
+    amountUSD = proRataRatio * poTotal;
   }
 
   const poCountryName = (poRow?.countryName || form.branchCountry || "").toLowerCase();
@@ -107,7 +114,22 @@ function calcLoadingFinance(h: LoadingRecord, poRow: any = {}, form: any = {}) {
   const amountPKR = amountUSD * exRate;
   const currency = reportPayload.pricingCurrency || form.currency || poRow?.currency_code || "USD";
   
-  return { amountUSD, exRate, amountPKR, currency, grossWeight, netWeight, priceRate, priceType };
+  return { amountUSD, exRate, amountPKR, currency, grossWeight, netWeight, priceRate, priceType, totalQuantity, proRataRatio };
+}
+function normalizeAdvanceToPurchaseCurrency(rawAdvance: number, contractPurchaseAmount: number, exchangeRate: number) {
+  const advance = Number(rawAdvance || 0);
+  const contractAmount = Number(contractPurchaseAmount || 0);
+  const rate = Number(exchangeRate || 1);
+
+  if (!advance) return 0;
+
+  // Some old purchase rows store advance in local/base currency. Detect that shape
+  // and bring it back to purchase currency before pro-rating by loaded quantity.
+  if (rate > 1 && contractAmount > 0 && advance > contractAmount * 1.2) {
+    return advance / rate;
+  }
+
+  return advance;
 }
 
 
@@ -184,6 +206,68 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
   const [vesselName, setVesselName] = useState("");
   const [savingNewLoading, setSavingNewLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
+  const [expandedPoNos, setExpandedPoNos] = useState<Record<string, boolean>>({});
+
+  const togglePoExpand = (poNo: string) => {
+    setExpandedPoNos(prev => ({ ...prev, [poNo]: !prev[poNo] }));
+  };
+
+  const [transferConfirmData, setTransferConfirmData] = useState<{
+    loadedQty: number;
+    loadedPurchaseAmountFC: number;
+    advancePaidLC: number;
+    remainingLC: number;
+    debitAccountName: string;
+    debitAccountCode: string;
+    creditAccountName: string;
+    creditAccountCode: string;
+    finalCurrency: string;
+    purchaseCurrency: string;
+    exchangeRate: number;
+    loadingRecordId: string;
+    purchaseOrderNo: string;
+    grossWeight: number;
+    netWeight: number;
+    priceRate: number;
+  } | null>(null);
+
+  const handleInitiateTransfer = (hRecord: any) => {
+    const poRow = (Array.isArray(hRecord.purchase_orders) ? hRecord.purchase_orders[0] : hRecord.purchase_orders) || {};
+    const finance = calcLoadingFinance(hRecord, poRow, form);
+    const loadedQty = Number(hRecord.report_payload?.loadedQuantity || hRecord.loadedQuantity || 0);
+    const grossWeight = Number(hRecord.report_payload?.grossWeight || finance.grossWeight || 0);
+    const netWeight = Number(hRecord.report_payload?.netWeight || finance.netWeight || 0);
+    const priceRate = Number(hRecord.report_payload?.priceRateC1 || finance.priceRate || 0);
+    
+    const poAdvanceAmt = normalizeAdvanceToPurchaseCurrency(Number(poRow.advance_paid || form.advanceAmount || 0), contractPurchaseAmount, finance.exRate || 1);
+    const loadedAdvanceUSD = (finance.proRataRatio || 0) * poAdvanceAmt;
+    const loadedAdvanceLocal = Math.min(loadedAdvanceUSD * finance.exRate, Math.max(0, finance.amountPKR));
+    const remainingLC = Math.max(0, finance.amountPKR - loadedAdvanceLocal);
+
+    const debitAccountName = form.purchaseAccountName || "Purchase Account";
+    const debitAccountCode = form.purchaseAccountNumber || form.purchaseAccountNo || "DR-001";
+    const creditAccountName = form.salesAccountName || form.supplierName || "Supplier Account";
+    const creditAccountCode = form.salesAccountNumber || form.salesAccountNo || "CR-001";
+
+    setTransferConfirmData({
+      loadedQty,
+      loadedPurchaseAmountFC: finance.amountUSD,
+      advancePaidLC: loadedAdvanceLocal,
+      remainingLC,
+      debitAccountName,
+      debitAccountCode,
+      creditAccountName,
+      creditAccountCode,
+      finalCurrency: localCurrency,
+      purchaseCurrency: finance.currency || "USD",
+      exchangeRate: finance.exRate,
+      loadingRecordId: hRecord.id,
+      purchaseOrderNo: hRecord.purchase_order_no || record.purchase_order_no || "",
+      grossWeight,
+      netWeight,
+      priceRate
+    });
+  };
 
   // DB ports and countries list states
   const [dbLoadingPorts, setDbLoadingPorts] = useState<any[]>([]);
@@ -480,6 +564,48 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
   const newQuantity = Math.max(0, Number(newLoadingQuantity || 0));
   const previewLoadedQuantity = Math.min(totalQuantity || savedLoadedQuantity + newQuantity, savedLoadedQuantity + newQuantity);
   const previewBalanceQuantity = Math.max(0, totalQuantity - previewLoadedQuantity);
+  const unitLabel = String(reportPayload.qtyName || form.qtyName || goods?.[0]?.qtyName || qtyName || "Bags");
+  const visibleLoadingRows = history.length ? history : (record.loading_status === "loaded" ? [record] : []);
+  const historyLoadedQuantity = visibleLoadingRows.reduce((sum, item) => {
+    return sum + Number(item.report_payload?.loadedQuantity || item.report_payload?.loadingQuantity || item.loadedQuantity || 0);
+  }, 0);
+  const previousLoadedQuantity = historyLoadedQuantity || savedLoadedQuantity;
+  const currentLoadingQuantity = newQuantity;
+  const totalLoadedQuantity = Math.min(totalQuantity || previousLoadedQuantity + currentLoadingQuantity, previousLoadedQuantity + currentLoadingQuantity);
+  const remainingToLoadQuantity = Math.max(0, totalQuantity - totalLoadedQuantity);
+  const loadingProgress = totalQuantity > 0 ? (totalLoadedQuantity / totalQuantity) * 100 : 0;
+  const contractGrossWeight = Number(
+    poData.totals?.totalGrossWeight ||
+      poData.workflow?.totalGrossWeight ||
+      goods.reduce((sum: number, item: any) => sum + Number(item.grossWeight || item.gross_weight || item.grossWt || 0), 0) ||
+      form.totalGrossWeight ||
+      form.grossWeight ||
+      0
+  );
+  const contractNetWeight = Number(
+    poData.totals?.totalNetWeight ||
+      poData.workflow?.totalNetWeight ||
+      goods.reduce((sum: number, item: any) => sum + Number(item.netWeight || item.net_weight || item.netWt || 0), 0) ||
+      form.totalNetWeight ||
+      form.netWeight ||
+      0
+  );
+  const contractPurchaseAmount = Number(
+    poRow.order_total ||
+      poData.totals?.grandFinal ||
+      poData.totals?.totalPurchase ||
+      poData.totals?.totalAmount ||
+      form.totalAmount ||
+      0
+  );
+  const contractPurchaseCurrency = String(form.currency || poRow.currency_code || goods?.[0]?.pricingCurrency || "USD");
+  const getAdvanceAppliedLocal = (finance: ReturnType<typeof calcLoadingFinance>, loadedQty: number) => {
+    const rawAdvance = Number(poRow.advance_paid || form.advanceAmount || 0);
+    const advanceInPurchaseCurrency = normalizeAdvanceToPurchaseCurrency(rawAdvance, contractPurchaseAmount, finance.exRate || 1);
+    const ratio = finance.proRataRatio || (totalQuantity > 0 ? loadedQty / totalQuantity : 0);
+    const appliedLocal = Math.max(0, ratio * advanceInPurchaseCurrency * (finance.exRate || 1));
+    return Math.min(appliedLocal, Math.max(0, finance.amountPKR || appliedLocal));
+  };
 
   function downloadLoadDetails(kind: "json" | "pdf") {
     if (kind === "pdf") {
@@ -682,9 +808,9 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 md:p-8">
-        <div className="mx-auto max-w-[1600px]">
-          <div className={cn("grid gap-6 items-start", showNewLoading ? "grid-cols-1 lg:grid-cols-[400px_1fr]" : "grid-cols-1")}>
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 w-full">
+        <div className="w-full space-y-6">
+          <div className={cn("grid gap-6 items-start w-full", showNewLoading ? "grid-cols-1 xl:grid-cols-[380px_1fr]" : "grid-cols-1")}>
             {showNewLoading && (
               <div className="flex flex-col gap-4 animate-in slide-in-from-left-4 fade-in duration-300">
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
@@ -1238,71 +1364,201 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
               </div>
             </div>
 
-            {/* LOADING REPORT */}
+            {/* LOADING REPORT SUMMARY (Requirement 7) */}
             <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
-              <div className="flex items-center gap-3">
-                <div className="rounded-md bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                  <Ship className="h-4 w-4" />
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-md bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    <Ship className="h-4 w-4" />
+                  </div>
+                  <h3 className="font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300 text-[10px]">Loading Summary Report</h3>
                 </div>
-                <h3 className="font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300 text-[10px]">Loading Report</h3>
+                <span className="text-[10px] font-mono font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900">
+                  {loadingProgress.toFixed(1)}% Loaded
+                </span>
               </div>
-              <div className="space-y-3 pt-1">
-                 <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm flex justify-between items-center">
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Total Quantity</span>
-                    <span className="text-xl font-black font-mono text-slate-700 dark:text-slate-200">{totalQuantity.toLocaleString()}</span>
-                 </div>
-                 <div className="bg-emerald-50/50 dark:bg-emerald-900/10 p-4 rounded-lg border border-emerald-100 dark:border-emerald-900/30 shadow-sm flex justify-between items-center">
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-600">Loaded</span>
-                    <span className="text-xl font-black font-mono text-emerald-600">{previewLoadedQuantity.toLocaleString()}</span>
-                 </div>
-                 <div className="bg-blue-50/60 dark:bg-blue-900/10 p-4 rounded-lg border border-blue-100 dark:border-blue-900/30 shadow-sm flex justify-between items-center">
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-blue-600">New Loading</span>
-                    <span className="text-xl font-black font-mono text-blue-600">{newQuantity.toLocaleString()}</span>
-                 </div>
-                 <div className="bg-rose-50/50 dark:bg-rose-900/10 p-4 rounded-lg border border-rose-100 dark:border-rose-900/30 shadow-sm flex justify-between items-center">
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-rose-600">Balance</span>
-                    <span className="text-xl font-black font-mono text-rose-600">{previewBalanceQuantity.toLocaleString()}</span>
-                 </div>
-                 {previewBalanceQuantity > 0 && (
-                   <Button
-                     type="button"
-                     onClick={() => {
-                       const poRow = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders) || {};
-                       const finance = calcLoadingFinance(record, poRow, form);
-                       const loadedQty = record.report_payload?.loadedQuantity || record.loadedQuantity || 0;
-                       const grossWeight = record.report_payload?.grossWeight || 0;
-                       const netWeight = record.report_payload?.netWeight || 0;
-                       const priceRate = record.report_payload?.priceRateC1 || 0;
-                       const queryParams = new URLSearchParams({
-                         purchaseOrderNo: record.purchase_order_no || "",
-                         fromLoading: "true",
-                         loadingRecordId: record.id,
-                         loadedQty: String(loadedQty),
-                         grossWeight: String(grossWeight),
-                         netWeight: String(netWeight),
-                         priceRate: String(priceRate),
-                         amount: String(Math.max(0, (finance.amountUSD || 0) - ((totalQuantity > 0 ? (Number(record.report_payload?.loadedQuantity || record.loadedQuantity || 0) / totalQuantity) : 1) * Number(poRow.advance_paid || form.advanceAmount || 0)))),
-                         exchangeRate: String(finance.exRate || 1),
-                         currency: finance.currency || "USD",
-                         amountPKR: String(Math.max(0, (finance.amountUSD || 0) - ((totalQuantity > 0 ? (Number(record.report_payload?.loadedQuantity || record.loadedQuantity || 0) / totalQuantity) : 1) * Number(poRow.advance_paid || form.advanceAmount || 0))) * (finance.exRate || 1))
-                       }).toString();
-                       window.open(`/dashboard/journal/purchase-order-payment/remaining?${queryParams}`, "_self");
-                     }}
-                     className="w-full h-10 mt-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-lg flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.98]"
-                   >
-                     <Link2 className="h-4 w-4" />
-                     Transfer Remaining to Journal
-                   </Button>
-                 )}
-                 {loadingMessage ? (
-                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
-                     {loadingMessage}
-                   </div>
-                 ) : null}
+              <div className="space-y-2 text-xs font-semibold">
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Contract Quantity</span>
+                  <span className="font-mono font-black text-slate-800 dark:text-slate-100">{totalQuantity.toLocaleString()} {unitLabel}</span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Contract Gross Weight</span>
+                  <span className="font-mono font-black text-slate-800 dark:text-slate-100">{contractGrossWeight.toLocaleString()} kg</span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Contract Net Weight</span>
+                  <span className="font-mono font-black text-slate-800 dark:text-slate-100">{contractNetWeight.toLocaleString()} kg</span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Contract Purchase Amount</span>
+                  <span className="font-mono font-black text-slate-800 dark:text-slate-100">{contractPurchaseAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {contractPurchaseCurrency}</span>
+                </div>
+                <div className="bg-emerald-50/50 dark:bg-emerald-900/10 p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/30 flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Previously Loaded</span>
+                  <span className="font-mono font-black text-emerald-700 dark:text-emerald-400">{previousLoadedQuantity.toLocaleString()} {unitLabel}</span>
+                </div>
+                <div className="bg-blue-50/60 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30 flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">Current Loading</span>
+                  <span className="font-mono font-black text-blue-700 dark:text-blue-400">{currentLoadingQuantity.toLocaleString()} {unitLabel}</span>
+                </div>
+                <div className="bg-teal-50/60 dark:bg-teal-900/10 p-3 rounded-lg border border-teal-100 dark:border-teal-900/30 flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">Total Loaded</span>
+                  <span className="font-mono font-black text-teal-700 dark:text-teal-400">{totalLoadedQuantity.toLocaleString()} {unitLabel}</span>
+                </div>
+                <div className="bg-rose-50/50 dark:bg-rose-900/10 p-3 rounded-lg border border-rose-100 dark:border-rose-900/30 flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Remaining to Load</span>
+                  <span className="font-mono font-black text-rose-600">{remainingToLoadQuantity.toLocaleString()} {unitLabel}</span>
+                </div>
+
+                {remainingToLoadQuantity > 0 && (
+                  <Button
+                    type="button"
+                    onClick={() => handleInitiateTransfer(record)}
+                    className="w-full h-10 mt-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-lg flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.98]"
+                  >
+                    <Link2 className="h-4 w-4" />
+                    Transfer Remaining to Journal
+                  </Button>
+                )}
               </div>
             </div>
+
+            {/* Transfer Remaining to Journal Confirmation Modal (Requirement 11) */}
+      {transferConfirmData && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
+                  <Link2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase text-slate-800 dark:text-slate-100">Transfer Remaining to Journal</h3>
+                  <p className="text-[10px] text-slate-500 font-semibold">Confirmation summary for loaded goods remaining balance</p>
+                </div>
+              </div>
+              <button onClick={() => setTransferConfirmData(null)} className="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>
+            </div>
+
+            <div className="space-y-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl text-xs font-semibold border border-slate-100 dark:border-slate-800">
+              <div className="flex justify-between items-center"><span className="text-slate-500">PO Number:</span><span className="font-mono font-bold text-blue-600">{transferConfirmData.purchaseOrderNo}</span></div>
+              <div className="flex justify-between items-center"><span className="text-slate-500">Loaded Quantity:</span><span className="font-mono font-black text-slate-800 dark:text-slate-100">{transferConfirmData.loadedQty.toLocaleString()} Bags</span></div>
+              <div className="flex justify-between items-center"><span className="text-slate-500">Loaded Purchase Amount:</span><span className="font-mono font-black text-slate-800 dark:text-slate-100">{transferConfirmData.loadedPurchaseAmountFC.toLocaleString(undefined, {minimumFractionDigits: 2})} {transferConfirmData.purchaseCurrency}</span></div>
+              <div className="flex justify-between items-center"><span className="text-slate-500">Advance Paid Applied:</span><span className="font-mono font-bold text-emerald-600">{transferConfirmData.advancePaidLC.toLocaleString(undefined, {minimumFractionDigits: 2})} {transferConfirmData.finalCurrency}</span></div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-800"><span className="text-rose-600 font-bold uppercase">Remaining Amount to Journal:</span><span className="font-mono font-black text-rose-600 text-sm">{transferConfirmData.remainingLC.toLocaleString(undefined, {minimumFractionDigits: 2})} {transferConfirmData.finalCurrency}</span></div>
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-2 text-[10px]">
+                <div><span className="text-slate-400 block">Debit Account (DR)</span><span className="font-bold text-blue-700 dark:text-blue-300">{transferConfirmData.debitAccountName} ({transferConfirmData.debitAccountCode})</span></div>
+                <div><span className="text-slate-400 block">Credit Account (CR)</span><span className="font-bold text-rose-700 dark:text-rose-300">{transferConfirmData.creditAccountName} ({transferConfirmData.creditAccountCode})</span></div>
+              </div>
+              <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                <span>Exchange Rate: <strong className="font-mono text-slate-700 dark:text-slate-200">{transferConfirmData.exchangeRate}</strong></span>
+                <span>Final Currency: <strong className="font-mono text-slate-700 dark:text-slate-200">{transferConfirmData.finalCurrency}</strong></span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setTransferConfirmData(null)} className="rounded-lg font-bold text-xs">Cancel</Button>
+              <Button type="button" size="sm" onClick={() => {
+                const queryParams = new URLSearchParams({
+                  purchaseOrderNo: transferConfirmData.purchaseOrderNo,
+                  fromLoading: "true",
+                  loadingRecordId: transferConfirmData.loadingRecordId,
+                  loadedQty: String(transferConfirmData.loadedQty),
+                  grossWeight: String(transferConfirmData.grossWeight),
+                  netWeight: String(transferConfirmData.netWeight),
+                  priceRate: String(transferConfirmData.priceRate),
+                  amount: String(transferConfirmData.remainingLC / transferConfirmData.exchangeRate),
+                  exchangeRate: String(transferConfirmData.exchangeRate),
+                  currency: transferConfirmData.purchaseCurrency,
+                  amountPKR: String(transferConfirmData.remainingLC)
+                }).toString();
+                setTransferConfirmData(null);
+                window.open(`/dashboard/journal/purchase-order-payment/remaining?${queryParams}`, "_self");
+              }} className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs">
+                Confirm & Transfer to Journal
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
               </div>
               <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">Current Bill Loading Report</h3>
+                    <p className="mt-1 text-[10px] font-semibold text-slate-500">Bill quantity, loaded balance, payment conversion and remaining amount.</p>
+                  </div>
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">
+                    {visibleLoadingRows.length || 1} Bill Row
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1280px] text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900/60">
+                        <th className="px-4 py-3">SR#</th>
+                        <th className="px-4 py-3">Goods</th>
+                        <th className="px-4 py-3 text-right">Contract Qty</th>
+                        <th className="px-4 py-3 text-right">Loaded Qty</th>
+                        <th className="px-4 py-3 text-right">Remaining Qty</th>
+                        <th className="px-4 py-3 text-right">Net Weight</th>
+                        <th className="px-4 py-3 text-right">Gross Weight</th>
+                        <th className="px-4 py-3 text-right">Purchase Rate</th>
+                        <th className="px-4 py-3 text-right">Loaded Purchase</th>
+                        <th className="px-4 py-3 text-right">Exchange Rate</th>
+                        <th className="px-4 py-3 text-right">Final Amount ({localCurrency})</th>
+                        <th className="px-4 py-3 text-right">Approved Advance</th>
+                        <th className="px-4 py-3 text-right">Balance</th>
+                        <th className="px-4 py-3">Route / Dates</th>
+                        <th className="px-4 py-3 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {(visibleLoadingRows.length ? visibleLoadingRows : [record]).map((h, i) => {
+                        const finance = calcLoadingFinance(h, poRow, form);
+                        const loadedQty = Number(h.report_payload?.loadedQuantity || h.report_payload?.loadingQuantity || h.loadedQuantity || currentLoadingQuantity || 0);
+                        const remainingQty = Math.max(0, totalQuantity - (i === 0 ? totalLoadedQuantity : loadedQty));
+                        const advanceLocal = getAdvanceAppliedLocal(finance, loadedQty);
+                        const balanceLocal = Math.max(0, (finance.amountPKR || 0) - advanceLocal);
+                        const gName = h.report_payload?.goodsName || h.report_payload?.item || form.goodsName || form.itemName || "-";
+                        const brandName = h.report_payload?.brand || form.brand || "";
+                        const sizeName = h.report_payload?.sizeSpec || form.size || "";
+                        const route = [h.report_payload?.loadingPort || loadingPort, h.report_payload?.receivingPort || receivingPort].filter(Boolean).join(" to ") || "-";
+                        return (
+                          <tr key={h.id || record.id || i} className="bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/60">
+                            <td className="px-4 py-3 font-mono font-bold text-slate-500">{String(i + 1).padStart(2, "0")}</td>
+                            <td className="px-4 py-3">
+                              <div className="font-black text-slate-800 dark:text-slate-100">{gName}</div>
+                              <div className="mt-1 text-[10px] font-semibold text-slate-500">{[brandName, sizeName].filter(Boolean).join(" / ") || "-"}</div>
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-slate-700 dark:text-slate-200">{totalQuantity.toLocaleString()} {unitLabel}</td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-emerald-600">{loadedQty.toLocaleString()} {unitLabel}</td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-rose-600">{remainingQty.toLocaleString()} {unitLabel}</td>
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-slate-600 dark:text-slate-300">{finance.netWeight.toLocaleString()} kg</td>
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-slate-600 dark:text-slate-300">{finance.grossWeight.toLocaleString()} kg</td>
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-slate-700 dark:text-slate-200">{finance.priceRate ? finance.priceRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : "-"} {finance.currency}</td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-slate-800 dark:text-slate-100">{finance.amountUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {finance.currency}</td>
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-blue-700 dark:text-blue-300">{finance.exRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-blue-700 dark:text-blue-300">{finance.amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {localCurrency}</td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-emerald-600">{advanceLocal > 0 ? advanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"} {advanceLocal > 0 ? localCurrency : ""}</td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-rose-600">{balanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {localCurrency}</td>
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-slate-700 dark:text-slate-200">{route}</div>
+                              <div className="mt-1 text-[10px] font-semibold text-slate-500">{h.report_payload?.loadingDate || loadingDate} &rarr; {h.report_payload?.receivingDate || receivingDate || "Pending"}</div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button type="button" onClick={() => handleEditHistory(h)} className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:text-slate-300">Edit</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="hidden">
             <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/40">
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Goods & Container Report</h3>
             </div>
@@ -1352,15 +1608,8 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                       const itemFinalAmountPKR = finance.amountPKR;
                       const exRate = finance.exRate;
 
-                      const poAdvancePaid = Number(poRow.advance_paid || 0);
-                      const totalPOQuantity = Number(
-                        poData.totals?.totalQuantity ||
-                        goods.reduce((acc: number, item: any) => acc + Number(item.qtyNo || item.quantity || 0), 0) ||
-                        form.quantity ||
-                        1
-                      );
-                      const advancePaidForThisLoadingLocal = (totalPOQuantity > 0 ? (loadedQty / totalPOQuantity) : 1) * poAdvancePaid * exRate;
-                      const balPKR = itemFinalAmountPKR - advancePaidForThisLoadingLocal;
+                      const advancePaidForThisLoadingLocal = getAdvanceAppliedLocal(finance, loadedQty);
+                      const balPKR = Math.max(0, itemFinalAmountPKR - advancePaidForThisLoadingLocal);
                       const payDate = form.advancePaymentDate || form.paymentDate || form.clearanceDate || "-";
 
                       return (
@@ -1394,9 +1643,9 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                       const poTotal = Number(poRow?.order_total || poData.totals?.grandFinal || form.totalAmount || 0);
                       const exRate = Number(form.exchangeRate || (poData as any).exchange_rate || 1);
                       const itemFinalAmountPKR = poTotal * exRate;
-                      const poAdvancePaid = Number(poRow.advance_paid || 0);
-                      const advancePaidLocal = poAdvancePaid * exRate;
-                      const balPKR = itemFinalAmountPKR - advancePaidLocal;
+                      const poAdvancePaid = normalizeAdvanceToPurchaseCurrency(Number(poRow.advance_paid || form.advanceAmount || 0), poTotal, exRate || 1);
+                      const advancePaidLocal = Math.min(poAdvancePaid * exRate, Math.max(0, itemFinalAmountPKR));
+                      const balPKR = Math.max(0, itemFinalAmountPKR - advancePaidLocal);
                       const payDate = form.advancePaymentDate || form.paymentDate || form.purchaseDate || "-";
 
                       return (
@@ -1436,6 +1685,120 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
 
           {/* LOADING HISTORY TABLE */}
           <div className="mt-6 rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">Loading History</h3>
+                <p className="mt-1 text-[10px] font-semibold text-slate-500">All BL/container loading records for this purchase bill.</p>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                {history.length} Saved Loading
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1180px] text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900/60">
+                    <th className="px-4 py-3">SR#</th>
+                    <th className="px-4 py-3">BL Number</th>
+                    <th className="px-4 py-3">Container</th>
+                    <th className="px-4 py-3">Vessel / Vehicle</th>
+                    <th className="px-4 py-3 text-right">Load Qty</th>
+                    <th className="px-4 py-3 text-right">Purchase Rate</th>
+                    <th className="px-4 py-3 text-right">Purchase Amount</th>
+                    <th className="px-4 py-3 text-right">Exchange Rate</th>
+                    <th className="px-4 py-3 text-right">Final Amount ({localCurrency})</th>
+                    <th className="px-4 py-3 text-right">Advance Paid</th>
+                    <th className="px-4 py-3 text-right">Balance Remaining</th>
+                    <th className="px-4 py-3">Ports / Dates</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {history.length ? history.map((h, i) => {
+                    const finance = calcLoadingFinance(h, poRow, form);
+                    const loadedQty = Number(h.report_payload?.loadedQuantity || h.loadedQuantity || 0);
+                    const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
+                    const loadedAdvanceUSD = (finance.proRataRatio || 0) * poAdvanceAmt;
+                    const advanceLocal = Math.min(loadedAdvanceUSD * finance.exRate, Math.max(0, finance.amountPKR));
+                    const balanceLocal = Math.max(0, finance.amountPKR - advanceLocal);
+                    return (
+                      <tr key={h.id} className="bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/60">
+                        <td className="px-4 py-3 font-mono font-bold text-slate-500">{String(i + 1).padStart(2, "0")}</td>
+                        <td className="px-4 py-3 font-mono font-black text-blue-700 dark:text-blue-300">{h.report_payload?.blNumber || "-"}</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-slate-700 dark:text-slate-200">{h.container_number || h.report_payload?.containerNumber || "-"}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">{h.report_payload?.vesselName || h.carrier_name || "-"}</td>
+                        <td className="px-4 py-3 text-right font-mono font-black text-slate-800 dark:text-slate-100">{loadedQty.toLocaleString()} {unitLabel}</td>
+                        <td className="px-4 py-3 text-right font-mono font-semibold text-slate-700 dark:text-slate-200">{finance.priceRate ? finance.priceRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : "-"} {finance.currency}</td>
+                        <td className="px-4 py-3 text-right font-mono font-black text-slate-800 dark:text-slate-100">{finance.amountUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {finance.currency}</td>
+                        <td className="px-4 py-3 text-right font-mono font-semibold text-blue-700 dark:text-blue-300">{finance.exRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                        <td className="px-4 py-3 text-right font-mono font-black text-blue-700 dark:text-blue-300">{finance.amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {localCurrency}</td>
+                        <td className="px-4 py-3 text-right font-mono font-black text-emerald-600">{advanceLocal > 0 ? advanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"} {advanceLocal > 0 ? localCurrency : ""}</td>
+                        <td className="px-4 py-3 text-right font-mono font-black text-rose-600">{balanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {localCurrency}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-slate-700 dark:text-slate-200">{h.report_payload?.loadingPort || h.loading_location || "-"} &rarr; {h.report_payload?.receivingPort || h.receiving_location || "-"}</div>
+                          <div className="mt-1 text-[10px] font-semibold text-slate-500">{h.report_payload?.loadingDate || h.loaded_at?.slice(0, 10) || "-"} &rarr; {h.report_payload?.receivingDate || "Pending"}</div>
+                        </td>
+                        <td className="px-4 py-3"><span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase text-emerald-700">Loaded</span></td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const grossWeight = Number(h.report_payload?.grossWeight || finance.grossWeight || 0);
+                                const netWeight = Number(h.report_payload?.netWeight || finance.netWeight || 0);
+                                const priceRate = Number(h.report_payload?.priceRateC1 || finance.priceRate || 0);
+                                const loadedRemainingUSD = Math.max(0, finance.amountUSD - loadedAdvanceUSD);
+                                const exchangeRate = finance.exRate || 1;
+
+                                const queryParams = new URLSearchParams({
+                                  purchaseOrderNo: record.purchase_order_no || poRow.purchase_order_no || "",
+                                  fromLoading: "true",
+                                  loadingRecordId: h.id,
+                                  blNumber: h.report_payload?.blNumber || "",
+                                  containerNumber: h.container_number || h.report_payload?.containerNumber || "",
+                                  loadedQty: String(loadedQty),
+                                  grossWeight: String(grossWeight),
+                                  netWeight: String(netWeight),
+                                  priceRate: String(priceRate),
+                                  purchaseAmount: String(finance.amountUSD),
+                                  loadedPurchaseAmount: String(finance.amountUSD),
+                                  finalAmount: String(finance.amountUSD * exchangeRate),
+                                  advanceApplied: String(loadedAdvanceUSD),
+                                  advanceAppliedLocal: String(loadedAdvanceUSD * exchangeRate),
+                                  remainingBalance: String(loadedRemainingUSD),
+                                  remainingBalanceLocal: String(loadedRemainingUSD * exchangeRate),
+                                  amount: String(loadedRemainingUSD),
+                                  exchangeRate: String(exchangeRate),
+                                  currency: finance.currency || "USD",
+                                  amountPKR: String(loadedRemainingUSD * exchangeRate)
+                                }).toString();
+                                window.open(`/dashboard/journal/purchase-order-payment/remaining?${queryParams}`, "_self");
+                              }}
+                              className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase text-blue-700 hover:bg-blue-100 hover:border-blue-300 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300 transition shadow-sm"
+                              title="Transfer Remaining Loading Balance to Journal"
+                            >
+                              <Link2 className="h-3 w-3 text-blue-600" />
+                              Transfer Remaining
+                            </button>
+                            <button onClick={() => handleEditHistory(h)} className="rounded-md border border-slate-200 p-1.5 text-blue-600 hover:border-blue-300 hover:bg-blue-50" title="Edit Entry"><Pencil className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => handleDeleteHistory(h)} disabled={savingNewLoading} className="rounded-md border border-slate-200 p-1.5 text-rose-600 hover:border-rose-300 hover:bg-rose-50 disabled:opacity-50" title="Delete Entry"><Trash2 className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => window.open(`/dashboard/purchase/purchase-loading-records/${h.id}?print=true`, "_blank")} className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:border-slate-300 hover:bg-slate-50" title="Print"><Printer className="h-3.5 w-3.5" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={14} className="px-4 py-8 text-center text-xs font-semibold text-slate-500">No saved loading records yet. Click New Loading to create the first BL/container entry.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="hidden">
             <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/40">
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Loading History</h3>
             </div>
@@ -1462,7 +1825,8 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                    {history.map((h, i) => {
                       const poRow = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders) || {};
-                      const { amountUSD, exRate, amountPKR, currency } = calcLoadingFinance(h, poRow, form);
+                      const finance = calcLoadingFinance(h, poRow, form);
+                      const { amountUSD, exRate, amountPKR, currency } = finance;
                       return (
                         <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                           <td className="px-6 py-3 text-center flex items-center justify-center gap-1">
@@ -1496,9 +1860,10 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                                   const netWeight = h.report_payload?.netWeight || 0;
                                   const priceRate = h.report_payload?.priceRateC1 || 0;
                                   
-                                  const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
-                                  const loadedAdvanceUSD = totalQuantity > 0 ? (loadedQty / totalQuantity) * poAdvanceAmt : poAdvanceAmt;
+                                  const poAdvanceAmt = normalizeAdvanceToPurchaseCurrency(Number(poRow.advance_paid || form.advanceAmount || 0), contractPurchaseAmount, finance.exRate || 1);
+                                  const loadedAdvanceUSD = Math.min(finance.amountUSD, totalQuantity > 0 ? (loadedQty / totalQuantity) * poAdvanceAmt : poAdvanceAmt);
                                   const loadedRemainingUSD = Math.max(0, finance.amountUSD - loadedAdvanceUSD);
+                                  const exchangeRate = finance.exRate || 1;
                                   
                                   const queryParams = new URLSearchParams({
                                     purchaseOrderNo: record.purchase_order_no || "",
@@ -1508,10 +1873,17 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                                     grossWeight: String(grossWeight),
                                     netWeight: String(netWeight),
                                     priceRate: String(priceRate),
+                                    purchaseAmount: String(finance.amountUSD),
+                                    loadedPurchaseAmount: String(finance.amountUSD),
+                                    finalAmount: String(finance.amountUSD * exchangeRate),
+                                    advanceApplied: String(loadedAdvanceUSD),
+                                    advanceAppliedLocal: String(loadedAdvanceUSD * exchangeRate),
+                                    remainingBalance: String(loadedRemainingUSD),
+                                    remainingBalanceLocal: String(loadedRemainingUSD * exchangeRate),
                                     amount: String(loadedRemainingUSD),
-                                    exchangeRate: String(finance.exRate || 1),
+                                    exchangeRate: String(exchangeRate),
                                     currency: finance.currency || "USD",
-                                    amountPKR: String(loadedRemainingUSD * (finance.exRate || 1))
+                                    amountPKR: String(loadedRemainingUSD * exchangeRate)
                                   }).toString();
                                   window.open(`/dashboard/journal/purchase-order-payment/remaining?${queryParams}`, "_self");
                                 }}
@@ -1531,20 +1903,18 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           <td className="px-6 py-3 font-mono font-black text-emerald-650 dark:text-emerald-400 text-right">{amountPKR > 0 ? `${amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${localCurrency}` : "-"}</td>
                           <td className="px-6 py-3 font-mono font-bold text-amber-600 dark:text-amber-400 text-right">
                             {(() => {
-                              const loadedQty = h.report_payload?.loadedQuantity || h.loadedQuantity || 0;
-                              const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
-                              const loadedAdvanceUSD = totalQuantity > 0 ? (loadedQty / totalQuantity) * poAdvanceAmt : poAdvanceAmt;
-                              const loadedAdvanceLocal = loadedAdvanceUSD * exRate;
+                              const poAdvanceAmt = normalizeAdvanceToPurchaseCurrency(Number(poRow.advance_paid || form.advanceAmount || 0), contractPurchaseAmount, exRate || 1);
+                              const loadedAdvanceUSD = (finance.proRataRatio || 0) * poAdvanceAmt;
+                              const loadedAdvanceLocal = Math.min(loadedAdvanceUSD * exRate, Math.max(0, amountPKR));
                               return loadedAdvanceLocal > 0 ? `${loadedAdvanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${localCurrency}` : "-";
                             })()}
                           </td>
                           <td className="px-6 py-3 font-mono font-black text-rose-700 dark:text-rose-500 text-right">
                             {(() => {
-                              const loadedQty = h.report_payload?.loadedQuantity || h.loadedQuantity || 0;
-                              const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
-                              const loadedAdvanceUSD = totalQuantity > 0 ? (loadedQty / totalQuantity) * poAdvanceAmt : poAdvanceAmt;
-                              const loadedAdvanceLocal = loadedAdvanceUSD * exRate;
-                              const loadedBalanceLocal = amountPKR - loadedAdvanceLocal;
+                              const poAdvanceAmt = normalizeAdvanceToPurchaseCurrency(Number(poRow.advance_paid || form.advanceAmount || 0), contractPurchaseAmount, exRate || 1);
+                              const loadedAdvanceUSD = (finance.proRataRatio || 0) * poAdvanceAmt;
+                              const loadedAdvanceLocal = Math.min(loadedAdvanceUSD * exRate, Math.max(0, amountPKR));
+                              const loadedBalanceLocal = Math.max(0, amountPKR - loadedAdvanceLocal);
                               return loadedBalanceLocal !== 0 ? `${loadedBalanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${localCurrency}` : "-";
                             })()}
                           </td>
@@ -1916,6 +2286,97 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
     }
   }
 
+  const [selectedInvoicePoNo, setSelectedInvoicePoNo] = useState("");
+  const [expandedPoNos, setExpandedPoNos] = useState<Record<string, boolean>>({});
+
+  const togglePoExpand = (poNo: string) => {
+    setExpandedPoNos(prev => ({ ...prev, [poNo]: !prev[poNo] }));
+  };
+
+  const uniqueInvoiceOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    (records || []).forEach(r => {
+      if (r.purchase_order_no) {
+        const poRow = (Array.isArray(r.purchase_orders) ? r.purchase_orders[0] : r.purchase_orders) || {};
+        const form = poRow.form_data?.form || {};
+        const supplier = form.supplierName || form.purchaseAccountName || "";
+        map.set(r.purchase_order_no, `${r.purchase_order_no}${supplier ? ` - ${supplier}` : ""}`);
+      }
+    });
+    return Array.from(map.entries()).map(([value, label]) => ({ label, value }));
+  }, [records]);
+
+  const activeInvoiceRecord = useMemo(() => {
+    if (!selectedInvoicePoNo) return null;
+    return records.find(r => r.purchase_order_no === selectedInvoicePoNo || r.id === selectedInvoicePoNo) || null;
+  }, [records, selectedInvoicePoNo]);
+
+  const poGroups = useMemo(() => {
+    const map: Record<string, {
+      poRow: any;
+      form: any;
+      records: any[];
+      totalContractQty: number;
+      totalContractGrossWeight: number;
+      totalContractNetWeight: number;
+      totalContractAmount: number;
+      currency: string;
+      totalLoadedQty: number;
+    }> = {};
+
+    for (const record of filteredRecords) {
+      const poRow = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders) || {};
+      const poData = poRow.form_data || {};
+      const form = poData.form || {};
+      const goods = poData.goodsEntries || [];
+
+      const poNo = record.purchase_order_no || poRow.purchase_order_no || "UNKNOWN";
+
+      if (!map[poNo]) {
+        const totalContractQty = goods.length > 0
+          ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || g.quantity || 0), 0)
+          : Number(form.quantity || 0);
+
+        const totalContractGrossWeight = goods.length > 0
+          ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0)
+          : Number(form.grossWeight || 0);
+
+        const totalContractNetWeight = goods.length > 0
+          ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0)
+          : Number(form.netWeight || 0);
+
+        const totalContractAmount = goods.length > 0
+          ? goods.reduce((s: number, g: any) => s + Number(g.totalAmount || 0), 0)
+          : Number(form.totalAmount || 0);
+
+        const currency = form.currencyType || form.currency || record.currency_code || "USD";
+
+        map[poNo] = {
+          poRow,
+          form,
+          records: [],
+          realRecords: [],
+          totalContractQty,
+          totalContractGrossWeight,
+          totalContractNetWeight,
+          totalContractAmount,
+          currency,
+          totalLoadedQty: 0
+        };
+      }
+
+      map[poNo].records.push(record);
+      const isSynthetic = String(record.id).startsWith("synthetic-") || record.loading_record_no === "PLR-PENDING";
+      if (!isSynthetic) {
+        map[poNo].realRecords.push(record);
+        const rQty = Number(record.report_payload?.loadedQuantity || record.report_payload?.loadingQuantity || record.loadedQuantity || 0);
+        map[poNo].totalLoadedQty += rQty;
+      }
+    }
+
+    return Object.entries(map);
+  }, [filteredRecords]);
+
   return (
     <div className="w-full max-w-none space-y-4 px-2 py-3 text-slate-900 dark:text-slate-100 sm:px-4">
       {selectedLoadDetailsRecord && (
@@ -1923,13 +2384,23 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
       )}
       {actionsSlot && createPortal(
         <div className="flex flex-wrap items-center gap-1.5 print:hidden">
+          <SearchableSelect
+            value={selectedInvoicePoNo}
+            onChange={(val) => setSelectedInvoicePoNo(val)}
+            options={[
+              { label: "All Invoices / POs", value: "" },
+              ...uniqueInvoiceOptions
+            ]}
+            placeholder="Select Purchase Invoice / PO..."
+            className="w-60 text-xs font-semibold relative z-[45]"
+          />
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search container / loading no / PO"
-              className="h-8 w-60 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+              className="h-8 w-52 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-100"
             />
           </div>
           <SearchableSelect
@@ -1946,9 +2417,84 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
           <Button type="button" size="sm" variant="outline" onClick={() => window.print()} className="h-8 rounded-lg border-slate-200 text-xs font-bold">
             <Printer className="mr-1.5 h-3.5 w-3.5 text-slate-500" /> Print
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              if (confirm("Clear all old test loading records and populate 3 fresh test loading entries?")) {
+                setLoading(true);
+                try {
+                  const res = await fetch("/api/erp/purchases/loading-records/reset-test-data", { method: "POST" });
+                  const data = await res.json();
+                  if (data.ok) {
+                    setMessage("Old test records cleared and 3 fresh loading entries created.");
+                    await loadRecords();
+                  } else {
+                    setMessage("Error resetting test data: " + (data.error || "Failed"));
+                  }
+                } catch (err: any) {
+                  setMessage("Error resetting test data: " + err.message);
+                } finally {
+                  setLoading(false);
+                }
+              }
+            }}
+            className="h-8 rounded-lg border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300 text-xs font-bold"
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5 text-rose-500" /> Reset Test Data
+          </Button>
         </div>,
         actionsSlot
       )}
+
+      {/* Selected Purchase Invoice / Approved Contract Summary Card (Requirement 2) */}
+      {activeInvoiceRecord && (() => {
+        const poRow = (Array.isArray(activeInvoiceRecord.purchase_orders) ? activeInvoiceRecord.purchase_orders[0] : activeInvoiceRecord.purchase_orders) || {};
+        const formData = poRow.form_data || {};
+        const form = formData.form || {};
+        const goods = formData.goodsEntries || [];
+        const finance = calcLoadingFinance(activeInvoiceRecord, poRow, form);
+        const totalPOQty = finance.totalQuantity || 1;
+        const poOrderTotalFC = Number(poRow.order_total || formData.totals?.grandFinal || form.totalAmount || 0);
+        const poOrderTotalLC = poOrderTotalFC * finance.exRate;
+        const poAdvancePaid = normalizeAdvanceToPurchaseCurrency(
+          Number(poRow.advance_paid || form.advanceAmount || 0),
+          poOrderTotalFC,
+          finance.exRate || 1
+        );
+        const poAdvancePaidLC = Math.min(poAdvancePaid * finance.exRate, Math.max(0, poOrderTotalLC));
+        const poRemainingDueLC = Math.max(0, poOrderTotalLC - poAdvancePaidLC);
+        const countryName = (activeInvoiceRecord.countries?.name || form.branchCountry || "").toLowerCase();
+        const localCur = form.branchCurrency || poRow?.countries?.currency || (countryName.includes("emirate") || countryName.includes("uae") ? "AED" : "PKR");
+
+        return (
+          <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 mb-4 dark:border-blue-900/40 dark:bg-blue-950/20 shadow-sm animate-in fade-in">
+            <div className="flex items-center justify-between mb-3 border-b border-blue-100 pb-2 dark:border-blue-900/40">
+              <div className="flex items-center gap-2">
+                <span className="rounded font-mono font-black text-xs bg-blue-600 text-white px-2.5 py-0.5">SELECTED PO: {activeInvoiceRecord.purchase_order_no}</span>
+                <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Approved Invoice & Contract Details (Read-Only Source of Truth)</span>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedInvoicePoNo("")} className="h-6 text-[10px] font-bold text-blue-600 hover:text-blue-800">✕ Clear Selection</Button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3 text-[11px] font-semibold">
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Purchase Code</span><span className="font-mono font-bold text-slate-800 dark:text-slate-100">{form.purchaseAccountNumber || form.purchaseAccountNo || "-"}</span></div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Sales Code</span><span className="font-mono font-bold text-slate-800 dark:text-slate-100">{form.salesAccountNumber || form.salesAccountNo || "-"}</span></div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Supplier</span><span className="font-bold text-slate-800 dark:text-slate-100 truncate block">{form.supplierName || form.purchaseAccountName || "-"}</span></div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Company & Branch</span><span className="font-bold text-slate-800 dark:text-slate-200 truncate block">{form.branchName || "Main Branch"}</span></div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Goods & Brand</span><span className="font-bold text-slate-800 dark:text-slate-200 truncate block">{form.goodsName || form.itemName || "-"} ({form.brand || "-"})</span></div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Contract Qty (Bags)</span><span className="font-mono font-black text-slate-800 dark:text-slate-100">{totalPOQty.toLocaleString()}</span></div>
+              
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Purchase Rate</span><span className="font-mono font-bold text-blue-600">{finance.priceRate > 0 ? `${finance.priceRate.toLocaleString()} ${finance.currency}` : "-"}</span></div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Exchange Rate</span><span className="font-mono font-bold text-blue-600">{finance.exRate}</span></div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Total Purchase Amount</span><span className="font-mono font-black text-slate-800 dark:text-slate-100">{poOrderTotalFC.toLocaleString(undefined, {minimumFractionDigits: 2})} {finance.currency}</span></div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800"><span className="text-slate-400 block text-[9px] uppercase">Total Advance Paid</span><span className="font-mono font-black text-emerald-600">{poAdvancePaidLC.toLocaleString(undefined, {minimumFractionDigits: 2})} {localCur}</span></div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm dark:bg-slate-900 dark:border-slate-800 col-span-2"><span className="text-slate-400 block text-[9px] uppercase">Total Remaining Balance</span><span className="font-mono font-black text-rose-600">{poRemainingDueLC.toLocaleString(undefined, {minimumFractionDigits: 2})} {localCur}</span></div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Super Admin Country Report Dashboard Header */}
       {loadingSummaryRows.length > 0 && (() => {
@@ -1957,6 +2503,8 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
         let totalPurchaseValue = 0;
         let totalLoadedValue = 0;
         let activeBranchesCount = 0;
+        let totalGrossWeight = 0;
+        let totalNetWeight = 0;
         
         loadingSummaryRows.forEach(r => {
           totalPoQty += r.totalQuantity;
@@ -1964,6 +2512,12 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
           totalPurchaseValue += r.purchaseValue;
           totalLoadedValue += r.loadedValue;
           activeBranchesCount += r.branches.length;
+        });
+
+        (records || []).forEach(rec => {
+          const payload = (rec as any).report_payload || {};
+          totalGrossWeight += Number(payload.grossWeight || payload.gross_weight || (rec as any).gross_weight || 0);
+          totalNetWeight += Number(payload.netWeight || payload.net_weight || (rec as any).net_weight || 0);
         });
 
         const activeCountriesCount = loadingSummaryRows.length;
@@ -2088,16 +2642,20 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
                 </div>
                 <div className="p-4 flex flex-col gap-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 h-full">
                   <div className="flex justify-between items-center">
-                    <span>Total PO Qty (Bags):</span>
-                    <span className="font-black text-slate-800 dark:text-slate-200 font-mono">{totalPoQty.toLocaleString()}</span>
+                    <span>Total Loaded Qty:</span>
+                    <span className="font-bold text-emerald-600 font-mono">{totalLoadedQty.toLocaleString()} Bags</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>Total Loaded Qty:</span>
-                    <span className="font-bold text-emerald-600 font-mono">{totalLoadedQty.toLocaleString()}</span>
+                    <span>Gross Weight:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{totalGrossWeight.toLocaleString()} KG</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Net Weight:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{totalNetWeight.toLocaleString()} KG</span>
                   </div>
                   <div className="flex justify-between items-center mt-1 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <span className="text-rose-600 dark:text-rose-500 font-bold uppercase">Total Remaining Qty:</span>
-                    <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{totalRemainingQty.toLocaleString()}</span>
+                    <span className="font-black text-rose-700 dark:text-rose-400 font-mono">{totalRemainingQty.toLocaleString()} Bags</span>
                   </div>
                   
                   <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -2240,29 +2798,29 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
               <thead>
                 <tr className="bg-slate-50/80 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
                     {[
+                      "Expand",
                       "SR#",
                       "Country",
                       "Branch",
-                      "User Name",
-                      "Loading No",
                       "Purchase Booking No.",
                       "Sales Account",
                       "Purchase Account",
                       "Goods",
-                      "Quantity",
-                      "Net Weight",
-                      "Gross Weight",
-                      "Purchase Amount",
+                      "Contract Qty",
+                      "Gross Wt",
+                      "Tare Wt (Empty)",
+                      "Net Wt",
+                      "Purchase Price Rate",
+                      "Total Purchase Amount (FC)",
+                      "Purchase Advance (FC)",
+                      "Purchase Remaining (FC)",
                       "Exchange Rate",
-                      "Advance Amount",
-                      "Balance Amount",
-                      "Payment Date",
-                      "Loading Country",
-                      "Loading Port",
-                      "Loading Date",
-                      "Received Country",
-                      "Received Port",
-                      "Received Date",
+                      "Final Amount (LC)",
+                      "Final Advance (LC)",
+                      "Final Remaining (LC)",
+                      "Loaded Qty",
+                      "Remaining to Load",
+                      "Loading Status",
                       "Action"
                     ].map((head) => (
                       <th key={head} className="whitespace-nowrap px-4 py-3 border-b border-slate-100 dark:border-slate-800">
@@ -2274,111 +2832,269 @@ export function PurchaseLoadingRecordsView({ openRecordId }: { openRecordId?: st
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
                     <tr>
-                      <td colSpan={23} className="px-3 py-8 text-center text-muted-foreground">
+                      <td colSpan={24} className="px-3 py-8 text-center text-muted-foreground">
                         Loading records...
                       </td>
                     </tr>
-                  ) : filteredRecords.length ? (
-                    filteredRecords.map((record, index) => {
-                      const poData = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders)?.form_data || {};
-                      const poRow = (Array.isArray(record.purchase_orders) ? record.purchase_orders[0] : record.purchase_orders) || {};
-                      const form = poData.form || {};
-                      
-                      // Account Info
+                  ) : poGroups.length ? (
+                    poGroups.map(([poNo, group], groupIdx) => {
+                      const { poRow, form, records, realRecords, totalContractQty, totalContractGrossWeight, totalContractNetWeight, totalContractAmount, currency, totalLoadedQty } = group;
+                      const isExpanded = !!expandedPoNos[poNo];
+                      const displayRecords = realRecords;
+
                       const salesAccountNo = form.salesAccountNumber || form.salesAccountNo || "-";
                       const salesAccountName = form.salesAccountName || "-";
                       const purchaseAccountNo = form.purchaseAccountNumber || form.purchaseAccountNo || "-";
                       const purchaseAccountName = form.purchaseAccountName || "-";
-                      
-                      // Goods
-                      const goods = poData.goodsEntries || [];
+
+                      const goods = poRow.form_data?.goodsEntries || [];
                       const goodsName = goods.map((g: any) => g.goodsName || g.item_name).filter(Boolean).join(", ") || form.itemName || "-";
                       const goodsDetails = goods.map((g: any) => g.brand || g.size || g.item_details).filter(Boolean).join(", ") || form.itemDetails || "-";
                       const combinedGoods = goodsName !== "-" ? `${goodsName}${goodsDetails !== "-" ? ` - ${goodsDetails}` : ""}` : "-";
-                      const totalQty = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.qtyNo || g.quantity || 0), 0) : Number(form.quantity || 0);
-                      const totalNet = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.netWeight || 0), 0) : Number(form.netWeight || 0);
-                      const totalGross = goods.length > 0 ? goods.reduce((s: number, g: any) => s + Number(g.grossWeight || 0), 0) : Number(form.grossWeight || 0);
-                      
-                      // Specific values for this loaded record
-                      const finance = calcLoadingFinance(record, poRow, form);
-                      const loadedQty = Number(record.report_payload?.loadedQuantity || record.report_payload?.loadingQuantity || record.loadedQuantity || totalQty || 0);
-                      const netWeight = finance.netWeight;
-                      const grossWeight = finance.grossWeight;
-                      
-                      const loadedUSD = finance.amountUSD;
-                      const loadedExRate = finance.exRate;
-                      const loadedPKR = finance.amountPKR;
-                      const loadedCurrency = finance.currency;
 
-                      // Proportional advance amount for this loaded record
-                      const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
-                      const loadedAdvanceAmt = totalQty > 0 ? (loadedQty / totalQty) * poAdvanceAmt : poAdvanceAmt;
-                      const loadedAdvancePKR = loadedAdvanceAmt * loadedExRate;
-                      const loadedBalancePKR = loadedPKR - loadedAdvancePKR;
-                      
-                      // Determine Base Currency
-                      const countryNameForCurrency = (record.countries?.name || form.branchCountry || "").toLowerCase();
-                      const baseCurrency = record.countries?.currency || form.branchCurrency || (countryNameForCurrency.includes("emirate") || countryNameForCurrency.includes("uae") ? "AED" : countryNameForCurrency.includes("afghanistan") ? "AFN" : countryNameForCurrency.includes("iran") ? "IRR" : countryNameForCurrency.includes("china") ? "CNY" : countryNameForCurrency.includes("india") ? "INR" : "PKR");
+                      const remainingQtyToLoad = Math.max(0, totalContractQty - totalLoadedQty);
+                      const exRate = Number(poRow.exchange_rate || form.exchangeRate || 1);
+                      const rawAdvance = Number(poRow.advance_paid || form.advanceAmount || 0);
 
-                      const loadedAmtPKRStr = loadedUSD > 0 ? `${loadedUSD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${loadedCurrency}` : "-";
-                      const loadedAdvancePKRStr = loadedAdvancePKR > 0 ? `${loadedAdvancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${baseCurrency}` : "-";
-                      const loadedBalancePKRStr = loadedBalancePKR !== 0 ? `${loadedBalancePKR.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${baseCurrency}` : "-";
-                      
-                      const paymentDate = form.advancePaymentDate || form.paymentDate || form.clearanceDate || "Nil";
-                      
-                      // Logistics
-                      const loadingCountry = form.loadingCountry || form.originCountry || "-";
-                      const loadingPort = form.loadingPort || form.exitPort || "-";
-                      const loadingDateVal = form.loadingDate || "-";
-                      const receivingCountry = form.receivedCountry || form.destinationCountry || "-";
-                      const receivingPort = form.receivedPort || form.destinationPort || "-";
-                      const receivingDateVal = form.receivedDate || form.arrivalDate || "-";
-                      
-                      const countryLabel = `${record.countries?.name || form.branchCountry || "-"}${record.countries?.iso2 ? ` (${record.countries.iso2})` : ""}`;
-                      const branchLabel = `${record.country_branches?.name || form.branchName || "-"}${record.country_branches?.code ? ` (${record.country_branches.code})` : ""}`;
-                      const adminLabel = form.userName || form.userId || "-";
+                      const contractTareWeight = Math.max(0, totalContractGrossWeight - totalContractNetWeight);
+                      const priceRate = totalContractQty > 0 ? (totalContractAmount / totalContractQty) : 0;
+                      const purchaseAdvanceUSD = normalizeAdvanceToPurchaseCurrency(rawAdvance, totalContractAmount, exRate);
+                      const purchaseRemainingUSD = Math.max(0, totalContractAmount - purchaseAdvanceUSD);
+
+                      const localCurrencyCode = records[0]?.countries?.currency || form.branchCurrency || "PKR";
+                      const finalAmountLC = totalContractAmount * exRate;
+                      const finalAdvanceLC = purchaseAdvanceUSD * exRate;
+                      const finalRemainingLC = Math.max(0, finalAmountLC - finalAdvanceLC);
+
+                      const countryLabel = `${records[0]?.countries?.name || form.branchCountry || "-"}${records[0]?.countries?.iso2 ? ` (${records[0].countries.iso2})` : ""}`;
+                      const branchLabel = `${records[0]?.country_branches?.name || form.branchName || "-"}${records[0]?.country_branches?.code ? ` (${records[0].country_branches.code})` : ""}`;
+
+                      const isFullyLoaded = totalLoadedQty >= totalContractQty && totalContractQty > 0;
+                      const isPartiallyLoaded = totalLoadedQty > 0 && totalLoadedQty < totalContractQty;
 
                       return (
-                        <tr key={record.id} className="transition hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <td className="whitespace-nowrap px-4 py-2 text-[10px] font-bold text-slate-400">{String(index + 1).padStart(2, "0")}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-semibold">{countryLabel}</td>
-                          <td className="whitespace-nowrap px-4 py-2 text-slate-500">{branchLabel}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-semibold">{adminLabel}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-bold text-blue-600">{record.loading_record_no}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-semibold">{record.purchase_order_no ? <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-200"><Link2 className="h-3 w-3 text-blue-500" />{record.purchase_order_no}</span> : "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 leading-tight">
-                            <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-350">{salesAccountNo}</div>
-                            <div className="text-slate-400 text-[9px] uppercase tracking-wider">{salesAccountName}</div>
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-2 leading-tight">
-                            <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-350">{purchaseAccountNo}</div>
-                            <div className="text-slate-400 text-[9px] uppercase tracking-wider">{purchaseAccountName}</div>
-                          </td>
-                          <td className="min-w-[150px] px-4 py-2 text-[11px] text-slate-600 dark:text-slate-300">{combinedGoods}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono">{loadedQty || "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono">{netWeight || "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono">{grossWeight || "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-emerald-600 dark:text-emerald-400">{loadedAmtPKRStr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px] font-semibold text-slate-400">{loadedExRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-bold text-[#0f2942] dark:text-amber-400">{loadedAdvancePKRStr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono font-black text-rose-700 dark:text-rose-500">{loadedBalancePKRStr}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px]">{paymentDate}</td>
-                          <td className="whitespace-nowrap px-4 py-2">{loadingCountry}</td>
-                          <td className="whitespace-nowrap px-3 py-2">{record.loading_location || loadingPort || "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px]">{record.loaded_at ? new Date(record.loaded_at).toLocaleDateString() : (loadingDateVal || "-")}</td>
-                          <td className="whitespace-nowrap px-4 py-2">{receivingCountry}</td>
-                          <td className="whitespace-nowrap px-4 py-2">{record.receiving_location || receivingPort || "-"}</td>
-                          <td className="whitespace-nowrap px-4 py-2 font-mono text-[10px]">{receivingDateVal}</td>
-                          <td className="whitespace-nowrap px-4 py-2">
-                            <CustomDropdown record={record} onLoadDetails={setSelectedLoadDetailsRecord} />
-                          </td>
-                        </tr>
+                        <React.Fragment key={poNo}>
+                          {/* Main Purchase Booking Parent Row */}
+                          <tr className={cn(
+                            "transition font-semibold",
+                            isExpanded ? "bg-blue-50/40 dark:bg-blue-950/20" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                          )}>
+                            <td className="whitespace-nowrap px-3 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => togglePoExpand(poNo)}
+                                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-300 bg-white font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                              >
+                                {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-blue-600" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-500" />}
+                              </button>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-[10px] font-bold text-slate-400">{String(groupIdx + 1).padStart(2, "0")}</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-semibold">{countryLabel}</td>
+                            <td className="whitespace-nowrap px-4 py-3 text-slate-500">{branchLabel}</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-bold text-blue-600">
+                              <span className="inline-flex items-center gap-1.5">
+                                <Link2 className="h-3.5 w-3.5 text-blue-500" />
+                                {poNo}
+                              </span>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 leading-tight">
+                              <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{salesAccountNo}</div>
+                              <div className="text-slate-400 text-[9px] uppercase tracking-wider">{salesAccountName}</div>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 leading-tight">
+                              <div className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{purchaseAccountNo}</div>
+                              <div className="text-slate-400 text-[9px] uppercase tracking-wider">{purchaseAccountName}</div>
+                            </td>
+                            <td className="min-w-[150px] px-4 py-3 text-[11px] text-slate-700 dark:text-slate-200">{combinedGoods}</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono font-black text-slate-900 dark:text-slate-100">{totalContractQty.toLocaleString()} Bags</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono">{totalContractGrossWeight.toLocaleString()} kg</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-500">{contractTareWeight.toLocaleString()} kg</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono">{totalContractNetWeight.toLocaleString()} kg</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-700 dark:text-slate-300">
+                              {priceRate > 0 ? `${priceRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${currency}` : "-"}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono font-black text-emerald-600 dark:text-emerald-400">
+                              {totalContractAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono font-bold text-amber-600">
+                              {purchaseAdvanceUSD > 0 ? `${purchaseAdvanceUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}` : "-"}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono font-bold text-rose-600">
+                              {purchaseRemainingUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono text-[10px] text-slate-500">{exRate}</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono font-black text-blue-700 dark:text-blue-300">
+                              {finalAmountLC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {localCurrencyCode}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono font-bold text-amber-600">
+                              {finalAdvanceLC > 0 ? `${finalAdvanceLC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${localCurrencyCode}` : "-"}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono font-black text-rose-600">
+                              {finalRemainingLC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {localCurrencyCode}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono font-black text-teal-600 dark:text-teal-400">{totalLoadedQty.toLocaleString()} Bags</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono font-black text-rose-600">{remainingQtyToLoad.toLocaleString()} Bags</td>
+                            <td className="whitespace-nowrap px-4 py-3">
+                              {isFullyLoaded ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase text-white shadow-sm dark:bg-black">
+                                  100% Fully Loaded
+                                </span>
+                              ) : isPartiallyLoaded ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-1 text-[10px] font-black uppercase text-amber-950 shadow-sm">
+                                  {((totalLoadedQty / totalContractQty) * 100).toFixed(0)}% Partially Loaded
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-black uppercase text-white shadow-sm animate-pulse">
+                                  0% Loaded (Pending)
+                                </span>
+                              )}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3">
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedLoadDetailsRecord(records[0])}
+                                  className="h-7 px-2 text-[10px] font-bold uppercase text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 gap-1 shadow-sm"
+                                >
+                                  <Plus className="h-3 w-3 text-emerald-600" />
+                                  Add Loading
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => togglePoExpand(poNo)}
+                                  className="h-7 px-2 text-[10px] font-bold uppercase tracking-wider gap-1"
+                                >
+                                  <Ship className="h-3 w-3 text-blue-600" />
+                                  {isExpanded ? "Hide" : `View (${displayRecords.length})`}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Expanded Child Loading Breakdown Table */}
+                          {isExpanded && (
+                            <tr className="bg-slate-100/70 dark:bg-slate-950/60">
+                              <td colSpan={24} className="p-4">
+                                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-md dark:border-slate-800 dark:bg-slate-900 space-y-3">
+                                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                                    <div className="flex items-center gap-2">
+                                      <div className="rounded bg-blue-50 p-1.5 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
+                                        <Ship className="h-4 w-4" />
+                                      </div>
+                                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                                        Container Shipment Loading Breakdown for <span className="text-blue-600">{poNo}</span>
+                                      </h4>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-500 font-mono">
+                                      Loaded: {totalLoadedQty.toLocaleString()} / {totalContractQty.toLocaleString()} Bags
+                                    </span>
+                                  </div>
+
+                                  {displayRecords.length > 0 ? (
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-left text-xs whitespace-nowrap border-collapse">
+                                        <thead>
+                                          <tr className="bg-slate-50 text-[9px] font-black uppercase tracking-wider text-slate-500 border-b dark:bg-slate-950">
+                                            <th className="px-3 py-2">Loading #</th>
+                                            <th className="px-3 py-2">BL Number</th>
+                                            <th className="px-3 py-2">Container #</th>
+                                            <th className="px-3 py-2">Vessel / Carrier</th>
+                                            <th className="px-3 py-2 text-right">Loaded Qty</th>
+                                            <th className="px-3 py-2 text-right">Net Wt</th>
+                                            <th className="px-3 py-2 text-right">Gross Wt</th>
+                                            <th className="px-3 py-2 text-right">Loaded Purchase</th>
+                                            <th className="px-3 py-2 text-right">Advance Applied</th>
+                                            <th className="px-3 py-2 text-right">Remaining Balance</th>
+                                            <th className="px-3 py-2">Loading Route & Date</th>
+                                            <th className="px-3 py-2 text-center">Action</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                          {displayRecords.map((r, childIdx) => {
+                                            const payload = r.report_payload || {};
+                                            const loadedQty = Number(payload.loadedQuantity || r.loadedQuantity || 0);
+                                            const finance = calcLoadingFinance(r, poRow, form);
+                                            const blNo = payload.blNumber || "-";
+                                            const containerNo = r.container_number || payload.containerNumber || "-";
+                                            const vessel = payload.vesselName || r.carrier_name || "-";
+                                            const route = [payload.loadingPort || r.loading_location, payload.receivingPort || r.receiving_location].filter(Boolean).join(" ➔ ") || "-";
+                                            const loadingDateStr = payload.loadingDate || (r.loaded_at ? new Date(r.loaded_at).toLocaleDateString() : "-");
+                                            const poAdvanceAmt = Number(poRow.advance_paid || form.advanceAmount || 0);
+                                            const advanceUSD = (finance.proRataRatio || 0) * poAdvanceAmt;
+                                            const advanceLocal = Math.min(advanceUSD * finance.exRate, Math.max(0, finance.amountPKR));
+                                            const balanceLocal = Math.max(0, (finance.amountPKR || 0) - advanceLocal);
+                                            const childCurrency = records[0]?.countries?.currency || form.branchCurrency || "PKR";
+
+                                            return (
+                                              <tr key={r.id || childIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                <td className="px-3 py-2 font-mono font-bold text-blue-600">{r.loading_record_no}</td>
+                                                <td className="px-3 py-2 font-mono font-semibold text-slate-700 dark:text-slate-300">{blNo}</td>
+                                                <td className="px-3 py-2 font-mono font-bold text-slate-800 dark:text-slate-100">{containerNo}</td>
+                                                <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{vessel}</td>
+                                                <td className="px-3 py-2 text-right font-mono font-black text-emerald-600">{loadedQty.toLocaleString()} Bags</td>
+                                                <td className="px-3 py-2 text-right font-mono text-slate-600 dark:text-slate-400">{finance.netWeight.toLocaleString()} kg</td>
+                                                <td className="px-3 py-2 text-right font-mono text-slate-600 dark:text-slate-400">{finance.grossWeight.toLocaleString()} kg</td>
+                                                <td className="px-3 py-2 text-right font-mono font-bold text-slate-800 dark:text-slate-100">
+                                                  {finance.amountUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {finance.currency}
+                                                </td>
+                                                <td className="px-3 py-2 text-right font-mono font-bold text-amber-600">
+                                                  {advanceLocal > 0 ? `${advanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${childCurrency}` : "-"}
+                                                </td>
+                                                <td className="px-3 py-2 text-right font-mono font-black text-rose-600">
+                                                  {balanceLocal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {childCurrency}
+                                                </td>
+                                                <td className="px-3 py-2 text-[10px]">
+                                                  <div className="font-semibold text-slate-700 dark:text-slate-300">{route}</div>
+                                                  <div className="text-slate-400 font-mono">{loadingDateStr}</div>
+                                                </td>
+                                                <td className="px-3 py-2 text-center">
+                                                  <div className="flex items-center justify-center gap-1.5">
+                                                    <Button
+                                                      type="button"
+                                                      size="sm"
+                                                      onClick={() => handleInitiateTransfer(r)}
+                                                      className="h-6 px-2 text-[9px] font-bold uppercase bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm"
+                                                    >
+                                                      Transfer to Journal
+                                                    </Button>
+                                                    <CustomDropdown record={r} onLoadDetails={setSelectedLoadDetailsRecord} />
+                                                  </div>
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <div className="p-6 text-center space-y-3 bg-slate-50/50 dark:bg-slate-950/40 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
+                                      <p className="text-xs font-semibold text-slate-500">No container shipment loadings created yet for Purchase Booking <span className="font-bold text-blue-600">{poNo}</span>.</p>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={() => setSelectedLoadDetailsRecord(records[0])}
+                                        className="h-8 px-4 text-xs font-bold uppercase bg-blue-600 hover:bg-blue-700 text-white rounded-lg gap-1.5 shadow-sm"
+                                      >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Create First Loading Entry
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={23} className="px-3 py-8 text-center text-muted-foreground">
-                        No loading records found.
+                      <td colSpan={18} className="px-3 py-8 text-center text-muted-foreground">
+                        No purchase loading records found.
                       </td>
                     </tr>
                   )}
@@ -2436,4 +3152,22 @@ function SelectField({ label, value, options, onChange }: { label: string; value
     </label>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
