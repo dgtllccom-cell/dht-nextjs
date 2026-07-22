@@ -200,6 +200,7 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
   const [editingLoadingId, setEditingLoadingId] = useState<string | null>(null);
   const [containerNumberInput, setContainerNumberInput] = useState("");
   const [sealNumberInput, setSealNumberInput] = useState("");
+  const [currentContainerIndex, setCurrentContainerIndex] = useState(1);
 
   const [newLoadingQuantity, setNewLoadingQuantity] = useState("");
   const [newLoadingDate, setNewLoadingDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -741,33 +742,51 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) throw new Error(payload.error?.message || payload.error || "Loading entry was not saved.");
-      setLoadingMessage(`Saved: ${payload.data?.loadingRecordNo || "new loading entry"}`);
-      setEditingLoadingId(null);
-      setFormStep(1);
-      setNewLoadingQuantity("");
-      setNewLoadingNote("");
-      setBlNumber("");
-      setContainerCount("1");
-      setLoadingCountryState(loadingCountry !== "-" ? loadingCountry : "");
-      setLoadingPortState(loadingPort !== "-" ? loadingPort : "");
-      setReceivingCountryState(receivingCountry !== "-" ? receivingCountry : "");
-      setReceivingPortState(receivingPort !== "-" ? receivingPort : "");
-      setReceivingDateState(form.receivedDate || form.arrivalDate || "");
-      setVesselName("");
-      setOriginCountry("India");
-      setGoodsName("");
-      setHsCode("0000");
-      setAllotName("ALT-4733");
-      setBrand("");
-      setSizeSpec("");
-      setQtyName("BAGS");
-      setQuantityNo("");
-      setOneQtyKgs("");
-      setOneEmptyKgs("");
-      setDivideType("D/KGs");
-      setDivideWeightValue("1");
-      setPriceType("P/KGs");
-      setPriceRateC1("");
+      
+      const totalContainers = Math.max(1, Number(containerCount) || 1);
+      if (currentContainerIndex < totalContainers) {
+        const nextIdx = currentContainerIndex + 1;
+        setCurrentContainerIndex(nextIdx);
+        setContainerNumberInput("");
+        setSealNumberInput("");
+        setQuantityNo("");
+        setNewLoadingQuantity("");
+        setLoadingMessage(`✓ Saved Container ${currentContainerIndex} of ${totalContainers} for B/L ${blNumber || record.purchase_order_no}! Please enter details for Container #${nextIdx}.`);
+      } else {
+        setCurrentContainerIndex(1);
+        setLoadingMessage(`✓ All ${totalContainers} container(s) saved for B/L ${blNumber || "record"}!`);
+        setEditingLoadingId(null);
+        setFormStep(1);
+        setNewLoadingQuantity("");
+        setNewLoadingNote("");
+        setBlNumber("");
+        setContainerCount("1");
+        setContainerNumberInput("");
+        setSealNumberInput("");
+        setLoadingCountryState(loadingCountry !== "-" ? loadingCountry : "");
+        setLoadingPortState(loadingPort !== "-" ? loadingPort : "");
+        setReceivingCountryState(receivingCountry !== "-" ? receivingCountry : "");
+        setReceivingPortState(receivingPort !== "-" ? receivingPort : "");
+        setReceivingDateState(form.receivedDate || form.arrivalDate || "");
+        setVesselName("");
+        setOriginCountry("India");
+        setGoodsName("");
+        setHsCode("0000");
+        setAllotName("ALT-4733");
+        setBrand("");
+        setSizeSpec("");
+        setQtyName("BAGS");
+        setQuantityNo("");
+        setOneQtyKgs("");
+        setOneEmptyKgs("");
+        setDivideType("D/KGs");
+        setDivideWeightValue("1");
+        setPriceType("P/KGs");
+        setPriceRateC1("");
+        setQualityReportRef("Passed");
+        setPricingCurrency("USD");
+        setExchangeRatePKR(defaultExRate);
+      }
       setQualityReportRef("Passed");
       setPricingCurrency("USD");
       setExchangeRatePKR("287");
@@ -1014,8 +1033,22 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                     </>
                   ) : formStep === 2 ? (
                     <div className="flex flex-col h-full pr-1 pt-2 pb-4">
-                      <div className="mb-4">
+                      <div className="mb-2 flex items-center justify-between">
                         <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">GOODS ENTRY</h4>
+                      </div>
+
+                      <div className="mb-3 flex items-center justify-between rounded-lg bg-blue-50 p-2.5 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-800">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded bg-blue-600 px-2 py-0.5 text-[10px] font-black uppercase text-white">
+                            B/L {blNumber || record.purchase_order_no || "ENTRY"}
+                          </span>
+                          <span className="text-xs font-black text-blue-900 dark:text-blue-100">
+                            Container {currentContainerIndex} of {Math.max(1, Number(containerCount) || 1)}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300">
+                          {Number(containerCount) > 1 ? `Container #${currentContainerIndex} Entry` : "Single Container Entry"}
+                        </span>
                       </div>
 
                       <div className="rounded-lg border border-slate-200 bg-slate-50/90 p-2.5 mb-4 text-[10px] space-y-2 dark:border-slate-800 dark:bg-slate-900/60 shadow-xs">
@@ -1251,19 +1284,18 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                           Back
                         </Button>
                         <Button type="button" onClick={() => void saveNewLoading()} disabled={savingNewLoading || !newQuantity || !containerNumberInput} className="rounded-full h-9 bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700 shadow-sm transition active:scale-[0.98] disabled:opacity-50">
-                          {savingNewLoading ? "Saving..." : "Save Loading"}
+                          {savingNewLoading ? "Saving..." : Number(containerCount) > 1 && currentContainerIndex < Number(containerCount) ? `Save & Next Container (${currentContainerIndex + 1}/${containerCount})` : "Save Loading"}
                         </Button>
                       </div>
 
                     </div>
                   ) : null}
-                </div>
               </div>
             )}
             
             <div className="flex flex-col gap-6 min-w-0">
               <div className={cn("grid gap-4", showNewLoading ? "grid-cols-1 lg:grid-cols-2 2xl:grid-cols-4" : "grid-cols-1 lg:grid-cols-4")}>
-            {/* BRANCH & BILL DETAILS (Combined) */}
+            {/* BRANCH & BILL DETAILS (Matching Picture 1 Design) */}
             <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
               <div className="flex items-center gap-3">
                 <div className="rounded-md bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
@@ -1273,13 +1305,21 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
               </div>
               <div className="space-y-3">
                 <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Branch Name</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Branch / Bill No.</div>
                   <div className="text-sm font-bold text-blue-600 dark:text-blue-400">{branchLabel}</div>
                 </div>
                 <div className="space-y-2 pt-2">
                   <div className="flex justify-between items-center text-[11px]">
                     <span className="text-slate-500">User Admin:</span>
-                    <span className="font-bold text-emerald-600 uppercase">{adminLabel}</span>
+                    <span className="font-bold text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded text-[10px] dark:bg-emerald-950/50">{adminLabel}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">User ID:</span>
+                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{form.userId || form.userCode || "ADM-001"}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Session Timestamp:</span>
+                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{new Date().toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center text-[11px]">
                     <span className="text-slate-500">Location:</span>
@@ -1300,6 +1340,10 @@ function LoadDetailsModal({ record, onClose, onSaved }: { record: LoadingRecord;
                   <div className="flex justify-between items-center text-[11px]">
                     <span className="font-bold text-blue-600 dark:text-blue-400">Branch Serial:</span>
                     <span className="font-bold text-blue-600 dark:text-blue-400">{record.loading_record_no}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Branch Mobile:</span>
+                    <span className="font-mono font-bold text-blue-600">{form.branchMobile || "+92-300-1234567"}</span>
                   </div>
                   <div className="flex justify-between items-center text-[11px]">
                     <span className="text-slate-500">Loading Mode:</span>
